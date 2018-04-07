@@ -212,15 +212,15 @@ namespace DustyBot.Modules
                 if (channel.Id != settings.RoleChannel)
                     return;
 
+                var user = message.Author as IGuildUser;
+                if (user == null)
+                    return;
+
+                if (user.IsBot)
+                    return;
+
                 try
                 {
-                    var user = message.Author as IGuildUser;
-                    if (user == null)
-                        return;
-
-                    if (user.IsBot)
-                        return;
-
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Message", message.Content + "\" by " + message.Author.Username + " (" + message.Author.Id + ")"));
 
                     string msgContent = message.Content.Trim();
