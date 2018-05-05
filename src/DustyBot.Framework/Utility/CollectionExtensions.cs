@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Utility
 {
-    static class CollectionExtensions
+    public static class CollectionExtensions
     {
         public static void ForEach<T>(this IEnumerable<T> source, Action<T> action)
         {

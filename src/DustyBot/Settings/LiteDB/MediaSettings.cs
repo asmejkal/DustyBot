@@ -12,5 +12,7 @@ namespace DustyBot.Settings.LiteDB
     public class MediaSettings : ServerSettings, IMediaSettings
     {
         public List<ComebackInfo> YouTubeComebacks { get; set; } = new List<ComebackInfo>();
+        public HashSet<ulong> ScheduleMessages { get; set; } = new HashSet<ulong>();
+        public ulong ScheduleChannel { get; set; }
     }
 }

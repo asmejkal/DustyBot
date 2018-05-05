@@ -221,7 +221,7 @@ namespace DustyBot.Modules
 
                 try
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Message", message.Content + "\" by " + message.Author.Username + " (" + message.Author.Id + ")"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Message", "\" " + message.Content + "\" by " + message.Author.Username + " (" + message.Author.Id + ")"));
 
                     string msgContent = message.Content.Trim();
                     bool remove = false;

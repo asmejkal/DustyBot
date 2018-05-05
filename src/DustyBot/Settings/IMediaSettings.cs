@@ -15,5 +15,7 @@ namespace DustyBot.Settings
     interface IMediaSettings : Framework.Settings.IServerSettings
     {
         List<ComebackInfo> YouTubeComebacks { get; set; }
+        HashSet<ulong> ScheduleMessages { get; set; }
+        ulong ScheduleChannel { get; set; }
     }
 }
