@@ -14,11 +14,11 @@ namespace DustyBot.Settings.LiteDB
         {
             IServerSettings result;
 
-            if (typeof(T) == typeof(IMediaSettings))
+            if (typeof(T) == typeof(MediaSettings))
                 result = new MediaSettings();
-            else if (typeof(T) == typeof(IRolesSettings))
+            else if (typeof(T) == typeof(RolesSettings))
                 result = new RolesSettings();
-            else if (typeof(T) == typeof(ILogSettings))
+            else if (typeof(T) == typeof(LogSettings))
                 result = new LogSettings();
             else
                 throw new InvalidOperationException("Unknown settings type.");

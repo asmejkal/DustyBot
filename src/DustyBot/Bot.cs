@@ -33,7 +33,7 @@ namespace DustyBot
             var communicator = new Framework.Communication.DefaultCommunicator();
 
             //Choose settings provider
-            var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory());
+            var settings = new Settings.LiteDB.SettingsProviderProxy(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory());
 
             //Choose config parser
             var config = await Settings.JSON.JsonConfig.Create();
