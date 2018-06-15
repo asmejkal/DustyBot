@@ -14,7 +14,7 @@ namespace DustyBot.Framework.Utility
             catch { }
         };
 
-        public static void FireForget(Action action, Action<Exception> handler = null)
+        public static void FireForget(Func<Task> action, Action<Exception> handler = null)
         {
             if (action == null)
                 throw new ArgumentNullException(nameof(action));

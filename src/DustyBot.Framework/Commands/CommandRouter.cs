@@ -89,7 +89,7 @@ namespace DustyBot.Framework.Commands
                     continue;
                 }                    
 
-                var executor = new Action(async () =>
+                var executor = new Func<Task>(async () =>
                 {
                     try
                     {
@@ -112,7 +112,7 @@ namespace DustyBot.Framework.Commands
                 if (commandRegistration.RunAsync)
                     TaskHelper.FireForget(executor);
                 else
-                    await Task.Run(executor);
+                    await executor();
             }
         }
 

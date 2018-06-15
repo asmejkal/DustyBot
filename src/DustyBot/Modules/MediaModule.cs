@@ -246,7 +246,7 @@ namespace DustyBot.Modules
         static readonly IEmote ARROW_LEFT = new Emoji("⬅");
         static readonly IEmote ARROW_RIGHT = new Emoji("➡");
 
-        [Command("views", "Checks how comebacks are doing on YouTube.")]
+        [Command("views", "Checks how comebacks are doing on YouTube."), RunAsync]
         [Usage("{p}views [CategoryName]")]
         public async Task Views(ICommand command)
         {
