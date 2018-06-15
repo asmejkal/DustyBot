@@ -35,41 +35,47 @@ namespace DustyBot.Modules
 
         [Command("setRoleChannel", "Sets or disables a channel for role self-assignment.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]setRoleChannel ChannelMention\n\nUse without parameters to disable role self-assignment.")]
+        [Usage("{p}setRoleChannel ChannelMention\n\nUse without parameters to disable role self-assignment.")]
         public async Task SetRoleChannel(ICommand command)
         {
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
             if (command.Message.MentionedChannelIds.Count <= 0)
             {
-                settings.RoleChannel = 0;
-                await Settings.Save(settings).ConfigureAwait(false);
+                await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+                {
+                    settings.RoleChannel = 0;
+                }).ConfigureAwait(false);
+                
                 await command.ReplySuccess(Communicator, "Role channel has been disabled.").ConfigureAwait(false);
             }
             else
             {
-                settings.RoleChannel = command.Message.MentionedChannelIds.First();
-                await Settings.Save(settings).ConfigureAwait(false);
+                await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+                {
+                    settings.RoleChannel = command.Message.MentionedChannelIds.First();
+                }).ConfigureAwait(false);
+                
                 await command.ReplySuccess(Communicator, "Role channel has been set.").ConfigureAwait(false);
             }
         }
 
         [Command("setRoleChannelClearing", "Toggles automatic clearing of role channel.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]setRoleChannelClearing\n\nDisabled by default.")]
+        [Usage("{p}setRoleChannelClearing\n\nDisabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
         {
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
-            settings.ClearRoleChannel = !settings.ClearRoleChannel;
+            bool result = false;
+            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            {
+                settings.ClearRoleChannel = result = !settings.ClearRoleChannel;
+            }).ConfigureAwait(false);
 
-            await Settings.Save(settings);
-
-            await command.ReplySuccess(Communicator, $"Automatic role channel clearing has been " + (settings.ClearRoleChannel ? "enabled" : "disabled") + ".").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Automatic role channel clearing has been " + (result ? "enabled" : "disabled") + ".").ConfigureAwait(false);
         }
 
         [Command("addAutoRole", "Adds a self-assignable role.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]addAutoRole \"RoleName\" [\"Aliases\"]\n\nExample: [p]addAutoRole Solar \"Kim Yongsun\" Yeba")]
+        [Usage("{p}addAutoRole \"RoleName\" [\"Aliases\"]\n\nExample: {p}addAutoRole Solar \"Kim Yongsun\" Yeba")]
         public async Task AddAutoRole(ICommand command)
         {
             var role = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
@@ -83,9 +89,10 @@ namespace DustyBot.Modules
             newRole.RoleId = role.Id;
             newRole.Names = new List<string>(command.GetParameters().Select(x => (string)x));
 
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
-            settings.AssignableRoles.Add(newRole);
-            await Settings.Save(settings);
+            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            {
+                settings.AssignableRoles.Add(newRole);
+            }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, $"Self-assignable role added ({newRole.RoleId}).");
         }
@@ -93,38 +100,43 @@ namespace DustyBot.Modules
         [Command("removeAutoRole", "Removes a self-assignable role.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]removeAutoRole RoleName")]
+        [Usage("{p}removeAutoRole RoleName")]
         public async Task RemoveAutoRole(ICommand command)
         {
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
-            if (settings.AssignableRoles.RemoveAll(x => string.Equals(x.Names.First(), command.Body)) <= 0)
+            bool removed = await Settings.InterlockedModify(command.GuildId, (RolesSettings settings) =>
+            {
+                return settings.AssignableRoles.RemoveAll(x => string.Equals(x.Names.First(), command.Body)) > 0;
+            }).ConfigureAwait(false);
+
+            if (!removed)
             {
                 await command.ReplySuccess(Communicator, $"Self-assignable role not found.").ConfigureAwait(false);
-                return;
             }
-
-            await Settings.Save(settings).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Self-assignable role removed.").ConfigureAwait(false);
+            else
+            {
+                await command.ReplySuccess(Communicator, $"Self-assignable role removed.").ConfigureAwait(false);
+            }
         }
 
         [Command("clearAutoRoles", "Removes all self-assignable roles.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]clearAutoRoles")]
+        [Usage("{p}clearAutoRoles")]
         public async Task ClearAutoRoles(ICommand command)
         {
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
-            settings.AssignableRoles.Clear();
-            await Settings.Save(settings).ConfigureAwait(false);
+            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            {
+                settings.AssignableRoles.Clear();
+            }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, $"All self-assignable roles have been cleared.").ConfigureAwait(false);
         }
 
         [Command("listAutoRoles", "Lists all self-assignable roles.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]listAutoRoles")]
+        [Usage("{p}listAutoRoles")]
         public async Task ListAutoRoles(ICommand command)
         {
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
+            var settings = await Settings.Read<RolesSettings>(command.GuildId).ConfigureAwait(false);
 
             string result = "```";
             foreach (var role in settings.AssignableRoles)
@@ -175,7 +187,7 @@ namespace DustyBot.Modules
         [Command("setBiasRole", "Sets a primary-secondary bias role pair.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]setBiasRole \"PrimaryRoleName\" \"SecondaryRoleName\"\n\nExample: [p]setBiasRole Solar .Solar")]
+        [Usage("{p}setBiasRole \"PrimaryRoleName\" \"SecondaryRoleName\"\n\nExample: {p}setBiasRole Solar .Solar")]
         public async Task SetBiasRole(ICommand command)
         {
             var primary = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
@@ -186,18 +198,24 @@ namespace DustyBot.Modules
                 return;
             }
 
-            var settings = await Settings.Get<IRolesSettings>(command.GuildId).ConfigureAwait(false);
-            var primaryAar = settings.AssignableRoles.FirstOrDefault(x => x.RoleId == primary.Id);
-            if (primaryAar == null)
+            bool notAar = false;
+            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            {
+                var primaryAar = settings.AssignableRoles.FirstOrDefault(x => x.RoleId == primary.Id);
+                if (primaryAar == null)
+                    notAar = true;
+                else
+                    primaryAar.SecondaryId = secondary.Id;
+            }).ConfigureAwait(false);
+
+            if (notAar)
             {
                 await command.ReplyError(Communicator, $"The primary role is not self-assignable.").ConfigureAwait(false);
-                return;
             }
-
-            primaryAar.SecondaryId = secondary.Id;
-            await Settings.Save(settings).ConfigureAwait(false);
-
-            await command.ReplySuccess(Communicator, $"Role {primary.Name} ({primary.Id}) has been set as a primary bias role to {secondary.Name} ({secondary.Id}).").ConfigureAwait(false);
+            else
+            {
+                await command.ReplySuccess(Communicator, $"Role {primary.Name} ({primary.Id}) has been set as a primary bias role to {secondary.Name} ({secondary.Id}).").ConfigureAwait(false);
+            }
         }
 
         public override async Task OnMessageReceived(SocketMessage message)
@@ -208,7 +226,7 @@ namespace DustyBot.Modules
                 if (channel == null)
                     return;
 
-                var settings = await Settings.Get<IRolesSettings>(channel.GuildId).ConfigureAwait(false);
+                var settings = await Settings.Read<RolesSettings>(channel.GuildId).ConfigureAwait(false);
                 if (channel.Id != settings.RoleChannel)
                     return;
 

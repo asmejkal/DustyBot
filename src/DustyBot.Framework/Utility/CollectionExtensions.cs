@@ -18,5 +18,19 @@ namespace DustyBot.Framework.Utility
             foreach (T item in source)
                 await action(item);
         }
+
+        public static TValue GetOrCreate<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key)
+            where TValue : new()
+        {
+            TValue val;
+
+            if (!dict.TryGetValue(key, out val))
+            {
+                val = new TValue();
+                dict.Add(key, val);
+            }
+
+            return val;
+        }
     }
 }

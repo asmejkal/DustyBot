@@ -8,5 +8,6 @@ namespace DustyBot.Framework.Config
     public interface IEssentialConfig
     {
         string CommandPrefix { get; }
+        string BotToken { get; }
     }
 }

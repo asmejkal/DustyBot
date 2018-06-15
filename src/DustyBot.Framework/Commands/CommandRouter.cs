@@ -81,27 +81,38 @@ namespace DustyBot.Framework.Commands
                     await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
                     continue;
                 }
-                
-                try
-                {
-                    //Check expected parameters
-                    if (!CheckRequiredParameters(command, commandRegistration))
-                        throw new Exceptions.IncorrectParametersCommandException(string.Empty);
 
-                    //Execute
-                    await commandRegistration.Handler(command);
-                }
-                catch (Exceptions.IncorrectParametersCommandException ex)
+                //Check expected parameters
+                if (!CheckRequiredParameters(command, commandRegistration))
                 {
-                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
-                }
-                catch (Exception ex)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Internal", 
-                        $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}, exception:\n{ex}", ex));
+                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, "");
+                    continue;
+                }                    
 
-                    await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
-                }
+                var executor = new Action(async () =>
+                {
+                    try
+                    {
+                        //Execute
+                        await commandRegistration.Handler(command);
+                    }
+                    catch (Exceptions.IncorrectParametersCommandException ex)
+                    {
+                        await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
+                            $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}", ex));
+
+                        await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
+                    }
+                });
+
+                if (commandRegistration.RunAsync)
+                    TaskHelper.FireForget(executor);
+                else
+                    await Task.Run(executor);
             }
         }
 

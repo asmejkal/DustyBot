@@ -1,0 +1,40 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace DustyBot.Framework.Utility
+{
+    public static class TaskHelper
+    {
+        private static readonly Action<Task> DefaultErrorContinuation =
+        t =>
+        {
+            try { t.Wait(); }
+            catch { }
+        };
+
+        public static void FireForget(Action action, Action<Exception> handler = null)
+        {
+            if (action == null)
+                throw new ArgumentNullException(nameof(action));
+
+            var task = Task.Run(action);
+
+            if (handler == null)
+            {
+                task.ContinueWith(
+                    DefaultErrorContinuation,
+                    TaskContinuationOptions.ExecuteSynchronously |
+                    TaskContinuationOptions.OnlyOnFaulted);
+            }
+            else
+            {
+                task.ContinueWith(
+                    t => handler(t.Exception.GetBaseException()),
+                    TaskContinuationOptions.ExecuteSynchronously |
+                    TaskContinuationOptions.OnlyOnFaulted);
+            }
+        }
+    }
+}

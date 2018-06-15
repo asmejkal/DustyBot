@@ -28,7 +28,7 @@ namespace DustyBot.Modules
         }
 
         [Command("help", "Prints usage info.")]
-        [Usage("Use without parameters to see a list of modules and commands. Type `[p]help CommandName` to see usage and help for a specific command.")]
+        [Usage("Use without parameters to see a list of modules and commands. Type `{p}help CommandName` to see usage and help for a specific command.")]
         public async Task Help(ICommand command)
         {
             if (command.ParametersCount <= 0)
@@ -70,8 +70,8 @@ namespace DustyBot.Modules
                     .WithTitle($"Command {Config.CommandPrefix}{commandRegistration.InvokeString}")
                     .WithDescription(commandRegistration.Description);
 
-                if (!string.IsNullOrEmpty(commandRegistration.Usage))
-                    embed.AddField(x => x.WithName("Usage").WithValue(commandRegistration.Usage));
+                if (!string.IsNullOrEmpty(commandRegistration.GetUsage(Config.CommandPrefix)))
+                    embed.AddField(x => x.WithName("Usage").WithValue(commandRegistration.GetUsage(Config.CommandPrefix)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
             }

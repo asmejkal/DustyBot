@@ -4,12 +4,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using DustyBot.Framework.Settings;
 using LiteDB;
+using System.Threading;
 
 namespace DustyBot.Framework.LiteDB
 {
     public class SettingsProvider : ISettingsProvider
     {
         public LiteDatabase DbObject { get; private set; }
+        SemaphoreSlim _dbOjectLock = new SemaphoreSlim(1, 1);
 
         private ISettingsFactory _factory;
 
@@ -20,7 +22,7 @@ namespace DustyBot.Framework.LiteDB
             DbObject = new LiteDatabase(dbPath);
         }
 
-        public async Task<T> Get<T>(ulong serverId, bool createIfNeeded = true)
+        public async Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
             where T : IServerSettings
         {
             var collection = DbObject.GetCollection<T>();
@@ -37,11 +39,70 @@ namespace DustyBot.Framework.LiteDB
             return settings;
         }
 
-        public Task Save<T>(T settings) 
+        public Task<IEnumerable<T>> Read<T>() where T : IServerSettings
+        {
+            return Task.FromResult(DbObject.GetCollection<T>().FindAll());
+        }
+
+        private Task Save<T>(T settings) 
             where T : IServerSettings
         {
             DbObject.GetCollection<T>().Upsert(settings);
             return Task.CompletedTask;
+        }
+
+        Dictionary<Tuple<Type, ulong>, SemaphoreSlim> _serverSettingsLocks = new Dictionary<Tuple<Type, ulong>, SemaphoreSlim>();
+        
+        public async Task InterlockedModify<T>(ulong serverId, Action<T> action)
+            where T : IServerSettings
+        {
+            SemaphoreSlim settingsLock;
+            lock (_serverSettingsLocks)
+            {
+                var key = Tuple.Create(typeof(T), serverId);
+                if (!_serverSettingsLocks.TryGetValue(key, out settingsLock))
+                    _serverSettingsLocks.Add(key, settingsLock = new SemaphoreSlim(1, 1));
+            }
+            
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                var settings = await Read<T>(serverId);
+                action(settings);
+                await Save(settings);
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
+        public async Task<U> InterlockedModify<T, U>(ulong serverId, Func<T, U> action)
+            where T : IServerSettings
+        {
+            SemaphoreSlim settingsLock;
+            lock (_serverSettingsLocks)
+            {
+                var key = Tuple.Create(typeof(T), serverId);
+                if (!_serverSettingsLocks.TryGetValue(key, out settingsLock))
+                    _serverSettingsLocks.Add(key, settingsLock = new SemaphoreSlim(1, 1));
+            }
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                var settings = await Read<T>(serverId);
+                var result = action(settings);
+                await Save(settings);
+
+                return result;
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
         }
     }
 }

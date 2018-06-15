@@ -8,6 +8,13 @@ namespace DustyBot.Framework.Communication
 {
     public class DefaultCommunicator : ICommunicator
     {
+        public Config.IEssentialConfig Config { get; set; }
+
+        public DefaultCommunicator(Config.IEssentialConfig config)
+        {
+            Config = config;
+        }
+
         public static readonly Color ColorSuccess = Color.Green;
         public static readonly Color ColorError = Color.Red;
 
@@ -22,7 +29,7 @@ namespace DustyBot.Framework.Communication
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(command.Usage);
+                    .WithDescription(command.GetUsage(Config.CommandPrefix));
 
             return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation, false, embed);
         }

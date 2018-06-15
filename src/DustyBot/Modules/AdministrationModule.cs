@@ -31,7 +31,7 @@ namespace DustyBot.Modules
         [Command("assignToAll", "Assigns a role to everyone.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]assignToAll RoleName\n\nMay take a while to complete.")]
+        [Usage("{p}assignToAll RoleName\n\nMay take a while to complete.")]
         public async Task AssignToAll(ICommand command)
         {
             var role = command.Guild.Roles.FirstOrDefault(x => x.Name == (string)command.GetParameter(0));
@@ -67,7 +67,7 @@ namespace DustyBot.Modules
         [Command("notInRole", "Checks for users who are missing a specified role.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]notInRole RoleName")]
+        [Usage("{p}notInRole RoleName")]
         public async Task NotInRole(ICommand command)
         {
             var role = command.Guild.Roles.FirstOrDefault(x => x.Name == (string)command.GetParameter(0));

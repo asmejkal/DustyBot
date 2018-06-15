@@ -7,9 +7,16 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using DustyBot.Framework.LiteDB;
 
-namespace DustyBot.Settings.LiteDB
+namespace DustyBot.Settings
 {
-    public class RolesSettings : ServerSettings, IRolesSettings
+    public class AssignableRole
+    {
+        public ulong RoleId { get; set; }
+        public List<string> Names { get; set; } = new List<string>();
+        public ulong SecondaryId { get; set; }
+    }
+
+    public class RolesSettings : ServerSettings
     {
         public ulong RoleChannel { get; set; }
         public bool ClearRoleChannel { get; set; }

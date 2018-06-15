@@ -33,67 +33,79 @@ namespace DustyBot.Modules
 
         [Command("logNameChanges", "Sets or disables a channel for name change logging.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]logNameChanges ChannelMention\n\nUse without parameters to disable name change logging.")]
+        [Usage("{p}logNameChanges ChannelMention\n\nUse without parameters to disable name change logging.")]
         public async Task LogNameChanges(ICommand command)
         {
-            var settings = await Settings.Get<ILogSettings>(command.GuildId).ConfigureAwait(false);
             if (command.Message.MentionedChannelIds.Count <= 0)
             {
-                settings.EventNameChangedChannel = 0;
-                await Settings.Save(settings).ConfigureAwait(false);
+                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                {
+                    settings.EventNameChangedChannel = 0;
+                }).ConfigureAwait(false);
+                
                 await command.ReplySuccess(Communicator, "Name change logging channel has been disabled.").ConfigureAwait(false);
             }
             else
             {
-                settings.EventNameChangedChannel = command.Message.MentionedChannelIds.First();
-                await Settings.Save(settings).ConfigureAwait(false);
+                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                {
+                    settings.EventNameChangedChannel = command.Message.MentionedChannelIds.First();
+                }).ConfigureAwait(false);
+                
                 await command.ReplySuccess(Communicator, "Name change logging channel has been set.").ConfigureAwait(false);
             }
         }
         
         [Command("logMessages", "Sets or disables a channel for logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]logMessages ChannelMention\n\nUse without parameters to disable name change logging.")]
+        [Usage("{p}logMessages ChannelMention\n\nUse without parameters to disable name change logging.")]
         public async Task LogMessages(ICommand command)
         {
-            var settings = await Settings.Get<ILogSettings>(command.GuildId).ConfigureAwait(false);
             if (command.Message.MentionedChannelIds.Count <= 0)
             {
-                settings.EventMessageDeletedChannel = 0;
-                await Settings.Save(settings).ConfigureAwait(false);
+                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                {
+                    settings.EventMessageDeletedChannel = 0;
+                }).ConfigureAwait(false);
+                
                 await command.ReplySuccess(Communicator, "Deleted messages logging channel has been disabled.").ConfigureAwait(false);
             }
             else
             {
-                settings.EventMessageDeletedChannel = command.Message.MentionedChannelIds.First();
-                await Settings.Save(settings).ConfigureAwait(false);
+                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                {
+                    settings.EventMessageDeletedChannel = command.Message.MentionedChannelIds.First();
+                }).ConfigureAwait(false);
+                
                 await command.ReplySuccess(Communicator, "Deleted messages logging channel has been set.").ConfigureAwait(false);
             }
         }
 
         [Command("setMessagesFilter", "Sets or disables a regex filter for deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]setMessagesFilter RegularExpression\n\nMessages that match this regular expression won't be logged. Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
+        [Usage("{p}setMessagesFilter RegularExpression\n\nMessages that match this regular expression won't be logged. Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
         public async Task SetMessagesFilter(ICommand command)
         {
-            var settings = await Settings.Get<ILogSettings>(command.GuildId).ConfigureAwait(false);
-            settings.EventMessageDeletedFilter = command.Body;
-            await Settings.Save(settings).ConfigureAwait(false);
+            await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+            {
+                settings.EventMessageDeletedFilter = command.Body;
+            }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command.Body) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
         }
 
         [Command("setMessagesChannelFilter", "Excludes channels from logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("[p]setMessagesChannelFilter ChannelMentions\n\nYou may specify one or more channels. Use without parameters to disable.")]
+        [Usage("{p}setMessagesChannelFilter ChannelMentions\n\nYou may specify one or more channels. Use without parameters to disable.")]
         public async Task SetMessagesChannelFilter(ICommand command)
         {
-            var settings = await Settings.Get<ILogSettings>(command.GuildId).ConfigureAwait(false);
-            settings.EventMessageDeletedChannelFilter = new List<ulong>(command.Message.MentionedChannelIds);
-            await Settings.Save(settings).ConfigureAwait(false);
+            await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+            {
+                settings.EventMessageDeletedChannelFilter = new List<ulong>(command.Message.MentionedChannelIds);
+            }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, "A channel filter for logging of deleted messages has been " + 
-                (settings.EventMessageDeletedChannelFilter.Count > 0 ? "set." : "disabled.")).ConfigureAwait(false);
+                (command.Message.MentionedChannelIds.Count > 0 ? "set." : "disabled.")).ConfigureAwait(false);
         }
         
         public override async Task OnUserUpdated(SocketUser before, SocketUser after)
@@ -108,7 +120,7 @@ namespace DustyBot.Modules
                     return;
 
                 var guild = guildUser.Guild;
-                var settings = await Settings.Get<ILogSettings>(guild.Id).ConfigureAwait(false);
+                var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
 
                 var eventChannelId = settings.EventNameChangedChannel;
                 if (eventChannelId == 0)
@@ -147,7 +159,7 @@ namespace DustyBot.Modules
                     if (guild == null)
                         return;
 
-                    var settings = await Settings.Get<ILogSettings>(guild.Id).ConfigureAwait(false);
+                    var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
 
                     var eventChannelId = settings.EventMessageDeletedChannel;
                     if (eventChannelId == 0)

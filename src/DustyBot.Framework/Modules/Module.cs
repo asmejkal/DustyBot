@@ -55,6 +55,9 @@ namespace DustyBot.Framework.Modules
                 if (usage != null)
                     command.Usage = usage.Usage;
 
+                var runAsync = method.GetCustomAttribute<RunAsyncAttribute>();
+                command.RunAsync = runAsync != null;
+
                 handledCommandsList.Add(command);
             }
 

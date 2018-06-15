@@ -6,17 +6,20 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using DustyBot.Framework.Modules;
-using System.IO;
+using DustyBot.Framework.Services;
 
 namespace DustyBot
 {
     /// <summary>
     /// Initialization, composition root
     /// </summary>
-    class Bot : IModuleCollection
+    class Bot : IModuleCollection, IServiceCollection
     {
         private HashSet<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
+
+        private List<IService> _services;
+        public IEnumerable<IService> Services => _services;
 
         public static void Main(string[] args)
             => new Bot().MainAsync().GetAwaiter().GetResult();
@@ -29,17 +32,17 @@ namespace DustyBot
                 ConnectionTimeout = int.MaxValue
             });
 
-            //Choose communicator
-            var communicator = new Framework.Communication.DefaultCommunicator();
-
             //Choose settings provider
-            var settings = new Settings.LiteDB.SettingsProviderProxy(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory());
+            var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory());
 
             //Choose config parser
             var config = await Settings.JSON.JsonConfig.Create();
 
             //Choose logger
             var logger = new Framework.Logging.ConsoleLogger(client);
+
+            //Choose communicator
+            var communicator = new Framework.Communication.DefaultCommunicator(config);
 
             //Choose modules
             _modules = new HashSet<IModule>();
@@ -49,15 +52,14 @@ namespace DustyBot
             _modules.Add(new Modules.RolesModule(communicator, settings, logger));
             _modules.Add(new Modules.LogModule(communicator, settings));
 
-            //Init framework
-            var framework = new Framework.Framework(client, _modules, config, communicator, logger);
-            
-            //Login and start client
-            await client.LoginAsync(TokenType.Bot, config.BotToken);
-            await client.StartAsync();
+            //Choose services
+            _services = new List<IService>();
+            _services.Add(new Services.DaumCafeService(client, settings, config));
 
-            // Block this task until the program is closed.
-            await Task.Delay(-1);
+            //Init framework
+            var framework = new Framework.Framework(client, _modules, _services, config, communicator, logger);
+
+            await framework.Run();
         }
     }
 }

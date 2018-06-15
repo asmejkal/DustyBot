@@ -7,9 +7,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using DustyBot.Framework.LiteDB;
 
-namespace DustyBot.Settings.LiteDB
+namespace DustyBot.Settings
 {
-    public class LogSettings : ServerSettings, ILogSettings
+    public class LogSettings : ServerSettings
     {
         public ulong EventNameChangedChannel { get; set; }
         public ulong EventMessageDeletedChannel { get; set; }

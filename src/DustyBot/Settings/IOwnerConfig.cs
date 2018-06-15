@@ -8,7 +8,6 @@ namespace DustyBot.Settings
 {
     interface IOwnerConfig : Framework.Config.IEssentialConfig
     {
-        string BotToken { get; }
         IReadOnlyCollection<ulong> OwnerIDs { get; }
         string YouTubeKey { get; }
     }

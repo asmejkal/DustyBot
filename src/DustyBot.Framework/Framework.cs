@@ -6,23 +6,33 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using DustyBot.Framework.Modules;
+using DustyBot.Framework.Services;
 
 namespace DustyBot.Framework
 {
     /// <summary>
     /// Initialization, composition root
     /// </summary>
-    public class Framework : IModuleCollection
+    public class Framework : IModuleCollection, IServiceCollection
     {
         private HashSet<Modules.IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
+        
+        private List<IService> _services;
+        public IEnumerable<IService> Services => _services;
 
-        public Framework(DiscordSocketClient client, IEnumerable<Modules.IModule> modules, Config.IEssentialConfig config, Communication.ICommunicator communicator = null, Logging.ILogger logger = null)
+        public DiscordSocketClient Client { get; private set; }
+        public Config.IEssentialConfig Config { get; private set; }
+
+        public Framework(DiscordSocketClient client, IEnumerable<Modules.IModule> modules, IEnumerable<Services.IService> services, Config.IEssentialConfig config, Communication.ICommunicator communicator = null, Logging.ILogger logger = null)
         {
             _modules = new HashSet<Modules.IModule>(modules);
+            _services = new List<IService>(services);
+            Client = client;
+            Config = config;
 
             if (communicator == null)
-                communicator = new Communication.DefaultCommunicator();
+                communicator = new Communication.DefaultCommunicator(config);
 
             if (logger == null)
                 logger = new Logging.ConsoleLogger(client);
@@ -30,6 +40,25 @@ namespace DustyBot.Framework
             var eventRouter = new Events.SocketEventRouter(modules, client);
             var commandRouter = new Commands.CommandRouter(modules, communicator, logger, config);
             eventRouter.Register(commandRouter);
+        }
+
+        public async Task Run()
+        {
+            //Login and start client
+            await Client.LoginAsync(TokenType.Bot, Config.BotToken);
+            await Client.StartAsync();
+
+            foreach (var service in _services)
+                service.Start();
+
+            // Block this task until the program is closed.
+            await Task.Delay(-1); //TODO: shutdown - allow for proper cleanup
+        }
+
+        public void Shutdown()
+        {
+            foreach (var service in _services)
+                service.Stop();
         }
     }
 }
