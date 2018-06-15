@@ -251,7 +251,8 @@ namespace DustyBot.Modules
         public async Task Views(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId);
-            var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase) == 0)
+            string category = string.IsNullOrWhiteSpace(command.Body) ? null : command.Body;
+            var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, category, StringComparison.CurrentCultureIgnoreCase) == 0)
                 .Reverse()
                 .ToList();
 
