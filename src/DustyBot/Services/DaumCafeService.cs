@@ -7,6 +7,8 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using DustyBot.Settings.LiteDB;
+using DustyBot.Framework.Logging;
+using Discord;
 
 namespace DustyBot.Services
 {
@@ -17,15 +19,17 @@ namespace DustyBot.Services
         public ISettingsProvider Settings { get; private set; }
         public IOwnerConfig Config { get; private set; }
         public DiscordSocketClient Client { get; private set; }
+        public ILogger Logger { get; private set; }
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(2);
         bool _updating = false;
 
-        public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, IOwnerConfig config)
+        public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, IOwnerConfig config, ILogger logger)
         {
             Settings = settings;
             Config = config;
             Client = client;
+            Logger = logger;
         }
 
         public void Start()
@@ -57,13 +61,20 @@ namespace DustyBot.Services
 
                         foreach (var feed in settings.DaumCafeFeeds)
                         {
-                            await UpdateFeed(feed, settings.ServerId);
+                            try
+                            {
+                                await UpdateFeed(feed, settings.ServerId);
+                            }
+                            catch (Exception ex)
+                            {
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to update Daum Cafe feed {feed.Id} ({feed.CafeId}/{feed.BoardId}) on server {settings.ServerId}.", ex));
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    //Log
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Service", "Failed to update Daum Cafe feeds.", ex));
                 }
                 finally
                 {
@@ -85,11 +96,13 @@ namespace DustyBot.Services
             var lastPostId = await Helpers.DaumCafeHelpers.GetLastPostId(feed.CafeId, feed.BoardId);
             var currentPostId = feed.LastPostId;
             if (lastPostId <= feed.LastPostId)
-                return; //TODO: how do Daum IDs behave with deleted posts?
+                return; //TODO: how do Daum IDs behave with deleted posts? does it reuse the ID if the newest post is deleted?
 
             while (lastPostId > currentPostId)
             {
-                await channel.SendMessageAsync($"http://m.cafe.daum.net/{feed.CafeId}/{feed.BoardId}/{currentPostId + 1}");
+                var preview = await CreatePreview($"http://m.cafe.daum.net/{feed.CafeId}/{feed.BoardId}/{currentPostId + 1}", feed.CafeId);
+                
+                await channel.SendMessageAsync(preview.Item1, false, preview.Item2);
                 currentPostId++;
             }
 
@@ -99,6 +112,37 @@ namespace DustyBot.Services
                 if (current != null && current.LastPostId < currentPostId)
                     current.LastPostId = currentPostId;
             }).ConfigureAwait(false);
+        }
+
+        public async Task<Tuple<string, Embed>> CreatePreview(string mobileUrl, string cafeName)
+        {
+            var text = $"<{mobileUrl}>";
+            Embed embed = null;
+            try
+            {
+                var metadata = await Helpers.DaumCafeHelpers.GetPageMetadata(mobileUrl);
+                if (metadata.Type == "article" && !string.IsNullOrWhiteSpace(metadata.Title))
+                {
+                    var embedBuilder = new EmbedBuilder()
+                        .WithTitle(metadata.Title)
+                        .WithUrl(mobileUrl)
+                        .WithFooter("Daum Cafe • " + cafeName);
+
+                    if (!string.IsNullOrWhiteSpace(metadata.Description))
+                        embedBuilder.Description = metadata.Description;
+
+                    if (!string.IsNullOrWhiteSpace(metadata.ImageUrl) && !metadata.ImageUrl.Contains("cafe_meta_image.png"))
+                        embedBuilder.ImageUrl = metadata.ImageUrl;
+
+                    embed = embedBuilder.Build();
+                }
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Warning, "Service", "Failed to create Daum Cafe post preview.", ex));
+            }
+
+            return Tuple.Create(text, embed);
         }
         
 #region IDisposable 
