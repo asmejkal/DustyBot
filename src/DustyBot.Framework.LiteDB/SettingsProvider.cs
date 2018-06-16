@@ -53,7 +53,7 @@ namespace DustyBot.Framework.LiteDB
 
         Dictionary<Tuple<Type, ulong>, SemaphoreSlim> _serverSettingsLocks = new Dictionary<Tuple<Type, ulong>, SemaphoreSlim>();
         
-        public async Task InterlockedModify<T>(ulong serverId, Action<T> action)
+        public async Task Modify<T>(ulong serverId, Action<T> action)
             where T : IServerSettings
         {
             SemaphoreSlim settingsLock;
@@ -78,7 +78,7 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
-        public async Task<U> InterlockedModify<T, U>(ulong serverId, Func<T, U> action)
+        public async Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
             where T : IServerSettings
         {
             SemaphoreSlim settingsLock;

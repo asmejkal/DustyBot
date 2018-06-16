@@ -38,18 +38,18 @@ namespace DustyBot.Modules
         {
             if (command.Message.MentionedChannelIds.Count <= 0)
             {
-                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
-                    settings.EventNameChangedChannel = 0;
+                    s.EventNameChangedChannel = 0;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Name change logging channel has been disabled.").ConfigureAwait(false);
             }
             else
             {
-                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
-                    settings.EventNameChangedChannel = command.Message.MentionedChannelIds.First();
+                    s.EventNameChangedChannel = command.Message.MentionedChannelIds.First();
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Name change logging channel has been set.").ConfigureAwait(false);
@@ -63,18 +63,18 @@ namespace DustyBot.Modules
         {
             if (command.Message.MentionedChannelIds.Count <= 0)
             {
-                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
-                    settings.EventMessageDeletedChannel = 0;
+                    s.EventMessageDeletedChannel = 0;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Deleted messages logging channel has been disabled.").ConfigureAwait(false);
             }
             else
             {
-                await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+                await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
-                    settings.EventMessageDeletedChannel = command.Message.MentionedChannelIds.First();
+                    s.EventMessageDeletedChannel = command.Message.MentionedChannelIds.First();
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Deleted messages logging channel has been set.").ConfigureAwait(false);
@@ -86,9 +86,9 @@ namespace DustyBot.Modules
         [Usage("{p}setMessagesFilter RegularExpression\n\nMessages that match this regular expression won't be logged. Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
         public async Task SetMessagesFilter(ICommand command)
         {
-            await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (LogSettings s) =>
             {
-                settings.EventMessageDeletedFilter = command.Body;
+                s.EventMessageDeletedFilter = command.Body;
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command.Body) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
@@ -99,9 +99,9 @@ namespace DustyBot.Modules
         [Usage("{p}setMessagesChannelFilter ChannelMentions\n\nYou may specify one or more channels. Use without parameters to disable.")]
         public async Task SetMessagesChannelFilter(ICommand command)
         {
-            await Settings.InterlockedModify<LogSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (LogSettings s) =>
             {
-                settings.EventMessageDeletedChannelFilter = new List<ulong>(command.Message.MentionedChannelIds);
+                s.EventMessageDeletedChannelFilter = new List<ulong>(command.Message.MentionedChannelIds);
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, "A channel filter for logging of deleted messages has been " + 

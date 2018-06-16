@@ -14,10 +14,10 @@ namespace DustyBot.Framework.Settings
         Task<IEnumerable<T>> Read<T>()
             where T : IServerSettings;
 
-        Task InterlockedModify<T>(ulong serverId, Action<T> action)
+        Task Modify<T>(ulong serverId, Action<T> action)
             where T : IServerSettings;
 
-        Task<U> InterlockedModify<T, U>(ulong serverId, Func<T, U> action)
+        Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
             where T : IServerSettings;
     }
 }

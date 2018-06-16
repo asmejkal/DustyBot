@@ -40,18 +40,18 @@ namespace DustyBot.Modules
         {
             if (command.Message.MentionedChannelIds.Count <= 0)
             {
-                await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+                await Settings.Modify(command.GuildId, (RolesSettings s) =>
                 {
-                    settings.RoleChannel = 0;
+                    s.RoleChannel = 0;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Role channel has been disabled.").ConfigureAwait(false);
             }
             else
             {
-                await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+                await Settings.Modify(command.GuildId, (RolesSettings s) =>
                 {
-                    settings.RoleChannel = command.Message.MentionedChannelIds.First();
+                    s.RoleChannel = command.Message.MentionedChannelIds.First();
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Role channel has been set.").ConfigureAwait(false);
@@ -64,9 +64,9 @@ namespace DustyBot.Modules
         public async Task SetRoleChannelClearing(ICommand command)
         {
             bool result = false;
-            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                settings.ClearRoleChannel = result = !settings.ClearRoleChannel;
+                s.ClearRoleChannel = result = !s.ClearRoleChannel;
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, $"Automatic role channel clearing has been " + (result ? "enabled" : "disabled") + ".").ConfigureAwait(false);
@@ -89,9 +89,9 @@ namespace DustyBot.Modules
             newRole.RoleId = role.Id;
             newRole.Names = new List<string>(command.GetParameters().Select(x => (string)x));
 
-            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                settings.AssignableRoles.Add(newRole);
+                s.AssignableRoles.Add(newRole);
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, $"Self-assignable role added ({newRole.RoleId}).");
@@ -103,9 +103,9 @@ namespace DustyBot.Modules
         [Usage("{p}removeAutoRole RoleName")]
         public async Task RemoveAutoRole(ICommand command)
         {
-            bool removed = await Settings.InterlockedModify(command.GuildId, (RolesSettings settings) =>
+            bool removed = await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                return settings.AssignableRoles.RemoveAll(x => string.Equals(x.Names.First(), command.Body)) > 0;
+                return s.AssignableRoles.RemoveAll(x => string.Equals(x.Names.First(), command.Body)) > 0;
             }).ConfigureAwait(false);
 
             if (!removed)
@@ -123,9 +123,9 @@ namespace DustyBot.Modules
         [Usage("{p}clearAutoRoles")]
         public async Task ClearAutoRoles(ICommand command)
         {
-            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                settings.AssignableRoles.Clear();
+                s.AssignableRoles.Clear();
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, $"All self-assignable roles have been cleared.").ConfigureAwait(false);
@@ -199,9 +199,9 @@ namespace DustyBot.Modules
             }
 
             bool notAar = false;
-            await Settings.InterlockedModify<RolesSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                var primaryAar = settings.AssignableRoles.FirstOrDefault(x => x.RoleId == primary.Id);
+                var primaryAar = s.AssignableRoles.FirstOrDefault(x => x.RoleId == primary.Id);
                 if (primaryAar == null)
                     notAar = true;
                 else

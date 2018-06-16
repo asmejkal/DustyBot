@@ -93,7 +93,7 @@ namespace DustyBot.Services
                 currentPostId++;
             }
 
-            await Settings.InterlockedModify<MediaSettings>(serverId, settings =>
+            await Settings.Modify<MediaSettings>(serverId, settings =>
             {
                 var current = settings.DaumCafeFeeds.FirstOrDefault(x => x.Id == feed.Id);
                 if (current != null && current.LastPostId < currentPostId)

@@ -43,9 +43,9 @@ namespace DustyBot.Modules
             if (command.Message.MentionedChannelIds.Count <= 0)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Expected a channel mention.");
 
-            await Settings.InterlockedModify<MediaSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                settings.ScheduleChannel = command.Message.MentionedChannelIds.First();
+                s.ScheduleChannel = command.Message.MentionedChannelIds.First();
             }).ConfigureAwait(false);
             
             await command.ReplySuccess(Communicator, "Schedule channel has been set.").ConfigureAwait(false);
@@ -59,8 +59,8 @@ namespace DustyBot.Modules
             "The HH:MM can be replaced with ??:?? if the event time is unknown.\nAll times in KST.")]
         public async Task AddSchedule(ICommand command)
         {
-            var settingsRead = await Settings.Read<MediaSettings>(command.GuildId).ConfigureAwait(false);
-            if (settingsRead.ScheduleChannel == 0)
+            var settings = await Settings.Read<MediaSettings>(command.GuildId).ConfigureAwait(false);
+            if (settings.ScheduleChannel == 0)
             {
                 await command.ReplyError(Communicator, "Set a schedule channel with `setScheduleChannel` first.").ConfigureAwait(false);
                 return;
@@ -68,18 +68,14 @@ namespace DustyBot.Modules
 
             //Check if the message exists
             var id = (ulong)command.GetParameter(0);
-            var channel = await command.Guild.GetTextChannelAsync(settingsRead.ScheduleChannel).ConfigureAwait(false);
+            var channel = await command.Guild.GetTextChannelAsync(settings.ScheduleChannel).ConfigureAwait(false);
             if (channel == null || await channel.GetMessageAsync(id) == null)
             {
                 await command.ReplyError(Communicator, "Couldn't find the specified message.").ConfigureAwait(false);
                 return;
             }
 
-            await Settings.InterlockedModify<MediaSettings>(command.GuildId, settings =>
-            {
-                settings.ScheduleMessages.Add(id);
-            }).ConfigureAwait(false);
-            
+            await Settings.Modify(command.GuildId, (MediaSettings s) => s.ScheduleMessages.Add(id)).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, "Schedule message has been added.").ConfigureAwait(false);
         }
 
@@ -89,9 +85,9 @@ namespace DustyBot.Modules
         [Usage("{p}removeSchedule MessageId")]
         public async Task RemoveSchedule(ICommand command)
         {
-            bool removed = await Settings.InterlockedModify(command.GuildId, (MediaSettings settings) =>
+            bool removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return settings.ScheduleMessages.Remove((ulong)command.GetParameter(0));
+                return s.ScheduleMessages.Remove((ulong)command.GetParameter(0));
             }).ConfigureAwait(false);
             
             if (removed)
@@ -109,9 +105,9 @@ namespace DustyBot.Modules
         [Usage("{p}clearSchedule")]
         public async Task ClearSchedule(ICommand command)
         {
-            await Settings.InterlockedModify<MediaSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                settings.ScheduleMessages.Clear();
+                s.ScheduleMessages.Clear();
             }).ConfigureAwait(false);
                         
             await command.ReplySuccess(Communicator, $"Schedule has been cleared.").ConfigureAwait(false);
@@ -392,9 +388,9 @@ namespace DustyBot.Modules
             else if (info.VideoIds.Count <= 0)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("No videos specified.");
 
-            await Settings.InterlockedModify<MediaSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                settings.YouTubeComebacks.Add(info);
+                s.YouTubeComebacks.Add(info);
             }).ConfigureAwait(false);
             
             await command.ReplySuccess(Communicator, "Comeback info has been added.").ConfigureAwait(false);
@@ -416,9 +412,9 @@ namespace DustyBot.Modules
             if (string.Compare(category, "default", true) == 0)
                 category = null;
 
-            bool anyRemoved = await Settings.InterlockedModify(command.GuildId, (MediaSettings settings) =>
+            bool anyRemoved = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return settings.YouTubeComebacks.RemoveAll(x => string.Compare(x.Name, (string)command.GetParameter(0), true) == 0 && string.Compare(x.Category, category, true) == 0) > 0;
+                return s.YouTubeComebacks.RemoveAll(x => string.Compare(x.Name, (string)command.GetParameter(0), true) == 0 && string.Compare(x.Category, category, true) == 0) > 0;
             }).ConfigureAwait(false);
 
             if (anyRemoved)
@@ -440,9 +436,9 @@ namespace DustyBot.Modules
             string originalName = string.Compare((string)command.GetParameter(0), "default", true) == 0 ? null : (string)command.GetParameter(0);
             string newName = string.Compare((string)command.GetParameter(1), "default", true) == 0 ? null : (string)command.GetParameter(1);
 
-            await Settings.InterlockedModify<MediaSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                settings.YouTubeComebacks.Where(x => string.Compare(x.Category, originalName, true) == 0).ForEach(x => x.Category = newName);
+                s.YouTubeComebacks.Where(x => string.Compare(x.Category, originalName, true) == 0).ForEach(x => x.Category = newName);
             }).ConfigureAwait(false);
             
             await command.ReplySuccess(Communicator, $"Moved all comebacks from {(string)command.GetParameter(0)} category.").ConfigureAwait(false);
@@ -470,12 +466,12 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(result).ConfigureAwait(false);
         }
 
-        private static Regex _daumBoardLinkRegex = new Regex(@"(?:.*m.cafe.daum.net\/(.+)\/(\w+)\?.*boardType=\s*)|(?:.*cafe.daum.net\/(.+)\/bbs_list.+fldid=(\w+).*)", RegexOptions.Compiled);
+        private static Regex _daumBoardLinkRegex = new Regex(@"(?:.*cafe.daum.net\/(.+)\/(\w+).*)|(?:.*cafe.daum.net\/(.+)\/bbs_list.+fldid=(\w+).*)", RegexOptions.Compiled);
 
         [Command("addCafeFeed", "Adds a Daum Cafe board feed."), RunAsync]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}addCafeFeed DaumCafeBoardLink ChannelMention\n\nDaumCafeBoardLink - link to a standard Daum Cafe board section")]
+        [Usage("{p}addCafeFeed DaumCafeBoardLink ChannelMention\n\nDaumCafeBoardLink - link to a public Daum Cafe board section (a standard topic listing board type)")]
         public async Task AddCafeFeed(ICommand command)
         {
             var feed = new DaumCafeFeed();
@@ -500,9 +496,9 @@ namespace DustyBot.Modules
             feed.TargetChannel = command.Message.MentionedChannelIds.First();
             feed.LastPostId = await Helpers.DaumCafeHelpers.GetLastPostId(feed.CafeId, feed.BoardId);
 
-            await Settings.InterlockedModify<MediaSettings>(command.GuildId, settings =>
+            await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                settings.DaumCafeFeeds.Add(feed);
+                s.DaumCafeFeeds.Add(feed);
             }).ConfigureAwait(false);
             
             await command.ReplySuccess(Communicator, $"Cafe feed has been added!").ConfigureAwait(false);
@@ -514,7 +510,7 @@ namespace DustyBot.Modules
         [Usage("{p}removeCafeFeed FeedId\n\nRun `{p}listCafeFeeds` to see IDs for all active feeds.")]
         public async Task RemoveCafeFeed(ICommand command)
         {
-            bool removed = await Settings.InterlockedModify(command.GuildId, (MediaSettings s) =>
+            bool removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
                 return s.DaumCafeFeeds.RemoveAll(x => x.Id == Guid.Parse((string)command.GetParameter(0))) > 0;
             });
