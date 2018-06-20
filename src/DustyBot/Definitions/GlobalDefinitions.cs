@@ -11,5 +11,6 @@ namespace DustyBot.Definitions
         public const string DataFolder = "Data";
         public const string SettingsFile = "Settings.db";
         public static string SettingsPath => Path.Combine(DataFolder, SettingsFile);
+        public const ushort SettingsVersion = 1;
     }
 }

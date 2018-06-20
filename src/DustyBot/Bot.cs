@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Discord;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
+using DustyBot.Settings.LiteDB;
+using CommandLine;
 
 namespace DustyBot
 {
@@ -15,16 +17,52 @@ namespace DustyBot
     /// </summary>
     class Bot : IModuleCollection, IServiceCollection
     {
+        [Verb("run", HelpText = "Runs the bot.")]
+        public class RunOptions
+        {
+            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database encryption. If this is your first time running the bot, the password you enter now will be required on every startup.")]
+            public string Password { get; set; }
+        }
+
+        [Verb("encrypt", HelpText = "Encrypts the settings database.")]
+        public class EncryptOptions
+        {
+            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database encryption.")]
+            public string Password { get; set; }
+
+            [Value(1, MetaName = "Path", Default = null, Required = false, HelpText = "Path to the database file.")]
+            public string Path { get; set; }
+        }
+
+        [Verb("decrypt", HelpText = "Decrypts the settings database.")]
+        public class DecryptOptions
+        {
+            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
+            public string Password { get; set; }
+
+            [Value(1, MetaName = "Path", Default = null, Required = false, HelpText = "Path to the database file.")]
+            public string Path { get; set; }
+        }
+
         private HashSet<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
 
         private List<IService> _services;
         public IEnumerable<IService> Services => _services;
 
-        public static void Main(string[] args)
-            => new Bot().MainAsync().GetAwaiter().GetResult();
+        static int Main(string[] args)
+        {
+            var result = Parser.Default.ParseArguments<RunOptions, EncryptOptions, DecryptOptions>(args)
+                .MapResult(
+                    (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
+                    (EncryptOptions opts) => new Bot().RunEncrypt(opts),
+                    (DecryptOptions opts) => new Bot().RunDecrypt(opts),
+                    errs => 1);
 
-        public async Task MainAsync()
+            return result;
+        }
+
+        public async Task<int> RunAsync(RunOptions opts)
         {
             try
             {
@@ -35,7 +73,8 @@ namespace DustyBot
                 });
 
                 //Choose settings provider
-                var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory(), new Settings.LiteDB.Migrator());
+                var migrator = new Framework.LiteDB.Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations());
+                var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new SettingsFactory(), migrator, opts.Password);
 
                 //Choose config parser
                 var config = await Settings.JSON.JsonConfig.Create();
@@ -67,6 +106,36 @@ namespace DustyBot
             {
                 Console.WriteLine("Top level exception: " + ex.ToString());
             }
+
+            return 0;
+        }
+
+        public int RunEncrypt(EncryptOptions opts)
+        {
+            try
+            {
+                Framework.LiteDB.DatabaseHelpers.Encrypt(opts.Path ?? Definitions.GlobalDefinitions.SettingsPath, opts.Password);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failure: " + ex.ToString());
+            }
+            
+            return 0;
+        }
+
+        public int RunDecrypt(DecryptOptions opts)
+        {
+            try
+            {
+                Framework.LiteDB.DatabaseHelpers.Decrypt(opts.Path ?? Definitions.GlobalDefinitions.SettingsPath, opts.Password);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failure: " + ex.ToString());
+            }
+
+            return 0;
         }
     }
 }
