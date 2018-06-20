@@ -26,40 +26,47 @@ namespace DustyBot
 
         public async Task MainAsync()
         {
-            var client = new DiscordSocketClient(new DiscordSocketConfig
+            try
             {
-                MessageCacheSize = 200,
-                ConnectionTimeout = int.MaxValue
-            });
+                var client = new DiscordSocketClient(new DiscordSocketConfig
+                {
+                    MessageCacheSize = 200,
+                    ConnectionTimeout = int.MaxValue
+                });
 
-            //Choose settings provider
-            var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory());
+                //Choose settings provider
+                var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new Settings.LiteDB.SettingsFactory(), new Settings.LiteDB.Migrator());
 
-            //Choose config parser
-            var config = await Settings.JSON.JsonConfig.Create();
+                //Choose config parser
+                var config = await Settings.JSON.JsonConfig.Create();
 
-            //Choose logger
-            var logger = new Framework.Logging.ConsoleLogger(client);
+                //Choose logger
+                var logger = new Framework.Logging.ConsoleLogger(client);
 
-            //Choose communicator
-            var communicator = new Framework.Communication.DefaultCommunicator(config);
+                //Choose communicator
+                var communicator = new Framework.Communication.DefaultCommunicator(config);
 
-            //Choose modules
-            _modules = new HashSet<IModule>();
-            _modules.Add(new Modules.SelfModule(communicator, config, this));
-            _modules.Add(new Modules.AdministrationModule(communicator, settings));
-            _modules.Add(new Modules.MediaModule(communicator, settings, config));
-            _modules.Add(new Modules.RolesModule(communicator, settings, logger));
-            _modules.Add(new Modules.LogModule(communicator, settings));
+                //Choose modules
+                _modules = new HashSet<IModule>();
+                _modules.Add(new Modules.SelfModule(communicator, config, this));
+                _modules.Add(new Modules.AdministrationModule(communicator, settings));
+                _modules.Add(new Modules.MediaModule(communicator, settings, config));
+                _modules.Add(new Modules.RolesModule(communicator, settings, logger));
+                _modules.Add(new Modules.LogModule(communicator, settings));
 
-            //Choose services
-            _services = new List<IService>();
-            _services.Add(new Services.DaumCafeService(client, settings, config, logger));
+                //Choose services
+                _services = new List<IService>();
+                _services.Add(new Services.DaumCafeService(client, settings, config, logger));
 
-            //Init framework
-            var framework = new Framework.Framework(client, _modules, _services, config, communicator, logger);
+                //Init framework
+                var framework = new Framework.Framework(client, _modules, _services, config, communicator, logger);
 
-            await framework.Run();
+                await framework.Run();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Top level exception: " + ex.ToString());
+            }
         }
     }
 }

@@ -15,11 +15,12 @@ namespace DustyBot.Framework.LiteDB
 
         private ISettingsFactory _factory;
 
-        public SettingsProvider(string dbPath, ISettingsFactory factory)
+        public SettingsProvider(string dbPath, ISettingsFactory factory, ILiteDbMigrator migrator)
         {
             _factory = factory;
 
             DbObject = new LiteDatabase(dbPath);
+            migrator.MigrateCurrent(DbObject);
         }
 
         public async Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
