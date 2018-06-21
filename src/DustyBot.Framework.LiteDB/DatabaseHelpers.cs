@@ -11,44 +11,40 @@ namespace DustyBot.Framework.LiteDB
     {
         public static void Encrypt(string dbPath, string password)
         {
-            var tmpPath = dbPath + "_tmp";
-            if (File.Exists(tmpPath))
-                File.Delete(tmpPath);
-
-            using (var original = new LiteDatabase(dbPath))
-            using (var encrypted = new LiteDatabase($"Filename={tmpPath};Password={password}"))
-            {
-                foreach (var name in original.GetCollectionNames())
-                {
-                    var oldCol = original.GetCollection(name);
-                    var newCol = encrypted.GetCollection(name);
-                    newCol.InsertBulk(oldCol.FindAll(), Math.Max(oldCol.Count(), 100));
-                }
-            }
-
-            File.Delete(dbPath);
-            File.Move(tmpPath, dbPath);
+            CopyReplace(dbPath, password);
         }
 
         public static void Decrypt(string dbPath, string password)
         {
-            var tmpPath = dbPath + "_tmp";
+            CopyReplace($"Filename={dbPath};Password={password}");
+        }
+
+        public static void CopyReplace(string sourceConnString, string destPassword = null)
+        {
+            var sourceConn = new ConnectionString(sourceConnString);
+
+            var tmpPath = sourceConn.Filename + "_tmp";
             if (File.Exists(tmpPath))
                 File.Delete(tmpPath);
 
-            using (var original = new LiteDatabase($"Filename={dbPath};Password={password}"))
-            using (var decrypted = new LiteDatabase(tmpPath))
+            using (var source = new LiteDatabase(sourceConnString))
             {
-                foreach (var name in original.GetCollectionNames())
+                string destConnString = $"Filename={tmpPath}" + (destPassword == null ? "" : $";Password={destPassword}");
+                using (var destination = new LiteDatabase(destConnString))
                 {
-                    var oldCol = original.GetCollection(name);
-                    var newCol = decrypted.GetCollection(name);
-                    newCol.InsertBulk(oldCol.FindAll(), Math.Max(oldCol.Count(), 100));
+                    foreach (var name in source.GetCollectionNames())
+                    {
+                        var oldCol = source.GetCollection(name);
+                        var newCol = destination.GetCollection(name);
+                        newCol.InsertBulk(oldCol.FindAll(), Math.Max(oldCol.Count(), 100));
+                    }
+
+                    destination.Engine.UserVersion = source.Engine.UserVersion;
                 }
             }
 
-            File.Delete(dbPath);
-            File.Move(tmpPath, dbPath);
+            File.Delete(sourceConn.Filename);
+            File.Move(tmpPath, sourceConn.Filename);
         }
     }
 }

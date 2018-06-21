@@ -75,7 +75,7 @@ namespace DustyBot
                 //Choose settings provider
                 var migrator = new Framework.LiteDB.Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations());
                 var settings = new Framework.LiteDB.SettingsProvider(Definitions.GlobalDefinitions.SettingsPath, new SettingsFactory(), migrator, opts.Password);
-
+                
                 //Choose config parser
                 var config = await Settings.JSON.JsonConfig.Create();
 
