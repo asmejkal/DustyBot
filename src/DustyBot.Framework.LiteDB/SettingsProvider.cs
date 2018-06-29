@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Settings;
 using LiteDB;
 using System.Threading;
+using Newtonsoft.Json;
 
 namespace DustyBot.Framework.LiteDB
 {
@@ -104,6 +105,24 @@ namespace DustyBot.Framework.LiteDB
             {
                 settingsLock.Release();
             }
+        }
+
+        public Task<string> DumpSettings(ulong serverId)
+        {
+            string result = "";
+            foreach (var colName in DbObject.GetCollectionNames())
+            {
+                result += colName + ":\n";
+                var col = DbObject.GetCollection(colName);
+                
+                var settings = col.FindOne(x => unchecked((UInt64)((Int64)x["ServerId"].RawValue)) == serverId );
+                if (settings == null)
+                    continue;
+                
+                result += JsonConvert.SerializeObject(JsonConvert.DeserializeObject(settings.ToString()), Formatting.Indented) + "\n\n";
+            }
+
+            return Task.FromResult(result);
         }
     }
 }

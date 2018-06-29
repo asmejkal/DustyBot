@@ -19,7 +19,8 @@ namespace DustyBot.Framework.Commands
 
         Task<IUserMessage> ReplySuccess(Communication.ICommunicator communicator, string message);
         Task<IUserMessage> ReplyError(Communication.ICommunicator communicator, string message);
-        Task<IUserMessage> Reply(Communication.ICommunicator communicator, string message);
+        Task<ICollection<IUserMessage>> Reply(Communication.ICommunicator communicator, string message);
+        Task<ICollection<IUserMessage>> Reply(Communication.ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
         int ParametersCount { get; }
         ParameterToken GetParameter(int key);

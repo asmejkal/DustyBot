@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Communication
 {
@@ -20,7 +21,9 @@ namespace DustyBot.Framework.Communication
 
         public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message) => await channel.SendMessageAsync(":white_check_mark: " + message);
         public async Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message) => await channel.SendMessageAsync(":no_entry: " + message);
-        public async Task<IUserMessage> CommandReply(IMessageChannel channel, string message) => await channel.SendMessageAsync(message);
+
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await channel.SendLongStringAsync(message);
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => await channel.SendLongStringAsync(message, chunkDecorator, maxDecoratorOverhead);
 
         public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
             await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, string.Join(", ", missingPermissions)));

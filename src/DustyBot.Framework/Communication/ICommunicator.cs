@@ -10,7 +10,8 @@ namespace DustyBot.Framework.Communication
     {
         Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message);
         Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message);
-        Task<IUserMessage> CommandReply(IMessageChannel channel, string message);
+        Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message);
+        Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
         //Reactions to framework events
         Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions);

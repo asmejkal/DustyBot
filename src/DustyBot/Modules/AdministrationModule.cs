@@ -58,7 +58,7 @@ namespace DustyBot.Modules
                     }
                 }
 
-                await waitMsg.DeleteAsync().ConfigureAwait(false);
+                await waitMsg.First().DeleteAsync().ConfigureAwait(false);
             });
 
             await command.ReplySuccess(Communicator, $"Role has been assigned to all users.").ConfigureAwait(false);
@@ -97,6 +97,19 @@ namespace DustyBot.Modules
                 result = "Everyone has this role.";
 
             await command.Reply(Communicator, result).ConfigureAwait(false);
+        }
+
+        [Command("dumpSettings", "Dumps all settings for this server.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Usage("{p}dumpSettings [ServerId]\n\nServerId - bot owner only")]
+        public async Task DumpSettings(ICommand command)
+        {
+            var serverId = command.GuildId;
+            var result = await Settings.DumpSettings(serverId);
+            
+            //TODO - owner option
+
+            await command.Reply(Communicator, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
     }
 }

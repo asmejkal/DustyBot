@@ -17,5 +17,26 @@ namespace DustyBot.Framework.Utility
                 catch { }
             });
         }
+
+        public static async Task<ICollection<IUserMessage>> SendLongStringAsync(this IMessageChannel channel, string text, bool isTTS = false, RequestOptions options = null)
+        {
+            var result = new List<IUserMessage>();
+            foreach (var chunk in text.Chunkify(DiscordConfig.MaxMessageSize))
+                result.Add(await channel.SendMessageAsync(chunk, isTTS, null, options));
+
+            return result;
+        }
+
+        public static async Task<ICollection<IUserMessage>> SendLongStringAsync(this IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0, bool isTTS = false, RequestOptions options = null)
+        {
+            if (maxDecoratorOverhead >= DiscordConfig.MaxMessageSize)
+                throw new ArgumentException($"MaxDecoratorOverhead may not exceed the message length limit, {DiscordConfig.MaxMessageSize}.");
+
+            var result = new List<IUserMessage>();
+            foreach (var chunk in text.Chunkify(DiscordConfig.MaxMessageSize - maxDecoratorOverhead))
+                result.Add(await channel.SendMessageAsync(chunkDecorator(chunk)));
+
+            return result;
+        }
     }
 }

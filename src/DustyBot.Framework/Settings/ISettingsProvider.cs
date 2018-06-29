@@ -19,5 +19,7 @@ namespace DustyBot.Framework.Settings
 
         Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
             where T : IServerSettings;
+
+        Task<string> DumpSettings(ulong serverId);
     }
 }
