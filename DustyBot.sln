@@ -1,20 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AD7BBBB3-0056-488C-A664-53AE15EA1EB7}"
-	ProjectSection(SolutionItems) = preProject
-		global.json = global.json
-	EndProjectSection
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "DustyBot.Framework", "src\DustyBot.Framework\DustyBot.Framework.xproj", "{576561A9-4012-412C-95B5-C72EAEB78FF6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework", "src\DustyBot.Framework\DustyBot.Framework.csproj", "{576561A9-4012-412C-95B5-C72EAEB78FF6}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "DustyBot.Framework.LiteDB", "src\DustyBot.Framework.LiteDB\DustyBot.Framework.LiteDB.xproj", "{FFD8422C-C724-49AB-A460-72692FD52FB0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework.LiteDB", "src\DustyBot.Framework.LiteDB\DustyBot.Framework.LiteDB.csproj", "{FFD8422C-C724-49AB-A460-72692FD52FB0}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "DustyBot", "src\DustyBot\DustyBot.xproj", "{C9C7846F-9BBF-4461-AE7A-A36052EDE81E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot", "src\DustyBot\DustyBot.csproj", "{C9C7846F-9BBF-4461-AE7A-A36052EDE81E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
