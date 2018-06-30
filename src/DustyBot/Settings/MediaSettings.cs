@@ -26,7 +26,7 @@ namespace DustyBot.Settings
         public ulong TargetChannel { get; set; }
     }
 
-    public class MediaSettings : ServerSettings
+    public class MediaSettings : BaseServerSettings
     {
         public List<ComebackInfo> YouTubeComebacks { get; set; } = new List<ComebackInfo>();
         public HashSet<ulong> ScheduleMessages { get; set; } = new HashSet<ulong>();

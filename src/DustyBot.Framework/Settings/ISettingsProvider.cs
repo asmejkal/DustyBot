@@ -8,6 +8,7 @@ namespace DustyBot.Framework.Settings
 {
     public interface ISettingsProvider
     {
+        //Server settings
         Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
             where T : IServerSettings;
 
@@ -21,5 +22,25 @@ namespace DustyBot.Framework.Settings
             where T : IServerSettings;
 
         Task<string> DumpSettings(ulong serverId);
+
+        //Global settings
+        Task<T> ReadGlobal<T>()
+            where T : new();
+
+        Task ModifyGlobal<T>(Action<T> action)
+            where T : new();
+
+        //User settings
+        Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
+            where T : IUserSettings;
+
+        Task<IEnumerable<T>> ReadUser<T>()
+            where T : IUserSettings;
+
+        Task ModifyUser<T>(ulong userId, Action<T> action)
+            where T : IUserSettings;
+
+        Task<U> ModifyUser<T, U>(ulong userId, Func<T, U> action)
+            where T : IUserSettings;
     }
 }

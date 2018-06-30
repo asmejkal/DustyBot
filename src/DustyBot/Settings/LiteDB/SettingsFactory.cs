@@ -25,5 +25,15 @@ namespace DustyBot.Settings.LiteDB
 
             return Task.FromResult((T)result);
         }
+
+        public Task<T> CreateUser<T>() 
+            where T : IUserSettings
+        {
+            IUserSettings result;
+                    
+            throw new InvalidOperationException("Unknown settings type.");
+
+            return Task.FromResult((T)result);
+        }
     }
 }

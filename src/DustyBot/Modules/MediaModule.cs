@@ -25,13 +25,11 @@ namespace DustyBot.Modules
     {
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
-        public IOwnerConfig Config { get; private set; }
 
-        public MediaModule(ICommunicator communicator, ISettingsProvider settings, IOwnerConfig config)
+        public MediaModule(ICommunicator communicator, ISettingsProvider settings)
         {
             Communicator = communicator;
             Settings = settings;
-            Config = config;
         }
 
         [Command("setScheduleChannel", "Sets a channel to be used a source for the schedule.")]
@@ -240,7 +238,8 @@ namespace DustyBot.Modules
                 await command.ReplyError(Communicator, "No comeback info has been set for this category. Use the `addComeback` command.").ConfigureAwait(false);
                 return;
             }
-            
+
+            var config = await Settings.ReadGlobal<BotConfig>();
             var pages = new PageCollection();
             EmbedBuilder embed = null;
             foreach (var comeback in comebacks)
@@ -251,7 +250,7 @@ namespace DustyBot.Modules
                     pages.Add(embed);
                 }
 
-                var info = await GetYoutubeInfo(comeback.VideoIds).ConfigureAwait(false);
+                var info = await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false);
 
                 TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.publishedAt;
 
@@ -459,10 +458,10 @@ namespace DustyBot.Modules
             public DateTime publishedAt;
         }
 
-        public async Task<YoutubeInfo> GetYoutubeInfo(IEnumerable<string> ids)
+        public async Task<YoutubeInfo> GetYoutubeInfo(IEnumerable<string> ids, string youtubeKey)
         {
             string html = string.Empty;
-            string url = @"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=" + String.Join(",", ids) + @"&key=" + Config.YouTubeKey;
+            string url = @"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=" + String.Join(",", ids) + @"&key=" + youtubeKey;
 
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
 

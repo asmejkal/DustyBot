@@ -10,6 +10,7 @@ using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using System.Reflection;
+using Discord.WebSocket;
 
 namespace DustyBot.Modules
 {
@@ -17,20 +18,23 @@ namespace DustyBot.Modules
     class SelfModule : Framework.Modules.Module
     {
         public ICommunicator Communicator { get; private set; }
-        public IOwnerConfig Config { get; private set; }
+        public ISettingsProvider Settings { get; private set; }
         public IModuleCollection ModuleCollection { get; private set; }
+        public IDiscordClient Client { get; private set; }
 
-        public SelfModule(ICommunicator communicator, Settings.IOwnerConfig config, IModuleCollection moduleCollection)
+        public SelfModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, IDiscordClient client)
         {
             Communicator = communicator;
-            Config = config;
+            Settings = settings;
             ModuleCollection = moduleCollection;
+            Client = client;
         }
 
         [Command("help", "Prints usage info.")]
         [Usage("Use without parameters to see a list of modules and commands. Type `{p}help CommandName` to see usage and help for a specific command.")]
         public async Task Help(ICommand command)
         {
+            var config = await Settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
                 var pages = new PageCollection();
@@ -41,14 +45,14 @@ namespace DustyBot.Modules
                     {
                         embed = new EmbedBuilder()
                             .WithTitle("List of modules")
-                            .WithFooter($"Type `{Config.CommandPrefix}help CommandName` to see usage and help for a specific command.");
+                            .WithFooter($"Type `{config.CommandPrefix}help CommandName` to see usage and help for a specific command.");
 
                         pages.Add(embed);
                     }
 
                     var description = module.Description + "\n";
                     foreach (var handledCommand in module.HandledCommands)
-                        description += "\n**" + Config.CommandPrefix + handledCommand.InvokeString + "** – " + handledCommand.Description + "";
+                        description += "\n**" + config.CommandPrefix + handledCommand.InvokeString + "** – " + handledCommand.Description + "";
                     
                     embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
                 }
@@ -59,7 +63,7 @@ namespace DustyBot.Modules
             {
                 //Try to find the command
                 CommandRegistration commandRegistration = null;
-                string searchedCommand = command.Body.StartsWith(Config.CommandPrefix) ? command.Body.Substring(Config.CommandPrefix.Length) : command.Body;
+                string searchedCommand = command.Body.StartsWith(config.CommandPrefix) ? command.Body.Substring(config.CommandPrefix.Length) : command.Body;
                 foreach (var module in ModuleCollection.Modules)
                 {
                     foreach (var handledCommand in module.HandledCommands)
@@ -74,11 +78,11 @@ namespace DustyBot.Modules
 
                 //Build response
                 var embed = new EmbedBuilder()
-                    .WithTitle($"Command {Config.CommandPrefix}{commandRegistration.InvokeString}")
+                    .WithTitle($"Command {config.CommandPrefix}{commandRegistration.InvokeString}")
                     .WithDescription(commandRegistration.Description);
 
-                if (!string.IsNullOrEmpty(commandRegistration.GetUsage(Config.CommandPrefix)))
-                    embed.AddField(x => x.WithName("Usage").WithValue(commandRegistration.GetUsage(Config.CommandPrefix)));
+                if (!string.IsNullOrEmpty(commandRegistration.GetUsage(config.CommandPrefix)))
+                    embed.AddField(x => x.WithName("Usage").WithValue(commandRegistration.GetUsage(config.CommandPrefix)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
             }
@@ -87,14 +91,38 @@ namespace DustyBot.Modules
         [Command("about", "Bot and version information.")]
         public async Task About(ICommand command)
         {
+            var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
+            var config = await Settings.ReadGlobal<BotConfig>();
+
             var embed = new EmbedBuilder()
-                .WithTitle("DustyBot v" + typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version)
+                .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddInlineField("Author", "Yebafan#3517")
-                .AddInlineField("Owners", string.Join("\n", Config.OwnerIDs))
+                .AddInlineField("Owners", string.Join("\n", config.OwnerIDs))
+                .AddInlineField("Presence", $"{guilds.Count} servers")
                 .AddInlineField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version)
-                .AddInlineField("GitHub", "https://github.com/yebafan/DustyBot");
+                .AddInlineField("Web", "https://github.com/yebafan/DustyBot")
+                .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+        }
+
+        [Command("listServers", "List all servers the bot is on.")]
+        public async Task ListServers(ICommand command)
+        {
+            var pages = new PageCollection();
+            foreach (var guild in await Client.GetGuildsAsync().ConfigureAwait(false))
+            {
+                if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 10 == 0)
+                    pages.Add(new EmbedBuilder());
+                
+                var owner = await guild.GetOwnerAsync();
+                
+                pages.Last.Embed.AddField(x => x
+                    .WithName(guild.Name)
+                    .WithValue($"ID: {guild.Id}\nMembers: {((SocketGuild)guild).MemberCount}\nOwner: {owner.Username}{owner.Discriminator} ({owner.Id})"));
+            }
+
+            await command.Reply(Communicator, pages, true).ConfigureAwait(false);
         }
     }
 }

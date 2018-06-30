@@ -18,17 +18,15 @@ namespace DustyBot.Services
         System.Threading.Timer _timer;
 
         public ISettingsProvider Settings { get; private set; }
-        public IOwnerConfig Config { get; private set; }
         public DiscordSocketClient Client { get; private set; }
         public ILogger Logger { get; private set; }
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(2);
         bool _updating = false;
 
-        public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, IOwnerConfig config, ILogger logger)
+        public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, ILogger logger)
         {
             Settings = settings;
-            Config = config;
             Client = client;
             Logger = logger;
         }

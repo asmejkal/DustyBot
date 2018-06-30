@@ -8,9 +8,9 @@ namespace DustyBot.Definitions
 {
     public static class GlobalDefinitions
     {
+        public const string DefaultPrefix = ">";
         public const string DataFolder = "Data";
-        public const string SettingsFile = "Settings.db";
-        public static string SettingsPath => Path.Combine(DataFolder, SettingsFile);
+        public static string GetInstanceDbPath(string instance) => Path.Combine(DataFolder, instance + ".db");
         public const ushort SettingsVersion = 1;
     }
 }

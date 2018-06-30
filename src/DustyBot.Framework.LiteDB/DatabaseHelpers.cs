@@ -9,6 +9,8 @@ namespace DustyBot.Framework.LiteDB
 {
     public static class DatabaseHelpers
     {
+        public static LiteDatabase CreateOrOpen(string dbPath, string password) => new LiteDatabase($"Filename={dbPath};Password={password}");
+
         public static void Encrypt(string dbPath, string password)
         {
             CopyReplace(dbPath, password);

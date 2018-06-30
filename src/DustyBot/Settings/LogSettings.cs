@@ -9,7 +9,7 @@ using DustyBot.Framework.LiteDB;
 
 namespace DustyBot.Settings
 {
-    public class LogSettings : ServerSettings
+    public class LogSettings : BaseServerSettings
     {
         public ulong EventNameChangedChannel { get; set; }
         public ulong EventMessageDeletedChannel { get; set; }

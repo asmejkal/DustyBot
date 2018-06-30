@@ -16,7 +16,7 @@ namespace DustyBot.Settings
         public ulong SecondaryId { get; set; }
     }
 
-    public class RolesSettings : ServerSettings
+    public class RolesSettings : BaseServerSettings
     {
         public ulong RoleChannel { get; set; }
         public bool ClearRoleChannel { get; set; }

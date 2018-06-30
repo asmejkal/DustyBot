@@ -10,5 +10,8 @@ namespace DustyBot.Framework.LiteDB
     {
         Task<T> Create<T>()
             where T : IServerSettings;
+
+        Task<T> CreateUser<T>()
+            where T : IUserSettings;
     }
 }
