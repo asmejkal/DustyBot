@@ -143,29 +143,29 @@ namespace DustyBot.Modules
             {
                 result += $"\nName: `{role.Names.FirstOrDefault() ?? string.Empty}` ";
 
-                if (role.Names.Count > 1 || role.SecondaryId != 0)
+                if (role.Names.Count > 1)
                 {
-                    result += $"Aliases: `{string.Join(", ", role.Names.Skip(1))}` ";
-                    
-                    if (role.SecondaryId != 0)
+                    result += $"Aliases: `" + string.Join(", ", role.Names.Skip(1)) + "` ";
+                }
+
+                if (role.SecondaryId != 0)
+                {
+                    result += $"Secondary: `";
+                    try
                     {
-                        result += $"Secondary: `";
-                        try
-                        {
-                            var secondary = command.Guild.Roles.First(x => x.Id == role.SecondaryId);
-                            result += secondary.Name;
-                        }
-                        catch (InvalidOperationException)
-                        {
-                            result += "INVALID";
-                        }
-                        result += "` ";
+                        var secondary = command.Guild.Roles.First(x => x.Id == role.SecondaryId);
+                        result += secondary.Name;
                     }
+                    catch (InvalidOperationException)
+                    {
+                        result += "INVALID";
+                    }
+                    result += "` ";
                 }
             }
 
             if (string.IsNullOrEmpty(result))
-                result = "None";
+                result = "No self-assignable roles have been setup.";
 
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
