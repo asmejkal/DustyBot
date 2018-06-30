@@ -35,8 +35,24 @@ namespace DustyBot.Framework.Modules
             Description = description;
         }
 
+        public CommandAttribute(string invokeString, string verb, string description)
+        {
+            InvokeString = invokeString;
+            Verb = verb;
+            Description = description;
+        }
+
         public string InvokeString { get; private set; }
+        public string Verb { get; private set; }
         public string Description { get; private set; }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class HiddenAttribute : Attribute
+    {
+        public HiddenAttribute()
+        {
+        }
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]

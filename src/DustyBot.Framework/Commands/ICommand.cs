@@ -15,6 +15,7 @@ namespace DustyBot.Framework.Commands
         IGuild Guild { get; }
 
         string Invoker { get; }
+        string Verb { get; }
         string Body { get; }
         string Prefix { get; }
 

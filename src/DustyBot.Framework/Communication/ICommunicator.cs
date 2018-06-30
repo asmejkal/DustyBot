@@ -30,6 +30,8 @@ namespace DustyBot.Framework.Communication
         Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0);
 
         Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0);
+        Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text);
+        Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
         //Reactions to framework events
         Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions);

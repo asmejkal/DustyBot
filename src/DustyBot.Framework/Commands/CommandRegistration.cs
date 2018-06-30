@@ -13,6 +13,9 @@ namespace DustyBot.Framework.Commands
         public delegate Task CommandHandler(ICommand command);
 
         public string InvokeString { get; set; }
+        public string Verb { get; set; }
+        public bool HasVerb => !string.IsNullOrEmpty(Verb);
+
         public HashSet<Discord.GuildPermission> RequiredPermissions { get; set; } = new HashSet<Discord.GuildPermission>();
         public CommandHandler Handler { get; set; }
 
@@ -21,9 +24,10 @@ namespace DustyBot.Framework.Commands
         public string Description { get; set; }
         
         public string Usage { private get; set; }
-        public string GetUsage(string prefix) => Usage.Replace(PrefixWildcard, prefix);
+        public string GetUsage(string prefix) => Usage?.Replace(PrefixWildcard, prefix);
 
         public bool RunAsync { get; set; }
         public bool OwnerOnly { get; set; }
+        public bool Hidden { get; set; }
     }
 }

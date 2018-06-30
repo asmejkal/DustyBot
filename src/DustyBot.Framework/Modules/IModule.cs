@@ -9,5 +9,6 @@ namespace DustyBot.Framework.Modules
     {
         string Name { get; }
         string Description { get; }
+        bool Hidden { get; }
     }
 }

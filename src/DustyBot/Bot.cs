@@ -123,10 +123,13 @@ namespace DustyBot
                     //Choose modules
                     _modules = new HashSet<IModule>();
                     _modules.Add(new Modules.SelfModule(communicator, settings, this, client));
-                    _modules.Add(new Modules.AdministrationModule(communicator, settings));
-                    _modules.Add(new Modules.MediaModule(communicator, settings));
+                    _modules.Add(new Modules.CafeModule(communicator, settings));
+                    _modules.Add(new Modules.ViewsModule(communicator, settings));
+                    _modules.Add(new Modules.ScheduleModule(communicator, settings));
+                    _modules.Add(new Modules.TwitterModule(communicator, settings));
                     _modules.Add(new Modules.RolesModule(communicator, settings, logger));
                     _modules.Add(new Modules.LogModule(communicator, settings));
+                    _modules.Add(new Modules.AdministrationModule(communicator, settings));
 
                     //Choose services
                     _services = new List<IService>();

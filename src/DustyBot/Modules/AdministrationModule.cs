@@ -28,10 +28,10 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("assignToAll", "Assigns a role to everyone.")]
+        [Command("role", "giveall", "Assigns a role to everyone.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}assignToAll RoleName\n\nMay take a while to complete.")]
+        [Usage("{p}role giveall RoleName\n\nMay take a while to complete.")]
         public async Task AssignToAll(ICommand command)
         {
             var role = command.Guild.Roles.FirstOrDefault(x => x.Name == (string)command.GetParameter(0));
@@ -64,10 +64,10 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Role has been assigned to all users.").ConfigureAwait(false);
         }
 
-        [Command("notInRole", "Checks for users who are missing a specified role.")]
+        [Command("role", "notin", "Checks for users who are missing a specified role.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}notInRole RoleName")]
+        [Usage("{p}role notin RoleName")]
         public async Task NotInRole(ICommand command)
         {
             var role = command.Guild.Roles.FirstOrDefault(x => x.Name == (string)command.GetParameter(0));
@@ -99,9 +99,9 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
-        [Command("dumpSettings", "Dumps all settings for a server. Bot owner only."), RunAsync]
-        [OwnerOnly]
-        [Usage("{p}dumpSettings [ServerId]")]
+        [Command("dump", "settings", "Dumps all settings for a server. Bot owner only."), RunAsync]
+        [OwnerOnly, Hidden]
+        [Usage("{p}dump settings [ServerId]")]
         public async Task DumpSettings(ICommand command)
         {
             var channel = await command.Message.Author.GetOrCreateDMChannelAsync();

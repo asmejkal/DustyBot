@@ -31,9 +31,9 @@ namespace DustyBot.Modules
             Settings = settings;
         }
 
-        [Command("logNameChanges", "Sets or disables a channel for name change logging.")]
+        [Command("log", "names", "Sets or disables a channel for name change logging.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}logNameChanges ChannelMention\n\nUse without parameters to disable name change logging.")]
+        [Usage("{p}log namechanges ChannelMention\n\nUse without parameters to disable name change logging.")]
         public async Task LogNameChanges(ICommand command)
         {
             if (command.Message.MentionedChannelIds.Count <= 0)
@@ -56,9 +56,9 @@ namespace DustyBot.Modules
             }
         }
         
-        [Command("logMessages", "Sets or disables a channel for logging of deleted messages.")]
+        [Command("log", "messages", "Sets or disables a channel for logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}logMessages ChannelMention\n\nUse without parameters to disable name change logging.")]
+        [Usage("{p}log messages ChannelMention\n\nUse without parameters to disable name change logging.")]
         public async Task LogMessages(ICommand command)
         {
             if (command.Message.MentionedChannelIds.Count <= 0)
@@ -81,9 +81,9 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("setMessagesFilter", "Sets or disables a regex filter for deleted messages.")]
+        [Command("log", "messagefilter", "Sets or disables a regex filter for deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}setMessagesFilter RegularExpression\n\nMessages that match this regular expression won't be logged. Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
+        [Usage("{p}log messagefilter RegularExpression\n\nMessages that match this regular expression won't be logged. Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
         public async Task SetMessagesFilter(ICommand command)
         {
             await Settings.Modify(command.GuildId, (LogSettings s) =>
@@ -94,9 +94,9 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command.Body) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
         }
 
-        [Command("setMessagesChannelFilter", "Excludes channels from logging of deleted messages.")]
+        [Command("log", "channelfilter", "Excludes channels from logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}setMessagesChannelFilter ChannelMentions\n\nYou may specify one or more channels. Use without parameters to disable.")]
+        [Usage("{p}log channelfilter ChannelMentions\n\nYou may specify one or more channels. Use without parameters to disable.")]
         public async Task SetMessagesChannelFilter(ICommand command)
         {
             await Settings.Modify(command.GuildId, (LogSettings s) =>

@@ -68,59 +68,80 @@ namespace DustyBot.Framework.Commands
             List<CommandRegistration> commandRegistrations;
             if (!_commandsMapping.TryGetValue(command.Invoker.ToLowerInvariant(), out commandRegistrations))
                 return;
+            
+            //Find an appropriate handler
+            CommandRegistration commandRegistration;
+            if (!FindHandler(commandRegistrations, userMessage, ref command, out commandRegistration))
+                return;
 
             await Logger.Log(new LogMessage(LogSeverity.Info, "Command", "\"" + message.Content + "\" by " + userMessage.Author.Username + " (" + userMessage.Author.Id + ")"));
 
-            //Send the command to all registered modules
-            foreach (var commandRegistration in commandRegistrations)
+            //Check permisssions
+            var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
+            if (missingPermissions.Count() > 0)
             {
-                //Check permisssions
-                var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
-                if (missingPermissions.Count() > 0)
-                {
-                    await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
-                    continue;
-                }
-
-                //Check owner
-                if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
-                {
-                    await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
-                    continue;
-                }
-
-                //Check expected parameters
-                if (!CheckRequiredParameters(command, commandRegistration))
-                {
-                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, "");
-                    continue;
-                }                    
-
-                var executor = new Func<Task>(async () =>
-                {
-                    try
-                    {
-                        //Execute
-                        await commandRegistration.Handler(command);
-                    }
-                    catch (Exceptions.IncorrectParametersCommandException ex)
-                    {
-                        await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
-                            $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}", ex));
-
-                        await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
-                    }
-                });
-
-                if (commandRegistration.RunAsync)
-                    TaskHelper.FireForget(executor);
-                else
-                    await executor();
+                await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
+                return;
             }
+
+            //Check owner
+            if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
+            {
+                await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
+                return;
+            }
+
+            //Check expected parameters
+            if (!CheckRequiredParameters(command, commandRegistration))
+            {
+                await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, "");
+                return;
+            }                    
+
+            var executor = new Func<Task>(async () =>
+            {
+                try
+                {
+                    //Execute
+                    await commandRegistration.Handler(command);
+                }
+                catch (Exceptions.IncorrectParametersCommandException ex)
+                {
+                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
+                        $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}", ex));
+
+                    await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
+                }
+            });
+
+            if (commandRegistration.RunAsync)
+                TaskHelper.FireForget(executor);
+            else
+                await executor();
+        }
+
+        private bool FindHandler(IEnumerable<CommandRegistration> commandRegistrations, SocketUserMessage userMessage, ref ICommand command, out CommandRegistration registration)
+        {
+            //Find a handler for this command, prioritize handlers with a matching verb
+            foreach (var cr in commandRegistrations.OrderByDescending(x => x.Verb))
+            {
+                //If this registration expects a verb, try to parse the command again with this verb
+                ICommand tmp = null;
+                if (cr.HasVerb && (!SocketCommand.TryCreate(userMessage, Config, out tmp, true) || string.Compare(tmp.Verb, cr.Verb, true) != 0))
+                    continue; //No verb supplied or it doesn't fit
+
+                //Found
+                command = tmp ?? command;
+                registration = cr;
+                return true;
+            }
+
+            registration = null;
+            return false;
         }
 
         private bool CheckRequiredParameters(ICommand command, CommandRegistration commandRegistration)

@@ -6,6 +6,7 @@ using Discord;
 using DustyBot.Framework.Utility;
 using System.Threading;
 using Discord.WebSocket;
+using System.Text;
 
 namespace DustyBot.Framework.Communication
 {
@@ -67,8 +68,8 @@ namespace DustyBot.Framework.Communication
         public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message) => await channel.SendMessageAsync(":white_check_mark: " + message);
         public async Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message) => await channel.SendMessageAsync(":no_entry: " + message);
 
-        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await channel.SendLongStringAsync(message);
-        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => await channel.SendLongStringAsync(message, chunkDecorator, maxDecoratorOverhead);
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await SendMessage(channel, message);
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => await SendMessage(channel, message, chunkDecorator, maxDecoratorOverhead);
         public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0) => await SendMessage(channel, pages, messageOwner);
 
         public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
@@ -218,5 +219,28 @@ namespace DustyBot.Framework.Communication
                 _paginatedMessages.RemoveAll((x, y) => y.ExpirationDate < DateTime.Now);
             }
         }
+
+        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text)
+        {
+            var result = new List<IUserMessage>();
+            foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize))
+                result.Add(await channel.SendMessageAsync(chunk.ToString(), false, null));
+
+            return result;
+        }
+
+        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0)
+        {
+            if (maxDecoratorOverhead >= DiscordConfig.MaxMessageSize)
+                throw new ArgumentException($"MaxDecoratorOverhead may not exceed the message length limit, {DiscordConfig.MaxMessageSize}.");
+                        
+            var result = new List<IUserMessage>();
+            foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize - maxDecoratorOverhead))
+                result.Add(await channel.SendMessageAsync(chunkDecorator(chunk.ToString())));
+
+            return result;
+        }
+
+        
     }
 }

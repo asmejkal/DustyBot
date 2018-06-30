@@ -11,6 +11,7 @@ namespace DustyBot.Framework.Modules
     {
         public string Name { get; private set; }
         public string Description { get; private set; }
+        public bool Hidden { get; private set; }
 
         public IEnumerable<CommandRegistration> HandledCommands { get; private set; }
 
@@ -25,6 +26,7 @@ namespace DustyBot.Framework.Modules
 
             Name = moduleAttr.Name;
             Description = moduleAttr.Description;
+            Hidden = module.GetCustomAttribute<HiddenAttribute>() != null;
 
             //Command attributes
             var handledCommandsList = new List<CommandRegistration>();
@@ -38,6 +40,7 @@ namespace DustyBot.Framework.Modules
                 var command = new CommandRegistration
                 {
                     InvokeString = commandAttr.InvokeString,
+                    Verb = commandAttr.Verb,
                     Handler = (CommandRegistration.CommandHandler)method.CreateDelegate(typeof(CommandRegistration.CommandHandler), this),
                     Description = commandAttr.Description
                 };
@@ -60,6 +63,9 @@ namespace DustyBot.Framework.Modules
 
                 var ownerOnly = method.GetCustomAttribute<OwnerOnlyAttribute>();
                 command.OwnerOnly = ownerOnly != null;
+
+                var hidden = method.GetCustomAttribute<HiddenAttribute>();
+                command.Hidden = hidden != null;
 
                 handledCommandsList.Add(command);
             }

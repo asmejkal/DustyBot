@@ -9,7 +9,7 @@ using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Commands
 {
-    class SocketCommand : ICommand
+    public class SocketCommand : ICommand
     {
         public IUserMessage Message { get; private set; }
         public ulong GuildId => (Message.Channel as IGuildChannel).GuildId;
@@ -17,7 +17,15 @@ namespace DustyBot.Framework.Commands
 
         public string Prefix { get; private set; }
         public string Invoker { get; private set; }
-        public string Body => Message.Content.Substring(Prefix.Length + Invoker.Length).Trim();
+        public string Verb { get; private set; }
+        public string Body
+        {
+            get
+            {
+                var result = Message.Content.Substring(Prefix.Length + Invoker.Length);
+                return string.IsNullOrEmpty(Verb) ? result.Trim() : new string(result.SkipWhile(c => char.IsWhiteSpace(c)).Skip(Verb.Length).ToArray()).Trim();
+            }
+        }
 
         public int ParametersCount => Tokens.Count;
         public ParameterToken GetParameter(int key) => Tokens.ElementAtOrDefault(key) ?? new ParameterToken(null);
@@ -32,14 +40,14 @@ namespace DustyBot.Framework.Commands
 
         public Config.IEssentialConfig Config { get; set; }
 
-        public static bool TryCreate(SocketUserMessage message, Config.IEssentialConfig config, out ICommand command)
+        public static bool TryCreate(SocketUserMessage message, Config.IEssentialConfig config, out ICommand command, bool hasVerb = false)
         {
             var socketCommand = new SocketCommand(config);
             command = socketCommand;
-            return socketCommand.TryParse(message);
+            return socketCommand.TryParse(message, hasVerb);
         }
 
-        private bool TryParse(SocketUserMessage message)
+        private bool TryParse(SocketUserMessage message, bool hasVerb = false)
         {
             Message = message;
 
@@ -48,6 +56,13 @@ namespace DustyBot.Framework.Commands
                 return false;
 
             Invoker = new string(message.Content.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(Prefix.Length).ToArray());
+
+            if (hasVerb)
+            {
+                Verb = new string(message.Content.Skip(Prefix.Length + Invoker.Length).SkipWhile(c => char.IsWhiteSpace(c)).TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
+                if (string.IsNullOrEmpty(Verb))
+                    return false;
+            }
 
             TokenizeParameters('"');
 
