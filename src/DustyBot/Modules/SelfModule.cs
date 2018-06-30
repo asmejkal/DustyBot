@@ -119,7 +119,7 @@ namespace DustyBot.Modules
                 
                 pages.Last.Embed.AddField(x => x
                     .WithName(guild.Name)
-                    .WithValue($"ID: {guild.Id}\nMembers: {((SocketGuild)guild).MemberCount}\nOwner: {owner.Username}{owner.Discriminator} ({owner.Id})"));
+                    .WithValue($"{guild.Id}\n{((SocketGuild)guild).MemberCount} members\nOwned by {owner.Username}#{owner.Discriminator} ({owner.Id})"));
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
