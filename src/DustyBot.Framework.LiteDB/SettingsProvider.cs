@@ -106,13 +106,13 @@ namespace DustyBot.Framework.LiteDB
             string result = "";
             foreach (var colName in _dbObject.GetCollectionNames())
             {
-                result += colName + ":\n";
                 var col = _dbObject.GetCollection(colName);
                 
-                var settings = col.FindOne(x => unchecked((UInt64)((Int64)x["ServerId"].RawValue)) == serverId );
+                var settings = col.FindOne(x => x.ContainsKey("ServerId") && unchecked((UInt64)((Int64)x["ServerId"].RawValue)) == serverId );
                 if (settings == null)
                     continue;
-                
+
+                result += colName + ":\n";
                 result += JsonConvert.SerializeObject(JsonConvert.DeserializeObject(settings.ToString()), Formatting.Indented) + "\n\n";
             }
 

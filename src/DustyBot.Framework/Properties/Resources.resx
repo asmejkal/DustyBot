@@ -126,6 +126,9 @@
   <data name="Command_MissingPermissions" xml:space="preserve">
     <value>You don't have the required permissions for this command ({0}).</value>
   </data>
+  <data name="Command_NotOwner" xml:space="preserve">
+    <value>This command is for the bot owner only.</value>
+  </data>
   <data name="Command_Usage" xml:space="preserve">
     <value>Usage</value>
   </data>

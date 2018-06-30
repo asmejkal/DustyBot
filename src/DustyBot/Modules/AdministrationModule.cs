@@ -99,17 +99,14 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
-        [Command("dumpSettings", "Dumps all settings for this server."), RunAsync]
-        [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}dumpSettings [ServerId]\n\nServerId - bot owner only")]
+        [Command("dumpSettings", "Dumps all settings for a server. Bot owner only."), RunAsync]
+        [OwnerOnly]
+        [Usage("{p}dumpSettings [ServerId]")]
         public async Task DumpSettings(ICommand command)
         {
-            var serverId = command.GuildId;
-            var result = await Settings.DumpSettings(serverId);
-            
-            //TODO - owner option
-
-            await command.Reply(Communicator, result, x => $"```{x}```", 6).ConfigureAwait(false);
+            var channel = await command.Message.Author.GetOrCreateDMChannelAsync();
+            var result = await Settings.DumpSettings((ulong?)command.GetParameter(0) ?? command.GuildId);
+            await Communicator.CommandReply(channel, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
     }
 }

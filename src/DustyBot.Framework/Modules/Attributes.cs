@@ -51,6 +51,14 @@ namespace DustyBot.Framework.Modules
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class OwnerOnlyAttribute : Attribute
+    {
+        public OwnerOnlyAttribute()
+        {
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
     public class ParametersAttribute : Attribute
     {
         public ParametersAttribute(params Commands.ParameterType[] requiredParameters)

@@ -9,5 +9,6 @@ namespace DustyBot.Framework.Config
     {
         string CommandPrefix { get; }
         string BotToken { get; }
+        List<ulong> OwnerIDs { get; }
     }
 }

@@ -82,6 +82,13 @@ namespace DustyBot.Framework.Commands
                     continue;
                 }
 
+                //Check owner
+                if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
+                {
+                    await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
+                    continue;
+                }
+
                 //Check expected parameters
                 if (!CheckRequiredParameters(command, commandRegistration))
                 {

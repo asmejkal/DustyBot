@@ -24,5 +24,6 @@ namespace DustyBot.Framework.Commands
         public string GetUsage(string prefix) => Usage.Replace(PrefixWildcard, prefix);
 
         public bool RunAsync { get; set; }
+        public bool OwnerOnly { get; set; }
     }
 }

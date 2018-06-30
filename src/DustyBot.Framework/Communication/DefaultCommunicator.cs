@@ -74,6 +74,9 @@ namespace DustyBot.Framework.Communication
         public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
             await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, string.Join(", ", missingPermissions)));
 
+        public async Task<IUserMessage> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command) =>
+            await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
+
         public async Task<IUserMessage> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation)
         {
             var embed = new EmbedBuilder()

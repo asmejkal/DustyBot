@@ -58,6 +58,9 @@ namespace DustyBot.Framework.Modules
                 var runAsync = method.GetCustomAttribute<RunAsyncAttribute>();
                 command.RunAsync = runAsync != null;
 
+                var ownerOnly = method.GetCustomAttribute<OwnerOnlyAttribute>();
+                command.OwnerOnly = ownerOnly != null;
+
                 handledCommandsList.Add(command);
             }
 
