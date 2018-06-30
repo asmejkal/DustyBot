@@ -40,8 +40,8 @@ namespace DustyBot.Framework
             if (communicator == null)
                 communicator = new Communication.DefaultCommunicator(config, logger);
 
-            if (communicator is Events.IEventHandler eventfulCommunicator)
-                EventRouter.Register(eventfulCommunicator);
+            if (communicator is Communication.DefaultCommunicator defaultCommunicator)
+                EventRouter.Register(defaultCommunicator);
 
             var commandRouter = new Commands.CommandRouter(modules, communicator, logger, config);
             EventRouter.Register(commandRouter);
