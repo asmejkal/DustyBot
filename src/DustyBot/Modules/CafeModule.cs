@@ -99,7 +99,7 @@ namespace DustyBot.Modules
                 result += $"Id: `{feed.Id}` Board: `{feed.CafeId}/{feed.BoardId}` Channel: `{feed.TargetChannel}`\n";
 
             if (string.IsNullOrEmpty(result))
-                result = "No feeds have been set up. Use the `addCafeFeed` command.";
+                result = "No feeds have been set up. Use the `cafe add` command.";
 
             await command.Reply(Communicator, result);
         }
