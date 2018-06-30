@@ -99,7 +99,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
-        [Command("dumpSettings", "Dumps all settings for this server.")]
+        [Command("dumpSettings", "Dumps all settings for this server."), RunAsync]
         [Permissions(GuildPermission.Administrator)]
         [Usage("{p}dumpSettings [ServerId]\n\nServerId - bot owner only")]
         public async Task DumpSettings(ICommand command)

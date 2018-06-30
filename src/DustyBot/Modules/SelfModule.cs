@@ -33,12 +33,19 @@ namespace DustyBot.Modules
         {
             if (command.ParametersCount <= 0)
             {
-                var embed = new EmbedBuilder()
-                .WithTitle("List of modules")
-                .WithFooter($"Type `{Config.CommandPrefix}help CommandName` to see usage and help for a specific command.");
-
+                var pages = new PageCollection();
+                EmbedBuilder embed = null;
                 foreach (var module in ModuleCollection.Modules)
                 {
+                    if (embed == null || embed.Fields.Count % 3 == 0)
+                    {
+                        embed = new EmbedBuilder()
+                            .WithTitle("List of modules")
+                            .WithFooter($"Type `{Config.CommandPrefix}help CommandName` to see usage and help for a specific command.");
+
+                        pages.Add(embed);
+                    }
+
                     var description = module.Description + "\n";
                     foreach (var handledCommand in module.HandledCommands)
                         description += "\n**" + Config.CommandPrefix + handledCommand.InvokeString + "** – " + handledCommand.Description + "";
@@ -46,7 +53,7 @@ namespace DustyBot.Modules
                     embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
                 }
                 
-                await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                await command.Reply(Communicator, pages, true).ConfigureAwait(false);
             }
             else
             {

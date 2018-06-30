@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Events
 {
-    interface IEventRouter : IEventHandlerCollection
+    public interface IEventRouter : IEventHandlerCollection
     {
         void Register(IEventHandler handler);
     }

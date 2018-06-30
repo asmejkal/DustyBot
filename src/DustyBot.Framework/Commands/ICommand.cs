@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Commands
 {
@@ -17,10 +18,11 @@ namespace DustyBot.Framework.Commands
         string Body { get; }
         string Prefix { get; }
 
-        Task<IUserMessage> ReplySuccess(Communication.ICommunicator communicator, string message);
-        Task<IUserMessage> ReplyError(Communication.ICommunicator communicator, string message);
-        Task<ICollection<IUserMessage>> Reply(Communication.ICommunicator communicator, string message);
-        Task<ICollection<IUserMessage>> Reply(Communication.ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
+        Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message);
+        Task<IUserMessage> ReplyError(ICommunicator communicator, string message);
+        Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message);
+        Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
+        Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false);
 
         int ParametersCount { get; }
         ParameterToken GetParameter(int key);

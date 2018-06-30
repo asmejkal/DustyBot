@@ -23,6 +23,7 @@ namespace DustyBot.Framework
 
         public DiscordSocketClient Client { get; private set; }
         public Config.IEssentialConfig Config { get; private set; }
+        public Events.IEventRouter EventRouter { get; private set; }
 
         public Framework(DiscordSocketClient client, IEnumerable<Modules.IModule> modules, IEnumerable<Services.IService> services, Config.IEssentialConfig config, Communication.ICommunicator communicator = null, Logging.ILogger logger = null)
         {
@@ -31,15 +32,19 @@ namespace DustyBot.Framework
             Client = client;
             Config = config;
 
-            if (communicator == null)
-                communicator = new Communication.DefaultCommunicator(config);
+            EventRouter = new Events.SocketEventRouter(modules, client);
 
             if (logger == null)
                 logger = new Logging.ConsoleLogger(client);
 
-            var eventRouter = new Events.SocketEventRouter(modules, client);
+            if (communicator == null)
+                communicator = new Communication.DefaultCommunicator(config, logger);
+
+            if (communicator is Events.IEventHandler eventfulCommunicator)
+                EventRouter.Register(eventfulCommunicator);
+
             var commandRouter = new Commands.CommandRouter(modules, communicator, logger, config);
-            eventRouter.Register(commandRouter);
+            EventRouter.Register(commandRouter);
         }
 
         public async Task Run()

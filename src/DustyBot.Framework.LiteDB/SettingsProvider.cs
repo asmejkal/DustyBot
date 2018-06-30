@@ -12,9 +12,9 @@ namespace DustyBot.Framework.LiteDB
     public class SettingsProvider : ISettingsProvider
     {
         public LiteDatabase DbObject { get; private set; }
-        SemaphoreSlim _dbOjectLock = new SemaphoreSlim(1, 1);
 
         private ISettingsFactory _factory;
+        Dictionary<Tuple<Type, ulong>, SemaphoreSlim> _serverSettingsLocks = new Dictionary<Tuple<Type, ulong>, SemaphoreSlim>();
 
         public SettingsProvider(string dbPath, ISettingsFactory factory, Migrator migrator, string password = null)
         {
@@ -52,8 +52,6 @@ namespace DustyBot.Framework.LiteDB
             DbObject.GetCollection<T>().Upsert(settings);
             return Task.CompletedTask;
         }
-
-        Dictionary<Tuple<Type, ulong>, SemaphoreSlim> _serverSettingsLocks = new Dictionary<Tuple<Type, ulong>, SemaphoreSlim>();
         
         public async Task Modify<T>(ulong serverId, Action<T> action)
             where T : IServerSettings

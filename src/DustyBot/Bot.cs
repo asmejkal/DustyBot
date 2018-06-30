@@ -83,7 +83,7 @@ namespace DustyBot
                 var logger = new Framework.Logging.ConsoleLogger(client);
 
                 //Choose communicator
-                var communicator = new Framework.Communication.DefaultCommunicator(config);
+                var communicator = new Framework.Communication.DefaultCommunicator(config, logger);
 
                 //Choose modules
                 _modules = new HashSet<IModule>();

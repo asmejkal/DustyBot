@@ -224,24 +224,7 @@ namespace DustyBot.Modules
 
             await command.Message.Channel.SendMessageAsync("", false, embed.Build()).ConfigureAwait(false);
         }
-
-        //TODO: Implement pagination in framework
-        class PaginatedMessageContext
-        {
-            public int CurrentPage;
-            public int TotalPages => Messages.Count;
-            public List<Tuple<string, Embed>> Messages = new List<Tuple<string, Embed>>();
-
-            public bool ControlledByInvoker;
-            public ulong InvokerUserId;
-        }
-
-        SemaphoreSlim _paginatedMessagesLock = new SemaphoreSlim(1);
-        Dictionary<ulong, PaginatedMessageContext> _paginatedMessages = new Dictionary<ulong, PaginatedMessageContext>();
-
-        static readonly IEmote ARROW_LEFT = new Emoji("⬅");
-        static readonly IEmote ARROW_RIGHT = new Emoji("➡");
-
+        
         [Command("views", "Checks how comebacks are doing on YouTube."), RunAsync]
         [Usage("{p}views [CategoryName]")]
         public async Task Views(ICommand command)
@@ -257,15 +240,17 @@ namespace DustyBot.Modules
                 await command.ReplyError(Communicator, "No comeback info has been set for this category. Use the `addComeback` command.").ConfigureAwait(false);
                 return;
             }
-
-            const int PAGE_SIZE = 5;
-            int finalPages = comebacks.Count / PAGE_SIZE + (comebacks.Count % PAGE_SIZE > 0 ? 1 : 0);
-            var embed = new EmbedBuilder().WithTitle("YouTube stats").WithFooter($"Page 1 of {finalPages}");
-            var context = new PaginatedMessageContext();
-            int queued = 0;
+            
+            var pages = new PageCollection();
+            EmbedBuilder embed = null;
             foreach (var comeback in comebacks)
             {
-                queued++;
+                if (embed == null || embed.Fields.Count % 5 == 0)
+                {
+                    embed = new EmbedBuilder().WithTitle("YouTube stats");
+                    pages.Add(embed);
+                }
+
                 var info = await GetYoutubeInfo(comeback.VideoIds).ConfigureAwait(false);
 
                 TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.publishedAt;
@@ -275,88 +260,9 @@ namespace DustyBot.Modules
                     $"**Likes: **{info.likes.ToString("N0", new CultureInfo("en-US"))}\n" +
                     $"**Published: **{String.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"
                     ));
-
-                if (queued % PAGE_SIZE == 0)
-                {
-                    queued = 0;
-                    context.Messages.Add(Tuple.Create("", embed.Build()));
-                    embed = new EmbedBuilder().WithTitle("YouTube stats").WithFooter($"Page {context.TotalPages + 1} of {finalPages}");
-                }
             }
 
-            if (queued > 0)
-                context.Messages.Add(Tuple.Create("", embed.Build()));
-
-            var result = await command.Message.Channel.SendMessageAsync(context.Messages.First().Item1, false, context.Messages.First().Item2).ConfigureAwait(false);
-
-            if (context.TotalPages > 1)
-            {
-                try
-                {
-                    await _paginatedMessagesLock.WaitAsync();
-                    _paginatedMessages.Add(result.Id, context);
-                }
-                finally
-                {
-                    _paginatedMessagesLock.Release();
-                }
-                
-                await result.AddReactionAsync(ARROW_LEFT);
-                await result.AddReactionAsync(ARROW_RIGHT);
-            }
-        }
-
-        public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
-        {
-            Task.Run(async () =>
-            {
-                try
-                {
-                    if (!reaction.User.IsSpecified ||  reaction.User.Value.IsBot)
-                        return;
-
-                    //Check for page arrows
-                    if (reaction.Emote.Name != ARROW_LEFT.Name && reaction.Emote.Name != ARROW_RIGHT.Name)
-                        return;
-
-                    //Lock and check if we have a page context for this message
-                    PaginatedMessageContext context;
-                    await _paginatedMessagesLock.WaitAsync();
-                    if (!_paginatedMessages.TryGetValue(message.Id, out context))
-                        return;
-
-                    //If requested, only allow the original invoker of the command to flip pages
-                    var concMessage = await message.GetOrDownloadAsync();
-                    if (context.ControlledByInvoker && reaction.UserId != context.InvokerUserId)
-                        return;
-
-                    //Calculate new page index and check bounds
-                    var newPage = context.CurrentPage + (reaction.Emote.Name == ARROW_LEFT.Name ? -1 : 1);
-                    if (newPage < 0 || newPage >= context.TotalPages)
-                    {
-                        await concMessage.RemoveReactionAsync(reaction.Emote, reaction.User.Value);
-                        return;
-                    }
-
-                    //Modify message
-                    var newMessage = context.Messages.ElementAt(newPage);
-                    await concMessage.ModifyAsync(x => { x.Content = newMessage.Item1; x.Embed = newMessage.Item2; });
-
-                    //Update context and remove reaction
-                    context.CurrentPage = newPage;
-                    await concMessage.RemoveReactionAsync(reaction.Emote, reaction.User.Value);
-                }
-                catch (Exception)
-                {
-                    //Log
-                }
-                finally
-                {
-                    _paginatedMessagesLock.Release();
-                }
-            });
-
-            return Task.CompletedTask;
+            await command.Reply(Communicator, pages).ConfigureAwait(false);
         }
 
         [Command("addComeback", "Adds media info for a comeback to be used by other commands.")]
@@ -494,7 +400,7 @@ namespace DustyBot.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Missing target channel.");
 
             feed.TargetChannel = command.Message.MentionedChannelIds.First();
-            feed.LastPostId = await Helpers.DaumCafeHelpers.GetLastPostId(feed.CafeId, feed.BoardId);
+            feed.LastPostId = await Helpers.DaumCafeSession.Anonymous.GetLastPostId(feed.CafeId, feed.BoardId);
 
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {

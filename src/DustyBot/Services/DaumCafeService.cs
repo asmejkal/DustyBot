@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using DustyBot.Settings.LiteDB;
+using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
 using Discord;
 
@@ -93,7 +94,7 @@ namespace DustyBot.Services
             if (channel == null)
                 return; //TODO: zombie settings should be cleared
 
-            var lastPostId = await Helpers.DaumCafeHelpers.GetLastPostId(feed.CafeId, feed.BoardId);
+            var lastPostId = await DaumCafeSession.Anonymous.GetLastPostId(feed.CafeId, feed.BoardId);
             var currentPostId = feed.LastPostId;
             if (lastPostId <= feed.LastPostId)
                 return; //TODO: how do Daum IDs behave with deleted posts? does it reuse the ID if the newest post is deleted?
@@ -114,28 +115,33 @@ namespace DustyBot.Services
             }).ConfigureAwait(false);
         }
 
+        private Embed BuildPreview(string title, string url, string description, string imageUrl, string cafeName)
+        {
+            var embedBuilder = new EmbedBuilder()
+                        .WithTitle(title)
+                        .WithUrl(url)
+                        .WithFooter("Daum Cafe • " + cafeName);
+
+            if (!string.IsNullOrWhiteSpace(description))
+                embedBuilder.Description = description.Truncate(350);
+
+            if (!string.IsNullOrWhiteSpace(imageUrl) && !imageUrl.Contains("cafe_meta_image.png"))
+                embedBuilder.ImageUrl = imageUrl;
+
+            return embedBuilder.Build();
+        }
+
         public async Task<Tuple<string, Embed>> CreatePreview(string mobileUrl, string cafeName)
         {
             var text = $"<{mobileUrl}>";
             Embed embed = null;
             try
             {
-                var metadata = await Helpers.DaumCafeHelpers.GetPageMetadata(mobileUrl);
+                var metadata = await DaumCafeSession.Anonymous.GetPageMetadata(mobileUrl);
                 if (metadata.Type == "article" && !string.IsNullOrWhiteSpace(metadata.Title))
-                {
-                    var embedBuilder = new EmbedBuilder()
-                        .WithTitle(metadata.Title)
-                        .WithUrl(mobileUrl)
-                        .WithFooter("Daum Cafe • " + cafeName);
-
-                    if (!string.IsNullOrWhiteSpace(metadata.Description))
-                        embedBuilder.Description = metadata.Description;
-
-                    if (!string.IsNullOrWhiteSpace(metadata.ImageUrl) && !metadata.ImageUrl.Contains("cafe_meta_image.png"))
-                        embedBuilder.ImageUrl = metadata.ImageUrl;
-
-                    embed = embedBuilder.Build();
-                }
+                    embed = BuildPreview(metadata.Title, mobileUrl, metadata.Description, metadata.ImageUrl, cafeName);
+                else if (!string.IsNullOrEmpty(metadata.Body.Subject))
+                    embed = BuildPreview(metadata.Body.Subject, mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeName);
             }
             catch (Exception ex)
             {
@@ -145,7 +151,8 @@ namespace DustyBot.Services
             return Tuple.Create(text, embed);
         }
         
-#region IDisposable 
+        #region IDisposable 
+
         private bool _disposed = false;
                 
         public void Dispose()
@@ -161,17 +168,19 @@ namespace DustyBot.Services
                 if (disposing)
                 {
                     _timer?.Dispose();
+                    _timer = null;
                 }
                 
                 _disposed = true;
             }
         }
-        
+
         //~()
         //{
         //    Dispose(false);
         //}
+
+        #endregion
     }
-#endregion
 
 }

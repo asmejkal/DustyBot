@@ -6,12 +6,27 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Communication
 {
+    public class Page
+    {
+        public string Content { get; set; } = string.Empty;
+        public EmbedBuilder Embed { get; set; }
+    }
+
+    public class PageCollection : List<Page>
+    {
+        public void Add(string content) => Add(new Page() { Content = content });
+        public void Add(EmbedBuilder embed) => Add(new Page() { Embed = embed });
+    }
+
     public interface ICommunicator
     {
         Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message);
         Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
+        Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0);
+
+        Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0);
 
         //Reactions to framework events
         Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions);
