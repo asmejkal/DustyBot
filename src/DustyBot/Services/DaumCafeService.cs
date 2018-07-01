@@ -104,8 +104,16 @@ namespace DustyBot.Services
                 if (!_sessionCache.TryGetValue(feed.CredentialId, out session))
                 {
                     var credential = await Modules.CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
-                    session = await DaumCafeSession.Create(credential.Login, credential.Password);
-                    _sessionCache.Add(feed.CredentialId, session);
+                    try
+                    {
+                        session = await DaumCafeSession.Create(credential.Login, credential.Password);
+                        _sessionCache.Add(feed.CredentialId, session);
+                    }
+                    catch (Exception ex) when (ex is CountryBlockException || ex is LoginFailedException)
+                    {
+                        session = DaumCafeSession.Anonymous;
+                        _sessionCache.Add(feed.CredentialId, DaumCafeSession.Anonymous);
+                    }
                 }
             }
             else

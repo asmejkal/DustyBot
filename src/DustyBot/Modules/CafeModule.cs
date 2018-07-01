@@ -14,6 +14,7 @@ using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
+using DustyBot.Helpers;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using System.Threading;
@@ -34,7 +35,7 @@ namespace DustyBot.Modules
 
         private static Regex _daumBoardLinkRegex = new Regex(@"(?:.*cafe.daum.net\/(.+)\/(\w+).*)|(?:.*cafe.daum.net\/(.+)\/bbs_list.+fldid=(\w+).*)", RegexOptions.Compiled);
 
-        [Command("cafe", "add", "Adds a Daum Cafe board feed.")]
+        [Command("cafe", "add", "Adds a Daum Cafe board feed."), RunAsync]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
         [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\nDaumCafeBoardLink - link to a Daum Cafe board section (a standard topic listing board type)\n\nCredentialId - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential")]
@@ -62,7 +63,23 @@ namespace DustyBot.Modules
             feed.TargetChannel = command.Message.MentionedChannelIds.First();
             if (command.ParametersCount > 2)
             {
-                await CredentialsModule.EnsureCredential(Settings, command.Message.Author.Id, (string)command.GetParameter(2));
+                var credential = await CredentialsModule.GetCredential(Settings, command.Message.Author.Id, (string)command.GetParameter(2));
+
+                try
+                {
+                    await DaumCafeSession.Create(credential.Login, credential.Password);
+                }
+                catch (CountryBlockException ex)
+                {
+                    await command.ReplyError(Communicator, $"Your account is country blocked.\nUnblock it on <https://member.daum.net/security/country.daum>. Allow either all countries (모든 국가 허용) or just the country where the bot is hosted (허용 국가 지정 (최대 5개) -> 추가). Contact the bot owner to get information about the bot's location.");
+                    return;
+                }
+                catch (LoginFailedException)
+                {
+                    await command.ReplyError(Communicator, "Failed to login with the supplied credential.");
+                    return;
+                }
+
                 feed.CredentialUser = command.Message.Author.Id;
                 feed.CredentialId = Guid.Parse((string)command.GetParameter(2));
             }

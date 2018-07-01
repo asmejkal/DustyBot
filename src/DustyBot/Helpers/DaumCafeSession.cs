@@ -172,8 +172,11 @@ namespace DustyBot.Helpers
                 foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("http://daum.net")))
                     cookie.Expired = true;
 
+                if (response.ResponseUri.ToString().Contains("releasecountryrestrict"))
+                    throw new CountryBlockException(); //Failed because of logging in from a different country
+
                 if (response.Cookies.Count <= 0)
-                    throw new ArgumentException("Authentication failed");
+                    throw new LoginFailedException();
 
                 //Add new cookies
                 foreach (Cookie cookie in response.Cookies)
@@ -211,5 +214,15 @@ namespace DustyBot.Helpers
         //}
 
         #endregion
+    }
+
+    public class CountryBlockException : Exception
+    {
+        public CountryBlockException() { }
+    }
+
+    public class LoginFailedException : ArgumentException
+    {
+        public LoginFailedException() { }
     }
 }
