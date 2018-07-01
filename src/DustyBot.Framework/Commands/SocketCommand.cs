@@ -15,7 +15,7 @@ namespace DustyBot.Framework.Commands
         public ulong GuildId => (Message.Channel as IGuildChannel).GuildId;
         public IGuild Guild => (Message.Channel as IGuildChannel).Guild;
 
-        public string Prefix { get; private set; }
+        public string Prefix => Config.CommandPrefix;
         public string Invoker { get; private set; }
         public string Verb { get; private set; }
         public string Body
@@ -40,6 +40,24 @@ namespace DustyBot.Framework.Commands
 
         public Config.IEssentialConfig Config { get; set; }
 
+        public static string ParseInvoker(SocketUserMessage message, string prefix)
+        {
+            if (!message.Content.StartsWith(prefix))
+                return null;
+
+            return new string(message.Content.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(prefix.Length).ToArray());
+        }
+
+        public static string ParseVerb(SocketUserMessage message)
+        {
+            return new string(message.Content
+                .SkipWhile(c => char.IsWhiteSpace(c))
+                .SkipWhile(c => !char.IsWhiteSpace(c))
+                .SkipWhile(c => char.IsWhiteSpace(c))
+                .TakeWhile(c => !char.IsWhiteSpace(c))
+                .ToArray());
+        }
+
         public static bool TryCreate(SocketUserMessage message, Config.IEssentialConfig config, out ICommand command, bool hasVerb = false)
         {
             var socketCommand = new SocketCommand(config);
@@ -51,18 +69,11 @@ namespace DustyBot.Framework.Commands
         {
             Message = message;
 
-            Prefix = Config.CommandPrefix;
-            if (!message.Content.StartsWith(Prefix))
+            if (string.IsNullOrEmpty(Invoker = ParseInvoker(message, Prefix)))
                 return false;
-
-            Invoker = new string(message.Content.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(Prefix.Length).ToArray());
-
-            if (hasVerb)
-            {
-                Verb = new string(message.Content.Skip(Prefix.Length + Invoker.Length).SkipWhile(c => char.IsWhiteSpace(c)).TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
-                if (string.IsNullOrEmpty(Verb))
-                    return false;
-            }
+            
+            if (hasVerb && string.IsNullOrEmpty(Verb = ParseVerb(message)))
+                return false;
 
             TokenizeParameters('"');
 

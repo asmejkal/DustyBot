@@ -32,10 +32,10 @@ namespace DustyBot.Framework
             Client = client;
             Config = config;
 
-            EventRouter = new Events.SocketEventRouter(modules, client);
-
             if (logger == null)
                 logger = new Logging.ConsoleLogger(client);
+
+            EventRouter = new Events.SocketEventRouter(modules, client);
 
             if (communicator == null)
                 communicator = new Communication.DefaultCommunicator(config, logger);

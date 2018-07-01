@@ -45,103 +45,103 @@ namespace DustyBot.Framework.Commands
 
         public override async Task OnMessageReceived(SocketMessage message)
         {
-            //Filter messages from bots
-            if (message.Author.IsBot)
-                return;
-
-            //Filter anything but normal user messages
-            var userMessage = message as SocketUserMessage;
-            if (userMessage == null)
-                return;
-
-            //Only accept messages from guild users
-            var guildUser = userMessage.Author as SocketGuildUser;
-            if (guildUser == null)
-                return;
-
-            //Check if the message is a command
-            ICommand command;
-            if (!SocketCommand.TryCreate(userMessage, Config, out command))
-                return;
-
-            //Try to find command registrations for this invoker
-            List<CommandRegistration> commandRegistrations;
-            if (!_commandsMapping.TryGetValue(command.Invoker.ToLowerInvariant(), out commandRegistrations))
-                return;
-            
-            //Find an appropriate handler
-            CommandRegistration commandRegistration;
-            if (!FindHandler(commandRegistrations, userMessage, ref command, out commandRegistration))
-                return;
-
-            await Logger.Log(new LogMessage(LogSeverity.Info, "Command", "\"" + message.Content + "\" by " + userMessage.Author.Username + " (" + userMessage.Author.Id + ")"));
-
-            //Check permisssions
-            var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
-            if (missingPermissions.Count() > 0)
+            try
             {
-                await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
-                return;
-            }
+                //Filter messages from bots
+                if (message.Author.IsBot)
+                    return;
 
-            //Check owner
-            if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
-            {
-                await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
-                return;
-            }
+                //Filter anything but normal user messages
+                var userMessage = message as SocketUserMessage;
+                if (userMessage == null)
+                    return;
 
-            //Check expected parameters
-            if (!CheckRequiredParameters(command, commandRegistration))
-            {
-                await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, "");
-                return;
-            }                    
+                //Only accept messages from guild users
+                var guildUser = userMessage.Author as SocketGuildUser;
+                if (guildUser == null)
+                    return;
 
-            var executor = new Func<Task>(async () =>
-            {
-                try
+                //Check if the message contains a command invoker
+                var invoker = SocketCommand.ParseInvoker(userMessage, Config.CommandPrefix);
+                if (string.IsNullOrEmpty(invoker))
+                    return;
+
+                //Try to find command registrations for this invoker
+                List<CommandRegistration> commandRegistrations;
+                if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
+                    return;
+
+                //If there's a potential verb, try to find a registration of this invoker and verb combination
+                CommandRegistration commandRegistration = null;
+                string verb = SocketCommand.ParseVerb(userMessage);
+                if (!string.IsNullOrEmpty(verb))
+                    commandRegistration = commandRegistrations.FirstOrDefault(x => x.HasVerb && string.Compare(x.Verb, verb, true) == 0);
+
+                //Or try to find a command registration for this invoker without a verb
+                if (commandRegistration == null)
+                    commandRegistration = commandRegistrations.FirstOrDefault(x => !x.HasVerb);
+
+                if (commandRegistration == null)
+                    return;
+
+                //Create command
+                ICommand command;
+                if (!SocketCommand.TryCreate(userMessage, Config, out command, commandRegistration.HasVerb))
+                    return;
+
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Command", "\"" + message.Content + "\" by " + userMessage.Author.Username + " (" + userMessage.Author.Id + ")"));
+
+                //Check permisssions
+                var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
+                if (missingPermissions.Count() > 0)
                 {
-                    //Execute
-                    await commandRegistration.Handler(command);
+                    await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
+                    return;
                 }
-                catch (Exceptions.IncorrectParametersCommandException ex)
+
+                //Check owner
+                if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
                 {
-                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                    await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
+                    return;
                 }
-                catch (Exception ex)
+
+                //Check expected parameters
+                if (!CheckRequiredParameters(command, commandRegistration))
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
-                        $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}", ex));
-
-                    await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
+                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, "");
+                    return;
                 }
-            });
 
-            if (commandRegistration.RunAsync)
-                TaskHelper.FireForget(executor);
-            else
-                await executor();
-        }
+                var executor = new Func<Task>(async () =>
+                {
+                    try
+                    {
+                        await commandRegistration.Handler(command);
+                    }
+                    catch (Exceptions.IncorrectParametersCommandException ex)
+                    {
+                        await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
+                            $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}", ex));
 
-        private bool FindHandler(IEnumerable<CommandRegistration> commandRegistrations, SocketUserMessage userMessage, ref ICommand command, out CommandRegistration registration)
-        {
-            //Find a handler for this command, prioritize handlers with a matching verb
-            foreach (var cr in commandRegistrations.OrderByDescending(x => x.Verb))
-            {
-                //If this registration expects a verb, try to parse the command again with this verb
-                ICommand tmp = null;
-                if (cr.HasVerb && (!SocketCommand.TryCreate(userMessage, Config, out tmp, true) || string.Compare(tmp.Verb, cr.Verb, true) != 0))
-                    continue; //No verb supplied or it doesn't fit
+                        await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
+                    }
+                });
 
-                //Found
-                command = tmp ?? command;
-                registration = cr;
-                return true;
+                //Execute
+                if (commandRegistration.RunAsync)
+                    TaskHelper.FireForget(executor);
+                else
+                    await executor();
             }
-
-            registration = null;
-            return false;
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Internal", "Failed to process potential command message.", ex));
+            }
         }
 
         private bool CheckRequiredParameters(ICommand command, CommandRegistration commandRegistration)
