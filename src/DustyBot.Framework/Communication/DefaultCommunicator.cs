@@ -73,7 +73,13 @@ namespace DustyBot.Framework.Communication
         public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0) => await SendMessage(channel, pages, messageOwner);
 
         public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
-            await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, string.Join(", ", missingPermissions)));
+            await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
+
+        public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
+            await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
+
+        public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions) =>
+            await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 
         public async Task<IUserMessage> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
@@ -89,23 +95,6 @@ namespace DustyBot.Framework.Communication
 
         public async Task<IUserMessage> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_GenericFailure);
-
-        private static async Task<IUserMessage> ReplyEmbed(IMessageChannel channel, string message, Color? color = null, string title = null, string footer = null)
-        {
-            var embed = new EmbedBuilder()
-                    .WithDescription(message);
-
-            if (color != null)
-                embed.WithColor(color.Value);
-
-            if (!string.IsNullOrEmpty(title))
-                embed.WithTitle(title);
-
-            if (!string.IsNullOrEmpty(footer))
-                embed.WithFooter(footer);
-
-            return await channel.SendMessageAsync("", false, embed);
-        }
         
         public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0)
         {
@@ -126,6 +115,7 @@ namespace DustyBot.Framework.Communication
                     _paginatedMessages.Add(result.Id, context);
                 }
 
+                await DiscordHelpers.EnsureBotPermissions(channel, ChannelPermission.AddReactions);
                 await result.AddReactionAsync(ArrowLeft);
                 await result.AddReactionAsync(ArrowRight);
 
@@ -241,6 +231,21 @@ namespace DustyBot.Framework.Communication
             return result;
         }
 
-        
+        private static async Task<IUserMessage> ReplyEmbed(IMessageChannel channel, string message, Color? color = null, string title = null, string footer = null)
+        {
+            var embed = new EmbedBuilder()
+                    .WithDescription(message);
+
+            if (color != null)
+                embed.WithColor(color.Value);
+
+            if (!string.IsNullOrEmpty(title))
+                embed.WithTitle(title);
+
+            if (!string.IsNullOrEmpty(footer))
+                embed.WithFooter(footer);
+
+            return await channel.SendMessageAsync("", false, embed);
+        }
     }
 }

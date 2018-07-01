@@ -63,18 +63,16 @@ namespace DustyBot.Modules
         [Usage("{p}roles toggleclearing\n\nDisabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
         {
-            bool result = false;
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                s.ClearRoleChannel = result = !s.ClearRoleChannel;
-            }).ConfigureAwait(false);
+            if (!(await Settings.Read<RolesSettings>(command.GuildId)).ClearRoleChannel == true)
+                await DiscordHelpers.EnsureBotPermissions(command.Guild, GuildPermission.ManageMessages);
 
+            bool result = await Settings.Modify(command.GuildId, (RolesSettings s) => s.ClearRoleChannel = !s.ClearRoleChannel).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, $"Automatic role channel clearing has been " + (result ? "enabled" : "disabled") + ".").ConfigureAwait(false);
         }
 
         [Command("roles", "add", "Adds a self-assignable role.")]
         [Parameters(ParameterType.String)]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         [Usage("{p}roles add \"RoleName\" [\"Aliases\"]\n\nExample: {p}addAutoRole Solar \"Kim Yongsun\" Yeba")]
         public async Task AddAutoRole(ICommand command)
         {

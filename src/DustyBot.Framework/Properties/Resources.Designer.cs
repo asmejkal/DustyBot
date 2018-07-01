@@ -80,6 +80,24 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The bot needs the {0} permission to perform this command..
+        /// </summary>
+        internal static string Command_MissingBotPermissions {
+            get {
+                return ResourceManager.GetString("Command_MissingBotPermissions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The bot needs the {0} permissions to perform this command..
+        /// </summary>
+        internal static string Command_MissingBotPermissionsMultiple {
+            get {
+                return ResourceManager.GetString("Command_MissingBotPermissionsMultiple", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to You don&apos;t have the required permissions for this command ({0})..
         /// </summary>
         internal static string Command_MissingPermissions {
@@ -103,6 +121,24 @@ namespace DustyBot.Framework.Properties {
         internal static string Command_Usage {
             get {
                 return ResourceManager.GetString("Command_Usage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to  and .
+        /// </summary>
+        internal static string Common_WordListLastSeparator {
+            get {
+                return ResourceManager.GetString("Common_WordListLastSeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        internal static string Common_WordListSeparator {
+            get {
+                return ResourceManager.GetString("Common_WordListSeparator", resourceCulture);
             }
         }
     }

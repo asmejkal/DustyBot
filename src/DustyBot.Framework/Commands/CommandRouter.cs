@@ -106,6 +106,15 @@ namespace DustyBot.Framework.Commands
                     return;
                 }
 
+                //Check bot permisssions
+                var selfUser = await command.Guild.GetCurrentUserAsync();
+                var missingBotPermissions = commandRegistration.BotPermissions.Where(x => !selfUser.GuildPermissions.Has(x));
+                if (missingBotPermissions.Count() > 0)
+                {
+                    await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, missingBotPermissions);
+                    return;
+                }
+
                 //Check expected parameters
                 if (!CheckRequiredParameters(command, commandRegistration))
                 {
@@ -122,6 +131,14 @@ namespace DustyBot.Framework.Commands
                     catch (Exceptions.IncorrectParametersCommandException ex)
                     {
                         await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                    }
+                    catch (Exceptions.MissingBotPermissionsException ex)
+                    {
+                        await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
+                    }
+                    catch (Exceptions.MissingBotChannelPermissionsException ex)
+                    {
+                        await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
                     }
                     catch (Exception ex)
                     {

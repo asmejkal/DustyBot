@@ -54,6 +54,10 @@ namespace DustyBot.Framework.Modules
                 if (permissions != null)
                     command.RequiredPermissions = new HashSet<Discord.GuildPermission>(permissions.RequiredPermissions);
 
+                var botPermissions = method.GetCustomAttribute<BotPermissionsAttribute>();
+                if (botPermissions != null)
+                    command.BotPermissions = new HashSet<Discord.GuildPermission>(botPermissions.RequiredPermissions);
+
                 var usage = method.GetCustomAttribute<UsageAttribute>();
                 if (usage != null)
                     command.Usage = usage.Usage;

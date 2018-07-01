@@ -134,7 +134,7 @@ namespace DustyBot
                     //Choose services
                     _services = new List<IService>();
                     _services.Add(new Services.DaumCafeService(client, settings, logger));
-
+                    
                     //Init framework
                     var framework = new Framework.Framework(client, _modules, _services, config, communicator, logger);
 

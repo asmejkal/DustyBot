@@ -123,6 +123,12 @@
   <data name="Command_IncorrectParameters" xml:space="preserve">
     <value>Incorrect parameters.</value>
   </data>
+  <data name="Command_MissingBotPermissions" xml:space="preserve">
+    <value>The bot needs the {0} permission to perform this command.</value>
+  </data>
+  <data name="Command_MissingBotPermissionsMultiple" xml:space="preserve">
+    <value>The bot needs the {0} permissions to perform this command.</value>
+  </data>
   <data name="Command_MissingPermissions" xml:space="preserve">
     <value>You don't have the required permissions for this command ({0}).</value>
   </data>
@@ -131,5 +137,11 @@
   </data>
   <data name="Command_Usage" xml:space="preserve">
     <value>Usage</value>
+  </data>
+  <data name="Common_WordListLastSeparator" xml:space="preserve">
+    <value> and </value>
+  </data>
+  <data name="Common_WordListSeparator" xml:space="preserve">
+    <value>, </value>
   </data>
 </root>

@@ -67,6 +67,17 @@ namespace DustyBot.Framework.Modules
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class BotPermissionsAttribute : Attribute
+    {
+        public BotPermissionsAttribute(params Discord.GuildPermission[] requiredPermissions)
+        {
+            RequiredPermissions = requiredPermissions;
+        }
+
+        public IEnumerable<Discord.GuildPermission> RequiredPermissions { get; private set; }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
     public class OwnerOnlyAttribute : Attribute
     {
         public OwnerOnlyAttribute()
