@@ -53,15 +53,15 @@ namespace DustyBot.Helpers
             return instance;
         }
 
-        public async Task<uint> GetLastPostId(string cafeId, string boardId)
+        public async Task<int> GetLastPostId(string cafeId, string boardId)
         {
             return (await GetPostIds(cafeId, boardId).ConfigureAwait(false)).DefaultIfEmpty().Max();
         }
 
-        public async Task<List<uint>> GetPostIds(string cafeId, string boardId)
+        public async Task<List<int>> GetPostIds(string cafeId, string boardId)
         {
             var content = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}").ConfigureAwait(false);
-            var result = new List<uint>();
+            var result = new List<int>();
 
             await Task.Run(() =>
             {
@@ -70,8 +70,8 @@ namespace DustyBot.Helpers
                     if (match.Groups.Count < 2)
                         continue;
 
-                    uint id;
-                    if (!uint.TryParse(match.Groups[1].Value, out id))
+                    int id;
+                    if (!int.TryParse(match.Groups[1].Value, out id))
                         continue;
 
                     result.Add(id);

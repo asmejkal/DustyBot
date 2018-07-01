@@ -56,48 +56,25 @@ namespace DustyBot.Framework.Commands
                 if (userMessage == null)
                     return;
 
-                //Only accept messages from guild users
-                var guildUser = userMessage.Author as SocketGuildUser;
-                if (guildUser == null)
+                //Try to find a command registration for this message
+                CommandRegistration commandRegistration;
+                if (!TryFindCommandRegistration(userMessage, out commandRegistration))
                     return;
 
-                //Check if the message contains a command invoker
-                var invoker = SocketCommand.ParseInvoker(userMessage, Config.CommandPrefix);
-                if (string.IsNullOrEmpty(invoker))
-                    return;
-
-                //Try to find command registrations for this invoker
-                List<CommandRegistration> commandRegistrations;
-                if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
-                    return;
-
-                //If there's a potential verb, try to find a registration of this invoker and verb combination
-                CommandRegistration commandRegistration = null;
-                string verb = SocketCommand.ParseVerb(userMessage);
-                if (!string.IsNullOrEmpty(verb))
-                    commandRegistration = commandRegistrations.FirstOrDefault(x => x.HasVerb && string.Compare(x.Verb, verb, true) == 0);
-
-                //Or try to find a command registration for this invoker without a verb
-                if (commandRegistration == null)
-                    commandRegistration = commandRegistrations.FirstOrDefault(x => !x.HasVerb);
-
-                if (commandRegistration == null)
+                //Check if the channel type is valid for this command
+                if (!IsValidCommandSource(message.Channel, commandRegistration))
                     return;
 
                 //Create command
                 ICommand command;
                 if (!SocketCommand.TryCreate(userMessage, Config, out command, commandRegistration.HasVerb))
                     return;
-
-                await Logger.Log(new LogMessage(LogSeverity.Info, "Command", "\"" + message.Content + "\" by " + userMessage.Author.Username + " (" + userMessage.Author.Id + ")"));
-
-                //Check permisssions
-                var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
-                if (missingPermissions.Count() > 0)
-                {
-                    await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
-                    return;
-                }
+                
+                //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
+                if (command.Guild != null)
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {command.Guild.Name}"));
+                else
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{command.Invoker}{command.Verb?.PadLeft(command.Verb.Length + 1) ?? ""}\" by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check owner
                 if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
@@ -106,13 +83,26 @@ namespace DustyBot.Framework.Commands
                     return;
                 }
 
-                //Check bot permisssions
-                var selfUser = await command.Guild.GetCurrentUserAsync();
-                var missingBotPermissions = commandRegistration.BotPermissions.Where(x => !selfUser.GuildPermissions.Has(x));
-                if (missingBotPermissions.Count() > 0)
+                //Check guild permisssions
+                if (command.Guild != null)
                 {
-                    await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, missingBotPermissions);
-                    return;
+                    //User
+                    var guildUser = message.Author as IGuildUser;
+                    var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
+                    if (missingPermissions.Count() > 0)
+                    {
+                        await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
+                        return;
+                    }
+
+                    //Bot
+                    var selfUser = await command.Guild.GetCurrentUserAsync();
+                    var missingBotPermissions = commandRegistration.BotPermissions.Where(x => !selfUser.GuildPermissions.Has(x));
+                    if (missingBotPermissions.Count() > 0)
+                    {
+                        await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, missingBotPermissions);
+                        return;
+                    }
                 }
 
                 //Check expected parameters
@@ -122,6 +112,7 @@ namespace DustyBot.Framework.Commands
                     return;
                 }
 
+                //Execute
                 var executor = new Func<Task>(async () =>
                 {
                     try
@@ -148,8 +139,7 @@ namespace DustyBot.Framework.Commands
                         await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
                     }
                 });
-
-                //Execute
+                
                 if (commandRegistration.RunAsync)
                     TaskHelper.FireForget(executor);
                 else
@@ -159,6 +149,43 @@ namespace DustyBot.Framework.Commands
             {
                 await Logger.Log(new LogMessage(LogSeverity.Error, "Internal", "Failed to process potential command message.", ex));
             }
+        }
+
+        private bool TryFindCommandRegistration(SocketUserMessage userMessage, out CommandRegistration commandRegistration)
+        {
+            commandRegistration = null;
+
+            //Check if the message contains a command invoker
+            var invoker = SocketCommand.ParseInvoker(userMessage, Config.CommandPrefix);
+            if (string.IsNullOrEmpty(invoker))
+                return false;
+
+            //Try to find command registrations for this invoker
+            List<CommandRegistration> commandRegistrations;
+            if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
+                return false;
+
+            //If there's a potential verb, try to find a registration of this invoker and verb combination
+            string verb = SocketCommand.ParseVerb(userMessage);
+            if (!string.IsNullOrEmpty(verb))
+                commandRegistration = commandRegistrations.FirstOrDefault(x => x.HasVerb && string.Compare(x.Verb, verb, true) == 0);
+
+            //Or try to find a command registration for this invoker without a verb
+            if (commandRegistration == null)
+                commandRegistration = commandRegistrations.FirstOrDefault(x => !x.HasVerb);
+
+            return commandRegistration != null;
+        }
+
+        private bool IsValidCommandSource(IMessageChannel channel, CommandRegistration cr)
+        {
+            if (channel is ITextChannel && !cr.DirectMessageOnly)
+                return true;
+
+            if (channel is IDMChannel && cr.DirectMessageAllow)
+                return true;
+
+            return false;
         }
 
         private bool CheckRequiredParameters(ICommand command, CommandRegistration commandRegistration)

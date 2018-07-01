@@ -11,7 +11,7 @@ namespace DustyBot.Settings
     {
         public string CommandPrefix { get; set; }
         public string BotToken { get; set; }
-        public List<ulong> OwnerIDs { get; set; }
+        public List<ulong> OwnerIDs { get; set; } = new List<ulong>();
         public string YouTubeKey { get; set; }
     }
 }

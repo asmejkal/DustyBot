@@ -1,4 +1,5 @@
-﻿using System;
+﻿using LiteDB;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -29,6 +30,40 @@ namespace DustyBot.Helpers
             {
                 Marshal.ZeroFreeGlobalAllocUnicode(valuePtr);
             }
+        }
+
+        /// <summary>
+        /// Pulls out the contents in a byte array.
+        /// While this does not create a managed string object, it obviously compromises security of the underlying string.
+        /// </summary>
+        public static byte[] ToByteArray(this SecureString value)
+        {
+            IntPtr valuePtr = IntPtr.Zero;
+            
+            try
+            {
+                var result = new byte[value.Length * 2];
+
+                valuePtr = SecureStringMarshal.SecureStringToGlobalAllocUnicode(value);
+                for (int i = 0; i < value.Length * 2; i++)
+                    result[i] = Marshal.ReadByte(valuePtr, i);
+
+                return result;
+            }
+            finally
+            {
+                Marshal.ZeroFreeGlobalAllocUnicode(valuePtr);
+            }
+        }
+        
+        public static SecureString ToSecureString(this byte[] value)
+        {
+            var result = new SecureString();
+            for (int i = 0; i + 1 < value.Length; i += 2)
+                result.AppendChar(BitConverter.ToChar(value, i));
+
+            result.MakeReadOnly();
+            return result;
         }
 
         public static SecureString ToSecureString(this string unsecureString)

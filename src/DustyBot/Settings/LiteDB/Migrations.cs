@@ -23,7 +23,12 @@ namespace DustyBot.Settings.LiteDB
 
                 new Migration
                 (
-                    version: 1,
+                    version: 1
+                ),
+
+                new Migration
+                (
+                    version: 2,
                     up: db =>
                     {
                         //Change DaumCafeFeeds/LastPostId to signed integer

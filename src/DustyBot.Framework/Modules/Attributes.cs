@@ -56,6 +56,22 @@ namespace DustyBot.Framework.Modules
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class DirectMessageOnlyAttribute : Attribute
+    {
+        public DirectMessageOnlyAttribute()
+        {
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class DirectMessageAllowAttribute : Attribute
+    {
+        public DirectMessageAllowAttribute()
+        {
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
     public class PermissionsAttribute : Attribute
     {
         public PermissionsAttribute(params Discord.GuildPermission[] requiredPermissions)

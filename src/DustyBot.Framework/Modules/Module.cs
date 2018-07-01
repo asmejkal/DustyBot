@@ -61,15 +61,12 @@ namespace DustyBot.Framework.Modules
                 var usage = method.GetCustomAttribute<UsageAttribute>();
                 if (usage != null)
                     command.Usage = usage.Usage;
-
-                var runAsync = method.GetCustomAttribute<RunAsyncAttribute>();
-                command.RunAsync = runAsync != null;
-
-                var ownerOnly = method.GetCustomAttribute<OwnerOnlyAttribute>();
-                command.OwnerOnly = ownerOnly != null;
-
-                var hidden = method.GetCustomAttribute<HiddenAttribute>();
-                command.Hidden = hidden != null;
+                
+                command.RunAsync = method.GetCustomAttribute<RunAsyncAttribute>() != null;
+                command.OwnerOnly = method.GetCustomAttribute<OwnerOnlyAttribute>() != null;
+                command.Hidden = method.GetCustomAttribute<HiddenAttribute>() != null;
+                command.DirectMessageOnly = method.GetCustomAttribute<DirectMessageOnlyAttribute>() != null;
+                command.DirectMessageAllow = method.GetCustomAttribute<DirectMessageAllowAttribute>() != null;
 
                 handledCommandsList.Add(command);
             }

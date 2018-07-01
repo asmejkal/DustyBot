@@ -31,5 +31,8 @@ namespace DustyBot.Framework.Commands
         public bool RunAsync { get; set; }
         public bool OwnerOnly { get; set; }
         public bool Hidden { get; set; }
+        public bool DirectMessageOnly { get; set; }
+        bool _directMessageAllow;
+        public bool DirectMessageAllow { get { return _directMessageAllow || DirectMessageOnly; } set { _directMessageAllow = value; } }
     }
 }

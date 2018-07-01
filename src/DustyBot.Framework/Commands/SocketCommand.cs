@@ -12,8 +12,8 @@ namespace DustyBot.Framework.Commands
     public class SocketCommand : ICommand
     {
         public IUserMessage Message { get; private set; }
-        public ulong GuildId => (Message.Channel as IGuildChannel).GuildId;
-        public IGuild Guild => (Message.Channel as IGuildChannel).Guild;
+        public ulong GuildId => (Message.Channel as IGuildChannel)?.GuildId ?? 0;
+        public IGuild Guild => (Message.Channel as IGuildChannel)?.Guild;
 
         public string Prefix => Config.CommandPrefix;
         public string Invoker { get; private set; }

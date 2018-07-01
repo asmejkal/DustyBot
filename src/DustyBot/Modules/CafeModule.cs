@@ -20,7 +20,7 @@ using System.Threading;
 
 namespace DustyBot.Modules
 {
-    [Module("Cafe", "Daum Cafe feeds and utility.")]
+    [Module("Cafe", "Daum Cafe feeds, including private boards.")]
     class CafeModule : Module
     {
         public ICommunicator Communicator { get; private set; }
@@ -34,10 +34,10 @@ namespace DustyBot.Modules
 
         private static Regex _daumBoardLinkRegex = new Regex(@"(?:.*cafe.daum.net\/(.+)\/(\w+).*)|(?:.*cafe.daum.net\/(.+)\/bbs_list.+fldid=(\w+).*)", RegexOptions.Compiled);
 
-        [Command("cafe", "add", "Adds a Daum Cafe board feed."), RunAsync]
+        [Command("cafe", "add", "Adds a Daum Cafe board feed.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention\n\nDaumCafeBoardLink - link to a public Daum Cafe board section (a standard topic listing board type)")]
+        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\nDaumCafeBoardLink - link to a Daum Cafe board section (a standard topic listing board type)\n\nCredentialId - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential")]
         public async Task AddCafeFeed(ICommand command)
         {
             var feed = new DaumCafeFeed();
@@ -60,7 +60,12 @@ namespace DustyBot.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Missing target channel.");
 
             feed.TargetChannel = command.Message.MentionedChannelIds.First();
-            feed.LastPostId = await Helpers.DaumCafeSession.Anonymous.GetLastPostId(feed.CafeId, feed.BoardId);
+            if (command.ParametersCount > 2)
+            {
+                await CredentialsModule.EnsureCredential(Settings, command.Message.Author.Id, (string)command.GetParameter(2));
+                feed.CredentialUser = command.Message.Author.Id;
+                feed.CredentialId = Guid.Parse((string)command.GetParameter(2));
+            }
 
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
@@ -96,7 +101,7 @@ namespace DustyBot.Modules
 
             string result = string.Empty;
             foreach (var feed in settings.DaumCafeFeeds)
-                result += $"Id: `{feed.Id}` Board: `{feed.CafeId}/{feed.BoardId}` Channel: `{feed.TargetChannel}`\n";
+                result += $"Id: `{feed.Id}` Board: `{feed.CafeId}/{feed.BoardId}` Channel: `{feed.TargetChannel}`" + (feed.CredentialId != Guid.Empty ? $" Credential: `{feed.CredentialId}`\n" : "\n");
 
             if (string.IsNullOrEmpty(result))
                 result = "No feeds have been set up. Use the `cafe add` command.";

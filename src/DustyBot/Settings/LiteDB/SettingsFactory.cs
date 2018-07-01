@@ -7,6 +7,9 @@ using DustyBot.Framework.Settings;
 
 namespace DustyBot.Settings.LiteDB
 {
+    /// <summary>
+    /// Can be used to supply parameters to settings constructors. Also gates settings types.
+    /// </summary>
     public class SettingsFactory : ISettingsFactory
     {
         public Task<T> Create<T>() 
@@ -30,8 +33,11 @@ namespace DustyBot.Settings.LiteDB
             where T : IUserSettings
         {
             IUserSettings result;
-                    
-            throw new InvalidOperationException("Unknown settings type.");
+
+            if (typeof(T) == typeof(UserCredentials))
+                result = new UserCredentials();
+            else
+                throw new InvalidOperationException("Unknown settings type.");
 
             return Task.FromResult((T)result);
         }

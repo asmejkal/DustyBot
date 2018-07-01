@@ -129,6 +129,7 @@ namespace DustyBot
                     _modules.Add(new Modules.TwitterModule(communicator, settings));
                     _modules.Add(new Modules.RolesModule(communicator, settings, logger));
                     _modules.Add(new Modules.LogModule(communicator, settings));
+                    _modules.Add(new Modules.CredentialsModule(communicator, settings));
                     _modules.Add(new Modules.AdministrationModule(communicator, settings));
 
                     //Choose services

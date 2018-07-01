@@ -22,8 +22,11 @@ namespace DustyBot.Settings
 
         public string CafeId { get; set; }
         public string BoardId { get; set; }
-        public uint LastPostId { get; set; }
+        public int LastPostId { get; set; } = -1;
         public ulong TargetChannel { get; set; }
+
+        public ulong CredentialUser { get; set; }
+        public Guid CredentialId { get; set; }
     }
 
     public class MediaSettings : BaseServerSettings

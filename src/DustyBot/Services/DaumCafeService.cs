@@ -21,7 +21,7 @@ namespace DustyBot.Services
         public DiscordSocketClient Client { get; private set; }
         public ILogger Logger { get; private set; }
 
-        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(2);
+        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(4);
         bool _updating = false;
 
         public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, ILogger logger)
@@ -41,7 +41,9 @@ namespace DustyBot.Services
             _timer?.Dispose();
             _timer = null;
         }
-        
+
+        public Dictionary<Guid, DaumCafeSession> _sessionCache = new Dictionary<Guid, DaumCafeSession>();
+
         async void OnUpdate(object state)
         {
             await Task.Run(async () =>
@@ -53,6 +55,9 @@ namespace DustyBot.Services
 
                 try
                 {
+                    //TODO: store sessions between updates and only refresh tokens when necessary
+                    _sessionCache.Clear();
+
                     foreach (var settings in await Settings.Read<MediaSettings>().ConfigureAwait(false))
                     {
                         if (settings.DaumCafeFeeds == null || settings.DaumCafeFeeds.Count <= 0)
@@ -92,14 +97,43 @@ namespace DustyBot.Services
             if (channel == null)
                 return; //TODO: zombie settings should be cleared
 
-            var lastPostId = await DaumCafeSession.Anonymous.GetLastPostId(feed.CafeId, feed.BoardId);
+            //Choose a session
+            DaumCafeSession session;
+            if (feed.CredentialId != Guid.Empty)
+            {
+                if (!_sessionCache.TryGetValue(feed.CredentialId, out session))
+                {
+                    var credential = await Modules.CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
+                    session = await DaumCafeSession.Create(credential.Login, credential.Password);
+                    _sessionCache.Add(feed.CredentialId, session);
+                }
+            }
+            else
+                session = DaumCafeSession.Anonymous;
+
+            //Get last post ID
+            var lastPostId = await session.GetLastPostId(feed.CafeId, feed.BoardId);
+
+            //If new feed -> just store the last post ID and return
+            if (feed.LastPostId < 0)
+            {
+                await Settings.Modify<MediaSettings>(serverId, s =>
+                {
+                    var current = s.DaumCafeFeeds.FirstOrDefault(x => x.Id == feed.Id);
+                    if (current != null && current.LastPostId < 0)
+                        current.LastPostId = lastPostId;
+                }).ConfigureAwait(false);
+
+                return;
+            }
+            
             var currentPostId = feed.LastPostId;
             if (lastPostId <= feed.LastPostId)
-                return; //TODO: how do Daum IDs behave with deleted posts? does it reuse the ID if the newest post is deleted?
+                return;
 
             while (lastPostId > currentPostId)
             {
-                var preview = await CreatePreview($"http://m.cafe.daum.net/{feed.CafeId}/{feed.BoardId}/{currentPostId + 1}", feed.CafeId);
+                var preview = await CreatePreview(session, $"http://m.cafe.daum.net/{feed.CafeId}/{feed.BoardId}/{currentPostId + 1}", feed.CafeId);
                 
                 await channel.SendMessageAsync(preview.Item1, false, preview.Item2);
                 currentPostId++;
@@ -129,13 +163,13 @@ namespace DustyBot.Services
             return embedBuilder.Build();
         }
 
-        public async Task<Tuple<string, Embed>> CreatePreview(string mobileUrl, string cafeName)
+        public async Task<Tuple<string, Embed>> CreatePreview(DaumCafeSession session, string mobileUrl, string cafeName)
         {
             var text = $"<{mobileUrl}>";
             Embed embed = null;
             try
             {
-                var metadata = await DaumCafeSession.Anonymous.GetPageMetadata(mobileUrl);
+                var metadata = await session.GetPageMetadata(mobileUrl);
                 if (metadata.Type == "article" && !string.IsNullOrWhiteSpace(metadata.Title))
                     embed = BuildPreview(metadata.Title, mobileUrl, metadata.Description, metadata.ImageUrl, cafeName);
                 else if (!string.IsNullOrEmpty(metadata.Body.Subject))
