@@ -118,7 +118,7 @@ namespace DustyBot.Modules
                 var guildUser = after as SocketGuildUser;
                 if (guildUser == null)
                     return;
-
+                
                 var guild = guildUser.Guild;
                 var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
 

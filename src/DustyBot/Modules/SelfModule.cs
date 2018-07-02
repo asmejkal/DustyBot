@@ -11,6 +11,9 @@ using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using System.Reflection;
 using Discord.WebSocket;
+using System.Net;
+using System.IO;
+using Discord.Net;
 
 namespace DustyBot.Modules
 {
@@ -130,6 +133,48 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
+        }
+
+        [Command("setavatar", "Changes the bot's avatar. Bot owner only."), RunAsync]
+        [OwnerOnly, Hidden]
+        [Usage("{p}setavatar [AttachmentUrl]\n\nAttach your new image to the message or provide a link.")]
+        public async Task SetAvatar(ICommand command)
+        {
+            if (command.ParametersCount <= 0 && command.Message.Attachments.Count <= 0)
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Missing attachment.");
+
+            var request = WebRequest.CreateHttp((string)command.GetParameter(0) ?? command.Message.Attachments.First().Url);
+            using (var response = await request.GetResponseAsync())
+            using (var stream = response.GetResponseStream())
+            using (var memStream = new MemoryStream())
+            {
+                await stream.CopyToAsync(memStream);
+                memStream.Position = 0;
+
+                var image = new Image(memStream);
+
+                try
+                {
+                    await Client.CurrentUser.ModifyAsync(x => x.Avatar = image);
+                }
+                catch (RateLimitedException)
+                {
+                    await command.ReplyError(Communicator, "You are changing avatars too fast, wait a few minutes and try again.");
+                    return;
+                }
+            }
+
+            await command.ReplySuccess(Communicator, "Avatar was changed!").ConfigureAwait(false);
+        }
+
+        [Command("setname", "Changes the bot's username. Bot owner only."), RunAsync]
+        [OwnerOnly, Hidden]
+        [Parameters(ParameterType.String)]
+        [Usage("{p}setname NewName")]
+        public async Task SetName(ICommand command)
+        {
+            await Client.CurrentUser.ModifyAsync(x => x.Username = command.Body);
+            await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
     }
 }
