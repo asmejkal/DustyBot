@@ -33,7 +33,7 @@ namespace DustyBot.Services
 
         public void Start()
         {
-            _timer = new System.Threading.Timer(OnUpdate, null, 2000, (int)UpdateFrequency.TotalMilliseconds);
+            _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
         }
 
         public void Stop()
@@ -135,7 +135,7 @@ namespace DustyBot.Services
                 return;
             }
             
-            var currentPostId = feed.LastPostId;
+          var currentPostId = feed.LastPostId;
             if (lastPostId <= feed.LastPostId)
                 return;
 
