@@ -38,7 +38,7 @@ namespace DustyBot.Modules
         [Command("cafe", "add", "Adds a Daum Cafe board feed."), RunAsync]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\nDaumCafeBoardLink - link to a Daum Cafe board section (a standard topic listing board type)\n\nCredentialId - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential")]
+        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\nDaumCafeBoardLink - link to a Daum Cafe board section (either a comment board or a forum board)\n\nCredentialId - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential")]
         public async Task AddCafeFeed(ICommand command)
         {
             var feed = new DaumCafeFeed();

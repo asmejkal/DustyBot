@@ -65,7 +65,7 @@ namespace DustyBot.Helpers
 
             await Task.Run(() =>
             {
-                foreach (Match match in Regex.Matches(content, $"{cafeId}/{boardId}/([0-9]+)\""))
+                foreach (Match match in Regex.Matches(content, $"{cafeId}/{boardId}/([0-9]+)[\"\\/]"))
                 {
                     if (match.Groups.Count < 2)
                         continue;
@@ -87,6 +87,7 @@ namespace DustyBot.Helpers
             private static Regex _textRegex = new Regex(@"<div.*?id=""article"".*?>(.*?)</\s*div>", RegexOptions.Compiled | RegexOptions.Singleline);
             private static Regex _imageRegex = new Regex(@"<img.*?src=[\""'](.+?)[\""'].*?>", RegexOptions.Compiled | RegexOptions.Singleline);
             private static Regex _removeHtmlTagsRegex = new Regex(@"(?></?\w+)(?>(?:[^>'""]+|'[^']*'|""[^""]*"")*)>", RegexOptions.Compiled | RegexOptions.Singleline);
+            private static Regex _htmlLineBreakRegex = new Regex(@"<\s*br\s*[\/]?\s*>", RegexOptions.Compiled | RegexOptions.Singleline);
 
             public string Subject;
             public string Text;
@@ -108,7 +109,32 @@ namespace DustyBot.Helpers
                     if (match.Success)
                         result.ImageUrl = match.Groups[1].Value;
 
+                    article = _htmlLineBreakRegex.Replace(article, "\n");
                     result.Text = _removeHtmlTagsRegex.Replace(article, string.Empty).Trim();
+                }
+
+                return result;
+            }
+
+            private static Regex _commentsTextRegex = new Regex(@"<span.*?class=""txt_detail"".*?>(.*?)</\s*span>", RegexOptions.Compiled | RegexOptions.Singleline);
+            private static Regex _commentsImageRegex = new Regex(@"<img.*?src=[\""'](.+?C120x120\/\?fname=.+?)[\""'].*?>", RegexOptions.Compiled | RegexOptions.Singleline);
+
+            public static PageBody CreateComment(string content)
+            {
+                var result = new PageBody();
+
+                var match = _commentsTextRegex.Match(content);
+                if (match.Success)
+                {
+                    var article = match.Groups[1].Value;
+                    article = _htmlLineBreakRegex.Replace(article, "\n");
+                    result.Text = _removeHtmlTagsRegex.Replace(article, string.Empty).Trim();
+                }
+
+                match = _commentsImageRegex.Match(content);
+                if (match.Success)
+                {
+                    result.ImageUrl = match.Groups[1].Value.Replace("C120x120", "R640x0");
                 }
 
                 return result;
@@ -140,16 +166,31 @@ namespace DustyBot.Helpers
                     properties.Add(Tuple.Create(match.Groups[1].Value, match.Groups[2].Value));
 
             }).ConfigureAwait(false);
-
-            return new PageMetadata()
+            
+            var url = properties.FirstOrDefault(x => x.Item1 == "og:url")?.Item2;
+            if (!string.IsNullOrEmpty(url) && url.Contains("comments"))
             {
-                RelativeUrl = properties.FirstOrDefault(x => x.Item1 == "og:url")?.Item2,
-                Type = properties.FirstOrDefault(x => x.Item1 == "og:type")?.Item2,
-                Title = properties.FirstOrDefault(x => x.Item1 == "og:title")?.Item2,
-                ImageUrl = properties.FirstOrDefault(x => x.Item1 == "og:image")?.Item2,
-                Description = WebUtility.HtmlDecode(properties.FirstOrDefault(x => x.Item1 == "og:description")?.Item2 ?? ""),
-                Body = PageBody.Create(content)
-            };
+                //Comment type board
+                return new PageMetadata()
+                {
+                    RelativeUrl = url,
+                    Type = "comment",
+                    Body = PageBody.CreateComment(content)
+                };
+            }
+            else
+            {
+                //Assume regular board
+                return new PageMetadata()
+                {
+                    RelativeUrl = url,
+                    Type = properties.FirstOrDefault(x => x.Item1 == "og:type")?.Item2,
+                    Title = WebUtility.HtmlDecode(properties.FirstOrDefault(x => x.Item1 == "og:title")?.Item2 ?? ""),
+                    ImageUrl = properties.FirstOrDefault(x => x.Item1 == "og:image")?.Item2,
+                    Description = WebUtility.HtmlDecode(properties.FirstOrDefault(x => x.Item1 == "og:description")?.Item2 ?? ""),
+                    Body = PageBody.Create(content)
+                };
+            }
         }
 
         public async Task Authenticate()
