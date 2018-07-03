@@ -138,8 +138,8 @@ namespace DustyBot
                     
                     //Init framework
                     var framework = new Framework.Framework(client, _modules, _services, config, communicator, logger);
-
-                    await framework.Run();
+                    
+                    await framework.Run($"Use {config.CommandPrefix}help to view commands");
                 }
             }
             catch (Exception ex)

@@ -47,7 +47,7 @@ namespace DustyBot.Framework
             EventRouter.Register(commandRouter);
         }
 
-        public async Task Run()
+        public async Task Run(string status = "")
         {
             //Login and start client
             await Client.LoginAsync(TokenType.Bot, Config.BotToken);
@@ -55,6 +55,8 @@ namespace DustyBot.Framework
 
             foreach (var service in _services)
                 service.Start();
+
+            await Client.SetGameAsync(status);
 
             // Block this task until the program is closed.
             await Task.Delay(-1); //TODO: shutdown - allow for proper cleanup
