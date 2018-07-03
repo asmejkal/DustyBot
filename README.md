@@ -1,6 +1,6 @@
 # DustyBot
 
-Built for kpop fan discords. 
+Built for kpop discords. 
 
 ### Features
 - Daum Cafe feeds, including private (member only) boards
