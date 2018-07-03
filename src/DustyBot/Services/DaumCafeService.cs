@@ -33,7 +33,7 @@ namespace DustyBot.Services
 
         public void Start()
         {
-            _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
+            _timer = new System.Threading.Timer(OnUpdate, null, 2000, (int)UpdateFrequency.TotalMilliseconds);
         }
 
         public void Stop()
@@ -163,7 +163,7 @@ namespace DustyBot.Services
                         .WithFooter("Daum Cafe • " + cafeName);
 
             if (!string.IsNullOrWhiteSpace(description))
-                embedBuilder.Description = description.TruncateLines(13).Truncate(350);
+                embedBuilder.Description = description.JoinWhiteLines(2).TruncateLines(13, trim: true).Truncate(350);
 
             if (!string.IsNullOrWhiteSpace(imageUrl) && !imageUrl.Contains("cafe_meta_image.png"))
                 embedBuilder.ImageUrl = imageUrl;
@@ -178,12 +178,18 @@ namespace DustyBot.Services
             try
             {
                 var metadata = await session.GetPageMetadata(mobileUrl);
-                if (metadata.Type == "article" && !string.IsNullOrWhiteSpace(metadata.Title) && (!string.IsNullOrWhiteSpace(metadata.Description) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
-                    embed = BuildPreview(metadata.Title, mobileUrl, metadata.Description, metadata.ImageUrl, cafeName);
-                else if (metadata.Type == "comment" && (!string.IsNullOrWhiteSpace(metadata.Body.Text) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
+                if (metadata.Type == "comment" && (!string.IsNullOrWhiteSpace(metadata.Body.Text) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
+                {
                     embed = BuildPreview("New memo", mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeName);
+                }
                 else if (!string.IsNullOrEmpty(metadata.Body.Subject) && (!string.IsNullOrWhiteSpace(metadata.Body.Text) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
+                {
                     embed = BuildPreview(metadata.Body.Subject, mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeName);
+                }
+                else if (metadata.Type == "article" && !string.IsNullOrWhiteSpace(metadata.Title) && (!string.IsNullOrWhiteSpace(metadata.Description) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
+                {
+                    embed = BuildPreview(metadata.Title, mobileUrl, metadata.Description, metadata.ImageUrl, cafeName);
+                }
             }
             catch (Exception ex)
             {

@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Utility;
 using System.Security;
 using System.Net.Http;
+using HtmlAgilityPack;
+using DustyBot.Helpers;
 
 namespace DustyBot.Helpers
 {
@@ -83,12 +85,6 @@ namespace DustyBot.Helpers
 
         public class PageBody
         {
-            private static Regex _subjectRegex = new Regex(@"<h3.*?class=""tit_subject"".*?>(.*?)<\/\s*h3>", RegexOptions.Compiled | RegexOptions.Singleline);
-            private static Regex _textRegex = new Regex(@"<div.*?id=""article"".*?>(.*?)</\s*div>", RegexOptions.Compiled | RegexOptions.Singleline);
-            private static Regex _imageRegex = new Regex(@"<img.*?src=[\""'](.+?)[\""'].*?>", RegexOptions.Compiled | RegexOptions.Singleline);
-            private static Regex _removeHtmlTagsRegex = new Regex(@"(?></?\w+)(?>(?:[^>'""]+|'[^']*'|""[^""]*"")*)>", RegexOptions.Compiled | RegexOptions.Singleline);
-            private static Regex _htmlLineBreakRegex = new Regex(@"<\s*br\s*[\/]?\s*>", RegexOptions.Compiled | RegexOptions.Singleline);
-
             public string Subject;
             public string Text;
             public string ImageUrl;
@@ -97,20 +93,16 @@ namespace DustyBot.Helpers
             {
                 var result = new PageBody();
 
-                var match = _subjectRegex.Match(content);
-                if (match.Success)
-                    result.Subject = _removeHtmlTagsRegex.Replace(match.Groups[1].Value, string.Empty).Trim();
+                var doc = new HtmlDocument();
+                doc.LoadHtml(content);
 
-                match = _textRegex.Match(content);
-                if (match.Success)
+                result.Subject = doc.DocumentNode.Descendants("h3").FirstOrDefault(x => x.GetAttributeValue("class", "") == "tit_subject")?.InnerText.Trim();
+
+                var text = doc.DocumentNode.Descendants("div").FirstOrDefault(x => x.GetAttributeValue("id", "") == "article");
+                if (text != null)
                 {
-                    var article = match.Groups[1].Value;
-                    match = _imageRegex.Match(article);
-                    if (match.Success)
-                        result.ImageUrl = match.Groups[1].Value;
-
-                    article = _htmlLineBreakRegex.Replace(article, "\n");
-                    result.Text = _removeHtmlTagsRegex.Replace(article, string.Empty).Trim();
+                    result.ImageUrl = text.Descendants("img").FirstOrDefault(x => x.Attributes.Contains("src"))?.GetAttributeValue("src", "").Trim();
+                    result.Text = text.ToPlainText().Trim();
                 }
 
                 return result;
@@ -123,20 +115,11 @@ namespace DustyBot.Helpers
             {
                 var result = new PageBody();
 
-                var match = _commentsTextRegex.Match(content);
-                if (match.Success)
-                {
-                    var article = match.Groups[1].Value;
-                    article = _htmlLineBreakRegex.Replace(article, "\n");
-                    result.Text = _removeHtmlTagsRegex.Replace(article, string.Empty).Trim();
-                }
-
-                match = _commentsImageRegex.Match(content);
-                if (match.Success)
-                {
-                    result.ImageUrl = match.Groups[1].Value.Replace("C120x120", "R640x0");
-                }
-
+                var doc = new HtmlDocument();
+                doc.LoadHtml(content);
+                
+                result.Text = doc.DocumentNode.Descendants("span").FirstOrDefault(x => x.GetAttributeValue("class", "") == "txt_detail")?.ToPlainText().Trim();
+                result.ImageUrl = doc.DocumentNode.Descendants("img").FirstOrDefault(x => x.Attributes.Contains("src"))?.GetAttributeValue("src", "").Trim().Replace("C120x120", "R640x0");
                 return result;
             }
         }
