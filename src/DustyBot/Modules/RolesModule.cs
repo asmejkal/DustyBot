@@ -49,9 +49,20 @@ namespace DustyBot.Modules
             }
             else
             {
+                var channel = await command.Guild.GetChannelAsync(command.Message.MentionedChannelIds.First());
+                if (channel == null)
+                    throw new Framework.Exceptions.IncorrectParametersCommandException("This channel cannot be found.");
+
+                if ((await Settings.Read<RolesSettings>(command.GuildId)).ClearRoleChannel &&
+                    (await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages == false)
+                {
+                    await command.ReplyError(Communicator, $"Automatic message clearing is enabled, but the bot does not have the ManageMessages permission for this channel.");
+                    return;
+                }
+
                 await Settings.Modify(command.GuildId, (RolesSettings s) =>
                 {
-                    s.RoleChannel = command.Message.MentionedChannelIds.First();
+                    s.RoleChannel = channel.Id;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Role channel has been set.").ConfigureAwait(false);
@@ -63,8 +74,16 @@ namespace DustyBot.Modules
         [Usage("{p}roles toggleclearing\n\nDisabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
         {
-            if (!(await Settings.Read<RolesSettings>(command.GuildId)).ClearRoleChannel == true)
-                await DiscordHelpers.EnsureBotPermissions(command.Guild, GuildPermission.ManageMessages);
+            var settings = await Settings.Read<RolesSettings>(command.GuildId);
+            if (!settings.ClearRoleChannel == true && settings.RoleChannel != 0)
+            {
+                var channel = await command.Guild.GetChannelAsync(settings.RoleChannel);
+                if (channel != null && (await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages == false)
+                {
+                    await command.ReplyError(Communicator, $"To enable automatic clearing, the bot needs ManageMessages permission for the role channel ({channel.Name}).");
+                    return;
+                }
+            }
 
             bool result = await Settings.Modify(command.GuildId, (RolesSettings s) => s.ClearRoleChannel = !s.ClearRoleChannel).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, $"Automatic role channel clearing has been " + (result ? "enabled" : "disabled") + ".").ConfigureAwait(false);
@@ -246,9 +265,10 @@ namespace DustyBot.Modules
 
                     if (roleAar == null)
                     {
-                        var response = await message.Channel.SendMessageAsync("A self-assignable role name expected.").ConfigureAwait(false);
+                        var response = await Communicator.CommandReplyError(message.Channel, "A self-assignable role name expected.").ConfigureAwait(false);
                         if (settings.ClearRoleChannel)
                             response.DeleteAfter(3);
+
                         return;
                     }
 
@@ -305,9 +325,9 @@ namespace DustyBot.Modules
                         await user.RemoveRolesAsync(removeRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
 
                     {
-                        var response = await message.Channel.SendMessageAsync(String.Format(remove ? "You no longer have the **{0}** role." : "You now have the **{0}** role.", roleAar.Names.FirstOrDefault())).ConfigureAwait(false);
+                        var response = await Communicator.SendMessage(message.Channel, string.Format(remove ? "You no longer have the **{0}** role." : "You now have the **{0}** role.", roleAar.Names.FirstOrDefault())).ConfigureAwait(false);
                         if (settings.ClearRoleChannel)
-                            response.DeleteAfter(3);
+                            response.First().DeleteAfter(3);
                     }
                 }
                 finally

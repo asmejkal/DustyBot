@@ -15,9 +15,30 @@ namespace DustyBot.Framework
     /// </summary>
     public class Framework : IModuleCollection, IServiceCollection
     {
+        public class Components
+        {
+            public DiscordSocketClient Client { get; set; }
+            public ICollection<IModule> Modules { get; } = new HashSet<IModule>();
+            public ICollection<IService> Services { get; } = new HashSet<IService>();
+            public Settings.ISettingsProvider Settings { get; set; }
+            public Config.IEssentialConfig Config { get; set; }
+
+            //Optional
+            public Communication.ICommunicator Communicator { get; set; }
+            public Logging.ILogger Logger { get; set; }
+
+            public bool IsComplete()
+            {
+                return (Modules.Count > 0 || Services.Count > 0) &&
+                    Client != null &&
+                    Settings != null &&
+                    Config != null;
+            }
+        }
+
         private HashSet<Modules.IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
-        
+
         private List<IService> _services;
         public IEnumerable<IService> Services => _services;
 
@@ -25,26 +46,29 @@ namespace DustyBot.Framework
         public Config.IEssentialConfig Config { get; private set; }
         public Events.IEventRouter EventRouter { get; private set; }
 
-        public Framework(DiscordSocketClient client, IEnumerable<Modules.IModule> modules, IEnumerable<Services.IService> services, Config.IEssentialConfig config, Communication.ICommunicator communicator = null, Logging.ILogger logger = null)
+        public Framework(Components components)
         {
-            _modules = new HashSet<Modules.IModule>(modules);
-            _services = new List<IService>(services);
-            Client = client;
-            Config = config;
+            if (!components.IsComplete())
+                throw new ArgumentException("Incomplete components.");
 
-            if (logger == null)
-                logger = new Logging.ConsoleLogger(client);
+            _modules = new HashSet<Modules.IModule>(components.Modules);
+            _services = new List<IService>(components.Services);
+            Client = components.Client;
+            Config = components.Config;
 
-            EventRouter = new Events.SocketEventRouter(modules, client);
+            if (components.Logger == null)
+                components.Logger = new Logging.ConsoleLogger(components.Client);
 
-            if (communicator == null)
-                communicator = new Communication.DefaultCommunicator(config, logger);
+            EventRouter = new Events.SocketEventRouter(components.Modules, components.Client);
 
-            if (communicator is Communication.DefaultCommunicator defaultCommunicator)
+            if (components.Communicator == null)
+                components.Communicator = new Communication.DefaultCommunicator(components.Config, components.Logger);
+
+            if (components.Communicator is Communication.DefaultCommunicator defaultCommunicator)
                 EventRouter.Register(defaultCommunicator);
-
-            var commandRouter = new Commands.CommandRouter(modules, communicator, logger, config);
-            EventRouter.Register(commandRouter);
+            
+            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config));
+            EventRouter.Register(new Settings.SettingsCleaner(components.Settings, components.Logger));
         }
 
         public async Task Run(string status = "")

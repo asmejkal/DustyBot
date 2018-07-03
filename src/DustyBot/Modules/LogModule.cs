@@ -130,7 +130,7 @@ namespace DustyBot.Modules
                 if (eventChannel == null)
                     return;
 
-                await eventChannel.SendMessageAsync("`" + before.Username + "` changed to `" + after.Username + "` (<@" + after.Id.ToString() + ">)").ConfigureAwait(false);
+                await Communicator.SendMessage(eventChannel, $"`{before.Username}` changed to `{after.Username}` (<@{after.Id}>)").ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -182,7 +182,7 @@ namespace DustyBot.Modules
                     if (userMessage.Attachments.Any())
                         embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
 
-                    await eventChannel.SendMessageAsync("", false, embed).ConfigureAwait(false);
+                    await eventChannel.SendMessageAsync(string.Empty, false, embed).ConfigureAwait(false);
                 }
                 catch (Exception)
                 {

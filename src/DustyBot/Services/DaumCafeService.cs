@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using DustyBot.Settings.LiteDB;
 using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
+using DustyBot.Framework.Utility;
 using Discord;
 
 namespace DustyBot.Services
@@ -33,7 +34,7 @@ namespace DustyBot.Services
 
         public void Start()
         {
-            _timer = new System.Threading.Timer(OnUpdate, null, 2000, (int)UpdateFrequency.TotalMilliseconds);
+            _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
         }
 
         public void Stop()
@@ -143,7 +144,7 @@ namespace DustyBot.Services
             {
                 var preview = await CreatePreview(session, $"http://m.cafe.daum.net/{feed.CafeId}/{feed.BoardId}/{currentPostId + 1}", feed.CafeId);
                 
-                await channel.SendMessageAsync(preview.Item1, false, preview.Item2);
+                await channel.SendMessageAsync(preview.Item1.Sanitise(), false, preview.Item2);
                 currentPostId++;
             }
 

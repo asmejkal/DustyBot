@@ -108,7 +108,7 @@ namespace DustyBot.Modules
 
             if (events.Count <= 0)
             {
-                await command.Message.Channel.SendMessageAsync("No upcoming events.").ConfigureAwait(false);
+                await command.Reply(Communicator, "No upcoming events.").ConfigureAwait(false);
                 return;
             }
 
@@ -143,7 +143,7 @@ namespace DustyBot.Modules
                 .WithFooter($"Full schedule in #{channel.Name}")
                 .WithColor(0xbe, 0xe7, 0xb6);
 
-            await command.Message.Channel.SendMessageAsync("", false, embed.Build()).ConfigureAwait(false);
+            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
 
         [Command("schedule", "channel", "Sets a channel to be used a source for the schedule.")]

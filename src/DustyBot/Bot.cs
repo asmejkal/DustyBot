@@ -74,10 +74,10 @@ namespace DustyBot
             public string Path { get; set; }
         }
 
-        private HashSet<IModule> _modules;
+        private ICollection<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
 
-        private List<IService> _services;
+        private ICollection<IService> _services;
         public IEnumerable<IService> Services => _services;
 
         static int Main(string[] args)
@@ -111,35 +111,37 @@ namespace DustyBot
                 using (var client = new DiscordSocketClient(clientConfig))
                 using (var settings = new SettingsProvider(instancePath, new SettingsFactory(), new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
                 {
+                    var components = new Framework.Framework.Components() { Client = client, Settings = settings };
+
                     //Get config
-                    var config = await settings.ReadGlobal<Settings.BotConfig>();
+                    components.Config = await components.Settings.ReadGlobal<Settings.BotConfig>();
 
                     //Choose logger
-                    var logger = new Framework.Logging.ConsoleLogger(client);
+                    components.Logger = new Framework.Logging.ConsoleLogger(components.Client);
 
                     //Choose communicator
-                    var communicator = new Framework.Communication.DefaultCommunicator(config, logger);
+                    components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
 
                     //Choose modules
-                    _modules = new HashSet<IModule>();
-                    _modules.Add(new Modules.SelfModule(communicator, settings, this, client));
-                    _modules.Add(new Modules.CafeModule(communicator, settings));
-                    _modules.Add(new Modules.ViewsModule(communicator, settings));
-                    _modules.Add(new Modules.ScheduleModule(communicator, settings));
-                    _modules.Add(new Modules.TwitterModule(communicator, settings));
-                    _modules.Add(new Modules.RolesModule(communicator, settings, logger));
-                    _modules.Add(new Modules.LogModule(communicator, settings));
-                    _modules.Add(new Modules.CredentialsModule(communicator, settings));
-                    _modules.Add(new Modules.AdministrationModule(communicator, settings));
+                    components.Modules.Add(new Modules.SelfModule(components.Communicator, components.Settings, this, components.Client));
+                    components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.TwitterModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.RolesModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings));
+                    _modules = components.Modules;
 
                     //Choose services
-                    _services = new List<IService>();
-                    _services.Add(new Services.DaumCafeService(client, settings, logger));
-                    
+                    components.Services.Add(new Services.DaumCafeService(components.Client, components.Settings, components.Logger));
+                    _services = components.Services;
+
                     //Init framework
-                    var framework = new Framework.Framework(client, _modules, _services, config, communicator, logger);
-                    
-                    await framework.Run($"Use {config.CommandPrefix}help to view commands");
+                    var framework = new Framework.Framework(components);
+
+                    await framework.Run($"Use {components.Config.CommandPrefix}help to view commands");
                 }
             }
             catch (Exception ex)

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DustyBot.Framework.Settings;
+using DustyBot.Framework.Utility;
+using DustyBot.Framework.LiteDB.Utility;
 using LiteDB;
 using System.Threading;
 using Newtonsoft.Json;
@@ -14,9 +16,11 @@ namespace DustyBot.Framework.LiteDB
         private LiteDatabase _dbObject;
 
         private ISettingsFactory _factory;
-        Dictionary<Tuple<Type, ulong>, SemaphoreSlim> _serverSettingsLocks = new Dictionary<Tuple<Type, ulong>, SemaphoreSlim>();
-        Dictionary<Tuple<Type, ulong>, SemaphoreSlim> _userSettingsLocks = new Dictionary<Tuple<Type, ulong>, SemaphoreSlim>();
-        Dictionary<Type, SemaphoreSlim> _globalSettingsLocks = new Dictionary<Type, SemaphoreSlim>();
+
+        //TODO: a bit convoluted, split in multiple server/user objects each managing their own subset of locks and thread-safe read/modify methods
+        AsyncMutexCollection<Tuple<Type, ulong>> _serverSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
+        AsyncMutexCollection<Tuple<Type, ulong>> _userSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
+        AsyncMutexCollection<Type> _globalSettingsLocks = new AsyncMutexCollection<Type>();
 
         public SettingsProvider(string dbPath, ISettingsFactory factory, Migrator migrator, string password = null)
         {
@@ -34,10 +38,26 @@ namespace DustyBot.Framework.LiteDB
             if (settings == null && createIfNeeded)
             {
                 //Create
-                settings = await _factory.Create<T>();
-                settings.ServerId = serverId;
+                var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
 
-                collection.Insert(settings);
+                try
+                {
+                    await settingsLock.WaitAsync();
+
+                    collection = _dbObject.GetCollection<T>();
+                    settings = collection.FindOne(x => x.ServerId == serverId);
+                    if (settings == null)
+                    {
+                        settings = await _factory.Create<T>();
+                        settings.ServerId = serverId;
+
+                        collection.Insert(settings);
+                    }
+                }
+                finally
+                {
+                    settingsLock.Release();
+                }
             }
 
             return settings;
@@ -52,13 +72,7 @@ namespace DustyBot.Framework.LiteDB
         public async Task Modify<T>(ulong serverId, Action<T> action)
             where T : IServerSettings
         {
-            SemaphoreSlim settingsLock;
-            lock (_serverSettingsLocks)
-            {
-                var key = Tuple.Create(typeof(T), serverId);
-                if (!_serverSettingsLocks.TryGetValue(key, out settingsLock))
-                    _serverSettingsLocks.Add(key, settingsLock = new SemaphoreSlim(1, 1));
-            }
+            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
             
             try
             {
@@ -77,13 +91,7 @@ namespace DustyBot.Framework.LiteDB
         public async Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
             where T : IServerSettings
         {
-            SemaphoreSlim settingsLock;
-            lock (_serverSettingsLocks)
-            {
-                var key = Tuple.Create(typeof(T), serverId);
-                if (!_serverSettingsLocks.TryGetValue(key, out settingsLock))
-                    _serverSettingsLocks.Add(key, settingsLock = new SemaphoreSlim(1, 1));
-            }
+            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
 
             try
             {
@@ -119,31 +127,64 @@ namespace DustyBot.Framework.LiteDB
             return Task.FromResult(result);
         }
 
-        public Task<T> ReadGlobal<T>() 
+        public async Task DeleteServer(ulong serverId)
+        {
+            await _serverSettingsLocks.InterlockedModify(async locks =>
+            {
+                //Wait for all settings locks for this server to get released and dispose them
+                var serverLocks = locks.Where(k => k.Key.Item2 == serverId).ToList();
+                foreach (var l in serverLocks)
+                {
+                    await l.Value.WaitAsync();
+
+                    locks.Remove(l.Key);
+                    l.Value.Dispose();
+                }
+
+                //Remove all settings
+                foreach (var colName in _dbObject.GetCollectionNames())
+                {
+                    var col = _dbObject.GetCollection(colName);
+                    col.Delete(x => x.ContainsKey("ServerId") && unchecked((UInt64)((Int64)x["ServerId"].RawValue)) == serverId);
+                }
+            });
+        }
+
+        public async Task<T> ReadGlobal<T>() 
             where T : new()
         {
             var collection = _dbObject.GetCollection<T>();
-            T settings;
-            if (collection.Count() <= 0)
+            var settings = collection.FindOne(Query.All());
+            if (settings == null)
             {
-                settings = new T();
-                collection.Insert(settings);
-            }
-            else
-                settings = collection.FindOne(Query.All());
+                //Create
+                var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
 
-            return Task.FromResult(settings);
+                try
+                {
+                    await settingsLock.WaitAsync();
+
+                    collection = _dbObject.GetCollection<T>();
+                    settings = collection.FindOne(Query.All());
+                    if (settings == null)
+                    {
+                        settings = new T();
+                        collection.Insert(settings);
+                    }
+                }
+                finally
+                {
+                    settingsLock.Release();
+                }
+            }
+
+            return settings;
         }
 
         public async Task ModifyGlobal<T>(Action<T> action) 
             where T : new()
         {
-            SemaphoreSlim settingsLock;
-            lock (_globalSettingsLocks)
-            {
-                if (!_globalSettingsLocks.TryGetValue(typeof(T), out settingsLock))
-                    _globalSettingsLocks.Add(typeof(T), settingsLock = new SemaphoreSlim(1, 1));
-            }
+            var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
 
             try
             {
@@ -167,10 +208,26 @@ namespace DustyBot.Framework.LiteDB
             if (settings == null && createIfNeeded)
             {
                 //Create
-                settings = await _factory.CreateUser<T>();
-                settings.UserId = userId;
+                var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
 
-                collection.Insert(settings);
+                try
+                {
+                    await settingsLock.WaitAsync();
+
+                    collection = _dbObject.GetCollection<T>();
+                    settings = collection.FindOne(x => x.UserId == userId);
+                    if (settings == null)
+                    {
+                        settings = await _factory.CreateUser<T>();
+                        settings.UserId = userId;
+
+                        collection.Insert(settings);
+                    }
+                }
+                finally
+                {
+                    settingsLock.Release();
+                }
             }
 
             return settings;
@@ -185,13 +242,7 @@ namespace DustyBot.Framework.LiteDB
         public async Task ModifyUser<T>(ulong userId, Action<T> action) 
             where T : IUserSettings
         {
-            SemaphoreSlim settingsLock;
-            lock (_userSettingsLocks)
-            {
-                var key = Tuple.Create(typeof(T), userId);
-                if (!_userSettingsLocks.TryGetValue(key, out settingsLock))
-                    _userSettingsLocks.Add(key, settingsLock = new SemaphoreSlim(1, 1));
-            }
+            var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), userId));
 
             try
             {
@@ -210,13 +261,7 @@ namespace DustyBot.Framework.LiteDB
         public async Task<U> ModifyUser<T, U>(ulong userId, Func<T, U> action) 
             where T : IUserSettings
         {
-            SemaphoreSlim settingsLock;
-            lock (_userSettingsLocks)
-            {
-                var key = Tuple.Create(typeof(T), userId);
-                if (!_userSettingsLocks.TryGetValue(key, out settingsLock))
-                    _userSettingsLocks.Add(key, settingsLock = new SemaphoreSlim(1, 1));
-            }
+            var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), userId));
 
             try
             {
@@ -252,6 +297,15 @@ namespace DustyBot.Framework.LiteDB
                 {
                     _dbObject?.Dispose();
                     _dbObject = null;
+
+                    _serverSettingsLocks?.Dispose();
+                    _serverSettingsLocks = null;
+
+                    _userSettingsLocks?.Dispose();
+                    _userSettingsLocks = null;
+
+                    _globalSettingsLocks?.Dispose();
+                    _globalSettingsLocks = null;
                 }
 
                 _disposed = true;

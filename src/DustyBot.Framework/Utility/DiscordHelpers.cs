@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace DustyBot.Framework.Utility
 {
@@ -41,6 +42,13 @@ namespace DustyBot.Framework.Utility
         {
             var guildChannel = channel as IGuildChannel;
             await EnsureBotPermissions(guildChannel, perms);
+        }
+        
+        public static string Sanitise(this string value)
+        {
+            return value
+                .Replace("@everyone", "@\u200Beveryone")
+                .Replace("@here", "@\u200Bhere");
         }
     }
 }

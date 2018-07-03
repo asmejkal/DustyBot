@@ -35,7 +35,7 @@ namespace DustyBot.Modules
         
         [Command("credential", "add", "Saves a credential. Direct message only."), DirectMessageOnly]
         [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}credential add Login Password CustomName\nCustomName - type anything for you to recognize these credentials later\n\nExample: {p}johndoe1 mysecretpassword \"Google Mail\"\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, keep in mind that it is theoretically possible for the bot owner to view them.\n\nFrom a security standpoint, creating a new dedicated account instead of using your personal account is preferred.")]
+        [Usage("{p}credential add Login Password CustomName\n*CustomName* - type anything for you to recognize these credentials later\n\n__Example:__ {p}johndoe1 mysecretpassword \"Google Mail\"\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, keep in mind that it is theoretically possible for the bot owner to view them.\n\nFrom a security standpoint, creating a new dedicated account instead of using your personal account is preferred.")]
         public async Task AddCredential(ICommand command)
         {
             var id = await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => 
@@ -48,7 +48,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A credential with ID `{id}` has been added! Use `credential list` to view all your saved credentials.").ConfigureAwait(false);
         }
 
-        [Command("credential", "remove", "Removes a saved credential. Direct message only."), DirectMessageOnly]
+        [Command("credential", "remove", "Removes a saved credential."), DirectMessageAllow]
         [Parameters(ParameterType.String)]
         [Usage("{p}credential remove CredentialId\n\nUse `credential list` to view your saved credentials.\nExample: {p}credential remove 6F3DB03E-FBC7-4868-9D73-6147DE4D3DB0")]
         public async Task RemoveCredential(ICommand command)
@@ -66,6 +66,15 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, $"Credential has been removed.").ConfigureAwait(false);
             else
                 await command.ReplyError(Communicator, $"Couldn't find a credential with ID `{id}`. Use `credential list` to view all your saved credentials and their IDs.").ConfigureAwait(false);
+        }
+
+        [Command("credential", "clear", "Removes all your saved credentials."), DirectMessageAllow]
+        [Usage("{p}credential clear")]
+        public async Task ClearCredential(ICommand command)
+        {
+            await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => s.Credentials.Clear());
+
+            await command.ReplySuccess(Communicator, $"All your credentials have been removed.").ConfigureAwait(false);
         }
 
         [Command("credential", "list", "Lists all your saved credentials."), DirectMessageAllow]
@@ -96,7 +105,7 @@ namespace DustyBot.Modules
 
             return await GetCredential(settings, userId, guid);
         }
-
+            
         public static async Task<Credential> GetCredential(ISettingsProvider settings, ulong userId, Guid guid)
         {
             var credentials = await settings.ReadUser<UserCredentials>(userId);

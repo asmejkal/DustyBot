@@ -65,8 +65,8 @@ namespace DustyBot.Framework.Communication
             Logger = logger;
         }
 
-        public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message) => await channel.SendMessageAsync(":white_check_mark: " + message);
-        public async Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message) => await channel.SendMessageAsync(":no_entry: " + message);
+        public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message) => await channel.SendMessageAsync(":white_check_mark: " + message.Sanitise());
+        public async Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message) => await channel.SendMessageAsync(":no_entry: " + message.Sanitise());
 
         public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await SendMessage(channel, message);
         public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => await SendMessage(channel, message, chunkDecorator, maxDecoratorOverhead);
@@ -90,7 +90,7 @@ namespace DustyBot.Framework.Communication
                     .WithTitle(Properties.Resources.Command_Usage)
                     .WithDescription(command.GetUsage(Config.CommandPrefix));
 
-            return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation, false, embed);
+            return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, embed);
         }
 
         public async Task<IUserMessage> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command) =>
@@ -104,7 +104,7 @@ namespace DustyBot.Framework.Communication
                     pages[i].Embed.WithFooter($"Page {i + 1} of {pages.Count}");
 
             //Send the first page
-            var result = await channel.SendMessageAsync(pages.First().Content, false, pages.First().Embed).ConfigureAwait(false);
+            var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed).ConfigureAwait(false);
 
             //If there's more pages, save a context
             if (pages.Count > 1)
@@ -214,7 +214,7 @@ namespace DustyBot.Framework.Communication
         {
             var result = new List<IUserMessage>();
             foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize))
-                result.Add(await channel.SendMessageAsync(chunk.ToString(), false, null));
+                result.Add(await channel.SendMessageAsync(chunk.ToString().Sanitise(), false, null));
 
             return result;
         }
@@ -226,7 +226,7 @@ namespace DustyBot.Framework.Communication
                         
             var result = new List<IUserMessage>();
             foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize - maxDecoratorOverhead))
-                result.Add(await channel.SendMessageAsync(chunkDecorator(chunk.ToString())));
+                result.Add(await channel.SendMessageAsync(chunkDecorator(chunk.ToString()).Sanitise()));
 
             return result;
         }

@@ -22,6 +22,7 @@ namespace DustyBot.Framework.Settings
             where T : IServerSettings;
 
         Task<string> DumpSettings(ulong serverId);
+        Task DeleteServer(ulong serverId);
 
         //Global settings
         Task<T> ReadGlobal<T>()

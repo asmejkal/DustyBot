@@ -41,6 +41,12 @@ namespace DustyBot.Modules
         [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\nDaumCafeBoardLink - link to a Daum Cafe board section (either a comment board or a forum board)\n\nCredentialId - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential")]
         public async Task AddCafeFeed(ICommand command)
         {
+            if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= 25)
+            {
+                await command.ReplyError(Communicator, "You've reached a feed limit for Daum Cafe on this server.");
+                return;
+            }
+
             var feed = new DaumCafeFeed();
             try
             {
