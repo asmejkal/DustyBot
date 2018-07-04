@@ -38,7 +38,7 @@ namespace DustyBot.Modules
         [Command("cafe", "add", "Adds a Daum Cafe board feed."), RunAsync]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\n*DaumCafeBoardLink* - link to a Daum Cafe board section (either a comment board or a forum board)\n\n*CredentialId* - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential\n\n**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\nYou can check if a board is restricted by viewing it while logged out of your Daum account.\n\n__Examples:__\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
+        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\n*DaumCafeBoardLink* - link to a Daum Cafe board section (either a comment board or a forum board)\n\n*CredentialId* - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential\n\n**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\n__Examples:__\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task AddCafeFeed(ICommand command)
         {
             if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= 25)
@@ -67,13 +67,17 @@ namespace DustyBot.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Missing target channel.");
 
             feed.TargetChannel = command.Message.MentionedChannelIds.First();
+
+            //Check accessibilty
+            DaumCafeSession.Accessibility accessibility;
             if (command.ParametersCount > 2)
             {
                 var credential = await CredentialsModule.GetCredential(Settings, command.Message.Author.Id, (string)command.GetParameter(2));
 
                 try
                 {
-                    await DaumCafeSession.Create(credential.Login, credential.Password);
+                    var session = await DaumCafeSession.Create(credential.Login, credential.Password);
+                    accessibility = await session.GetBoardAccesibility(feed.CafeId, feed.BoardId);
                 }
                 catch (CountryBlockException)
                 {
@@ -89,13 +93,23 @@ namespace DustyBot.Modules
                 feed.CredentialUser = command.Message.Author.Id;
                 feed.CredentialId = Guid.Parse((string)command.GetParameter(2));
             }
+            else
+            {
+                accessibility = await DaumCafeSession.Anonymous.GetBoardAccesibility(feed.CafeId, feed.BoardId);
+            }
+
+            if (!accessibility.Topics)
+            {
+                await command.ReplyError(Communicator, "The bot cannot access this board. " + (command.ParametersCount > 2 ? "Check if the provided account can view this board." : "You might need to provide credentials to an account that can view this board."));
+                return;
+            }
 
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
                 s.DaumCafeFeeds.Add(feed);
             }).ConfigureAwait(false);
             
-            await command.ReplySuccess(Communicator, $"Cafe feed has been added!").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Cafe feed has been added!" + (!accessibility.Posts ? "\n\n**Warning:** The bot cannot view posts on this board and will not create post previews. To get previews you need to provide credentials to an account that can view posts on this board." : "")).ConfigureAwait(false);
         }
 
         [Command("cafe", "remove", "Removes a Daum Cafe board feed.")]

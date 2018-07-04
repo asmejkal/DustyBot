@@ -208,6 +208,44 @@ namespace DustyBot.Helpers
             }
         }
 
+        public class Accessibility
+        {
+            public bool Topics { get; set; }
+            public bool Posts { get; set; }
+        }
+
+        public async Task<Accessibility> GetBoardAccesibility(string cafeId, string boardId)
+        {
+            List<int> ids;
+            try
+            {
+                ids = await GetPostIds(cafeId, boardId).ConfigureAwait(false);
+            }
+            catch (HttpRequestException)
+            {
+                return new Accessibility() { Topics = false, Posts = false };
+            }
+
+            //Try to retrieve a few post IDs
+            int tries = 0;
+            foreach (var id in ids.OrderByDescending(x => x))
+            {
+                try
+                {
+                    var _ = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}/{id}").ConfigureAwait(false);
+                    return new Accessibility() { Topics = true, Posts = true };
+                }
+                catch (HttpRequestException)
+                {
+                }
+
+                if (++tries >= 3)
+                    break;
+            }
+            
+            return new Accessibility() { Topics = true, Posts = false };
+        }
+
         #region IDisposable 
 
         private bool _disposed = false;
