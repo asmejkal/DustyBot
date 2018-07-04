@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using LiteDB;
 using DustyBot.Framework.LiteDB;
+using DustyBot.Framework.LiteDB.Utility;
 using DustyBot.Framework.Utility;
 
 namespace DustyBot.Settings.LiteDB
@@ -40,6 +41,33 @@ namespace DustyBot.Settings.LiteDB
                                 doc.AsDocument["LastPostId"] = Convert.ToInt32(doc.AsDocument["LastPostId"].AsInt64);
                             });
 
+                            col.Update(settings);
+                        }
+                    }
+                ),
+
+                new Migration
+                (
+                    version: 3,
+                    up: db =>
+                    {
+                        //Change DaumCafeFeeds/LastPostId to signed integer
+                        var col = db.GetCollection("MediaSettings");
+                        foreach (var settings in col.FindAll())
+                        {
+                            var channelId = settings["ScheduleChannel"].AsUInt64();
+                            if (channelId != 0 && settings["ScheduleMessages"].AsArray != null)
+                            {
+                                var messages = settings["ScheduleMessages"].AsArray;
+                                var messageLocs = new List<BsonValue>();
+                                foreach (var message in messages)
+                                    messageLocs.Add(BsonMapper.Global.ToDocument(new MessageLocation() { MessageId = message.AsUInt64(), ChannelId = channelId }));
+
+                                messages.Clear();
+                                messages.AddRange(messageLocs);
+                            }
+
+                            settings.Remove("ScheduleChannel");
                             col.Update(settings);
                         }
                     }

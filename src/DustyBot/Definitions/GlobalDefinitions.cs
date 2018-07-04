@@ -11,6 +11,6 @@ namespace DustyBot.Definitions
         public const string DefaultPrefix = ">";
         public const string DataFolder = "Data";
         public static string GetInstanceDbPath(string instance) => Path.Combine(DataFolder, instance + ".db");
-        public const ushort SettingsVersion = 2;
+        public const ushort SettingsVersion = 3;
     }
 }

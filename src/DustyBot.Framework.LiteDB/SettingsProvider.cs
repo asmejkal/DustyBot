@@ -154,7 +154,7 @@ namespace DustyBot.Framework.LiteDB
             {
                 var col = _dbObject.GetCollection(colName);
                 
-                var settings = col.FindOne(x => x.ContainsKey("ServerId") && unchecked((UInt64)((Int64)x["ServerId"].RawValue)) == serverId );
+                var settings = col.FindOne(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId );
                 if (settings == null)
                     continue;
 
@@ -183,7 +183,7 @@ namespace DustyBot.Framework.LiteDB
                 foreach (var colName in _dbObject.GetCollectionNames())
                 {
                     var col = _dbObject.GetCollection(colName);
-                    col.Delete(x => x.ContainsKey("ServerId") && unchecked((UInt64)((Int64)x["ServerId"].RawValue)) == serverId);
+                    col.Delete(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId);
                 }
             });
         }
