@@ -75,7 +75,7 @@ namespace DustyBot.Modules
                 {
                     await DaumCafeSession.Create(credential.Login, credential.Password);
                 }
-                catch (CountryBlockException ex)
+                catch (CountryBlockException)
                 {
                     await command.ReplyError(Communicator, $"Your account is country blocked.\nUnblock it on <https://member.daum.net/security/country.daum>. Allow either all countries (모든 국가 허용) or just the country where the bot is hosted (허용 국가 지정 (최대 5개) -> 추가). Contact the bot owner to get information about the bot's location.");
                     return;

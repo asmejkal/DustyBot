@@ -8,6 +8,7 @@ using DustyBot.Framework.LiteDB.Utility;
 using LiteDB;
 using System.Threading;
 using Newtonsoft.Json;
+using System.Linq.Expressions;
 
 namespace DustyBot.Framework.LiteDB
 {
@@ -30,27 +31,44 @@ namespace DustyBot.Framework.LiteDB
             migrator.MigrateCurrent(_dbObject);
         }
 
-        public async Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
-            where T : IServerSettings
+        private async Task<T> GetDocument<T>(Expression<Func<T, bool>> predicate, Func<Task<T>> creator, bool createIfNeeded = true)
         {
             var collection = _dbObject.GetCollection<T>();
-            var settings = collection.FindOne(x => x.ServerId == serverId);
+            var settings = collection.FindOne(predicate);
             if (settings == null && createIfNeeded)
             {
                 //Create
-                var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
+                settings = await creator();
+                collection.Insert(settings);
+            }
+
+            return settings;
+        }
+
+        private async Task<T> GetDocument<T>(Expression<Func<T, bool>> predicate, bool createIfNeeded = true)
+            where T : new()
+        {
+            return await GetDocument(predicate, () => Task.FromResult(new T()), createIfNeeded);
+        }
+
+        private async Task<T> SafeGetDocument<T, TMutexKey>(Expression<Func<T, bool>> predicate, AsyncMutexCollection<TMutexKey> locks, TMutexKey locksKey, Func<Task<T>> creator, bool createIfNeeded = true)
+        {
+            var collection = _dbObject.GetCollection<T>();
+            var settings = collection.FindOne(predicate);
+            if (settings == null && createIfNeeded)
+            {
+                //Create
+                var settingsLock = await locks.GetOrCreate(locksKey);
 
                 try
                 {
                     await settingsLock.WaitAsync();
 
                     collection = _dbObject.GetCollection<T>();
-                    settings = collection.FindOne(x => x.ServerId == serverId);
+                    settings = collection.FindOne(predicate);
                     if (settings == null)
                     {
-                        settings = await _factory.Create<T>();
-                        settings.ServerId = serverId;
-
+                        settings = await creator();
                         collection.Insert(settings);
                     }
                 }
@@ -61,6 +79,26 @@ namespace DustyBot.Framework.LiteDB
             }
 
             return settings;
+        }
+
+        private async Task<T> SafeGetDocument<T, TMutexKey>(Expression<Func<T, bool>> predicate, AsyncMutexCollection<TMutexKey> locks, TMutexKey locksKey, bool createIfNeeded = true) 
+            where T : new()
+        {
+            return await SafeGetDocument(predicate, locks, locksKey, () => Task.FromResult(new T()), createIfNeeded);
+        }
+
+        private async Task<T> Create<T>(ulong serverId)
+            where T : IServerSettings
+        {
+            var s = await _factory.Create<T>();
+            s.ServerId = serverId;
+            return s;
+        }
+
+        public async Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
+            where T : IServerSettings
+        {
+            return await SafeGetDocument(x => x.ServerId == serverId, _serverSettingsLocks, Tuple.Create(typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
         }
 
         public Task<IEnumerable<T>> Read<T>() 
@@ -78,7 +116,7 @@ namespace DustyBot.Framework.LiteDB
             {
                 await settingsLock.WaitAsync();
 
-                var settings = await Read<T>(serverId);
+                var settings = await GetDocument(x => x.ServerId == serverId, () => Create<T>(serverId));
                 action(settings);
                 _dbObject.GetCollection<T>().Update(settings);
             }
@@ -97,7 +135,7 @@ namespace DustyBot.Framework.LiteDB
             {
                 await settingsLock.WaitAsync();
 
-                var settings = await Read<T>(serverId);
+                var settings = await GetDocument(x => x.ServerId == serverId, () => Create<T>(serverId));
                 var result = action(settings);
                 _dbObject.GetCollection<T>().Update(settings);
 
@@ -153,32 +191,7 @@ namespace DustyBot.Framework.LiteDB
         public async Task<T> ReadGlobal<T>() 
             where T : new()
         {
-            var collection = _dbObject.GetCollection<T>();
-            var settings = collection.FindOne(Query.All());
-            if (settings == null)
-            {
-                //Create
-                var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
-
-                try
-                {
-                    await settingsLock.WaitAsync();
-
-                    collection = _dbObject.GetCollection<T>();
-                    settings = collection.FindOne(Query.All());
-                    if (settings == null)
-                    {
-                        settings = new T();
-                        collection.Insert(settings);
-                    }
-                }
-                finally
-                {
-                    settingsLock.Release();
-                }
-            }
-
-            return settings;
+            return await SafeGetDocument<T, Type>(x => true, _globalSettingsLocks, typeof(T));
         }
 
         public async Task ModifyGlobal<T>(Action<T> action) 
@@ -190,7 +203,7 @@ namespace DustyBot.Framework.LiteDB
             {
                 await settingsLock.WaitAsync();
 
-                var settings = await ReadGlobal<T>();
+                var settings = await GetDocument<T>(x => true);
                 action(settings);
                 _dbObject.GetCollection<T>().Update(settings);
             }
@@ -200,37 +213,18 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
+        private async Task<T> CreateUser<T>(ulong userId)
+            where T : IUserSettings
+        {
+            var s = await _factory.CreateUser<T>();
+            s.UserId = userId;
+            return s;
+        }
+
         public async Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true) 
             where T : IUserSettings
         {
-            var collection = _dbObject.GetCollection<T>();
-            var settings = collection.FindOne(x => x.UserId == userId);
-            if (settings == null && createIfNeeded)
-            {
-                //Create
-                var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
-
-                try
-                {
-                    await settingsLock.WaitAsync();
-
-                    collection = _dbObject.GetCollection<T>();
-                    settings = collection.FindOne(x => x.UserId == userId);
-                    if (settings == null)
-                    {
-                        settings = await _factory.CreateUser<T>();
-                        settings.UserId = userId;
-
-                        collection.Insert(settings);
-                    }
-                }
-                finally
-                {
-                    settingsLock.Release();
-                }
-            }
-
-            return settings;
+            return await SafeGetDocument(x => x.UserId == userId, _userSettingsLocks, Tuple.Create(typeof(T), userId), () => CreateUser<T>(userId), createIfNeeded);
         }
 
         public Task<IEnumerable<T>> ReadUser<T>() 
@@ -248,7 +242,7 @@ namespace DustyBot.Framework.LiteDB
             {
                 await settingsLock.WaitAsync();
 
-                var settings = await ReadUser<T>(userId);
+                var settings = await GetDocument(x => x.UserId == userId, () => CreateUser<T>(userId));
                 action(settings);
                 _dbObject.GetCollection<T>().Update(settings);
             }
@@ -267,7 +261,7 @@ namespace DustyBot.Framework.LiteDB
             {
                 await settingsLock.WaitAsync();
 
-                var settings = await ReadUser<T>(userId);
+                var settings = await GetDocument(x => x.UserId == userId, () => CreateUser<T>(userId));
                 var result = action(settings);
                 _dbObject.GetCollection<T>().Update(settings);
 

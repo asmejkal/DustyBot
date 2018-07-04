@@ -108,7 +108,7 @@ namespace DustyBot.Modules
 
             if (events.Count <= 0)
             {
-                await command.Reply(Communicator, "No upcoming events.").ConfigureAwait(false);
+                await command.Reply(Communicator, "No events planned for the next two weeks.").ConfigureAwait(false);
                 return;
             }
 
@@ -140,7 +140,7 @@ namespace DustyBot.Modules
             var embed = new EmbedBuilder()
                 .WithTitle("Upcoming events")
                 .WithDescription(result)
-                .WithFooter($"Full schedule in #{channel.Name}")
+                .WithFooter($"Events until {currentTime.AddDays(14).ToString(@"MM\/dd")} • Full schedule in #{channel.Name}")
                 .WithColor(0xbe, 0xe7, 0xb6);
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
