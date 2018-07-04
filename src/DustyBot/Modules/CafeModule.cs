@@ -106,6 +106,9 @@ namespace DustyBot.Modules
 
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
+                //Remove duplicate feeds
+                s.DaumCafeFeeds.RemoveAll(x => x.CafeId == feed.CafeId && x.BoardId == feed.BoardId && x.TargetChannel == feed.TargetChannel);
+
                 s.DaumCafeFeeds.Add(feed);
             }).ConfigureAwait(false);
             
