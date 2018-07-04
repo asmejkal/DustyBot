@@ -62,6 +62,15 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This command can only be used through a direct message. DM the bot to use this command..
+        /// </summary>
+        internal static string Command_DirectMessageOnly {
+            get {
+                return ResourceManager.GetString("Command_DirectMessageOnly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Oops. Seems that something went wrong....
         /// </summary>
         internal static string Command_GenericFailure {

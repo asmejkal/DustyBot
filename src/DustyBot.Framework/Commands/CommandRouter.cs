@@ -63,7 +63,12 @@ namespace DustyBot.Framework.Commands
 
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))
+                {
+                    if (message.Channel is ITextChannel && commandRegistration.DirectMessageOnly)
+                        await Communicator.CommandReplyDirectMessageOnly(message.Channel, commandRegistration);
+
                     return;
+                }
 
                 //Create command
                 ICommand command;
