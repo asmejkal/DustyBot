@@ -173,8 +173,19 @@ namespace DustyBot.Modules
                         return;
 
                     var filter = settings.EventMessageDeletedFilter;
-                    if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(userMessage.Content, filter))
-                        return;
+                    try
+                    {
+                        if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(userMessage.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(5)))
+                            return;
+                    }
+                    catch (ArgumentException)
+                    {
+                        await Communicator.SendMessage(eventChannel, "Your message filter regex is malformed.");
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        await Communicator.SendMessage(eventChannel, "Your message filter regex takes too long to evaluate.");
+                    }
 
                     var embed = new EmbedBuilder()
                     .WithDescription($"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n" + userMessage.Content)

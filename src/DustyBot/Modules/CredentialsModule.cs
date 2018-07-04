@@ -35,7 +35,7 @@ namespace DustyBot.Modules
         
         [Command("credential", "add", "Saves a credential. Direct message only."), DirectMessageOnly]
         [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}credential add Login Password CustomName\n*CustomName* - type anything for you to recognize these credentials later\n\n__Example:__ {p}johndoe1 mysecretpassword \"Google Mail\"\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, keep in mind that it is theoretically possible for the bot owner to view them.\n\nFrom a security standpoint, creating a new dedicated account instead of using your personal account is preferred.")]
+        [Usage("{p}credential add Login Password CustomName\n*CustomName* - type anything for you to recognize these credentials later\n\n__Example:__ {p}johndoe1 mysecretpassword \"Google Mail\"\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, from a security standpoint, creating a new dedicated account instead of using your personal account is preferred.")]
         public async Task AddCredential(ICommand command)
         {
             var id = await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => 
@@ -50,7 +50,7 @@ namespace DustyBot.Modules
 
         [Command("credential", "remove", "Removes a saved credential."), DirectMessageAllow]
         [Parameters(ParameterType.String)]
-        [Usage("{p}credential remove CredentialId\n\nUse `credential list` to view your saved credentials.\nExample: {p}credential remove 6F3DB03E-FBC7-4868-9D73-6147DE4D3DB0")]
+        [Usage("{p}credential remove CredentialId\n\nUse `credential list` to view your saved credentials.\nExample: {p}credential remove 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task RemoveCredential(ICommand command)
         {
             Guid id;
