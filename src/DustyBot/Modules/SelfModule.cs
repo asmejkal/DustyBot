@@ -98,17 +98,24 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("about", "Bot and version information.")]
+        [Command("about", "Bot and version information."), RunAsync]
         public async Task About(ICommand command)
         {
             var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
             var config = await Settings.ReadGlobal<BotConfig>();
 
+            var users = new HashSet<ulong>();
+            foreach (var guild in guilds)
+            {
+                foreach (var user in await guild.GetUsersAsync().ConfigureAwait(false))
+                    users.Add(user.Id);
+            }
+
             var embed = new EmbedBuilder()
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddInlineField("Author", "Yebafan#3517")
                 .AddInlineField("Owners", string.Join("\n", config.OwnerIDs))
-                .AddInlineField("Presence", $"{guilds.Count} servers")
+                .AddInlineField("Presence", $"{users.Count} users\n{guilds.Count} servers")
                 .AddInlineField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version)
                 .AddInlineField("Web", "https://github.com/yebafan/DustyBot")
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
@@ -116,20 +123,18 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("listservers", "List all servers the bot is on.")]
+        [Command("listservers", "Lists all servers the bot is on.")]
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();
-            foreach (var guild in await Client.GetGuildsAsync().ConfigureAwait(false))
+            foreach (var guild in (await Client.GetGuildsAsync().ConfigureAwait(false)).Select(x => x as SocketGuild).OrderByDescending(x => x.MemberCount))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 10 == 0)
                     pages.Add(new EmbedBuilder());
-                
-                var owner = await guild.GetOwnerAsync();
-                
+                                
                 pages.Last.Embed.AddField(x => x
                     .WithName(guild.Name)
-                    .WithValue($"{guild.Id}\n{((SocketGuild)guild).MemberCount} members\nOwned by {owner.Username}#{owner.Discriminator} ({owner.Id})"));
+                    .WithValue($"{guild.Id}\n{guild.MemberCount} members\nOwned by {guild.Owner.Username}#{guild.Owner.Discriminator} ({guild.OwnerId})"));
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
