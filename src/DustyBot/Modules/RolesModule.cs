@@ -92,7 +92,7 @@ namespace DustyBot.Modules
         [Command("roles", "add", "Adds a self-assignable role.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}roles add \"RoleName\" [\"Aliases\"]\n\nExample: {p}addAutoRole Solar \"Kim Yongsun\" Yeba")]
+        [Usage("{p}roles add \"RoleName\" [\"Aliases\"]\n\n__Example:__ {p}addAutoRole Solar \"Kim Yongsun\" Yeba")]
         public async Task AddAutoRole(ICommand command)
         {
             var role = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
@@ -190,7 +190,7 @@ namespace DustyBot.Modules
         [Command("roles", "setbias", "Sets a primary-secondary bias role pair.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}roles setbias \"PrimaryRoleName\" \"SecondaryRoleName\"\n\nExample: {p}setBiasRole Solar .Solar")]
+        [Usage("{p}roles setbias \"PrimaryRoleName\" \"SecondaryRoleName\"\n\n__Example:__ {p}setBiasRole Solar .Solar")]
         public async Task SetBiasRole(ICommand command)
         {
             var primary = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));

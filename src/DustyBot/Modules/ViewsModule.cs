@@ -76,7 +76,7 @@ namespace DustyBot.Modules
         [Command("views", "add", "Adds a comeback.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views add \"ComebackName\" [-c \"CategoryName\"] YoutubeLinkOrID [MoreYoutubeLinksOrIDs]\n\nExamples:\n" +
+        [Usage("{p}views add \"ComebackName\" [-c \"CategoryName\"] YoutubeLinkOrID [MoreYoutubeLinksOrIDs]\n\n__Examples:__\n" +
             "{p}views add \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n" +
             "{p}views add \"Starry Night\" -c \"title songs\" 0FB2EoKTK_Q LjUXm0Zy_dk\n")]
         public async Task AddComeback(ICommand command)
@@ -120,7 +120,7 @@ namespace DustyBot.Modules
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
         [Usage("{p}views remove \"ComebackName\" [-c \"CategoryName\"]\n\nSpecify CategoryName to remove comeback in a category, omit to delete from the default category." +
-            "\n\nExamples:\n{p}views remove \"Starry Night\"\n{p}views remove \"Starry Night\" -c \"title songs\"")]
+            "\n\n__Examples:__\n{p}views remove \"Starry Night\"\n{p}views remove \"Starry Night\" -c \"title songs\"")]
         public async Task RemoveComeback(ICommand command)
         {
             string category = null;

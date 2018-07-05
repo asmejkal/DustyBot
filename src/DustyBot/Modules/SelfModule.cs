@@ -47,7 +47,7 @@ namespace DustyBot.Modules
                     {
                         pages.Add(new EmbedBuilder()
                             .WithTitle("List of modules")
-                            .WithFooter($"Type `{config.CommandPrefix}help CommandName` to see usage and help for a specific command."));
+                            .WithFooter($"Type `{config.CommandPrefix}help command` to see usage of a specific command."));
                     }
 
                     var description = module.Description + "\n";

@@ -35,7 +35,7 @@ namespace DustyBot.Modules
         
         [Command("credential", "add", "Saves a credential. Direct message only."), DirectMessageOnly]
         [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}credential add Login Password CustomName\n*CustomName* - type anything for you to recognize these credentials later\n\n__Example:__ {p}johndoe1 mysecretpassword \"Google Mail\"\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, from a security standpoint, creating a new dedicated account instead of using your personal account is preferred.")]
+        [Usage("{p}credential add Login Password CustomName\n\n• *CustomName* - type anything for you to recognize these credentials later\n\n__Example:__ {p}johndoe1 mysecretpassword \"Google Mail\"\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, from a security standpoint, creating a new dedicated account instead of using your personal account is preferred.")]
         public async Task AddCredential(ICommand command)
         {
             var id = await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => 
