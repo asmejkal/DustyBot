@@ -50,18 +50,20 @@ namespace DustyBot.Modules
 
             var config = await Settings.ReadGlobal<BotConfig>();
             var pages = new PageCollection();
+            var infos = new List<Tuple<ComebackInfo, YoutubeInfo>>();
             foreach (var comeback in comebacks)
+                infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false)));
+
+            foreach (var info in infos.OrderByDescending(x => x.Item2.PublishedAt))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 5 == 0)
                     pages.Add(new EmbedBuilder().WithTitle("YouTube stats"));
+                
+                TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.Item2.PublishedAt;
 
-                var info = await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false);
-
-                TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.publishedAt;
-
-                pages.Last.Embed.AddField(eab => eab.WithName($":tv: {comeback.Name}").WithIsInline(false).WithValue(
-                    $"**Views: **{info.views.ToString("N0", new CultureInfo("en-US"))}\n" +
-                    $"**Likes: **{info.likes.ToString("N0", new CultureInfo("en-US"))}\n" +
+                pages.Last.Embed.AddField(eab => eab.WithName($":tv: {info.Item1.Name}").WithIsInline(false).WithValue(
+                    $"**Views: **{info.Item2.Views.ToString("N0", new CultureInfo("en-US"))}\n" +
+                    $"**Likes: **{info.Item2.Likes.ToString("N0", new CultureInfo("en-US"))}\n" +
                     $"**Published: **{String.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"
                     ));
             }
@@ -69,11 +71,13 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages).ConfigureAwait(false);
         }
 
+        private static Regex YoutubeIdRegex = new Regex(@"^[\w\-]+$|\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)", RegexOptions.Compiled);
+
         [Command("views", "add", "Adds a comeback.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views add \"ComebackName\" [-c \"CategoryName\"] YoutubeVideoId [MoreYoutubeVideoIds]\n\nExamples:\n" +
-            "{p}views add \"Starry Night\" 0FB2EoKTK_Q LjUXm0Zy_dk\n" +
+        [Usage("{p}views add \"ComebackName\" [-c \"CategoryName\"] YoutubeLinkOrID [MoreYoutubeLinksOrIDs]\n\nExamples:\n" +
+            "{p}views add \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n" +
             "{p}views add \"Starry Night\" -c \"title songs\" 0FB2EoKTK_Q LjUXm0Zy_dk\n")]
         public async Task AddComeback(ICommand command)
         {
@@ -90,7 +94,13 @@ namespace DustyBot.Modules
                 else if ((string)param == "-c")
                     categoryFollows = true;
                 else
-                    info.VideoIds.Add((string)param);
+                {
+                    var match = YoutubeIdRegex.Match((string)param);
+                    if (!match.Success)
+                        throw new Framework.Exceptions.IncorrectParametersCommandException($"Invalid YouTube link or ID ({(string)param}).");
+
+                    info.VideoIds.Add(match.Groups[1].Value);
+                }
             }
             
             if (categoryFollows)
@@ -176,11 +186,11 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
-        public struct YoutubeInfo
+        public class YoutubeInfo
         {
-            public ulong views;
-            public ulong likes;
-            public DateTime publishedAt;
+            public ulong Views { get; set; }
+            public ulong Likes { get; set; }
+            public DateTime PublishedAt { get; set; }
         }
 
         public async Task<YoutubeInfo> GetYoutubeInfo(IEnumerable<string> ids, string youtubeKey)
@@ -213,9 +223,9 @@ namespace DustyBot.Modules
                 }
 
                 YoutubeInfo info = new YoutubeInfo();
-                info.views = totalViews;
-                info.likes = totalLikes;
-                info.publishedAt = firstPublishedAt;
+                info.Views = totalViews;
+                info.Likes = totalLikes;
+                info.PublishedAt = firstPublishedAt;
                 return info;
             }
         }
