@@ -23,6 +23,8 @@ namespace DustyBot.Settings.LiteDB
                 result = new RolesSettings();
             else if (typeof(T) == typeof(LogSettings))
                 result = new LogSettings();
+            else if (typeof(T) == typeof(PollSettings))
+                result = new PollSettings();
             else
                 throw new InvalidOperationException("Unknown settings type.");
 

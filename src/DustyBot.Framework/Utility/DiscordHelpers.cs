@@ -43,6 +43,8 @@ namespace DustyBot.Framework.Utility
             var guildChannel = channel as IGuildChannel;
             await EnsureBotPermissions(guildChannel, perms);
         }
+
+        public static string EscapeMention(string mention) => mention.Replace("@", "@\u200B");
         
         public static string Sanitise(this string value)
         {
