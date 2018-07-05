@@ -88,11 +88,11 @@ namespace DustyBot.Modules
 
         [Command("poll", "end", "Ends a poll and announces results.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll end [PollChannelMention] [ResultsChannelMention]\n\n• *PollChannelMention* - optional; channel where the poll is running, uses this channel by default\n• *ResultsChannelMention* - optional; you can specify a different channel to receive the results")]
+        [Usage("{p}poll end [ResultsChannelMention]\n\n• *ResultsChannelMention* - optional; you can specify a different channel to receive the results")]
         public async Task EndPoll(ICommand command)
         {
-            var channelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
-            var resultsChannelId = command.Message.MentionedChannelIds.Count > 1 ? command.Message.MentionedChannelIds.ElementAt(1) : command.Message.Channel.Id;
+            var channelId = command.Message.Channel.Id;
+            var resultsChannelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
 
             bool result = await PrintPollResults(command, true, channelId, resultsChannelId).ConfigureAwait(false);
             if (!result)
@@ -105,11 +105,13 @@ namespace DustyBot.Modules
 
         [Command("poll", "results", "Checks results of a running poll.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll results [PollChannelMention]\n\n• *PollChannelMention* - optional; channel where the poll is running, uses this channel by default")]
+        [Usage("{p}poll results [ResultsChannelMention]\n\n• *ResultsChannelMention* - optional; you can specify a different channel to receive the results")]
         public async Task ResultsPoll(ICommand command)
         {
-            var channelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
-            await PrintPollResults(command, false, channelId, command.Message.Channel.Id);
+            var channelId = command.Message.Channel.Id;
+            var resultsChannelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
+
+            await PrintPollResults(command, false, channelId, resultsChannelId).ConfigureAwait(false);
         }
 
         [Command("vote", "Votes in a poll.")]
