@@ -12,23 +12,23 @@ namespace DustyBot.Settings
 {
     public class Reaction
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public int Id { get; set; }
+        public string Trigger { get; set; }
         public string Value { get; set; }
-    }
-
-    public class ReactionGroup : List<Reaction>
-    {
-        public string GetRandom()
-        {
-            if (Count <= 0)
-                throw new InvalidOperationException("No reactions found.");
-
-            return this[(new Random().Next(Count))].Value;
-        }
     }
 
     public class ReactionsSettings : BaseServerSettings
     {
-        public Dictionary<string, ReactionGroup> Groups { get; set; } = new Dictionary<string, ReactionGroup>();
+        public List<Reaction> Reactions { get; set; } = new List<Reaction>();
+        public int NextReactionId { get; set; } = 1;
+
+        public string GetRandom(string trigger)
+        {
+            var reactions = Reactions.Where(x => string.Compare(x.Trigger, trigger, true) == 0).ToList();
+            if (reactions.Count <= 0)
+                return null;
+
+            return reactions[new Random().Next(reactions.Count)].Value;
+        }
     }
 }

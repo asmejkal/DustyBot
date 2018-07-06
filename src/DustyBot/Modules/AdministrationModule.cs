@@ -16,7 +16,7 @@ using DustyBot.Settings;
 
 namespace DustyBot.Modules
 {
-    [Module("Administration", "Commands to help with server admin tasks.")]
+    [Module("Administration", "Helps with server admin tasks.")]
     class AdministrationModule : Module
     {
         public ICommunicator Communicator { get; private set; }

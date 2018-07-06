@@ -22,6 +22,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Helpers\SortedList.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DustyBot.Framework\DustyBot.Framework.csproj" />
     <ProjectReference Include="..\DustyBot.Framework.LiteDB\DustyBot.Framework.LiteDB.csproj" />
   </ItemGroup>
