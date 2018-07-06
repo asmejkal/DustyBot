@@ -185,7 +185,7 @@ namespace DustyBot.Modules
 
         [Command("commandlist", "Generates a list of all commands."), RunAsync]
         [OwnerOnly, Hidden]
-        [Usage("{p}commandlist")]
+        [Usage("{p}commandlist [owner]")]
         public async Task Commandlist(ICommand command)
         {
             var result = new StringBuilder("Use `help command` to view usage of a specific command.\n");
@@ -198,13 +198,16 @@ namespace DustyBot.Modules
                     result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
             }
 
-            result.AppendLine($"\n## Owner");
-            result.AppendLine($"Bot owner commands.\n");
-            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            if (command[0] == "owner")
             {
-                foreach (var handledCommand in module.HandledCommands.Where(x => x.OwnerOnly && !x.Hidden))
-                    result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
-            }
+                result.AppendLine($"\n## Owner");
+                result.AppendLine($"Bot owner commands.\n");
+                foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+                {
+                    foreach (var handledCommand in module.HandledCommands.Where(x => x.OwnerOnly && !x.Hidden))
+                        result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
+                }
+            }            
 
             await command.Reply(Communicator, result.ToString(), x => $"```{x}```", 6).ConfigureAwait(false);
         }
