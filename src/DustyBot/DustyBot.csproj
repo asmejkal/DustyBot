@@ -16,13 +16,14 @@
     <Authors>Yebafan</Authors>
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
-    <AssemblyVersion>2.0.0.1</AssemblyVersion>
-    <FileVersion>2.0.0.0</FileVersion>
-    <Version>2.0.1</Version>
+    <AssemblyVersion>2.0.1.0</AssemblyVersion>
+    <FileVersion>2.0.1.0</FileVersion>
+    <Version>2.0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="Helpers\SortedList.cs" />
+    <Compile Remove="Settings\LiteDB\SettingsFactory.cs" />
   </ItemGroup>
 
   <ItemGroup>

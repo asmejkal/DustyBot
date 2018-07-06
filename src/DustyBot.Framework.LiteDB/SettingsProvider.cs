@@ -16,17 +16,13 @@ namespace DustyBot.Framework.LiteDB
     {
         private LiteDatabase _dbObject;
 
-        private ISettingsFactory _factory;
-
         //TODO: a bit convoluted, split in multiple server/user objects each managing their own subset of locks and thread-safe read/modify methods
         AsyncMutexCollection<Tuple<Type, ulong>> _serverSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
         AsyncMutexCollection<Tuple<Type, ulong>> _userSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
         AsyncMutexCollection<Type> _globalSettingsLocks = new AsyncMutexCollection<Type>();
 
-        public SettingsProvider(string dbPath, ISettingsFactory factory, Migrator migrator, string password = null)
+        public SettingsProvider(string dbPath, Migrator migrator, string password = null)
         {
-            _factory = factory;
-
             _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password}"));
             migrator.MigrateCurrent(_dbObject);
         }
@@ -87,16 +83,16 @@ namespace DustyBot.Framework.LiteDB
             return await SafeGetDocument(predicate, locks, locksKey, () => Task.FromResult(new T()), createIfNeeded);
         }
 
-        private async Task<T> Create<T>(ulong serverId)
-            where T : IServerSettings
+        private Task<T> Create<T>(ulong serverId)
+            where T : IServerSettings, new()
         {
-            var s = await _factory.Create<T>();
+            var s = new T();
             s.ServerId = serverId;
-            return s;
+            return Task.FromResult(s);
         }
 
         public async Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
-            where T : IServerSettings
+            where T : IServerSettings, new()
         {
             return await SafeGetDocument(x => x.ServerId == serverId, _serverSettingsLocks, Tuple.Create(typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
         }
@@ -108,7 +104,7 @@ namespace DustyBot.Framework.LiteDB
         }
         
         public async Task Modify<T>(ulong serverId, Action<T> action)
-            where T : IServerSettings
+            where T : IServerSettings, new()
         {
             var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
             
@@ -127,7 +123,7 @@ namespace DustyBot.Framework.LiteDB
         }
 
         public async Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
-            where T : IServerSettings
+            where T : IServerSettings, new()
         {
             var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
 
@@ -213,16 +209,16 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
-        private async Task<T> CreateUser<T>(ulong userId)
-            where T : IUserSettings
+        private Task<T> CreateUser<T>(ulong userId)
+            where T : IUserSettings, new()
         {
-            var s = await _factory.CreateUser<T>();
+            var s = new T();
             s.UserId = userId;
-            return s;
+            return Task.FromResult(s);
         }
 
         public async Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true) 
-            where T : IUserSettings
+            where T : IUserSettings, new()
         {
             return await SafeGetDocument(x => x.UserId == userId, _userSettingsLocks, Tuple.Create(typeof(T), userId), () => CreateUser<T>(userId), createIfNeeded);
         }
@@ -234,7 +230,7 @@ namespace DustyBot.Framework.LiteDB
         }
 
         public async Task ModifyUser<T>(ulong userId, Action<T> action) 
-            where T : IUserSettings
+            where T : IUserSettings, new()
         {
             var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), userId));
 
@@ -253,7 +249,7 @@ namespace DustyBot.Framework.LiteDB
         }
 
         public async Task<U> ModifyUser<T, U>(ulong userId, Func<T, U> action) 
-            where T : IUserSettings
+            where T : IUserSettings, new()
         {
             var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), userId));
 

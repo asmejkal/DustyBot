@@ -34,7 +34,7 @@ namespace DustyBot.Modules
         }
 
         [Command("help", "Prints usage info.")]
-        [Usage("Use without parameters to see a list of modules and commands. Type `{p}help CommandName` to see usage and help for a specific command.")]
+        [Usage("Use without parameters to see a list of modules and commands. Type `{p}help command` to see usage and help for a specific command.")]
         public async Task Help(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -124,7 +124,7 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("listservers", "Lists all servers the bot is on.")]
+        [Command("servers", "Lists all servers the bot is on.")]
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();

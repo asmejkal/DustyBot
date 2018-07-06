@@ -155,7 +155,7 @@ namespace DustyBot.Modules
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId).ConfigureAwait(false);
             
-            var messageLoc = await command.Guild.GetMessageAsync((ulong)command.GetParameter(0));
+            var messageLoc = await command.Guild.GetMessageAsync((ulong)command[0]);
             if (messageLoc == null)
             {
                 await command.ReplyError(Communicator, "Couldn't find the specified message.").ConfigureAwait(false);

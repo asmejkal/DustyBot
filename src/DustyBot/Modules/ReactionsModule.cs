@@ -40,13 +40,13 @@ namespace DustyBot.Modules
         [Command("reactions", "add", "Adds a reaction.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameters(ParameterType.String, ParameterType.String)]
-        [Usage("{p}reaction add \"Trigger\" \"Response\"\n\n__Example:__ {p}reaction add hi \"hi there\"")]
+        [Usage("{p}reaction add \"Trigger\" \"Response\"\n\n__Example:__ {p}reaction add \"hi bot\" \"beep boop\"")]
         public async Task ReactionsAdd(ICommand command)
         {
             var id = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var newId = s.NextReactionId++;
-                s.Reactions.Add(new Reaction() { Id = newId, Trigger = (string)command.GetParameter(0), Value = (string)command.GetParameter(1) });
+                s.Reactions.Add(new Reaction() { Id = newId, Trigger = command[0], Value = command[1] });
                 return newId;
             });
 
@@ -91,6 +91,18 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
+        }
+
+        [Command("reactions", "clear", "Removes all reactions.")]
+        [Usage("{p}reactions clear")]
+        public async Task ReactionsClear(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            {
+                s.Reset();
+            }).ConfigureAwait(false);
+            
+            await command.ReplySuccess(Communicator, "All reactions cleared.").ConfigureAwait(false);
         }
 
         public override Task OnMessageReceived(SocketMessage message)

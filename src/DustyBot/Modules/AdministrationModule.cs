@@ -28,19 +28,13 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("role", "giveall", "Assigns a role to everyone.")]
-        [Parameters(ParameterType.String)]
+        [Command("role", "giveall", "Assigns a role to everyone."), RunAsync]
+        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}role giveall RoleName\n\nMay take a while to complete.")]
+        [Usage("{p}role giveall RoleNameOrID\n\nMay take a while to complete.")]
         public async Task AssignToAll(ICommand command)
         {
-            var role = command.Guild.Roles.FirstOrDefault(x => x.Name == (string)command.GetParameter(0));
-            if (role == null)
-            {
-                await command.ReplyError(Communicator, "Role not found.").ConfigureAwait(false);
-                return;
-            }
-            
+            var failed = 0;
             await Task.Run(async () =>
             {
                 var waitMsg = await command.Reply(Communicator, $"This may take a while...").ConfigureAwait(false);
@@ -50,40 +44,33 @@ namespace DustyBot.Modules
                 {
                     try
                     {
-                        await user.AddRoleAsync(role).ConfigureAwait(false);
+                        await user.AddRoleAsync(command[0].AsRole).ConfigureAwait(false);
                     }
                     catch (Exception)
                     {
-
+                        failed++;
                     }
                 }
 
                 await waitMsg.First().DeleteAsync().ConfigureAwait(false);
             });
 
-            await command.ReplySuccess(Communicator, $"Role has been assigned to all users.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Role has been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : ".")).ConfigureAwait(false);
         }
 
         [Command("role", "notin", "Checks for users who are missing a specified role.")]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}role notin RoleName")]
+        [Usage("{p}role notin RoleNameOrID")]
         public async Task NotInRole(ICommand command)
         {
-            var role = command.Guild.Roles.FirstOrDefault(x => x.Name == (string)command.GetParameter(0));
-            if (role == null)
-            {
-                await command.ReplyError(Communicator, "Role not found.").ConfigureAwait(false);
-                return;
-            }
-
             string result = "";
             await Task.Run(async () =>
             {
                 var users = await command.Guild.GetUsersAsync();
                 foreach (var user in users)
                 {
-                    if (user.RoleIds.Contains(role.Id))
+                    if (user.RoleIds.Contains(command[0].AsRole.Id))
                         continue;
 
                     result += user.Username + ", ";
@@ -100,25 +87,18 @@ namespace DustyBot.Modules
         }
 
         [Command("say", "Sends a specified message."), RunAsync]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.TextChannel, ParameterType.String)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}say TargetChannelMention Message...\n\n• *TargetChannelMention* - a channel that will receive the message\n• *Message* - the message to be sent; you may also include one attachment.")]
+        [Usage("{p}say TargetChannel Message...\n\n• *TargetChannel* - a channel that will receive the message\n• *Message* - the message to be sent; you may also include one attachment.")]
         public async Task Say(ICommand command)
         {
-            if (command.Message.MentionedChannelIds.Count < 1)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Missing target channel.");
-
-            var channel = await command.Guild.GetTextChannelAsync(command.Message.MentionedChannelIds.First());
-            if (channel == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Cannot find this channel.");
-
             var text = new string(command.Body.SkipWhile(c => !char.IsWhiteSpace(c)).ToArray()).Trim();
             if (command.Message.Attachments.Count <= 0)
             {
                 if (string.IsNullOrWhiteSpace(text))
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Specify a message or an attachment.");
 
-                await channel.SendMessageAsync(text);
+                await command[0].AsTextChannel.SendMessageAsync(text);
             }
             else
             {
@@ -131,11 +111,11 @@ namespace DustyBot.Modules
                     await stream.CopyToAsync(memStream);
                     memStream.Position = 0;
 
-                    await channel.SendFileAsync(memStream, attachment.Filename, text);
+                    await command[0].AsTextChannel.SendFileAsync(memStream, attachment.Filename, text);
                 }
             }
 
-            if (channel.Id != command.Message.Channel.Id)
+            if (command[0].AsTextChannel.Id != command.Message.Channel.Id)
                 await command.ReplySuccess(Communicator, "Message sent.").ConfigureAwait(false);
         }
 
@@ -145,7 +125,7 @@ namespace DustyBot.Modules
         public async Task DumpSettings(ICommand command)
         {
             var channel = await command.Message.Author.GetOrCreateDMChannelAsync();
-            var result = await Settings.DumpSettings((ulong?)command.GetParameter(0) ?? command.GuildId);
+            var result = await Settings.DumpSettings((ulong?)command[0] ?? command.GuildId);
             await Communicator.CommandReply(channel, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
     }

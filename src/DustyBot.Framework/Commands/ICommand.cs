@@ -28,5 +28,6 @@ namespace DustyBot.Framework.Commands
         int ParametersCount { get; }
         ParameterToken GetParameter(int key);
         IEnumerable<ParameterToken> GetParameters();
+        ParameterToken this[int key] { get; }
     }
 }

@@ -19,6 +19,9 @@ namespace DustyBot.Framework.Commands
         Decimal,
         Bool,
         String,
-        Uri
+        Uri,
+        TextChannel,
+        GuildUser,
+        Role
     }
 }

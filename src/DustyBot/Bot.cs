@@ -109,7 +109,7 @@ namespace DustyBot
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
                 
                 using (var client = new DiscordSocketClient(clientConfig))
-                using (var settings = new SettingsProvider(instancePath, new SettingsFactory(), new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
                 {
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings };
 
@@ -129,7 +129,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.TwitterModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, components.Settings, components.Logger, components.Config));
@@ -185,7 +185,7 @@ namespace DustyBot
                     if (!File.Exists(instancePath))
                         throw new InvalidOperationException($"Instance {opts.Instance} not found");
 
-                    using (var settings = new SettingsProvider(instancePath, new SettingsFactory(), new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                    using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
                     {
                         await settings.ModifyGlobal((Settings.BotConfig s) =>
                         {

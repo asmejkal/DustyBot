@@ -35,10 +35,10 @@ namespace DustyBot.Modules
 
         [Command("roles", "channel", "Sets or disables a channel for role self-assignment.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}roles channel ChannelMention\n\nUse without parameters to disable role self-assignment.")]
+        [Usage("{p}roles channel Channel\n\nUse without parameters to disable role self-assignment.")]
         public async Task SetRoleChannel(ICommand command)
         {
-            if (command.Message.MentionedChannelIds.Count <= 0)
+            if (command.ParametersCount <= 0)
             {
                 await Settings.Modify(command.GuildId, (RolesSettings s) =>
                 {
@@ -49,12 +49,11 @@ namespace DustyBot.Modules
             }
             else
             {
-                var channel = await command.Guild.GetChannelAsync(command.Message.MentionedChannelIds.First());
-                if (channel == null)
-                    throw new Framework.Exceptions.IncorrectParametersCommandException("This channel cannot be found.");
+                if (command[0].AsTextChannel == null)
+                    throw new Framework.Exceptions.IncorrectParametersCommandException("Please provide a channel.");
 
                 if ((await Settings.Read<RolesSettings>(command.GuildId)).ClearRoleChannel &&
-                    (await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages == false)
+                    (await command.Guild.GetCurrentUserAsync()).GetPermissions(command[0].AsTextChannel).ManageMessages == false)
                 {
                     await command.ReplyError(Communicator, $"Automatic message clearing is enabled, but the bot does not have the ManageMessages permission for this channel.");
                     return;
@@ -62,7 +61,7 @@ namespace DustyBot.Modules
 
                 await Settings.Modify(command.GuildId, (RolesSettings s) =>
                 {
-                    s.RoleChannel = channel.Id;
+                    s.RoleChannel = command[0].AsTextChannel.Id;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Role channel has been set.").ConfigureAwait(false);
@@ -90,21 +89,15 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "add", "Adds a self-assignable role.")]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}roles add \"RoleName\" [\"Aliases\"]\n\n__Example:__ {p}addAutoRole Solar \"Kim Yongsun\" Yeba")]
+        [Usage("{p}roles add \"RoleNameOrID\" [\"Aliases\"]\n\n__Example:__ {p}roles add Solar \"Kim Yongsun\" Yeba")]
         public async Task AddAutoRole(ICommand command)
         {
-            var role = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
-            if (role == null)
-            {
-                await command.ReplyError(Communicator, $"Role {(string)command.GetParameter(0)} not found.").ConfigureAwait(false);
-                return;
-            }
-
-            var newRole = new Settings.AssignableRole();
-            newRole.RoleId = role.Id;
-            newRole.Names = new List<string>(command.GetParameters().Select(x => (string)x));
+            var newRole = new AssignableRole();
+            newRole.RoleId = command[0].AsRole.Id;
+            newRole.Names.Add(command[0].AsRole.Name);
+            newRole.Names.AddRange(command.GetParameters().Skip(1).Select(x => (string)x));
 
             await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
@@ -115,19 +108,19 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "remove", "Removes a self-assignable role.")]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}roles remove RoleName")]
+        [Usage("{p}roles remove RoleNameOrID")]
         public async Task RemoveAutoRole(ICommand command)
         {
             bool removed = await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                return s.AssignableRoles.RemoveAll(x => string.Equals(x.Names.First(), command.Body)) > 0;
+                return s.AssignableRoles.RemoveAll(x => x.RoleId == command[0].AsRole.Id) > 0;
             }).ConfigureAwait(false);
 
             if (!removed)
             {
-                await command.ReplySuccess(Communicator, $"Self-assignable role not found.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"This role is not self-assignable.").ConfigureAwait(false);
             }
             else
             {
@@ -188,27 +181,19 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "setbias", "Sets a primary-secondary bias role pair.")]
-        [Parameters(ParameterType.String, ParameterType.String)]
+        [Parameters(ParameterType.Role, ParameterType.Role)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}roles setbias \"PrimaryRoleName\" \"SecondaryRoleName\"\n\n__Example:__ {p}setBiasRole Solar .Solar")]
+        [Usage("{p}roles setbias \"PrimaryRoleNameOrID\" \"SecondaryRoleNameOrID\"\n\n__Example:__ {p}roles setbias Solar .Solar")]
         public async Task SetBiasRole(ICommand command)
         {
-            var primary = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
-            var secondary = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(1), StringComparison.CurrentCultureIgnoreCase));
-            if (primary == null || secondary == null)
-            {
-                await command.ReplyError(Communicator, $"Role not found.").ConfigureAwait(false);
-                return;
-            }
-
             bool notAar = false;
             await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                var primaryAar = s.AssignableRoles.FirstOrDefault(x => x.RoleId == primary.Id);
+                var primaryAar = s.AssignableRoles.FirstOrDefault(x => x.RoleId == command[0].AsRole.Id);
                 if (primaryAar == null)
                     notAar = true;
                 else
-                    primaryAar.SecondaryId = secondary.Id;
+                    primaryAar.SecondaryId = command[1].AsRole.Id;
             }).ConfigureAwait(false);
 
             if (notAar)
@@ -217,51 +202,37 @@ namespace DustyBot.Modules
             }
             else
             {
-                await command.ReplySuccess(Communicator, $"Role {primary.Name} ({primary.Id}) has been set as a primary bias role to {secondary.Name} ({secondary.Id}).").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Role {command[0].AsRole.Name} ({command[0].AsRole.Id}) has been set as a primary bias role to {command[1].AsRole.Name} ({command[1].AsRole.Id}).").ConfigureAwait(false);
             }
         }
 
         [Command("autorole", "add", "Assign a role automatically upon joining.")]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}autorole add \"RoleName\"")]
+        [Usage("{p}autorole add \"RoleNameOrID\"")]
         public async Task AutoRoleAdd(ICommand command)
         {
-            var role = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
-            if (role == null)
-            {
-                await command.ReplyError(Communicator, $"Role {(string)command.GetParameter(0)} not found.").ConfigureAwait(false);
-                return;
-            }
-
             await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                s.AutoAssignRoles.Add(role.Id);
+                s.AutoAssignRoles.Add(command[0].AsRole.Id);
             }).ConfigureAwait(false);
 
-            await command.ReplySuccess(Communicator, $"Will now assign role {role.Name} ({role.Id}) to users upon joining.");
+            await command.ReplySuccess(Communicator, $"Will now assign role {command[0].AsRole.Name} ({command[0].AsRole.Id}) to users upon joining.");
         }
 
         [Command("autorole", "remove", "Remove an automatically assigned role.")]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.Administrator)]
         [Usage("{p}autorole remove \"RoleName\"")]
         public async Task AutoRoleRemove(ICommand command)
         {
-            var role = command.Guild.Roles.FirstOrDefault(x => string.Equals(x.Name, (string)command.GetParameter(0), StringComparison.CurrentCultureIgnoreCase));
-            if (role == null)
-            {
-                await command.ReplyError(Communicator, $"Role {(string)command.GetParameter(0)} not found.").ConfigureAwait(false);
-                return;
-            }
-
             var removed = await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                return s.AutoAssignRoles.Remove(role.Id);
+                return s.AutoAssignRoles.Remove(command[0].AsRole.Id);
             }).ConfigureAwait(false);
 
             if (removed)
-                await command.ReplySuccess(Communicator, $"Will no longer assign role {role.Name} ({role.Id}).");
+                await command.ReplySuccess(Communicator, $"Will no longer assign role {command[0].AsRole.Name} ({command[0].AsRole.Id}).");
             else
                 await command.ReplyError(Communicator, $"This role is not being assigned automatically.");
         }
@@ -305,8 +276,6 @@ namespace DustyBot.Modules
                         if (assignableRole.Names.FirstOrDefault(x => x.Equals(msgContent, StringComparison.CurrentCultureIgnoreCase)) != null)
                             roleAar = assignableRole;
                     }
-
-                    //await System.Console.Out.WriteLineAsync(DateTime.Now.ToString("HH:mm:ss") + " Message     \"" + message.Content + "\" by " + message.Author.Username + " (" + message.Author.Id + ")");
 
                     if (roleAar == null)
                     {

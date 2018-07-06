@@ -22,6 +22,12 @@ namespace DustyBot.Settings
         public List<Reaction> Reactions { get; set; } = new List<Reaction>();
         public int NextReactionId { get; set; } = 1;
 
+        public void Reset()
+        {
+            Reactions.Clear();
+            NextReactionId = 1;
+        }
+
         public string GetRandom(string trigger)
         {
             var reactions = Reactions.Where(x => string.Compare(x.Trigger, trigger, true) == 0).ToList();

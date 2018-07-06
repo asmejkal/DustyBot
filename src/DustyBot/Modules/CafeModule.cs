@@ -36,9 +36,9 @@ namespace DustyBot.Modules
         private static Regex _daumBoardLinkRegex = new Regex(@"(?:.*cafe.daum.net\/(.+)\/(\w+).*)|(?:.*cafe.daum.net\/(.+)\/bbs_list.+fldid=(\w+).*)", RegexOptions.Compiled);
 
         [Command("cafe", "add", "Adds a Daum Cafe board feed."), RunAsync]
-        [Parameters(ParameterType.String, ParameterType.String)]
+        [Parameters(ParameterType.String, ParameterType.TextChannel)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}cafe add DaumCafeBoardLink ChannelMention [CredentialId]\n\n• *DaumCafeBoardLink* - link to a Daum Cafe board section (either a comment board or a forum board)\n\n• *CredentialId* - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential\n\n**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\n__Examples:__\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
+        [Usage("{p}cafe add DaumCafeBoardLink Channel [CredentialId]\n\n• *DaumCafeBoardLink* - link to a Daum Cafe board section (either a comment board or a forum board)\n• *Channel* - channel that will receive the updates\n• *CredentialId* - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential\n\n**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\n__Examples:__\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task AddCafeFeed(ICommand command)
         {
             if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= 25)
@@ -63,10 +63,7 @@ namespace DustyBot.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid Cafe board link.");
             }
 
-            if (command.Message.MentionedChannelIds.Count < 1)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Missing target channel.");
-
-            feed.TargetChannel = command.Message.MentionedChannelIds.First();
+            feed.TargetChannel = command[1].AsTextChannel.Id;
 
             //Check accessibilty
             DaumCafeSession.Accessibility accessibility;

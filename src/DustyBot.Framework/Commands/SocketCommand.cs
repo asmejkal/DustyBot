@@ -28,8 +28,9 @@ namespace DustyBot.Framework.Commands
         }
 
         public int ParametersCount => Tokens.Count;
-        public ParameterToken GetParameter(int key) => Tokens.ElementAtOrDefault(key) ?? new ParameterToken(null);
+        public ParameterToken GetParameter(int key) => Tokens.ElementAtOrDefault(key) ?? new ParameterToken(null, Guild as SocketGuild);
         public IEnumerable<ParameterToken> GetParameters() => Tokens;
+        public ParameterToken this[int key] => GetParameter(key);
 
         private List<ParameterToken> Tokens;
 
@@ -114,7 +115,7 @@ namespace DustyBot.Framework.Commands
                 {
                     if (token.Length > 0)
                     {
-                        Tokens.Add(new ParameterToken(token.ToString()));
+                        Tokens.Add(new ParameterToken(token.ToString(), Guild as SocketGuild));
                         token = token.Remove(0, token.Length);
                     }
                     
@@ -125,7 +126,7 @@ namespace DustyBot.Framework.Commands
             }
 
             if (token.Length > 0)
-                Tokens.Add(new ParameterToken(token.ToString()));
+                Tokens.Add(new ParameterToken(token.ToString(), Guild as SocketGuild));
         }
 
         public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message) => communicator.CommandReplySuccess(Message.Channel, message);

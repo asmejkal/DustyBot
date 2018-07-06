@@ -16,6 +16,7 @@ using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using Discord.WebSocket;
 using System.Text.RegularExpressions;
+using DustyBot.Framework.Logging;
 
 namespace DustyBot.Modules
 {
@@ -24,19 +25,21 @@ namespace DustyBot.Modules
     {
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
+        public ILogger Logger { get; private set; }
 
-        public LogModule(ICommunicator communicator, ISettingsProvider settings)
+        public LogModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;
+            Logger = logger;
         }
 
         [Command("log", "names", "Sets or disables a channel for name change logging.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}log namechanges ChannelMention\n\nUse without parameters to disable name change logging.")]
+        [Usage("{p}log names Channel\n\nUse without parameters to disable name change logging.")]
         public async Task LogNameChanges(ICommand command)
         {
-            if (command.Message.MentionedChannelIds.Count <= 0)
+            if (command.ParametersCount <= 0)
             {
                 await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
@@ -47,9 +50,12 @@ namespace DustyBot.Modules
             }
             else
             {
+                if (command[0].AsTextChannel == null)
+                    throw new Framework.Exceptions.IncorrectParametersCommandException();
+
                 await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
-                    s.EventNameChangedChannel = command.Message.MentionedChannelIds.First();
+                    s.EventNameChangedChannel = command[0].AsTextChannel.Id;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Name change logging channel has been set.").ConfigureAwait(false);
@@ -58,7 +64,7 @@ namespace DustyBot.Modules
         
         [Command("log", "messages", "Sets or disables a channel for logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}log messages ChannelMention\n\nUse without parameters to disable name change logging.")]
+        [Usage("{p}log messages Channel\n\nUse without parameters to disable name change logging.")]
         public async Task LogMessages(ICommand command)
         {
             if (command.Message.MentionedChannelIds.Count <= 0)
@@ -72,9 +78,12 @@ namespace DustyBot.Modules
             }
             else
             {
+                if (command[0].AsTextChannel == null)
+                    throw new Framework.Exceptions.IncorrectParametersCommandException();
+
                 await Settings.Modify(command.GuildId, (LogSettings s) =>
                 {
-                    s.EventMessageDeletedChannel = command.Message.MentionedChannelIds.First();
+                    s.EventMessageDeletedChannel = command[0].AsTextChannel.Id;
                 }).ConfigureAwait(false);
                 
                 await command.ReplySuccess(Communicator, "Deleted messages logging channel has been set.").ConfigureAwait(false);
@@ -96,51 +105,57 @@ namespace DustyBot.Modules
 
         [Command("log", "channelfilter", "Excludes channels from logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}log channelfilter ChannelMentions\n\nYou may specify one or more channels. Use without parameters to disable.")]
+        [Usage("{p}log channelfilter Channels\n\nYou may specify one or more channels. Use without parameters to disable.")]
         public async Task SetMessagesChannelFilter(ICommand command)
         {
+            var channelIds = command.GetParameters().Select(x => x.AsTextChannel?.Id ?? 0).Where(x => x != 0).ToList();
             await Settings.Modify(command.GuildId, (LogSettings s) =>
             {
-                s.EventMessageDeletedChannelFilter = new List<ulong>(command.Message.MentionedChannelIds);
+                s.EventMessageDeletedChannelFilter = channelIds;
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, "A channel filter for logging of deleted messages has been " + 
-                (command.Message.MentionedChannelIds.Count > 0 ? "set." : "disabled.")).ConfigureAwait(false);
+                (channelIds.Count > 0 ? "set." : "disabled.")).ConfigureAwait(false);
         }
         
-        public override async Task OnUserUpdated(SocketUser before, SocketUser after)
+        public override Task OnUserUpdated(SocketUser before, SocketUser after)
         {
-            try
+            TaskHelper.FireForget(async () =>
             {
-                if (before.Username == after.Username)
-                    return;
+                try
+                {
+                    if (before.Username == after.Username)
+                        return;
 
-                var guildUser = after as SocketGuildUser;
-                if (guildUser == null)
-                    return;
-                
-                var guild = guildUser.Guild;
-                var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
+                    var guildUser = after as SocketGuildUser;
+                    if (guildUser == null)
+                        return;
 
-                var eventChannelId = settings.EventNameChangedChannel;
-                if (eventChannelId == 0)
-                    return;
+                    var guild = guildUser.Guild;
+                    var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
 
-                var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
-                if (eventChannel == null)
-                    return;
+                    var eventChannelId = settings.EventNameChangedChannel;
+                    if (eventChannelId == 0)
+                        return;
 
-                await Communicator.SendMessage(eventChannel, $"`{before.Username}` changed to `{after.Username}` (<@{after.Id}>)").ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                //Log
-            }
+                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
+                    if (eventChannel == null)
+                        return;
+
+                    await Communicator.SendMessage(eventChannel, $"`{before.Username}` changed to `{after.Username}` (<@{after.Id}>)").ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process user update", ex));
+                }
+            });
+
+            return Task.CompletedTask;
         }
 
         public override Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
         {
-            var _ = Task.Run(async () =>
+            TaskHelper.FireForget(async () =>
             {
                 try
                 {
@@ -195,9 +210,9 @@ namespace DustyBot.Modules
 
                     await eventChannel.SendMessageAsync(string.Empty, false, embed).ConfigureAwait(false);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    //Log
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process deleted message", ex));
                 }
             });
 

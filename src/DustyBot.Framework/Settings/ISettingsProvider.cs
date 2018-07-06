@@ -10,16 +10,16 @@ namespace DustyBot.Framework.Settings
     {
         //Server settings
         Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
-            where T : IServerSettings;
+            where T : IServerSettings, new();
 
         Task<IEnumerable<T>> Read<T>()
             where T : IServerSettings;
 
         Task Modify<T>(ulong serverId, Action<T> action)
-            where T : IServerSettings;
+            where T : IServerSettings, new();
 
         Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
-            where T : IServerSettings;
+            where T : IServerSettings, new();
 
         Task<string> DumpSettings(ulong serverId);
         Task DeleteServer(ulong serverId);
@@ -33,15 +33,15 @@ namespace DustyBot.Framework.Settings
 
         //User settings
         Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
-            where T : IUserSettings;
+            where T : IUserSettings, new();
 
         Task<IEnumerable<T>> ReadUser<T>()
             where T : IUserSettings;
 
         Task ModifyUser<T>(ulong userId, Action<T> action)
-            where T : IUserSettings;
+            where T : IUserSettings, new();
 
         Task<U> ModifyUser<T, U>(ulong userId, Func<T, U> action)
-            where T : IUserSettings;
+            where T : IUserSettings, new();
     }
 }

@@ -58,7 +58,7 @@ namespace DustyBot.Framework.Commands
 
                 //Try to find a command registration for this message
                 CommandRegistration commandRegistration;
-                if (!TryFindCommandRegistration(userMessage, out commandRegistration))
+                if (!TryGetCommandRegistration(userMessage, out commandRegistration))
                     return;
 
                 //Check if the channel type is valid for this command
@@ -156,7 +156,7 @@ namespace DustyBot.Framework.Commands
             }
         }
 
-        private bool TryFindCommandRegistration(SocketUserMessage userMessage, out CommandRegistration commandRegistration)
+        private bool TryGetCommandRegistration(SocketUserMessage userMessage, out CommandRegistration commandRegistration)
         {
             commandRegistration = null;
 

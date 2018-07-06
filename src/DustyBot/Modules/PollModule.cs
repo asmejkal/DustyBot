@@ -40,20 +40,22 @@ namespace DustyBot.Modules
         [Command("poll", "start", "Starts a poll.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}poll start [anonymous] [ChannelMention] \"Question\" \"Answer1\" \"Answer2\" [\"MoreAnswers\"]\n\n• *anonymous* - optional; hide the answers\n• *ChannelMention* - optional; channel where the poll will take place, uses this channel by default\n• *Question* - poll question\n• *Answers* - possible answers\n\n__Examples:__\n{p}poll start #main-chat \"Is hotdog a sandwich?\" Yes No\n{p}poll start anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
+        [Usage("{p}poll start [anonymous] [Channel] \"Question\" \"Answer1\" \"Answer2\" [\"MoreAnswers\"]\n\n• *anonymous* - optional; hide the answers\n• *Channel* - optional; channel where the poll will take place, uses this channel by default\n• *Question* - poll question\n• *Answers* - possible answers\n\n__Examples:__\n{p}poll start #main-chat \"Is hotdog a sandwich?\" Yes No\n{p}poll start anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
         public async Task StartPoll(ICommand command)
         {
-            bool anonymous = string.Compare((string)command.GetParameter(0), "anonymous", true) == 0;
-            var channelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
-            int optParamsCount = (command.Message.MentionedChannelIds.Count > 0 ? 1 : 0) + (anonymous ? 1 : 0);
+            //Build up the poll object
+            bool anonymous = string.Compare(command[0], "anonymous", true) == 0;
+            var channelId = command[1].AsTextChannel?.Id ?? command.Message.Channel.Id;
+            int optParamsCount = (command[1].AsTextChannel != null ? 1 : 0) + (anonymous ? 1 : 0);
 
-            var poll = new Poll { Channel = channelId, Anonymous = anonymous, Question = (string)command.GetParameter(optParamsCount) };
+            var poll = new Poll { Channel = channelId, Anonymous = anonymous, Question = command[optParamsCount] };
             foreach (var answer in command.GetParameters().Skip(optParamsCount + 1))
-                poll.Answers.Add((string)answer);
+                poll.Answers.Add(answer);
 
             if (poll.Answers.Count < 2)
                 throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
             
+            //Add to settings
             bool added = await Settings.Modify(command.GuildId, (PollSettings s) =>
             {
                 if (s.Polls.Any(x => x.Channel == channelId))
@@ -67,8 +69,9 @@ namespace DustyBot.Modules
             {
                 await command.ReplyError(Communicator, "There is already a poll running in this channel. End it before starting a new one.");
                 return;
-            }                
+            }
 
+            //Build and send the poll message
             var description = string.Empty;
             for (int i = 0; i < poll.Answers.Count; ++i)
                 description += $"`{i + 1}.` {poll.Answers[i]}\n";
@@ -88,30 +91,30 @@ namespace DustyBot.Modules
 
         [Command("poll", "end", "Ends a poll and announces results.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll end [ResultsChannelMention]\n\n• *ResultsChannelMention* - optional; you can specify a different channel to receive the results")]
+        [Usage("{p}poll end [ResultsChannel]\n\n• *ResultsChannel* - optional; you can specify a different channel to receive the results")]
         public async Task EndPoll(ICommand command)
         {
             var channelId = command.Message.Channel.Id;
-            var resultsChannelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
+            var resultsChannel = command[0]?.AsTextChannel ?? command.Message.Channel as ITextChannel;
 
-            bool result = await PrintPollResults(command, true, channelId, resultsChannelId).ConfigureAwait(false);
+            bool result = await PrintPollResults(command, true, channelId, resultsChannel).ConfigureAwait(false);
             if (!result)
                 return;
 
             await Settings.Modify(command.GuildId, (PollSettings s) => s.Polls.RemoveAll(x => x.Channel == channelId) > 0).ConfigureAwait(false);
-            if (channelId != resultsChannelId)
+            if (channelId != resultsChannel.Id)
                 await command.ReplySuccess(Communicator, "Poll was ended.").ConfigureAwait(false);
         }
 
         [Command("poll", "results", "Checks results of a running poll.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll results [ResultsChannelMention]\n\n• *ResultsChannelMention* - optional; you can specify a different channel to receive the results")]
+        [Usage("{p}poll results [ResultsChannel]\n\n• *ResultsChannel* - optional; you can specify a different channel to receive the results")]
         public async Task ResultsPoll(ICommand command)
         {
             var channelId = command.Message.Channel.Id;
-            var resultsChannelId = command.Message.MentionedChannelIds.Count > 0 ? command.Message.MentionedChannelIds.ElementAt(0) : command.Message.Channel.Id;
+            var resultsChannel = command[0]?.AsTextChannel ?? command.Message.Channel as ITextChannel;
 
-            await PrintPollResults(command, false, channelId, resultsChannelId).ConfigureAwait(false);
+            await PrintPollResults(command, false, channelId, resultsChannel).ConfigureAwait(false);
         }
 
         [Command("vote", "Votes in a poll.")]
@@ -147,7 +150,7 @@ namespace DustyBot.Modules
             }
         }
 
-        private async Task<bool> PrintPollResults(ICommand command, bool closed, ulong channelId, ulong resultsChannelId)
+        private async Task<bool> PrintPollResults(ICommand command, bool closed, ulong channelId, ITextChannel resultsChannel)
         {
             var settings = await Settings.Read<PollSettings>(command.GuildId).ConfigureAwait(false);
             var poll = settings.Polls.FirstOrDefault(x => x.Channel == channelId);
@@ -167,12 +170,8 @@ namespace DustyBot.Modules
                 .WithTitle(closed ? "Poll closed!" : "Poll results")
                 .WithDescription(description)
                 .WithFooter($"{poll.Results.Sum(x => x.Value)} votes total");
-
-            var channel = await command.Guild.GetTextChannelAsync(resultsChannelId);
-            if (channel == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("The specified channel does not exist.");
-
-            await channel.SendMessageAsync(string.Empty, false, embed.Build());
+            
+            await resultsChannel.SendMessageAsync(string.Empty, false, embed.Build());
             return true;
         }
     }
