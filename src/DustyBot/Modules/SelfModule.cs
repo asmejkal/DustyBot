@@ -57,7 +57,7 @@ namespace DustyBot.Modules
                     pages.Last.Embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
                 }
                 
-                await command.Reply(Communicator, pages, true).ConfigureAwait(false);
+                await command.Reply(Communicator, pages, true, true).ConfigureAwait(false);
             }
             else
             {

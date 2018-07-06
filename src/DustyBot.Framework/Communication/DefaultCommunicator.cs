@@ -14,10 +14,11 @@ namespace DustyBot.Framework.Communication
     {
         class PaginatedMessageContext
         {
-            public PaginatedMessageContext(PageCollection pages, ulong messageOwner = 0)
+            public PaginatedMessageContext(PageCollection pages, ulong messageOwner = 0, bool resend = false)
             {
                 _pages = new List<Page>(pages);
                 InvokerUserId = messageOwner;
+                Resend = resend;
             }
 
             int _currentPage = 0;
@@ -40,11 +41,11 @@ namespace DustyBot.Framework.Communication
 
             public bool ControlledByInvoker => InvokerUserId != 0;
             public ulong InvokerUserId;
+            public bool Resend { get; set; }
 
             public SemaphoreSlim Lock { get; } = new SemaphoreSlim(1, 1);
 
             public DateTime ExpirationDate { get; private set; } = DateTime.Now + PaginatedMessageLife;
-
             public void ExtendLife() => ExpirationDate = DateTime.Now + PaginatedMessageLife;
         }
 
@@ -70,7 +71,7 @@ namespace DustyBot.Framework.Communication
 
         public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await SendMessage(channel, message);
         public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => await SendMessage(channel, message, chunkDecorator, maxDecoratorOverhead);
-        public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0) => await SendMessage(channel, pages, messageOwner);
+        public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false) => await SendMessage(channel, pages, messageOwner, resend);
 
         public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
             await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
@@ -99,7 +100,7 @@ namespace DustyBot.Framework.Communication
         public async Task<IUserMessage> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_GenericFailure);
         
-        public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0)
+        public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
         {
             //Set footers where applicable
             for (int i = 0; i < pages.Count; ++i)
@@ -112,7 +113,7 @@ namespace DustyBot.Framework.Communication
             //If there's more pages, save a context
             if (pages.Count > 1)
             {
-                var context = new PaginatedMessageContext(pages, messageOwner);
+                var context = new PaginatedMessageContext(pages, messageOwner, resend);
                 lock (_paginatedMessages)
                 {
                     _paginatedMessages.Add(result.Id, context);
@@ -168,13 +169,30 @@ namespace DustyBot.Framework.Communication
                             return;
                         }
 
-                        //Modify message
+                        //Modify or resend message
                         var newMessage = context.Pages.ElementAt(newPage);
-                        await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed.Build(); });
+                        if (context.Resend)
+                        {
+                            await concMessage.DeleteAsync();
+                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content, false, newMessage.Embed);
 
-                        //Update context and remove reaction
+                            lock (_paginatedMessages)
+                            {
+                                _paginatedMessages.Add(result.Id, context);
+                            }
+
+                            await result.AddReactionAsync(ArrowLeft);
+                            await result.AddReactionAsync(ArrowRight);
+                        }
+                        else
+                        {
+                            await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed.Build(); });
+                            await concMessage.RemoveReactionAsync(reaction.Emote, reaction.User.Value);
+                        }
+                            
+                        //Update context
                         context.CurrentPage = newPage;
-                        await concMessage.RemoveReactionAsync(reaction.Emote, reaction.User.Value);
+                        
                     }
                     finally
                     {

@@ -23,7 +23,7 @@ namespace DustyBot.Framework.Commands
         Task<IUserMessage> ReplyError(ICommunicator communicator, string message);
         Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message);
         Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
-        Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false);
+        Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false, bool resend = false);
 
         int ParametersCount { get; }
         ParameterToken GetParameter(int key);

@@ -27,9 +27,9 @@ namespace DustyBot.Framework.Communication
         Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
-        Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0);
+        Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false);
 
-        Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0);
+        Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false);
         Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text);
         Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
