@@ -99,6 +99,46 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
+        [Command("say", "Sends a specified message."), RunAsync]
+        [Parameters(ParameterType.String)]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Usage("{p}say TargetChannelMention\n\n• *TargetChannelMention* - a channel that will receive the message\n• *Message* - the message to be sent; you may also include one attachment.")]
+        public async Task Say(ICommand command)
+        {
+            if (command.Message.MentionedChannelIds.Count < 1)
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Missing target channel.");
+
+            var channel = await command.Guild.GetTextChannelAsync(command.Message.MentionedChannelIds.First());
+            if (channel == null)
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Cannot find this channel.");
+
+            var text = new string(command.Body.SkipWhile(c => !char.IsWhiteSpace(c)).ToArray()).Trim();
+            if (command.Message.Attachments.Count <= 0)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                    throw new Framework.Exceptions.IncorrectParametersCommandException("Specify a message or an attachment.");
+
+                await channel.SendMessageAsync(text);
+            }
+            else
+            {
+                var attachment = command.Message.Attachments.First();
+                var request = WebRequest.CreateHttp(attachment.Url);
+                using (var response = await request.GetResponseAsync())
+                using (var stream = response.GetResponseStream())
+                using (var memStream = new MemoryStream())
+                {
+                    await stream.CopyToAsync(memStream);
+                    memStream.Position = 0;
+
+                    await channel.SendFileAsync(memStream, attachment.Filename, text);
+                }
+            }
+
+            if (channel.Id != command.Message.Channel.Id)
+                await command.ReplySuccess(Communicator, "Message sent.").ConfigureAwait(false);
+        }
+
         [Command("dump", "settings", "Dumps all settings for a server. Bot owner only."), RunAsync]
         [OwnerOnly, Hidden]
         [Usage("{p}dump settings [ServerId]")]

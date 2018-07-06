@@ -132,6 +132,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
+                    components.Modules.Add(new Modules.ReactionsModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings));
                     _modules = components.Modules;
 
