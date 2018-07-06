@@ -37,7 +37,7 @@ namespace DustyBot.Framework.Utility
 
                     if (messages.Last().Length <= 0)
                         messages.Last().Append(line);
-                    else if (messages.Last().Length + line.Length <= chunkSize)
+                    else if (messages.Last().Length + line.Length < chunkSize)
                         messages.Last().Append("\n" + line);
                     else
                         messages.Add(new StringBuilder(line));

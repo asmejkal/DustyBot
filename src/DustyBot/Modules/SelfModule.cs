@@ -46,18 +46,19 @@ namespace DustyBot.Modules
                     if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 4 == 0)
                     {
                         pages.Add(new EmbedBuilder()
-                            .WithTitle("List of modules")
+                            .WithDescription("Also on https://github.com/yebafan/DustyBot/wiki/Commands.")
+                            .WithTitle("Commands")
                             .WithFooter($"Type `{config.CommandPrefix}help command` to see usage of a specific command."));
                     }
 
                     var description = module.Description + "\n";
                     foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden))
-                        description += $"\n**{config.CommandPrefix}{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}** – {handledCommand.Description}";
+                        description += $"\n`{config.CommandPrefix}{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}";
                     
                     pages.Last.Embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
                 }
                 
-                await command.Reply(Communicator, pages, true, true).ConfigureAwait(false);
+                await command.Reply(Communicator, pages).ConfigureAwait(false);
             }
             else
             {
@@ -117,7 +118,7 @@ namespace DustyBot.Modules
                 .AddInlineField("Owners", string.Join("\n", config.OwnerIDs))
                 .AddInlineField("Presence", $"{users.Count} users\n{guilds.Count} servers")
                 .AddInlineField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version)
-                .AddInlineField("Web", "https://github.com/yebafan/DustyBot")
+                .AddInlineField("Web", "https://github.com/yebafan/DustyBot/wiki")
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
@@ -180,6 +181,24 @@ namespace DustyBot.Modules
         {
             await Client.CurrentUser.ModifyAsync(x => x.Username = command.Body);
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
+        }
+
+        [Command("commandlist", "Generates a list of all commands."), RunAsync]
+        [OwnerOnly, Hidden]
+        [Usage("{p}commandlist")]
+        public async Task Commandlist(ICommand command)
+        {
+            var result = new StringBuilder("Use `help command` to view usage of a specific command.\n");
+            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            {
+                result.AppendLine($"\n## {module.Name}");
+                result.AppendLine($"{module.Description}\n");
+                                
+                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden))
+                    result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
+            }
+
+            await command.Reply(Communicator, result.ToString(), x => $"```{x}```", 6).ConfigureAwait(false);
         }
     }
 }
