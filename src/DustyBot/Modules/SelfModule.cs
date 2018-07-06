@@ -46,7 +46,7 @@ namespace DustyBot.Modules
                     if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 4 == 0)
                     {
                         pages.Add(new EmbedBuilder()
-                            .WithDescription("Also on https://github.com/yebafan/DustyBot/wiki/Commands.")
+                            .WithDescription("Full list also on [wiki](https://github.com/yebafan/DustyBot/wiki/Commands).")
                             .WithTitle("Commands")
                             .WithFooter($"Type `{config.CommandPrefix}help command` to see usage of a specific command."));
                     }
