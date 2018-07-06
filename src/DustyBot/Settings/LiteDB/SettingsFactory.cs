@@ -27,6 +27,8 @@ namespace DustyBot.Settings.LiteDB
                 result = new PollSettings();
             else if (typeof(T) == typeof(ReactionsSettings))
                 result = new ReactionsSettings();
+            else if (typeof(T) == typeof(EventsSettings))
+                result = new EventsSettings();
             else
                 throw new InvalidOperationException("Unknown settings type.");
 

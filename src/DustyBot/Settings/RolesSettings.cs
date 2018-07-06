@@ -21,5 +21,7 @@ namespace DustyBot.Settings
         public ulong RoleChannel { get; set; }
         public bool ClearRoleChannel { get; set; }
         public List<AssignableRole> AssignableRoles { get; set; } = new List<AssignableRole>();
+
+        public HashSet<ulong> AutoAssignRoles { get; set; } = new HashSet<ulong>();
     }
 }

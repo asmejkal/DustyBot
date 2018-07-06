@@ -102,7 +102,7 @@ namespace DustyBot.Modules
         [Command("say", "Sends a specified message."), RunAsync]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}say TargetChannelMention\n\n• *TargetChannelMention* - a channel that will receive the message\n• *Message* - the message to be sent; you may also include one attachment.")]
+        [Usage("{p}say TargetChannelMention Message...\n\n• *TargetChannelMention* - a channel that will receive the message\n• *Message* - the message to be sent; you may also include one attachment.")]
         public async Task Say(ICommand command)
         {
             if (command.Message.MentionedChannelIds.Count < 1)

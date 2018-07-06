@@ -194,7 +194,7 @@ namespace DustyBot.Services
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Warning, "Service", "Failed to create Daum Cafe post preview.", ex));
+                await Logger.Log(new LogMessage(LogSeverity.Warning, "Service", $"Failed to create Daum Cafe post preview for {mobileUrl}.", ex));
             }
 
             return Tuple.Create(text, embed);
