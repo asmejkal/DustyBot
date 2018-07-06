@@ -141,6 +141,23 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
         }
 
+        [Command("feedback", "Suggest a modification or report an issue.")]
+        [Parameters(ParameterType.String)]
+        [Usage("{p}feedback Message...")]
+        public async Task Feedback(ICommand command)
+        {
+            var config = await Settings.ReadGlobal<BotConfig>();
+
+            foreach (var owner in config.OwnerIDs)
+            {
+                var user = await Client.GetUserAsync(owner);
+                var author = command.Message.Author;
+                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command.Body);
+            }
+
+            await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
+        }
+
         [Command("setavatar", "Changes the bot's avatar."), RunAsync]
         [OwnerOnly]
         [Usage("{p}setavatar [AttachmentUrl]\n\nAttach your new image to the message or provide a link.")]
@@ -194,7 +211,7 @@ namespace DustyBot.Modules
                 result.AppendLine($"\n## {module.Name}");
                 result.AppendLine($"{module.Description}\n");
                                 
-                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden))
+                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden && !x.OwnerOnly))
                     result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
             }
 
