@@ -108,9 +108,6 @@ namespace DustyBot.Helpers
                 return result;
             }
 
-            private static Regex _commentsTextRegex = new Regex(@"<span.*?class=""txt_detail"".*?>(.*?)</\s*span>", RegexOptions.Compiled | RegexOptions.Singleline);
-            private static Regex _commentsImageRegex = new Regex(@"<img.*?src=[\""'](.+?C120x120\/\?fname=.+?)[\""'].*?>", RegexOptions.Compiled | RegexOptions.Singleline);
-
             public static PageBody CreateComment(string content)
             {
                 var result = new PageBody();
