@@ -52,7 +52,7 @@ namespace DustyBot.Modules
                     }
 
                     var description = module.Description + "\n";
-                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden))
+                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden && !x.OwnerOnly))
                         description += $"\n`{config.CommandPrefix}{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}";
                     
                     pages.Last.Embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
@@ -141,8 +141,8 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
         }
 
-        [Command("setavatar", "Changes the bot's avatar. Bot owner only."), RunAsync]
-        [OwnerOnly, Hidden]
+        [Command("setavatar", "Changes the bot's avatar."), RunAsync]
+        [OwnerOnly]
         [Usage("{p}setavatar [AttachmentUrl]\n\nAttach your new image to the message or provide a link.")]
         public async Task SetAvatar(ICommand command)
         {
@@ -173,8 +173,8 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Avatar was changed!").ConfigureAwait(false);
         }
 
-        [Command("setname", "Changes the bot's username. Bot owner only."), RunAsync]
-        [OwnerOnly, Hidden]
+        [Command("setname", "Changes the bot's username."), RunAsync]
+        [OwnerOnly]
         [Parameters(ParameterType.String)]
         [Usage("{p}setname NewName")]
         public async Task SetName(ICommand command)
@@ -195,6 +195,14 @@ namespace DustyBot.Modules
                 result.AppendLine($"{module.Description}\n");
                                 
                 foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden))
+                    result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
+            }
+
+            result.AppendLine($"\n## Owner");
+            result.AppendLine($"Bot owner commands.\n");
+            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            {
+                foreach (var handledCommand in module.HandledCommands.Where(x => x.OwnerOnly && !x.Hidden))
                     result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
             }
 
