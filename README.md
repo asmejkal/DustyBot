@@ -12,4 +12,6 @@ Built for kpop discords.
 - Logging of deleted messages and username changes
 - And more things to come...
 
+Complete list of commands at https://github.com/yebafan/DustyBot/wiki/Commands.
+
 For any questions you can message **Yebafan#3517** on Discord.
