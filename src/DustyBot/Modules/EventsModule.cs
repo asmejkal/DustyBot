@@ -41,7 +41,7 @@ namespace DustyBot.Modules
 
         [Command("greet", "Sets or disables a greeting message.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}greet Channel Message...\n\n• *Channel* - a channel that will receive the messages\n• *Message* - the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the greeting message.")]
+        [Usage("{p}greet Channel Message...\n\n● *Channel* - a channel that will receive the messages\n● *Message* - the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the greeting message.")]
         public async Task Greet(ICommand command)
         {
             if (command.ParametersCount <= 0)
@@ -76,7 +76,7 @@ namespace DustyBot.Modules
 
         [Command("bye", "Sets or disables a goodbye message.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}bye Channel Message...\n\n• *Channel* - a channel that will receive the messages\n• *Message* - the message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the message.")]
+        [Usage("{p}bye Channel Message...\n\n● *Channel* - a channel that will receive the messages\n● *Message* - the message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the message.")]
         public async Task Bye(ICommand command)
         {
             if (command.ParametersCount <= 0)

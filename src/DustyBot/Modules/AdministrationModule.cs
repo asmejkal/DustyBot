@@ -89,7 +89,7 @@ namespace DustyBot.Modules
         [Command("say", "Sends a specified message."), RunAsync]
         [Parameters(ParameterType.TextChannel, ParameterType.String)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}say TargetChannel Message...\n\n• *TargetChannel* - a channel that will receive the message\n• *Message* - the message to be sent; you may also include one attachment.")]
+        [Usage("{p}say TargetChannel Message...\n\n● *TargetChannel* - a channel that will receive the message\n● *Message* - the message to be sent; you may also include one attachment.")]
         public async Task Say(ICommand command)
         {
             var text = new string(command.Body.SkipWhile(c => !char.IsWhiteSpace(c)).ToArray()).Trim();

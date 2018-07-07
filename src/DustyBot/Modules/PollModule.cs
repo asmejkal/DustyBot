@@ -40,7 +40,7 @@ namespace DustyBot.Modules
         [Command("poll", "start", "Starts a poll.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}poll start [anonymous] [Channel] \"Question\" \"Answer1\" \"Answer2\" [\"MoreAnswers\"]\n\n• *anonymous* - optional; hide the answers\n• *Channel* - optional; channel where the poll will take place, uses this channel by default\n• *Question* - poll question\n• *Answers* - possible answers\n\n__Examples:__\n{p}poll start #main-chat \"Is hotdog a sandwich?\" Yes No\n{p}poll start anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
+        [Usage("{p}poll start [anonymous] [Channel] \"Question\" \"Answer1\" \"Answer2\" [\"MoreAnswers\"]\n\n● *anonymous* - optional; hide the answers\n● *Channel* - optional; channel where the poll will take place, uses this channel by default\n● *Question* - poll question\n● *Answers* - possible answers\n\n__Examples:__\n{p}poll start #main-chat \"Is hotdog a sandwich?\" Yes No\n{p}poll start anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
         public async Task StartPoll(ICommand command)
         {
             //Build up the poll object
@@ -91,7 +91,7 @@ namespace DustyBot.Modules
 
         [Command("poll", "end", "Ends a poll and announces results.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll end [ResultsChannel]\n\n• *ResultsChannel* - optional; you can specify a different channel to receive the results")]
+        [Usage("{p}poll end [ResultsChannel]\n\n● *ResultsChannel* - optional; you can specify a different channel to receive the results")]
         public async Task EndPoll(ICommand command)
         {
             var channelId = command.Message.Channel.Id;
@@ -108,7 +108,7 @@ namespace DustyBot.Modules
 
         [Command("poll", "results", "Checks results of a running poll.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll results [ResultsChannel]\n\n• *ResultsChannel* - optional; you can specify a different channel to receive the results")]
+        [Usage("{p}poll results [ResultsChannel]\n\n● *ResultsChannel* - optional; you can specify a different channel to receive the results")]
         public async Task ResultsPoll(ICommand command)
         {
             var channelId = command.Message.Channel.Id;
