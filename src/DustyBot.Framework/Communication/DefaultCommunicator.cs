@@ -165,7 +165,7 @@ namespace DustyBot.Framework.Communication
                         var newPage = context.CurrentPage + (reaction.Emote.Name == ArrowLeft.Name ? -1 : 1);
                         if (newPage < 0 || newPage >= context.TotalPages)
                         {
-                            await concMessage.RemoveReactionAsync(reaction.Emote, reaction.User.Value);
+                            await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
                             return;
                         }
 
@@ -187,7 +187,7 @@ namespace DustyBot.Framework.Communication
                         else
                         {
                             await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed.Build(); });
-                            await concMessage.RemoveReactionAsync(reaction.Emote, reaction.User.Value);
+                            await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
                         }
                             
                         //Update context
@@ -206,6 +206,22 @@ namespace DustyBot.Framework.Communication
             });
 
             return Task.CompletedTask;
+        }
+
+        private async Task RemovePageReaction(IUserMessage message, IEmote emote, IUser user)
+        {
+            try
+            {
+                await message.RemoveReactionAsync(emote, user);
+            }
+            catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                //Missing permission, ignore
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a reaction for PaginatedMessage.", ex));
+            }
         }
 
         public override async Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)

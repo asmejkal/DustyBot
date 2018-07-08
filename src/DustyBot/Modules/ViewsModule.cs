@@ -32,7 +32,7 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("views", "Checks how comebacks are doing on YouTube."), RunAsync]
+        [Command("views", "Checks how comebacks are doing on YouTube."), RunAsync, TypingIndicator]
         [Usage("{p}views [CategoryName]")]
         public async Task Views(ICommand command)
         {
@@ -48,16 +48,33 @@ namespace DustyBot.Modules
                 return;
             }
 
+            //Get YT data
             var config = await Settings.ReadGlobal<BotConfig>();
             var pages = new PageCollection();
             var infos = new List<Tuple<ComebackInfo, YoutubeInfo>>();
             foreach (var comeback in comebacks)
                 infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false)));
 
+            //Compose string recommending other views categories
+            var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
+                .Where(x => x != category)
+                .Distinct()
+                .Select(x => string.IsNullOrEmpty(x) ? string.Empty : (" " + x))
+                .WordJoin($"', '{config.CommandPrefix}views", $"' and '{config.CommandPrefix}views");
+
+            if (!string.IsNullOrEmpty(otherCategories))
+                otherCategories = $"Also '{config.CommandPrefix}views" + otherCategories + "'.";
+
+            //Compose embeds with info
             foreach (var info in infos.OrderByDescending(x => x.Item2.PublishedAt))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 5 == 0)
+                {
                     pages.Add(new EmbedBuilder().WithTitle("YouTube stats"));
+
+                    if (!string.IsNullOrEmpty(otherCategories))
+                        pages.Last.Embed.WithFooter(otherCategories);
+                }                
                 
                 TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.Item2.PublishedAt;
 
