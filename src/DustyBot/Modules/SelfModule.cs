@@ -48,7 +48,7 @@ namespace DustyBot.Modules
                         pages.Add(new EmbedBuilder()
                             .WithDescription("Full list also on [wiki](https://github.com/yebafan/DustyBot/wiki/Commands).")
                             .WithTitle("Commands")
-                            .WithFooter($"Type `{config.CommandPrefix}help command` to see usage of a specific command."));
+                            .WithFooter($"Type '{config.CommandPrefix}help command' to see usage of a specific command."));
                     }
 
                     var description = module.Description + "\n";

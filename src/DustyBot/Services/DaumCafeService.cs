@@ -136,9 +136,11 @@ namespace DustyBot.Services
                 return;
             }
             
-          var currentPostId = feed.LastPostId;
+            var currentPostId = feed.LastPostId;
             if (lastPostId <= feed.LastPostId)
                 return;
+
+            await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Updating feed {feed.CafeId}/{feed.BoardId}" + (lastPostId - currentPostId > 1 ? $", found {lastPostId - currentPostId} new posts ({currentPostId + 1} to {lastPostId})." : $" (post {lastPostId}).")));
 
             while (lastPostId > currentPostId)
             {
