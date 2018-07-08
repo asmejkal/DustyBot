@@ -120,6 +120,10 @@ namespace DustyBot.Framework.Commands
                 //Execute
                 var executor = new Func<Task>(async () =>
                 {
+                    IDisposable typingState = null;
+                    if (commandRegistration.TypingIndicator)
+                        typingState = command.Message.Channel.EnterTypingState();
+
                     try
                     {
                         await commandRegistration.Handler(command);
@@ -143,6 +147,9 @@ namespace DustyBot.Framework.Commands
 
                         await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
                     }
+
+                    if (typingState != null)
+                        typingState.Dispose();
                 });
                 
                 if (commandRegistration.RunAsync)

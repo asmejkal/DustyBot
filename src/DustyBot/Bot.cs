@@ -144,7 +144,7 @@ namespace DustyBot
                     //Init framework
                     var framework = new Framework.Framework(components);
 
-                    await framework.Run($"Use {components.Config.CommandPrefix}help to view commands");
+                    await framework.Run($"{components.Config.CommandPrefix}help to view commands");
                 }
             }
             catch (Exception ex)

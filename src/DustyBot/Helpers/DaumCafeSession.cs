@@ -205,22 +205,16 @@ namespace DustyBot.Helpers
             }
         }
 
-        public class Accessibility
-        {
-            public bool Topics { get; set; }
-            public bool Posts { get; set; }
-        }
-
-        public async Task<Accessibility> GetBoardAccesibility(string cafeId, string boardId)
+        public async Task<bool> ArePostsAccesible(string cafeId, string boardId)
         {
             List<int> ids;
             try
             {
                 ids = await GetPostIds(cafeId, boardId).ConfigureAwait(false);
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
-                return new Accessibility() { Topics = false, Posts = false };
+                throw new InaccessibleBoardException(string.Empty, ex);
             }
 
             //Try to retrieve a few post IDs
@@ -230,7 +224,7 @@ namespace DustyBot.Helpers
                 try
                 {
                     var _ = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}/{id}").ConfigureAwait(false);
-                    return new Accessibility() { Topics = true, Posts = true };
+                    return true;
                 }
                 catch (HttpRequestException)
                 {
@@ -240,7 +234,44 @@ namespace DustyBot.Helpers
                     break;
             }
             
-            return new Accessibility() { Topics = true, Posts = false };
+            return false;
+        }
+        
+        private static Regex _boardLinkRegex = new Regex(@".*cafe.daum.net\/(.+)\/(\w+).*", RegexOptions.Compiled);
+        private static Regex _bbsBoardLinkRegex = new Regex(@".*cafe.daum.net\/.+\/bbs_list.+fldid=(\w+).*", RegexOptions.Compiled);
+        private static Regex _groupCodeRegex = new Regex(@"GRPCODE\s*:\s*""(.+)""", RegexOptions.Compiled);
+
+        public async Task<Tuple<string, string>> GetCafeAndBoardId(string boardUrl)
+        {        
+            //Check if we're dealing with a BBS board link...
+            var match = _bbsBoardLinkRegex.Match(boardUrl);
+            if (match.Success)
+            {
+                try
+                {
+                    //Gotta make an HTTP request to get the Cafe ID...
+                    var content = await _client.GetStringAsync(boardUrl).ConfigureAwait(false);
+                    var grpCodeMatch = _groupCodeRegex.Match(content);
+                    if (!grpCodeMatch.Success)
+                        throw new Exception("Unexpected response.");
+
+                    return Tuple.Create(grpCodeMatch.Groups[1].Value, match.Groups[1].Value);
+                }
+                catch (HttpRequestException ex)
+                {
+                    throw new InaccessibleBoardException(string.Empty, ex);
+                }
+            }
+            else
+            {
+                //Nice and behaving link
+                match = _boardLinkRegex.Match(boardUrl);
+
+                if (!match.Success)
+                    throw new InvalidBoardLinkException();
+
+                return Tuple.Create(match.Groups[1].Value, match.Groups[2].Value);
+            }
         }
 
         #region IDisposable 
@@ -278,10 +309,28 @@ namespace DustyBot.Helpers
     public class CountryBlockException : Exception
     {
         public CountryBlockException() { }
+        public CountryBlockException(string message) { }
+        public CountryBlockException(string message, Exception innerException) { }
     }
 
     public class LoginFailedException : ArgumentException
     {
         public LoginFailedException() { }
+        public LoginFailedException(string message) { }
+        public LoginFailedException(string message, Exception innerException) { }
+    }
+
+    public class InaccessibleBoardException : Exception
+    {
+        public InaccessibleBoardException() { }
+        public InaccessibleBoardException(string message) { }
+        public InaccessibleBoardException(string message, Exception innerException) { }
+    }
+
+    public class InvalidBoardLinkException : Exception
+    {
+        public InvalidBoardLinkException() { }
+        public InvalidBoardLinkException(string message) { }
+        public InvalidBoardLinkException(string message, Exception innerException) { }
     }
 }

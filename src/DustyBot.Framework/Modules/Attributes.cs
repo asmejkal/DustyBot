@@ -27,6 +27,14 @@ namespace DustyBot.Framework.Modules
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class TypingIndicatorAttribute : Attribute
+    {
+        public TypingIndicatorAttribute()
+        {
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
     public class CommandAttribute : Attribute
     {
         public CommandAttribute(string invokeString, string description)

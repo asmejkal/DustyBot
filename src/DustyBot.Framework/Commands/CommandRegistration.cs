@@ -34,5 +34,6 @@ namespace DustyBot.Framework.Commands
         public bool DirectMessageOnly { get; set; }
         bool _directMessageAllow;
         public bool DirectMessageAllow { get { return _directMessageAllow || DirectMessageOnly; } set { _directMessageAllow = value; } }
+        public bool TypingIndicator { get; set; }
     }
 }

@@ -67,6 +67,7 @@ namespace DustyBot.Framework.Modules
                 command.Hidden = method.GetCustomAttribute<HiddenAttribute>() != null;
                 command.DirectMessageOnly = method.GetCustomAttribute<DirectMessageOnlyAttribute>() != null;
                 command.DirectMessageAllow = method.GetCustomAttribute<DirectMessageAllowAttribute>() != null;
+                command.TypingIndicator = method.GetCustomAttribute<TypingIndicatorAttribute>() != null;
 
                 handledCommandsList.Add(command);
             }
