@@ -6,6 +6,7 @@ A small multi-purpose bot built to fill the needs of kpop Discords.
 - Daum Cafe feeds, including private (level restricted) boards
 - Tracking of comeback stats on YouTube
 - Easy tracking of upcoming events
+- Automatically create and collaborate on your artist's schedule
 - Simple role self assignment
 - Greet & bye messages, automatic role assignment
 - Custom reactions
