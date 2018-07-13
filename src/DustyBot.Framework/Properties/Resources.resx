@@ -141,6 +141,9 @@
   <data name="Command_Usage" xml:space="preserve">
     <value>Usage</value>
   </data>
+  <data name="Command_UsageFooter" xml:space="preserve">
+    <value>If a parameter contains spaces, add quotes: "he llo". Parameters marked "..." need no quotes.</value>
+  </data>
   <data name="Common_WordListLastSeparator" xml:space="preserve">
     <value> and </value>
   </data>

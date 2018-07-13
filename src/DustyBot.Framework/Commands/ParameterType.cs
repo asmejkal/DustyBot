@@ -20,8 +20,11 @@ namespace DustyBot.Framework.Commands
         Bool,
         String,
         Uri,
+        Guid,
         TextChannel,
         GuildUser,
-        Role
+        Role,
+
+        Any = String
     }
 }

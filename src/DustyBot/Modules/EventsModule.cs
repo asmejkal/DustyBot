@@ -41,7 +41,7 @@ namespace DustyBot.Modules
 
         [Command("greet", "Sets or disables a greeting message.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}greet Channel Message...\n\n● *Channel* - a channel that will receive the messages\n● *Message* - the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the greeting message.")]
+        [Usage("{p}greet `Channel` `Message...`\n\n● `Channel` - a channel that will receive the messages\n● `Message...` - the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the greeting message.")]
         public async Task Greet(ICommand command)
         {
             if (command.ParametersCount <= 0)
@@ -56,18 +56,16 @@ namespace DustyBot.Modules
             }
             else
             {
-                if (command.ParametersCount < 2)
+                if (string.IsNullOrEmpty(command.Remainder.After(1)))
                     throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
 
                 if (command[0].AsTextChannel == null)
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Please provide a channel.");
-
-                var text = new string(command.Body.SkipWhile(c => !char.IsWhiteSpace(c)).ToArray());
-
+                
                 await Settings.Modify(command.GuildId, (EventsSettings s) =>
                 {
                     s.GreetChannel = command[0].AsTextChannel.Id;
-                    s.GreetMessage = text;
+                    s.GreetMessage = command.Remainder.After(1);
                 }).ConfigureAwait(false);
 
                 await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
@@ -76,7 +74,7 @@ namespace DustyBot.Modules
 
         [Command("bye", "Sets or disables a goodbye message.")]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}bye Channel Message...\n\n● *Channel* - a channel that will receive the messages\n● *Message* - the message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the message.")]
+        [Usage("{p}bye `Channel` `Message...`\n\n● `Channel` - a channel that will receive the messages\n● `Message` - the message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders\n\nUse without parameters to disable the message.")]
         public async Task Bye(ICommand command)
         {
             if (command.ParametersCount <= 0)
@@ -91,18 +89,16 @@ namespace DustyBot.Modules
             }
             else
             {
-                if (command.ParametersCount < 2)
+                if (string.IsNullOrEmpty(command.Remainder.After(1)))
                     throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
 
                 if (command[0].AsTextChannel == null)
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Please provide a channel.");
-
-                var text = new string(command.Body.SkipWhile(c => !char.IsWhiteSpace(c)).ToArray());
-
+                
                 await Settings.Modify(command.GuildId, (EventsSettings s) =>
                 {
                     s.ByeChannel = command[0].AsTextChannel.Id;
-                    s.ByeMessage = text;
+                    s.ByeMessage = command.Remainder.After(1);
                 }).ConfigureAwait(false);
 
                 await command.ReplySuccess(Communicator, "Bye message set.").ConfigureAwait(false);

@@ -90,7 +90,8 @@ namespace DustyBot.Modules
                 //Build response
                 var embed = new EmbedBuilder()
                     .WithTitle($"Command {config.CommandPrefix}{commandRegistration.InvokeString} {commandRegistration.Verb ?? ""}")
-                    .WithDescription(commandRegistration.Description);
+                    .WithDescription(commandRegistration.Description)
+                    .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
                 if (!string.IsNullOrEmpty(commandRegistration.GetUsage(config.CommandPrefix)))
                     embed.AddField(x => x.WithName("Usage").WithValue(commandRegistration.GetUsage(config.CommandPrefix)));
@@ -143,7 +144,7 @@ namespace DustyBot.Modules
 
         [Command("feedback", "Suggest a modification or report an issue.")]
         [Parameters(ParameterType.String)]
-        [Usage("{p}feedback Message...")]
+        [Usage("{p}feedback `Message...`")]
         public async Task Feedback(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -152,7 +153,7 @@ namespace DustyBot.Modules
             {
                 var user = await Client.GetUserAsync(owner);
                 var author = command.Message.Author;
-                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command.Body);
+                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command.Remainder);
             }
 
             await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
@@ -160,13 +161,13 @@ namespace DustyBot.Modules
 
         [Command("setavatar", "Changes the bot's avatar."), RunAsync]
         [OwnerOnly]
-        [Usage("{p}setavatar [AttachmentUrl]\n\nAttach your new image to the message or provide a link.")]
+        [Usage("{p}setavatar `[AttachmentUrl]`\n\nAttach your new image to the message or provide a link.")]
         public async Task SetAvatar(ICommand command)
         {
             if (command.ParametersCount <= 0 && command.Message.Attachments.Count <= 0)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Missing attachment.");
 
-            var request = WebRequest.CreateHttp((string)command.GetParameter(0) ?? command.Message.Attachments.First().Url);
+            var request = WebRequest.CreateHttp((string)command[0] ?? command.Message.Attachments.First().Url);
             using (var response = await request.GetResponseAsync())
             using (var stream = response.GetResponseStream())
             using (var memStream = new MemoryStream())
@@ -193,16 +194,16 @@ namespace DustyBot.Modules
         [Command("setname", "Changes the bot's username."), RunAsync]
         [OwnerOnly]
         [Parameters(ParameterType.String)]
-        [Usage("{p}setname NewName")]
+        [Usage("{p}setname `NewName...`")]
         public async Task SetName(ICommand command)
         {
-            await Client.CurrentUser.ModifyAsync(x => x.Username = command.Body);
+            await Client.CurrentUser.ModifyAsync(x => x.Username = (string)command.Remainder);
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
         [Command("commandlist", "Generates a list of all commands."), RunAsync]
         [OwnerOnly, Hidden]
-        [Usage("{p}commandlist [owner]")]
+        [Usage("{p}commandlist `[owner]`")]
         public async Task Commandlist(ICommand command)
         {
             var result = new StringBuilder("Use `help command` to view usage of a specific command.\n");

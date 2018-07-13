@@ -42,7 +42,7 @@ namespace DustyBot.Framework.Utility
             }
         }
 
-        public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = ", and ")
+        public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = " and ")
         {
             var it = values.GetEnumerator();
             bool isFirst = true;

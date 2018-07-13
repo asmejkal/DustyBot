@@ -40,13 +40,13 @@ namespace DustyBot.Modules
         [Command("reactions", "add", "Adds a reaction.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameters(ParameterType.String, ParameterType.String)]
-        [Usage("{p}reaction add \"Trigger\" \"Response\"\n\n__Example:__ {p}reaction add \"hi bot\" \"beep boop\"")]
+        [Usage("{p}reactions add `Trigger` `Response...`\n\n__Example:__ {p}reaction add \"hi bot\" beep boop")]
         public async Task ReactionsAdd(ICommand command)
         {
             var id = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var newId = s.NextReactionId++;
-                s.Reactions.Add(new Reaction() { Id = newId, Trigger = command[0], Value = command[1] });
+                s.Reactions.Add(new Reaction() { Id = newId, Trigger = command[0], Value = command.Remainder.After(1) });
                 return newId;
             });
 
@@ -56,12 +56,12 @@ namespace DustyBot.Modules
         [Command("reactions", "remove", "Removes a reaction.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameters(ParameterType.Int)]
-        [Usage("{p}reaction remove ID\n\nUse `{p}reactions list` to see all reactions and their IDs.")]
+        [Usage("{p}reactions remove `ID`\n\nUse `reactions list` to see all reactions and their IDs.")]
         public async Task ReactionsRemove(ICommand command)
         {
             var result = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
-                return s.Reactions.RemoveAll(x => x.Id == (int)command.GetParameter(0)) > 0;
+                return s.Reactions.RemoveAll(x => x.Id == command[0]) > 0;
             }).ConfigureAwait(false);
             
             if (!result)

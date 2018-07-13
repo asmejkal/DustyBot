@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DustyBot.Framework.Communication;
+using Discord.WebSocket;
 
 namespace DustyBot.Framework.Commands
 {
@@ -29,5 +30,16 @@ namespace DustyBot.Framework.Commands
         ParameterToken GetParameter(int key);
         IEnumerable<ParameterToken> GetParameters();
         ParameterToken this[int key] { get; }
+        Remainder Remainder { get; }
+    }
+
+    public abstract class Remainder : ParameterToken
+    {
+        public Remainder(string body, SocketGuild guild) 
+            : base(body, guild)
+        {
+        }
+
+        public abstract ParameterToken After(int count);
     }
 }

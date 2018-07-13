@@ -134,6 +134,15 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to If a parameter contains spaces, add quotes: &quot;he llo&quot;. Parameters marked &quot;...&quot; need no quotes..
+        /// </summary>
+        internal static string Command_UsageFooter {
+            get {
+                return ResourceManager.GetString("Command_UsageFooter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to  and .
         /// </summary>
         internal static string Common_WordListLastSeparator {

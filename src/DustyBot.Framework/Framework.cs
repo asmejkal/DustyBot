@@ -7,13 +7,14 @@ using System.Threading.Tasks;
 using Discord;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
+using System.Threading;
 
 namespace DustyBot.Framework
 {
     /// <summary>
     /// Initialization, composition root
     /// </summary>
-    public class Framework : IModuleCollection, IServiceCollection
+    public class Framework : IModuleCollection, IServiceCollection, IDisposable
     {
         public class Components
         {
@@ -35,6 +36,8 @@ namespace DustyBot.Framework
                     Config != null;
             }
         }
+
+        private SemaphoreSlim _awaiter = new SemaphoreSlim(0);
 
         private HashSet<Modules.IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
@@ -82,14 +85,46 @@ namespace DustyBot.Framework
 
             await Client.SetGameAsync(status);
 
-            // Block this task until the program is closed.
-            await Task.Delay(-1); //TODO: shutdown - allow for proper cleanup
+            await _awaiter.WaitAsync();
         }
 
-        public void Shutdown()
+        public void Stop()
         {
             foreach (var service in _services)
                 service.Stop();
+
+            _awaiter.Release();
         }
+        
+        #region IDisposable 
+
+        private bool _disposed = false;
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _awaiter?.Dispose();
+                    _awaiter = null;
+                }
+
+                _disposed = true;
+            }
+        }
+
+        //~()
+        //{
+        //    Dispose(false);
+        //}
+
+        #endregion
     }
 }

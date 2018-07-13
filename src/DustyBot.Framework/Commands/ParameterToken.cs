@@ -15,6 +15,8 @@ namespace DustyBot.Framework.Commands
         private dynamic _value = null;
         private SocketGuild _guild;
 
+        public string Raw => _parameter;
+
         public ParameterToken(string parameter, SocketGuild guild)
         {
             _parameter = parameter;
@@ -39,6 +41,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.Bool: _value = AsBool; break;
                 case ParameterType.String: _value = AsString; break;
                 case ParameterType.Uri: _value = AsUri; break;
+                case ParameterType.Guid: _value = AsGuid; break;
                 case ParameterType.TextChannel: _value = AsTextChannel; break;
                 case ParameterType.GuildUser: _value = AsGuildUser; break;
                 case ParameterType.Role: _value = AsRole; break;
@@ -127,6 +130,12 @@ namespace DustyBot.Framework.Commands
             }
         }
 
+        public static implicit operator Guid?(ParameterToken token)
+        {
+            Guid result;
+            return token.GetTyped(typeof(Guid)) ?? (token._value = Guid.TryParse(token._parameter, out result) ? new Guid?(result) : null);
+        }
+
         public short? AsShort => this;
         public ushort? AsUShort => this;
         public int? AsInt => this;
@@ -139,6 +148,7 @@ namespace DustyBot.Framework.Commands
         public bool? AsBool => this;
         public string AsString => this;
         public Uri AsUri => this;
+        public Guid? AsGuid => this;
 
         private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
         public ITextChannel AsTextChannel

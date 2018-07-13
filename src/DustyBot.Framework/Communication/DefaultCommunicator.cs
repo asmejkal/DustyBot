@@ -89,7 +89,8 @@ namespace DustyBot.Framework.Communication
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(command.GetUsage(Config.CommandPrefix));
+                    .WithDescription(command.GetUsage(Config.CommandPrefix))
+                    .WithFooter(Properties.Resources.Command_UsageFooter);
 
             return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, embed);
         }

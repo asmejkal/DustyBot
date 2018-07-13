@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -28,18 +29,19 @@ namespace DustyBot.Framework.Commands
         }
 
         public int ParametersCount => Tokens.Count;
-        public ParameterToken GetParameter(int key) => Tokens.ElementAtOrDefault(key) ?? new ParameterToken(null, Guild as SocketGuild);
-        public IEnumerable<ParameterToken> GetParameters() => Tokens;
+        public ParameterToken GetParameter(int key) => Tokens.ElementAtOrDefault(key)?.Item2 ?? new ParameterToken(null, Guild as SocketGuild);
+        public IEnumerable<ParameterToken> GetParameters() => Tokens.Select(x => x.Item2);
         public ParameterToken this[int key] => GetParameter(key);
 
-        private List<ParameterToken> Tokens;
+        private List<Tuple<int, ParameterToken>> Tokens;
+        public Remainder Remainder { get; private set; }
+
+        public Config.IEssentialConfig Config { get; set; }
 
         private SocketCommand(Config.IEssentialConfig config)
         {
             Config = config;
         }
-
-        public Config.IEssentialConfig Config { get; set; }
 
         public static string ParseInvoker(SocketUserMessage message, string prefix)
         {
@@ -78,12 +80,14 @@ namespace DustyBot.Framework.Commands
 
             TokenizeParameters('"');
 
+            Remainder = new SocketRemainder(Tokens.Select(x => x.Item1), Body, Guild as SocketGuild);
+
             return true;
         }
 
         private void TokenizeParameters(params char[] textQualifiers)
         {
-            Tokens = new List<ParameterToken>();
+            Tokens = new List<Tuple<int, ParameterToken>>();
 
             string allParams = Body;
             if (allParams == null)
@@ -105,7 +109,7 @@ namespace DustyBot.Framework.Commands
                     continue;
                 }
 
-                if (textQualifiers.Contains(currentChar) && (nextChar == '\0' || char.IsWhiteSpace(nextChar)) && inString)
+                if (textQualifiers.Contains(currentChar) && (nextChar == '\0' || char.IsWhiteSpace(nextChar)) && inString && prevChar != '\\')
                 {
                     inString = false;
                     continue;
@@ -115,7 +119,7 @@ namespace DustyBot.Framework.Commands
                 {
                     if (token.Length > 0)
                     {
-                        Tokens.Add(new ParameterToken(token.ToString(), Guild as SocketGuild));
+                        Tokens.Add(Tuple.Create(i, new ParameterToken(token.ToString(), Guild as SocketGuild)));
                         token = token.Remove(0, token.Length);
                     }
                     
@@ -126,7 +130,7 @@ namespace DustyBot.Framework.Commands
             }
 
             if (token.Length > 0)
-                Tokens.Add(new ParameterToken(token.ToString(), Guild as SocketGuild));
+                Tokens.Add(Tuple.Create(allParams.Length, new ParameterToken(token.ToString(), Guild as SocketGuild)));
         }
 
         public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message) => communicator.CommandReplySuccess(Message.Channel, message);
@@ -134,5 +138,30 @@ namespace DustyBot.Framework.Commands
         public Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message) => communicator.CommandReply(Message.Channel, message);
         public Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => communicator.CommandReply(Message.Channel, message, chunkDecorator, maxDecoratorOverhead);
         public Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false, bool resend = false) => communicator.CommandReply(Message.Channel, pages, controlledByInvoker ? Message.Author.Id : 0, resend);
+    }
+
+    public class SocketRemainder : Remainder
+    {
+        List<int> _tokenPositions;
+        SocketGuild _guild;
+        Dictionary<int, ParameterToken> _cache = new Dictionary<int, ParameterToken>();
+
+        public SocketRemainder(IEnumerable<int> tokenPositions, string body, SocketGuild guild)
+            : base(body.Trim(), guild)
+        {
+            _tokenPositions = new List<int>(tokenPositions);
+            _guild = guild;
+        }
+
+        public override ParameterToken After(int count)
+        {
+            ParameterToken result;
+            if (_cache.TryGetValue(count, out result))
+                return result;
+
+            result = new ParameterToken(Raw.Substring(count <= 0 ? 0 : (_tokenPositions.Count < count ? Raw.Length : _tokenPositions.ElementAtOrDefault(count - 1))).Trim(), _guild);
+            _cache.Add(count, result);
+            return result;
+        }
     }
 }

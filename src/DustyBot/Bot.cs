@@ -110,14 +110,12 @@ namespace DustyBot
                 
                 using (var client = new DiscordSocketClient(clientConfig))
                 using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                using (var logger = new Framework.Logging.ConsoleLogger(client, true))
                 {
-                    var components = new Framework.Framework.Components() { Client = client, Settings = settings };
+                    var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
 
                     //Get config
                     components.Config = await components.Settings.ReadGlobal<Settings.BotConfig>();
-
-                    //Choose logger
-                    components.Logger = new Framework.Logging.ConsoleLogger(components.Client);
 
                     //Choose communicator
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
@@ -126,9 +124,9 @@ namespace DustyBot
                     components.Modules.Add(new Modules.SelfModule(components.Communicator, components.Settings, this, components.Client));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.TwitterModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
@@ -143,6 +141,11 @@ namespace DustyBot
 
                     //Init framework
                     var framework = new Framework.Framework(components);
+
+                    Console.CancelKeyPress += (s, e) => {
+                        e.Cancel = true;
+                        framework.Stop();
+                    };
 
                     await framework.Run($"{components.Config.CommandPrefix}help to view commands");
                 }

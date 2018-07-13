@@ -117,6 +117,9 @@ namespace DustyBot.Helpers
                 
                 result.Text = doc.DocumentNode.Descendants("span").FirstOrDefault(x => x.GetAttributeValue("class", "") == "txt_detail")?.ToPlainText().Trim();
                 result.ImageUrl = doc.DocumentNode.Descendants("img").FirstOrDefault(x => x.Attributes.Contains("src"))?.GetAttributeValue("src", "").Trim().Replace("C120x120", "R640x0");
+                if (result.ImageUrl?.StartsWith("//") ?? false)
+                    result.ImageUrl = "https:" + result.ImageUrl;
+
                 return result;
             }
         }

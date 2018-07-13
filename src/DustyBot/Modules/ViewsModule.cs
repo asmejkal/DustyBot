@@ -14,6 +14,7 @@ using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
+using DustyBot.Helpers;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using System.Threading;
@@ -33,47 +34,45 @@ namespace DustyBot.Modules
         }
         
         [Command("views", "Checks how comebacks are doing on YouTube."), RunAsync, TypingIndicator]
-        [Usage("{p}views [CategoryName]")]
+        [Usage("{p}views `[SongOrCategoryName...]`\n\n● `SongOrCategoryName` - optional remainder; select songs from a specific category or search for a song from any category")]
         public async Task Views(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId);
-            string category = string.IsNullOrWhiteSpace(command.Body) ? null : command.Body;
-            var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, category, StringComparison.CurrentCultureIgnoreCase) == 0)
-                .Reverse()
-                .ToList();
+            string param = string.IsNullOrWhiteSpace(command.Remainder) ? null : (string)command.Remainder;
 
+            var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, param, true) == 0).ToList();
+            if (comebacks.Count <= 0 && param != null && param.Length > 2)
+                comebacks = settings.YouTubeComebacks.Where(x => x.Name.Search(param, true)).ToList();
+
+            var config = await Settings.ReadGlobal<BotConfig>();
             if (comebacks.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No comeback info has been set for this category. Use the `views add` command.").ConfigureAwait(false);
+                string rec;
+                if (settings.YouTubeComebacks.Count <= 0)
+                    rec = "Use the `views add` command.";
+                else
+                    rec = GetOtherCategoriesRecommendation(settings, config, param);
+
+                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}").ConfigureAwait(false);
                 return;
             }
 
             //Get YT data
-            var config = await Settings.ReadGlobal<BotConfig>();
             var pages = new PageCollection();
             var infos = new List<Tuple<ComebackInfo, YoutubeInfo>>();
             foreach (var comeback in comebacks)
                 infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false)));
 
-            //Compose string recommending other views categories
-            var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
-                .Where(x => x != category)
-                .Distinct()
-                .Select(x => string.IsNullOrEmpty(x) ? string.Empty : (" " + x))
-                .WordJoin($"', '{config.CommandPrefix}views", $"' and '{config.CommandPrefix}views");
-
-            if (!string.IsNullOrEmpty(otherCategories))
-                otherCategories = $"Also '{config.CommandPrefix}views" + otherCategories + "'.";
-
             //Compose embeds with info
+            string recommendation = GetOtherCategoriesRecommendation(settings, config, param);
             foreach (var info in infos.OrderByDescending(x => x.Item2.PublishedAt))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 5 == 0)
                 {
-                    pages.Add(new EmbedBuilder().WithTitle("YouTube stats"));
+                    pages.Add(new EmbedBuilder().WithTitle("YouTube"));
 
-                    if (!string.IsNullOrEmpty(otherCategories))
-                        pages.Last.Embed.WithFooter(otherCategories);
+                    if (!string.IsNullOrEmpty(recommendation))
+                        pages.Last.Embed.WithFooter(recommendation);
                 }                
                 
                 TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.Item2.PublishedAt;
@@ -88,41 +87,59 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages).ConfigureAwait(false);
         }
 
-        private static Regex YoutubeIdRegex = new Regex(@"^[\w\-]+$|\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)", RegexOptions.Compiled);
+        private string GetOtherCategoriesRecommendation(MediaSettings settings, BotConfig config, string category)
+        {
+            var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
+                .Where(x => x != category)
+                .Where(x => !string.IsNullOrEmpty(x))
+                .Distinct();
 
-        [Command("views", "add", "Adds a comeback.")]
+            var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
+
+            string result = isDefault ? $"Try also: {config.CommandPrefix}views and " : "Try also ";
+            if (otherCategories.Any())
+                result += $"{config.CommandPrefix}views {string.Join($", ", otherCategories)} or a song name.";
+            else
+                result += $"{config.CommandPrefix}views song name.";
+
+            return result;
+        }
+
+        private static Regex YouTubeLinkRegex = new Regex(@"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)", RegexOptions.Compiled);
+
+        [Command("views", "add", "Adds a song.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views add \"ComebackName\" [-c \"CategoryName\"] YoutubeLinkOrID [MoreYoutubeLinksOrIDs]\n\n__Examples:__\n" +
+        [Usage("{p}views add `[CategoryName]` `SongName` `YouTubeLink` `[MoreLinks]`\n\n● `CategoryName` - optional; if you add a song to a category, its views will be displayed with `views CategoryName`.\n● `SongName` - name of the song.\n● `YouTubeLink` - one or more song links\n\nIf you add more than one link, their stats will be added together.\n\n__Examples:__\n" +
             "{p}views add \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n" +
-            "{p}views add \"Starry Night\" -c \"title songs\" 0FB2EoKTK_Q LjUXm0Zy_dk\n")]
+            "{p}views add titles \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
         public async Task AddComeback(ICommand command)
         {
-            var info = new ComebackInfo() { Name = (string)command.GetParameter(0), VideoIds = new HashSet<string>() };
-
-            bool categoryFollows = false;
-            foreach (var param in command.GetParameters().Skip(1))
+            var info = new ComebackInfo();
+            bool linksEnded = false;
+            foreach (var param in command.GetParameters().Reverse())
             {
-                if (categoryFollows)
+                if (!linksEnded)
                 {
-                    info.Category = (string)param;
-                    categoryFollows = false;
-                }
-                else if ((string)param == "-c")
-                    categoryFollows = true;
-                else
-                {
-                    var match = YoutubeIdRegex.Match((string)param);
+                    var match = YouTubeLinkRegex.Match(param);
                     if (!match.Success)
-                        throw new Framework.Exceptions.IncorrectParametersCommandException($"Invalid YouTube link or ID ({(string)param}).");
-
-                    info.VideoIds.Add(match.Groups[1].Value);
+                        linksEnded = true;
+                    else
+                        info.VideoIds.Add(match.Groups[1].Value);
+                }
+                
+                if (linksEnded)
+                {
+                    if (info.Name == null)
+                        info.Name = param;
+                    else if (info.Category == null)
+                        info.Category = param;
+                    else
+                        throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
                 }
             }
-            
-            if (categoryFollows)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Expected a category name following \"-c\".");
-            else if (info.VideoIds.Count <= 0)
+
+            if (info.VideoIds.Count <= 0)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("No videos specified.");
 
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
@@ -130,58 +147,81 @@ namespace DustyBot.Modules
                 s.YouTubeComebacks.Add(info);
             }).ConfigureAwait(false);
             
-            await command.ReplySuccess(Communicator, "Comeback info has been added.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos `{info.VideoIds.WordJoin("`, `", "` and `")}`.").ConfigureAwait(false);
         }
 
-        [Command("views", "remove", "Removes media info for a specified comeback.")]
+        [Command("views", "remove", "Removes a song.")]
         [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views remove \"ComebackName\" [-c \"CategoryName\"]\n\nSpecify CategoryName to remove comeback in a category, omit to delete from the default category." +
-            "\n\n__Examples:__\n{p}views remove \"Starry Night\"\n{p}views remove \"Starry Night\" -c \"title songs\"")]
+        [Usage("{p}views remove `[CategoryName]` `SongName`\n\n● `CategoryName` - optional; specify to remove comeback in a category, omit to delete from the default category." +
+            "\n\n__Examples:__\n{p}views remove \"Starry Night\"\n{p}views remove titles \"Starry Night\"")]
         public async Task RemoveComeback(ICommand command)
         {
-            string category = null;
-            if (command.ParametersCount == 3 && (string)command.GetParameter(1) == "-c")
-                category = (string)command.GetParameter(2);
-            else if (command.ParametersCount != 1)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Expected one parameter with comeback name and optionally a category name.");
+            string name, category = null;
+            if (command.ParametersCount == 1)
+            {
+                name = command[0];
+            }
+            else if (command.ParametersCount == 2)
+            {
+                category = command[0];
+                name = command[1];
+            }
+            else
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Too many parameters.");            
 
             if (string.Compare(category, "default", true) == 0)
                 category = null;
 
-            bool anyRemoved = await Settings.Modify(command.GuildId, (MediaSettings s) =>
+            var removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return s.YouTubeComebacks.RemoveAll(x => string.Compare(x.Name, (string)command.GetParameter(0), true) == 0 && string.Compare(x.Category, category, true) == 0) > 0;
+                return s.YouTubeComebacks.RemoveAll(x => string.Compare(x.Name, name, true) == 0 && string.Compare(x.Category, category, true) == 0);
             }).ConfigureAwait(false);
 
-            if (anyRemoved)
-            {
-                await command.ReplySuccess(Communicator, $"Comeback info has been removed.").ConfigureAwait(false);
-            }
+            if (removed > 0)
+                await command.ReplySuccess(Communicator, removed > 1 ? $"Removed {removed} songs." : "Song has been removed.").ConfigureAwait(false);
             else
-            {
-                await command.ReplyError(Communicator, $"Couldn't find comeback info with name `{command.Body}` in category `{category ?? "default"}`.").ConfigureAwait(false);
-            }
+                await command.ReplyError(Communicator, $"Couldn't find song with name `{name}` in category `{category ?? "default"}`.").ConfigureAwait(false);
         }
 
-        [Command("views", "rename", "Renames a category of comeback media info.")]
+        [Command("views", "rename", "Renames a category or song.")]
         [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views rename \"OriginalCategory\" \"NewCategory\"\n\nUse \"default\" to rename from/to default category.")]
-        public async Task RenameComebackCategory(ICommand command)
+        [Usage("{p}views rename `OldName` `NewName`\n\nUse `default` to rename from/to default category.")]
+        public async Task RenameComeback(ICommand command)
         {
-            string originalName = string.Compare((string)command.GetParameter(0), "default", true) == 0 ? null : (string)command.GetParameter(0);
-            string newName = string.Compare((string)command.GetParameter(1), "default", true) == 0 ? null : (string)command.GetParameter(1);
+            string originalName = string.Compare(command[0], "default", true) == 0 ? null : (string)command[0];
+            string newName = string.Compare(command[1], "default", true) == 0 ? null : (string)command[1];
 
-            await Settings.Modify(command.GuildId, (MediaSettings s) =>
+            var result = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                s.YouTubeComebacks.Where(x => string.Compare(x.Category, originalName, true) == 0).ForEach(x => x.Category = newName);
+                int ccount = 0;
+                foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Category, originalName, true) == 0))
+                {
+                    ccount++;
+                    comeback.Category = newName;
+                }
+
+                int scount = 0;
+                foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Name, originalName, true) == 0))
+                {
+                    scount++;
+                    comeback.Name = newName;
+                }
+
+                return Tuple.Create(ccount, scount);
             }).ConfigureAwait(false);
-            
-            await command.ReplySuccess(Communicator, $"Moved all comebacks from {(string)command.GetParameter(0)} category.").ConfigureAwait(false);
+
+            if (result.Item1 <= 0 && result.Item2 <= 0)
+            {
+                await command.ReplyError(Communicator, $"There's no category or song matching this name.").ConfigureAwait(false);
+                return;
+            }
+
+            await command.ReplySuccess(Communicator, (result.Item1 > 0 ? $"Moved all comebacks from `{(string)command[0]}` category. " : string.Empty) + (result.Item2 > 0 ? $"Renamed all songs named `{(string)command[0]}`. " : string.Empty)).ConfigureAwait(false);
         }
 
-        [Command("views", "list", "Lists all comeback info.")]
+        [Command("views", "list", "Lists all songs.")]
         [Usage("{p}views list")]
         public async Task ListComebacks(ICommand command)
         {

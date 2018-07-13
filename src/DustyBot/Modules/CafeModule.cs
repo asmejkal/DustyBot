@@ -36,7 +36,7 @@ namespace DustyBot.Modules
         [Command("cafe", "add", "Adds a Daum Cafe board feed."), RunAsync, TypingIndicator]
         [Parameters(ParameterType.String, ParameterType.TextChannel)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}cafe add DaumCafeBoardLink Channel [CredentialId]\n\n● *DaumCafeBoardLink* - link to a Daum Cafe board section (either a comment board or a forum board)\n● *Channel* - channel that will receive the updates\n● *CredentialId* - optional; credentials to an account that can view this board - see {p}help for the Credentials module on how to add a credential\n\n**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\n__Examples:__\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
+        [Usage("{p}cafe add `BoardLink` `Channel` `[CredentialId]`\n\n● `BoardLink` - link to a Daum Cafe board section (either a comment board or a forum board)\n● `Channel` - channel that will receive the updates\n● `CredentialId` - optional; credentials to an account that can view this board (see `help` for the Credentials module on how to add a credential)\n\n**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\n__Examples:__\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel\n{p}cafe add http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task AddCafeFeed(ICommand command)
         {
             if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= 25)
@@ -54,10 +54,13 @@ namespace DustyBot.Modules
                 DaumCafeSession session;
                 if (command.ParametersCount > 2)
                 {
-                    feed.CredentialUser = command.Message.Author.Id;
-                    feed.CredentialId = Guid.Parse(command[2]);
+                    if (command[2].AsGuid == null)
+                        throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid ID format. Use `credential list` to view all your saved credentials and their IDs.");
 
-                    var credential = await CredentialsModule.GetCredential(Settings, command.Message.Author.Id, command[2]);
+                    feed.CredentialUser = command.Message.Author.Id;
+                    feed.CredentialId = (Guid)command[2];
+
+                    var credential = await CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
                     session = await DaumCafeSession.Create(credential.Login, credential.Password);
                 }
                 else
@@ -103,14 +106,14 @@ namespace DustyBot.Modules
         }
 
         [Command("cafe", "remove", "Removes a Daum Cafe board feed.")]
-        [Parameters(ParameterType.String)]
+        [Parameters(ParameterType.Guid)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}cafe remove FeedId\n\nRun `{p}cafe list` to see IDs for all active feeds.")]
+        [Usage("{p}cafe remove `FeedId`\n\nRun `cafe list` to see IDs for all active feeds.")]
         public async Task RemoveCafeFeed(ICommand command)
         {
             bool removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return s.DaumCafeFeeds.RemoveAll(x => x.Id == Guid.Parse(command[0])) > 0;
+                return s.DaumCafeFeeds.RemoveAll(x => x.Id == command[0]) > 0;
             });
 
             if (removed)

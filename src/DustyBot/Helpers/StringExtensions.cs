@@ -57,5 +57,22 @@ namespace DustyBot.Helpers
                 return result.ToString();
             }
         }
+
+        public static bool Search(this string value, string input, bool caseInsensitive = false)
+        {
+            var separators = new char[] { ' ', '\f', '\n', '\r', '\t', '\v' };
+            if (caseInsensitive)
+            {
+                var tokens = input.ToLowerInvariant().Split(separators, StringSplitOptions.RemoveEmptyEntries);
+                var searchString = value.ToLowerInvariant();
+
+                return tokens.All(x => searchString.Contains(x));
+            }
+            else
+            {
+                var tokens = input.ToLowerInvariant().Split(separators, StringSplitOptions.RemoveEmptyEntries);
+                return tokens.All(x => value.Contains(x));
+            }
+        }
     }
 }
