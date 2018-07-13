@@ -51,9 +51,9 @@ namespace DustyBot.Modules
                 if (settings.YouTubeComebacks.Count <= 0)
                     rec = "Use the `views add` command.";
                 else
-                    rec = GetOtherCategoriesRecommendation(settings, config, param);
+                    rec = GetOtherCategoriesRecommendation(settings, config, param, true);
 
-                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. Try {rec}.").ConfigureAwait(false);
                 return;
             }
 
@@ -64,7 +64,7 @@ namespace DustyBot.Modules
                 infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false)));
 
             //Compose embeds with info
-            string recommendation = GetOtherCategoriesRecommendation(settings, config, param);
+            string recommendation = "Try also: " + GetOtherCategoriesRecommendation(settings, config, param, false) + ".";
             foreach (var info in infos.OrderByDescending(x => x.Item2.PublishedAt))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 5 == 0)
@@ -87,7 +87,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages).ConfigureAwait(false);
         }
 
-        private string GetOtherCategoriesRecommendation(MediaSettings settings, BotConfig config, string category)
+        private string GetOtherCategoriesRecommendation(MediaSettings settings, BotConfig config, string category, bool useMarkdown)
         {
             var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
                 .Where(x => x != category)
@@ -95,12 +95,12 @@ namespace DustyBot.Modules
                 .Distinct();
 
             var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
-
-            string result = isDefault ? $"Try also: {config.CommandPrefix}views and " : "Try also ";
+            
+            string result = isDefault ? $"{(useMarkdown ? "`" : "")}{config.CommandPrefix}views{(useMarkdown ? "`" : "")} and " : "";
             if (otherCategories.Any())
-                result += $"{config.CommandPrefix}views {string.Join($", ", otherCategories)} or a song name.";
+                result += $"{(useMarkdown ? "`" : "")}{config.CommandPrefix}views {string.Join($", ", otherCategories)} or a song name{(useMarkdown ? "`" : "")}";
             else
-                result += $"{config.CommandPrefix}views song name.";
+                result += $"{(useMarkdown ? "`" : "")}{config.CommandPrefix}views song name{(useMarkdown ? "`" : "")}";
 
             return result;
         }
