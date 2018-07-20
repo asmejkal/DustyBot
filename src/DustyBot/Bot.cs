@@ -110,7 +110,7 @@ namespace DustyBot
                 
                 using (var client = new DiscordSocketClient(clientConfig))
                 using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
-                using (var logger = new Framework.Logging.ConsoleLogger(client, true))
+                using (var logger = new Framework.Logging.ConsoleLogger(client, Definitions.GlobalDefinitions.GetLogFile(opts.Instance)))
                 {
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
 
@@ -142,7 +142,8 @@ namespace DustyBot
                     //Init framework
                     var framework = new Framework.Framework(components);
 
-                    Console.CancelKeyPress += (s, e) => {
+                    Console.CancelKeyPress += (s, e) =>
+                    {
                         e.Cancel = true;
                         framework.Stop();
                     };

@@ -11,23 +11,24 @@ namespace DustyBot.Framework.Logging
 {
     public class ConsoleLogger : ILogger, IDisposable
     {
-        public const string LogFile = "log.txt";
-
         StreamWriter _logWriter;
         private DiscordSocketClient _client;
 
-        public ConsoleLogger(DiscordSocketClient client, bool backupToFile = true)
+        public ConsoleLogger(DiscordSocketClient client, string logFile = "")
         {
             _client = client;
             _client.Log += Log;
 
-            FileStream stream;
-            if (!File.Exists(LogFile))
-                stream = new FileStream(LogFile, FileMode.OpenOrCreate);
-            else
-                stream = new FileStream(LogFile, FileMode.Append);
+            if (!string.IsNullOrEmpty(logFile))
+            {
+                FileStream stream;
+                if (!File.Exists(logFile))
+                    stream = new FileStream(logFile, FileMode.OpenOrCreate);
+                else
+                    stream = new FileStream(logFile, FileMode.Append);
 
-            _logWriter = new StreamWriter(stream);
+                _logWriter = new StreamWriter(stream);
+            }            
         }
 
         public async Task Log(LogMessage message)
