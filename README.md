@@ -10,8 +10,7 @@ A small multi-purpose bot built to fill the needs of kpop Discords.
 - Simple role self assignment
 - Greet & bye messages, automatic role assignment
 - Custom reactions
-- Logging of deleted messages and username changes
-- Create messages editable by the mod team
+- Logging of user changes and messages
 - And more things to come...
 
 Complete list of commands [here](https://github.com/yebafan/DustyBot/wiki/Commands).
