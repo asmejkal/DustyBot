@@ -180,7 +180,7 @@ namespace DustyBot.Services
             Embed embed = null;
             try
             {
-                var metadata = await session.GetPageMetadata(mobileUrl);
+                var metadata = await session.GetPageMetadata(new Uri(mobileUrl));
                 if (metadata.Type == "comment" && (!string.IsNullOrWhiteSpace(metadata.Body.Text) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
                 {
                     embed = BuildPreview("New memo", mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeName);

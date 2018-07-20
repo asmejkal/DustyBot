@@ -10,6 +10,7 @@ using System.Security;
 using System.Net.Http;
 using HtmlAgilityPack;
 using DustyBot.Helpers;
+using System.IO.Compression;
 
 namespace DustyBot.Helpers
 {
@@ -137,9 +138,20 @@ namespace DustyBot.Helpers
         
         private static Regex _metaPropertyRegex = new Regex(@"<meta\s+property=""(.+)"".+content=""(.+)"".*>", RegexOptions.Compiled);
 
-        public async Task<PageMetadata> GetPageMetadata(string mobileUrl)
+        public async Task<PageMetadata> GetPageMetadata(Uri mobileUrl)
         {
-            var content = await _client.GetStringAsync(mobileUrl).ConfigureAwait(false);
+            string content;
+            var response = await _client.GetAsync(mobileUrl).ConfigureAwait(false);
+            if (response.StatusCode == (HttpStatusCode)308)
+            {
+                //Deal with the wonky 308 status code (permanent redirect) - HttpClient should redirect, but it doesn't (probably because 308 is not even in .NET docs)
+                var location = response.Headers.Location;
+                var absoluteLocation = location.IsAbsoluteUri ? location : new Uri(new Uri(mobileUrl.GetComponents(UriComponents.Scheme | UriComponents.StrongAuthority, UriFormat.Unescaped)), location);
+                content = await _client.GetStringAsync(absoluteLocation).ConfigureAwait(false);
+            }
+            else
+                content = await response.Content.ReadAsStringAsync();
+
             var properties = new List<Tuple<string, string>>();
 
             await Task.Run(() =>
@@ -178,33 +190,80 @@ namespace DustyBot.Helpers
 
         public async Task Authenticate()
         {
-            var request = WebRequest.CreateHttp($"https://logins.daum.net/accounts/login.do");
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            request.CookieContainer = new CookieContainer();
-
-            using (var stream = await request.GetRequestStreamAsync())
-            using (var writer = new StreamWriter(stream, System.Text.Encoding.ASCII, 1, false))
+            //Daum disabled the simple credential login flow for *some* reason 
+            //(3 weeks after this feature has been implemented - makes me wonder...).
+            //So now we'll have to imitate the standard no-JS browser login flow.
+            //Only the FUID input is newly required, but we'll imitate all the headers 
+            //to make this harder to distinguish from normal Chrome users, just in case... (sans the cookies)
+            string fuid;
             {
-                await writer.WriteAsync($"id={_credential.Item1}&pw=");
-                await _credential.Item2.ForEach(async x => { await writer.WriteAsync((char)x); });
+                var request = WebRequest.CreateHttp("https://logins.daum.net/accounts/loginform.do");
+                request.Method = "GET";
+                request.Headers["Connection"] = "keep-alive";
+                request.Headers["Cache-Control"] = "max-age=0";
+                request.Headers["Upgrade-Insecure-Requests"] = "1";
+                request.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36";
+                request.Headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+                request.Headers["Accept-Encoding"] = "gzip, deflate, br";
+                request.Headers["Accept-Language"] = "en,cs-CZ;q=0.9,cs;q=0.8";
+
+                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                using (var stream = response.GetResponseStream())
+                using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
+                using (var reader = new StreamReader(gzipStream))
+                {
+                    var content = await reader.ReadToEndAsync().ConfigureAwait(false);
+
+                    var doc = new HtmlDocument();
+                    doc.LoadHtml(content);
+
+                    fuid = doc.DocumentNode.Descendants("input").FirstOrDefault(x => x.GetAttributeValue("name", "") == "fuid" )?.GetAttributeValue("value", "");
+                }
             }
 
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            if (string.IsNullOrWhiteSpace(fuid))
+                throw new NodeNotFoundException("Cannot find FUID.");
+
             {
-                //Expire old cookies
-                foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("http://daum.net")))
-                    cookie.Expired = true;
+                var request = WebRequest.CreateHttp($"https://logins.daum.net/accounts/login.do");
+                request.Method = "POST";
+                request.Headers["Connection"] = "keep-alive";
+                request.Headers["Cache-Control"] = "max-age=0";
+                request.Headers["Origin"] = "https://logins.daum.net";
+                request.Headers["Upgrade-Insecure-Requests"] = "1";
+                request.ContentType = "application/x-www-form-urlencoded";
+                request.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36"; //required
+                request.Headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+                request.Headers["Referer"] = "https://logins.daum.net/accounts/loginform.do"; //required
+                request.Headers["Accept-Encoding"] = "gzip, deflate, br";
+                request.Headers["Accept-Language"] = "en,cs-CZ;q=0.9,cs;q=0.8";
+                
+                request.CookieContainer = new CookieContainer();
 
-                if (response.ResponseUri.ToString().Contains("releasecountryrestrict"))
-                    throw new CountryBlockException(); //Failed because of logging in from a different country
+                using (var stream = await request.GetRequestStreamAsync())
+                using (var writer = new StreamWriter(stream, System.Text.Encoding.ASCII, 1, false))
+                {
 
-                if (response.Cookies.Count <= 0)
-                    throw new LoginFailedException();
+                    await writer.WriteAsync($"url=https%3A%2F%2Fwww.daum.net%2F&relative=&weblogin=1&service=&fuid={fuid}&slevel=1&finaldest=&reloginSeq=0&id={_credential.Item1}&pw=");
+                    await _credential.Item2.ForEach(async x => { await writer.WriteAsync((char)x); });
+                }
 
-                //Add new cookies
-                foreach (Cookie cookie in response.Cookies)
-                    _handler.CookieContainer.Add(new Uri($"http://{cookie.Domain}{cookie.Path}"), cookie);
+                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                {
+                    //Expire old cookies
+                    foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("http://daum.net")))
+                        cookie.Expired = true;
+
+                    if (response.ResponseUri.ToString().Contains("releasecountryrestrict"))
+                        throw new CountryBlockException(); //Failed because of logging in from a different country
+
+                    if (response.Cookies.Count <= 0)
+                        throw new LoginFailedException();
+
+                    //Add new cookies
+                    foreach (Cookie cookie in response.Cookies)
+                        _handler.CookieContainer.Add(new Uri($"http://{cookie.Domain}{cookie.Path}"), cookie);
+                }
             }
         }
 
