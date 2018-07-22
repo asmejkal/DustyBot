@@ -16,6 +16,8 @@ namespace DustyBot.Services
 {
     class DaumCafeService : IDisposable, Framework.Services.IService
     {
+        public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(1);
+
         System.Threading.Timer _timer;
 
         public ISettingsProvider Settings { get; private set; }
@@ -24,6 +26,8 @@ namespace DustyBot.Services
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(4);
         bool _updating = false;
+
+        Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
 
         public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, ILogger logger)
         {
@@ -43,8 +47,6 @@ namespace DustyBot.Services
             _timer = null;
         }
 
-        public Dictionary<Guid, DaumCafeSession> _sessionCache = new Dictionary<Guid, DaumCafeSession>();
-
         async void OnUpdate(object state)
         {
             await Task.Run(async () =>
@@ -56,9 +58,6 @@ namespace DustyBot.Services
 
                 try
                 {
-                    //TODO: store sessions between updates and only refresh tokens when necessary
-                    _sessionCache.Clear();
-
                     foreach (var settings in await Settings.Read<MediaSettings>().ConfigureAwait(false))
                     {
                         if (settings.DaumCafeFeeds == null || settings.DaumCafeFeeds.Count <= 0)
@@ -102,20 +101,23 @@ namespace DustyBot.Services
             DaumCafeSession session;
             if (feed.CredentialId != Guid.Empty)
             {
-                if (!_sessionCache.TryGetValue(feed.CredentialId, out session))
+                Tuple<DateTime, DaumCafeSession> dateSession;
+                if (!_sessionCache.TryGetValue(feed.CredentialId, out dateSession) || DateTime.Now - dateSession.Item1 > SessionLifetime)
                 {
                     var credential = await Modules.CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
                     try
                     {
                         session = await DaumCafeSession.Create(credential.Login, credential.Password);
-                        _sessionCache.Add(feed.CredentialId, session);
+                        _sessionCache[feed.CredentialId] = Tuple.Create(DateTime.Now, session);
                     }
                     catch (Exception ex) when (ex is CountryBlockException || ex is LoginFailedException)
                     {
                         session = DaumCafeSession.Anonymous;
-                        _sessionCache.Add(feed.CredentialId, DaumCafeSession.Anonymous);
+                        _sessionCache[feed.CredentialId] = Tuple.Create(DateTime.Now, session);
                     }
                 }
+                else
+                    session = dateSession.Item2;
             }
             else
                 session = DaumCafeSession.Anonymous;
