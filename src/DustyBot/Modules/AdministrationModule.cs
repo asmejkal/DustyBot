@@ -29,10 +29,10 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("role", "giveall", "Assigns a role to everyone."), RunAsync]
-        [Parameters(ParameterType.Role)]
+        [Command("role", "giveall", "Assigns a role to everyone.", CommandFlags.RunAsync)]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}role giveall `RoleNameOrID`\n\nMay take a while to complete.")]
+        [Parameter("RoleNameOrID", ParameterType.Role)]
+        [Comment("May take a while to complete.")]
         public async Task AssignToAll(ICommand command)
         {
             var failed = 0;
@@ -60,9 +60,8 @@ namespace DustyBot.Modules
         }
 
         [Command("role", "notin", "Checks for users who are missing a specified role.")]
-        [Parameters(ParameterType.Role)]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
-        [Usage("{p}role notin `RoleNameOrID`")]
+        [Parameter("RoleNameOrId", ParameterType.Role)]
         public async Task NotInRole(ICommand command)
         {
             string result = "";
@@ -87,18 +86,18 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
-        [Command("say", "Sends a specified message."), RunAsync]
-        [Parameters(ParameterType.TextChannel)]
+        [Command("say", "Sends a specified message.", CommandFlags.RunAsync)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}say `TargetChannel` `Message...`\n\n● `TargetChannel` - a channel that will receive the message\n● `Message...` - remainder; the message to be sent (you may also include one attachment)")]
+        [Parameter("TargetChannel", ParameterType.TextChannel, "a channel that will receive the message")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "the message to be sent (you may also include one attachment)")]
         public async Task Say(ICommand command)
         {
             if (command.Message.Attachments.Count <= 0)
             {
-                if (string.IsNullOrEmpty(command.Remainder.After(1)))
+                if (string.IsNullOrEmpty((string)command.Remainder.After(1)))
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Specify a message or an attachment.");
 
-                await command[0].AsTextChannel.SendMessageAsync(command.Remainder.After(1));
+                await command[0].AsTextChannel.SendMessageAsync((string)command.Remainder.After(1));
             }
             else
             {
@@ -111,7 +110,7 @@ namespace DustyBot.Modules
                     await stream.CopyToAsync(memStream);
                     memStream.Position = 0;
 
-                    await command[0].AsTextChannel.SendFileAsync(memStream, attachment.Filename, command.Remainder.After(1));
+                    await command[0].AsTextChannel.SendFileAsync(memStream, attachment.Filename, (string)command.Remainder.After(1));
                 }
             }
 
@@ -119,38 +118,23 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, "Message sent.").ConfigureAwait(false);
         }
 
-        [Command("edit", "Edits a message sent by the say command."), RunAsync]
-        [Parameters(ParameterType.ULong, ParameterType.String)]
+        [Command("edit", "Edits a message sent by the say command.", CommandFlags.RunAsync)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}edit `MessageId` `Message...`\n\n● `MessageID` - a message previously sent by the `say` command\n● `Message...` - remainder; the message to be sent (attachments cannot be edited)")]
+        [Parameter("MessageId", ParameterType.GuildSelfMessage, "a message previously sent by the `say` command")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the message to send")]
         public async Task Edit(ICommand command)
         {
-            var messageLoc = await command.Guild.GetMessageAsync((ulong)command[0]);
-            var message = messageLoc?.Item1 as IUserMessage;
-            if (message == null)
-            {
-                await command.ReplyError(Communicator, "Couldn't find the specified message.").ConfigureAwait(false);
-                return;
-            }
-
-            if (message.Author.Id != (await command.Guild.GetCurrentUserAsync()).Id)
-            {
-                await command.ReplyError(Communicator, "Cannot edit messages that were not sent by the bot.").ConfigureAwait(false);
-                return;
-            }
-            
+            var message = await command[0].AsGuildSelfMessage();
             await message.ModifyAsync(x => x.Content = (string)command.Remainder.After(1));
-            
             await command.ReplySuccess(Communicator, "Message edited.").ConfigureAwait(false);
         }
 
-        [Command("dump", "settings", "Dumps all settings for a server."), RunAsync]
-        [OwnerOnly]
-        [Usage("{p}dump settings `[ServerId]`")]
+        [Command("dump", "settings", "Dumps all settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
         public async Task DumpSettings(ICommand command)
         {
             var channel = await command.Message.Author.GetOrCreateDMChannelAsync();
-            var result = await Settings.DumpSettings((ulong?)command[0] ?? command.GuildId);
+            var result = await Settings.DumpSettings(command[0].AsId ?? command.GuildId);
             await Communicator.CommandReply(channel, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
     }

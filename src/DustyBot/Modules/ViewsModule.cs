@@ -33,8 +33,9 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("views", "Checks how comebacks are doing on YouTube."), RunAsync, TypingIndicator]
-        [Usage("{p}views `[SongOrCategoryName...]`\n\n● `SongOrCategoryName` - optional remainder; select songs from a specific category or search for a song from any category")]
+        [Command("views", "Checks how comebacks are doing on YouTube.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Parameter("SongOrCategoryName", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "select songs from a specific category or search for a song from any category")]
+        [Comment("Use without parameters to view songs from the default category.")]
         public async Task Views(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId);
@@ -108,11 +109,14 @@ namespace DustyBot.Modules
         private static Regex YouTubeLinkRegex = new Regex(@"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)", RegexOptions.Compiled);
 
         [Command("views", "add", "Adds a song.")]
-        [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views add `[CategoryName]` `SongName` `YouTubeLink` `[MoreLinks]`\n\n● `CategoryName` - optional; if you add a song to a category, its views will be displayed with `views CategoryName`.\n● `SongName` - name of the song.\n● `YouTubeLink` - one or more song links\n\nIf you add more than one link, their stats will be added together.\n\n__Examples:__\n" +
-            "{p}views add \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n" +
-            "{p}views add titles \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
+        [Parameter("CategoryName", ParameterType.String, ParameterFlags.Optional, "if you add a song to a category, its views will be displayed with `views CategoryName`")]
+        [Parameter("SongName", ParameterType.String, "name of the song")]
+        [Parameter("YouTubeLink", ParameterType.String, "one or more song links")]
+        [Parameter("MoreLinks", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
+        [Comment("If you add more than one link, their stats will be added together.")]
+        [Example("\"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
+        [Example("titles \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
         public async Task AddComeback(ICommand command)
         {
             var info = new ComebackInfo();
@@ -125,7 +129,7 @@ namespace DustyBot.Modules
                     if (!match.Success)
                         linksEnded = true;
                     else
-                        info.VideoIds.Add(match.Groups[1].Value);
+                        info.VideoIds.Add(Enumerable.Cast<Group>(match.Groups).Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value);
                 }
                 
                 if (linksEnded)
@@ -151,10 +155,9 @@ namespace DustyBot.Modules
         }
 
         [Command("views", "remove", "Removes a song.")]
-        [Parameters(ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views remove `[CategoryName]` `SongName`\n\n● `CategoryName` - optional; specify to remove comeback in a category, omit to delete from the default category." +
-            "\n\n__Examples:__\n{p}views remove \"Starry Night\"\n{p}views remove titles \"Starry Night\"")]
+        [Parameter("CategoryName", ParameterType.String, ParameterFlags.Optional, "specify to remove comeback in a category, omit to delete from the default category")]
+        [Parameter("SongName", ParameterType.String)]
         public async Task RemoveComeback(ICommand command)
         {
             string name, category = null;
@@ -185,9 +188,10 @@ namespace DustyBot.Modules
         }
 
         [Command("views", "rename", "Renames a category or song.")]
-        [Parameters(ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}views rename `OldName` `NewName`\n\nUse `default` to rename from/to default category.")]
+        [Parameter("OldName", ParameterType.String)]
+        [Parameter("NewName", ParameterType.String)]
+        [Comment("Use `default` to rename from/to default category.")]
         public async Task RenameComeback(ICommand command)
         {
             string originalName = string.Compare(command[0], "default", true) == 0 ? null : (string)command[0];
@@ -222,7 +226,6 @@ namespace DustyBot.Modules
         }
 
         [Command("views", "list", "Lists all songs.")]
-        [Usage("{p}views list")]
         public async Task ListComebacks(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId, false).ConfigureAwait(false);

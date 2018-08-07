@@ -6,220 +6,227 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Commands
 {
     public class ParameterToken
     {
-        private string _parameter;
-        private dynamic _value = null;
-        private SocketGuild _guild;
+        private struct DynamicValue
+        {
+            dynamic _value;
+            ParameterType _type;
 
-        public string Raw => _parameter;
+            public DynamicValue(dynamic value, ParameterType type)
+            {
+                _value = value;
+                _type = type;
+            }
+
+            public dynamic TryGet(ParameterType type) => _type == type ? _value : null;
+            public ParameterType Type => _type;
+        }
+
+        DynamicValue _cache;
+        SocketGuild _guild;
+
+        public string Raw { get; }
+        public string LastError { get; private set; }
+        public bool HasValue => !string.IsNullOrEmpty(Raw);
 
         public ParameterToken(string parameter, SocketGuild guild)
         {
-            _parameter = parameter;
+            Raw = parameter ?? string.Empty;
             _guild = guild;
+            _cache = new DynamicValue(Raw, ParameterType.String);
         }
 
-        public bool IsType(ParameterType type) => GetValue(type) != null;
+        public async Task<bool> IsType(ParameterType type) => (await GetValue(type).ConfigureAwait(false)) != null;
 
-        public dynamic GetValue(ParameterType type)
+        public async Task<dynamic> GetValue(ParameterType type)
         {
+            dynamic result;
             switch (type)
             {
-                case ParameterType.Short: _value = AsShort; break;
-                case ParameterType.UShort: _value = AsUShort; break;
-                case ParameterType.Int: _value = AsInt; break;
-                case ParameterType.UInt: _value = AsUInt; break;
-                case ParameterType.Long: _value = AsLong; break;
-                case ParameterType.ULong: _value = AsULong; break;
-                case ParameterType.Double: _value = AsDouble; break;
-                case ParameterType.Float: _value = AsFloat; break;
-                case ParameterType.Decimal: _value = AsDecimal; break;
-                case ParameterType.Bool: _value = AsBool; break;
-                case ParameterType.String: _value = AsString; break;
-                case ParameterType.Uri: _value = AsUri; break;
-                case ParameterType.Guid: _value = AsGuid; break;
-                case ParameterType.TextChannel: _value = AsTextChannel; break;
-                case ParameterType.GuildUser: _value = AsGuildUser; break;
-                case ParameterType.Role: _value = AsRole; break;
-                default: _value = null; break;
+                case ParameterType.Short: result = AsShort; break;
+                case ParameterType.UShort: result = AsUShort; break;
+                case ParameterType.Int: result = AsInt; break;
+                case ParameterType.UInt: result = AsUInt; break;
+                case ParameterType.Long: result = AsLong; break;
+                case ParameterType.ULong: result = AsULong; break;
+                case ParameterType.Double: result = AsDouble; break;
+                case ParameterType.Float: result = AsFloat; break;
+                case ParameterType.Decimal: result = AsDecimal; break;
+                case ParameterType.Bool: result = AsBool; break;
+                case ParameterType.String: result = AsString; break;
+                case ParameterType.Uri: result = AsUri; break;
+                case ParameterType.Guid: result = AsGuid; break;
+                case ParameterType.Id: result = AsId; break;
+                case ParameterType.TextChannel: result = AsTextChannel; break;
+                case ParameterType.GuildUser: result = AsGuildUser; break;
+                case ParameterType.Role: result = AsRole; break;
+                case ParameterType.GuildUserMessage: result = await AsGuildUserMessage().ConfigureAwait(false); break;
+                case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage().ConfigureAwait(false); break;
+                default: result = null; break;
             }
 
-            return _value;
+            return result;
         }
 
-        private dynamic GetTyped(Type type) => _value is Type ? _value : null;
+        public short? AsShort => TryConvert<short>(this, ParameterType.Short, short.TryParse);
+        public ushort? AsUShort => TryConvert<ushort>(this, ParameterType.UShort, ushort.TryParse);
+        public int? AsInt => TryConvert<int>(this, ParameterType.Int, int.TryParse);
+        public uint? AsUInt => TryConvert<uint>(this, ParameterType.UInt, uint.TryParse);
+        public long? AsLong => TryConvert<long>(this, ParameterType.Long, long.TryParse);
+        public ulong? AsULong => TryConvert<ulong>(this, ParameterType.ULong, ulong.TryParse);
+        public double? AsDouble => TryConvert<double>(this, ParameterType.Double, double.TryParse);
+        public float? AsFloat => TryConvert<float>(this, ParameterType.Float, float.TryParse);
+        public decimal? AsDecimal => TryConvert<decimal>(this, ParameterType.Decimal, decimal.TryParse);
+        public bool? AsBool => TryConvert<bool>(this, ParameterType.Bool, bool.TryParse);
+        public string AsString => Raw;
+        public Uri AsUri => TryConvert<Uri>(this, ParameterType.Uri, x => new Uri(x));
+        public Guid? AsGuid => TryConvert<Guid>(this, ParameterType.Guid, Guid.TryParse);
+        public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
 
-        public static implicit operator short?(ParameterToken token)
+        private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
+        public ITextChannel AsTextChannel => TryConvert<ITextChannel>(this, ParameterType.TextChannel, x =>
         {
-            short result;
-            return token.GetTyped(typeof(short?)) ?? (token._value = short.TryParse(token._parameter, out result) ? new short?(result) : null);
-        }
+            ulong id;
+            if (!ulong.TryParse(x, out id))
+            {
+                var match = ChannelMentionRegex.Match(x);
+                if (!match.Success)
+                    return null;
 
-        public static implicit operator ushort?(ParameterToken token)
-        {
-            ushort result;
-            return token.GetTyped(typeof(ushort?)) ?? (token._value = ushort.TryParse(token._parameter, out result) ? new ushort?(result) : null);
-        }
+                id = ulong.Parse(match.Groups[1].Value);
+            }
 
-        public static implicit operator int?(ParameterToken token)
-        {
-            int result;
-            return token.GetTyped(typeof(int?)) ?? (token._value = int.TryParse(token._parameter, out result) ? new int?(result) : null);
-        }
+            return _guild?.TextChannels.FirstOrDefault(y => y.Id == id);
+        });
 
-        public static implicit operator uint?(ParameterToken token)
+        private static Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
+        public IGuildUser AsGuildUser => TryConvert<IGuildUser>(this, ParameterType.GuildUser, x =>
         {
-            uint result;
-            return token.GetTyped(typeof(uint?)) ?? (token._value = uint.TryParse(token._parameter, out result) ? new uint?(result) : null);
-        }
+            ulong id;
+            if (!ulong.TryParse(x, out id))
+            {
+                var match = UserMentionRegex.Match(x);
+                if (!match.Success)
+                    return null;
 
-        public static implicit operator long?(ParameterToken token)
-        {
-            long result;
-            return token.GetTyped(typeof(long?)) ?? (token._value = long.TryParse(token._parameter, out result) ? new long?(result) : null);
-        }
+                id = ulong.Parse(match.Groups[1].Value);
+            }
 
-        public static implicit operator ulong?(ParameterToken token)
-        {
-            ulong result;
-            return token.GetTyped(typeof(ulong?)) ?? (token._value = ulong.TryParse(token._parameter, out result) ? new ulong?(result) : null);
-        }
+            return _guild?.Users.FirstOrDefault(y => y.Id == id);
+        });
 
-        public static implicit operator double?(ParameterToken token)
+        public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>
         {
-            double result;
-            return token.GetTyped(typeof(double?)) ?? (token._value = double.TryParse(token._parameter, out result) ? new double?(result) : null);
-        }
+            var role = _guild?.Roles.FirstOrDefault(r => string.Equals(r.Name, x, StringComparison.CurrentCultureIgnoreCase));
+            if (role != null)
+                return role;
 
-        public static implicit operator float?(ParameterToken token)
-        {
-            float result;
-            return token.GetTyped(typeof(float?)) ?? (token._value = float.TryParse(token._parameter, out result) ? new float?(result) : null);
-        }
+            ulong id;
+            if (!ulong.TryParse(x, out id))
+                return null;
 
-        public static implicit operator decimal?(ParameterToken token)
-        {
-            decimal result;
-            return token.GetTyped(typeof(decimal?)) ?? (token._value = decimal.TryParse(token._parameter, out result) ? new decimal?(result) : null);
-        }
+            return _guild?.GetRole(id);
+        });
 
-        public static implicit operator bool?(ParameterToken token)
+        public async Task<IUserMessage> AsGuildUserMessage() => await TryConvert<IUserMessage>(this, ParameterType.GuildUserMessage, async x =>
         {
-            bool result;
-            return token.GetTyped(typeof(bool?)) ?? (token._value = bool.TryParse(token._parameter, out result) ? new bool?(result) : null);
-        }
+            if (AsULong == null || _guild == null)
+                return null;
 
-        public static implicit operator string(ParameterToken token)
-        {
-            return token.GetTyped(typeof(string)) ?? (token._value = token._parameter);
-        }
+            var message = (await _guild.GetMessageAsync(AsULong.Value).ConfigureAwait(false)) as IUserMessage;
+            if (message == null)
+                LastError = Properties.Resources.Parameter_UserMessageNotFound;
 
-        public static implicit operator Uri(ParameterToken token)
+            return message;
+        });
+
+        public async Task<IUserMessage> AsGuildSelfMessage() => await TryConvert<IUserMessage>(this, ParameterType.GuildSelfMessage, async x =>
         {
+            var message = await AsGuildUserMessage();
+            if (message == null || _guild == null)
+                return null;
+
+            if (message.Author.Id != _guild.CurrentUser.Id)
+            {
+                LastError = Properties.Resources.Parameter_NotSelfMessage;
+                return null;
+            }
+
+            return message;
+        });
+
+        public static explicit operator short? (ParameterToken token) => token.AsShort;
+        public static explicit operator ushort? (ParameterToken token) => token.AsUShort;
+        public static explicit operator int? (ParameterToken token) => token.AsInt;
+        public static explicit operator uint? (ParameterToken token) => token.AsUInt;
+        public static explicit operator long? (ParameterToken token) => token.AsLong;
+        public static explicit operator ulong? (ParameterToken token) => token.AsULong;
+        public static explicit operator double? (ParameterToken token) => token.AsDouble;
+        public static explicit operator float? (ParameterToken token) => token.AsFloat;
+        public static explicit operator decimal? (ParameterToken token) => token.AsDecimal;
+        public static explicit operator bool? (ParameterToken token) => token.AsBool;
+        public static implicit operator string(ParameterToken token) => token.AsString;
+        public static explicit operator Uri(ParameterToken token) => token.AsUri;
+        public static explicit operator Guid? (ParameterToken token) => token.AsGuid;
+
+        static T TryConvert<T>(ParameterToken token, ParameterType type, Func<string, T> parser)
+            where T : class
+        {
+            T result = token._cache.TryGet(type);
+            if (result != null)
+                return result;
+
             try
             {
-                return token.GetTyped(typeof(Uri)) ?? (token._value = new Uri(token._parameter));
+                result = parser(token.Raw);
             }
             catch (Exception)
             {
-                return null;
+                result = null;
             }
+
+            token._cache = new DynamicValue(result, type);
+            return result;
         }
 
-        public static implicit operator Guid?(ParameterToken token)
+        static async Task<T> TryConvert<T>(ParameterToken token, ParameterType type, Func<string, Task<T>> parser)
+            where T : class
         {
-            Guid result;
-            return token.GetTyped(typeof(Guid)) ?? (token._value = Guid.TryParse(token._parameter, out result) ? new Guid?(result) : null);
-        }
+            T result = token._cache.TryGet(type);
+            if (result != null)
+                return result;
 
-        public short? AsShort => this;
-        public ushort? AsUShort => this;
-        public int? AsInt => this;
-        public uint? AsUInt => this;
-        public long? AsLong => this;
-        public ulong? AsULong => this;
-        public double? AsDouble => this;
-        public float? AsFloat => this;
-        public decimal? AsDecimal => this;
-        public bool? AsBool => this;
-        public string AsString => this;
-        public Uri AsUri => this;
-        public Guid? AsGuid => this;
-
-        private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
-        public ITextChannel AsTextChannel
-        {
-            get
+            try
             {
-                if (_value != null && _value is ITextChannel)
-                    return _value;
-
-                if (_parameter == null)
-                    return null;
-
-                ulong id;
-                if (!ulong.TryParse(_parameter, out id))
-                {
-                    var match = ChannelMentionRegex.Match(_parameter);
-                    if (!match.Success)
-                        return null;
-
-                    id = ulong.Parse(match.Groups[1].Value);
-                }
-                
-                return _value = _guild?.TextChannels.FirstOrDefault(x => x.Id == id);
+                result = await parser(token.Raw);
             }
+            catch (Exception)
+            {
+                result = null;
+            }
+
+            token._cache = new DynamicValue(result, type);
+            return result;
         }
 
-        private static Regex UserMentionRegex = new Regex("<@([0-9]+)>", RegexOptions.Compiled);
-        public IGuildUser AsGuildUser
+        public delegate bool TryParseDelegate<T>(string value, out T result);
+        static T? TryConvert<T>(ParameterToken token, ParameterType type, TryParseDelegate<T> parser)
+            where T : struct
         {
-            get
-            {
-                if (_value != null && _value is IGuildUser)
-                    return _value;
+            T? cache = token._cache.TryGet(type);
+            if (cache != null)
+                return cache;
 
-                if (_parameter == null)
-                    return null;
+            T tmp;
+            T? result = parser(token.Raw, out tmp) ? new T?(tmp) : new T?();
+            token._cache = new DynamicValue(result, type);
 
-                ulong id;
-                if (!ulong.TryParse(_parameter, out id))
-                {
-                    var match = UserMentionRegex.Match(_parameter);
-                    if (!match.Success)
-                        return null;
-
-                    id = ulong.Parse(match.Groups[1].Value);
-                }
-
-                return _value = _guild?.Users.FirstOrDefault(x => x.Id == id);
-            }
-        }
-
-        public IRole AsRole
-        {
-            get
-            {
-                if (_value != null && _value is IRole)
-                    return _value;
-
-                if (_parameter == null)
-                    return null;
-
-                var role = _guild?.Roles.FirstOrDefault(x => string.Equals(x.Name, _parameter, StringComparison.CurrentCultureIgnoreCase));
-                if (role != null)
-                    return _value = role;
-
-                ulong id;
-                if (!ulong.TryParse(_parameter, out id))
-                    return null;
-
-                return _value = _guild?.GetRole(id);
-            }
+            return result;
         }
     }
 }

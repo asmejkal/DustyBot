@@ -21,10 +21,12 @@ namespace DustyBot.Framework.Commands
         String,
         Uri,
         Guid,
+        Id,
+
         TextChannel,
         GuildUser,
         Role,
-
-        Any = String
+        GuildUserMessage,
+        GuildSelfMessage
     }
 }

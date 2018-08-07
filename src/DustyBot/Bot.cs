@@ -148,7 +148,7 @@ namespace DustyBot
                         framework.Stop();
                     };
 
-                    await framework.Run($"{components.Config.CommandPrefix}help to view commands");
+                    await framework.Run($"{components.Config.CommandPrefix}help | dustybot.info");
                 }
             }
             catch (Exception ex)

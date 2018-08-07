@@ -34,7 +34,8 @@ namespace DustyBot.Modules
         }
 
         [Command("help", "Prints usage info.")]
-        [Usage("Use without parameters to see a list of modules and commands. Type `{p}help command` to see usage and help for a specific command.")]
+        [Parameter("Command", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "show usage of a specific command")]
+        [Comment("Use without parameters to see a list of modules and commands.")]
         public async Task Help(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -46,14 +47,14 @@ namespace DustyBot.Modules
                     if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 4 == 0)
                     {
                         pages.Add(new EmbedBuilder()
-                            .WithDescription("Full list also on [wiki](https://github.com/yebafan/DustyBot/wiki/Commands).")
+                            .WithDescription("Full list also on [web](http://dustybot.info/reference.html).")
                             .WithTitle("Commands")
                             .WithFooter($"Type '{config.CommandPrefix}help command' to see usage of a specific command."));
                     }
 
                     var description = module.Description + "\n";
-                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden && !x.OwnerOnly))
-                        description += $"\n`{config.CommandPrefix}{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}";
+                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
+                        description += $"\n`{config.CommandPrefix}{handledCommand.InvokeUsage}` – {handledCommand.Description}";
                     
                     pages.Last.Embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
                 }
@@ -71,7 +72,7 @@ namespace DustyBot.Modules
                 var verb = new string(command.Body.Skip(config.CommandPrefix.Length + invoker.Length).SkipWhile(c => char.IsWhiteSpace(c)).TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
                 foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
                 {
-                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden))
+                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))
                     {
                         if (string.Compare(handledCommand.InvokeString, invoker, true) == 0 && string.Compare(verb, handledCommand.Verb ?? string.Empty, true) == 0)
                         {
@@ -92,15 +93,14 @@ namespace DustyBot.Modules
                     .WithTitle($"Command {config.CommandPrefix}{commandRegistration.InvokeString} {commandRegistration.Verb ?? ""}")
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
-
-                if (!string.IsNullOrEmpty(commandRegistration.GetUsage(config.CommandPrefix)))
-                    embed.AddField(x => x.WithName("Usage").WithValue(commandRegistration.GetUsage(config.CommandPrefix)));
+                
+                embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, config)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
             }
         }
 
-        [Command("about", "Bot and version information."), RunAsync]
+        [Command("about", "Bot and version information.", CommandFlags.RunAsync)]
         public async Task About(ICommand command)
         {
             var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
@@ -119,7 +119,7 @@ namespace DustyBot.Modules
                 .AddInlineField("Owners", string.Join("\n", config.OwnerIDs))
                 .AddInlineField("Presence", $"{users.Count} users\n{guilds.Count} servers")
                 .AddInlineField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version)
-                .AddInlineField("Web", "https://github.com/yebafan/DustyBot/wiki")
+                .AddInlineField("Web", "http://dustybot.info")
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
@@ -143,8 +143,7 @@ namespace DustyBot.Modules
         }
 
         [Command("feedback", "Suggest a modification or report an issue.")]
-        [Parameters(ParameterType.String)]
-        [Usage("{p}feedback `Message...`")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder)]
         public async Task Feedback(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -159,9 +158,9 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
         }
 
-        [Command("setavatar", "Changes the bot's avatar."), RunAsync]
-        [OwnerOnly]
-        [Usage("{p}setavatar `[AttachmentUrl]`\n\nAttach your new image to the message or provide a link.")]
+        [Command("setavatar", "Changes the bot's avatar.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Parameter("Url", ParameterType.String, ParameterFlags.Optional)]
+        [Comment("Attach your new image to the message or provide a link.")]
         public async Task SetAvatar(ICommand command)
         {
             if (command.ParametersCount <= 0 && command.Message.Attachments.Count <= 0)
@@ -191,43 +190,60 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Avatar was changed!").ConfigureAwait(false);
         }
 
-        [Command("setname", "Changes the bot's username."), RunAsync]
-        [OwnerOnly]
-        [Parameters(ParameterType.String)]
-        [Usage("{p}setname `NewName...`")]
+        [Command("setname", "Changes the bot's username.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Parameter("NewName", ParameterType.String, ParameterFlags.Remainder)]
         public async Task SetName(ICommand command)
         {
             await Client.CurrentUser.ModifyAsync(x => x.Username = (string)command.Remainder);
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
-        [Command("commandlist", "Generates a list of all commands."), RunAsync]
-        [OwnerOnly, Hidden]
-        [Usage("{p}commandlist `[owner]`")]
-        public async Task Commandlist(ICommand command)
-        {
-            var result = new StringBuilder("Use `help command` to view usage of a specific command.\n");
-            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
-            {
-                result.AppendLine($"\n## {module.Name}");
-                result.AppendLine($"{module.Description}\n");
-                                
-                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden && !x.OwnerOnly))
-                    result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
-            }
+        //[Command("dump", "commands", "Generates a list of all commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        //public async Task Commandlist(ICommand command)
+        //{
+        //    var config = await Settings.ReadGlobal<BotConfig>();
+        //    var result = new StringBuilder();
+        //    int counter = 0;
+        //    foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+        //    {
+        //        result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><h3>{module.Name}</h3>");
+        //        result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
+                
+        //        foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden && !x.OwnerOnly))
+        //        {
+        //            counter++;
+        //            result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
+        //                $"<span class=\"paramlistcode\">{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" { handledCommand.Verb}" : "")}</span> – {handledCommand.Description}</p>");
+                    
+        //            var usage = handledCommand.GetUsage(config.CommandPrefix);
+        //            if (string.IsNullOrEmpty(usage))
+        //                continue;
 
-            if (command[0] == "owner")
-            {
-                result.AppendLine($"\n## Owner");
-                result.AppendLine($"Bot owner commands.\n");
-                foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
-                {
-                    foreach (var handledCommand in module.HandledCommands.Where(x => x.OwnerOnly && !x.Hidden))
-                        result.AppendLine($"* `{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" {handledCommand.Verb}" : "")}` – {handledCommand.Description}");
-                }
-            }            
+        //            bool inside = false;
+        //            usage = usage.Split('`').Aggregate((x, y) => x + ((inside = !inside) ? "<span class=\"param\">" : "</span>") + y);
+        //            usage = usage.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
+        //            usage = usage.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
 
-            await command.Reply(Communicator, result.ToString(), x => $"```{x}```", 6).ConfigureAwait(false);
-        }
+        //            var lines = usage.Split('\n') as IEnumerable<string>;
+
+        //            result.AppendLine($"<div id=\"usage{counter}\" class=\"collapse usage\">");
+
+        //            if (lines.First().StartsWith(config.CommandPrefix))
+        //            {
+        //                result.AppendLine($"<span class=\"usagecode\">{lines.First()}</span><br/>");
+        //                lines = lines.Skip(1);
+        //            }
+                    
+        //            foreach (var line in lines)
+        //                result.AppendLine(line + "<br/>");
+
+        //            result.AppendLine("</div>");
+        //        }                    
+
+        //        result.AppendLine("<br/></div></div>");
+        //    }
+            
+        //    await command.Reply(Communicator, result.ToString(), x => $"```{x}```", 6).ConfigureAwait(false);
+        //}
     }
 }

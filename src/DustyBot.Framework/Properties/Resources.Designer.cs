@@ -20,7 +20,7 @@ namespace DustyBot.Framework.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class Resources {
@@ -89,6 +89,15 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Parameter {0} is invalid..
+        /// </summary>
+        internal static string Command_InvalidParameterFormat {
+            get {
+                return ResourceManager.GetString("Command_InvalidParameterFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The bot needs the {0} permission to perform this command..
         /// </summary>
         internal static string Command_MissingBotPermissions {
@@ -116,11 +125,29 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to One or more required parameters are missing..
+        /// </summary>
+        internal static string Command_NotEnoughParameters {
+            get {
+                return ResourceManager.GetString("Command_NotEnoughParameters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to This command is for the bot owner only..
         /// </summary>
         internal static string Command_NotOwner {
             get {
                 return ResourceManager.GetString("Command_NotOwner", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Incorrect or too many parameters..
+        /// </summary>
+        internal static string Command_TooManyParameters {
+            get {
+                return ResourceManager.GetString("Command_TooManyParameters", resourceCulture);
             }
         }
         
@@ -157,6 +184,24 @@ namespace DustyBot.Framework.Properties {
         internal static string Common_WordListSeparator {
             get {
                 return ResourceManager.GetString("Common_WordListSeparator", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The specified message was not sent by the bot..
+        /// </summary>
+        internal static string Parameter_NotSelfMessage {
+            get {
+                return ResourceManager.GetString("Parameter_NotSelfMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t find the specified message..
+        /// </summary>
+        internal static string Parameter_UserMessageNotFound {
+            get {
+                return ResourceManager.GetString("Parameter_UserMessageNotFound", resourceCulture);
             }
         }
     }

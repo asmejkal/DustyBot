@@ -126,6 +126,9 @@
   <data name="Command_IncorrectParameters" xml:space="preserve">
     <value>Incorrect parameters.</value>
   </data>
+  <data name="Command_InvalidParameterFormat" xml:space="preserve">
+    <value>Parameter {0} is invalid.</value>
+  </data>
   <data name="Command_MissingBotPermissions" xml:space="preserve">
     <value>The bot needs the {0} permission to perform this command.</value>
   </data>
@@ -135,8 +138,14 @@
   <data name="Command_MissingPermissions" xml:space="preserve">
     <value>You don't have the required permissions for this command ({0}).</value>
   </data>
+  <data name="Command_NotEnoughParameters" xml:space="preserve">
+    <value>One or more required parameters are missing.</value>
+  </data>
   <data name="Command_NotOwner" xml:space="preserve">
     <value>This command is for the bot owner only.</value>
+  </data>
+  <data name="Command_TooManyParameters" xml:space="preserve">
+    <value>Incorrect or too many parameters.</value>
   </data>
   <data name="Command_Usage" xml:space="preserve">
     <value>Usage</value>
@@ -149,5 +158,11 @@
   </data>
   <data name="Common_WordListSeparator" xml:space="preserve">
     <value>, </value>
+  </data>
+  <data name="Parameter_NotSelfMessage" xml:space="preserve">
+    <value>The specified message was not sent by the bot.</value>
+  </data>
+  <data name="Parameter_UserMessageNotFound" xml:space="preserve">
+    <value>Couldn't find the specified message.</value>
   </data>
 </root>

@@ -39,8 +39,9 @@ namespace DustyBot.Modules
 
         [Command("reactions", "add", "Adds a reaction.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameters(ParameterType.String, ParameterType.String)]
-        [Usage("{p}reactions add `Trigger` `Response...`\n\n__Example:__ {p}reaction add \"hi bot\" beep boop")]
+        [Parameter("Trigger", ParameterType.String)]
+        [Parameter("Response", ParameterType.String, ParameterFlags.Remainder)]
+        [Example("\"hi bot\" beep boop")]
         public async Task ReactionsAdd(ICommand command)
         {
             var id = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
@@ -55,13 +56,13 @@ namespace DustyBot.Modules
 
         [Command("reactions", "remove", "Removes a reaction.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameters(ParameterType.Int)]
-        [Usage("{p}reactions remove `ID`\n\nUse `reactions list` to see all reactions and their IDs.")]
+        [Parameter("ID", ParameterType.Int)]
+        [Comment("Use `reactions list` to see all reactions and their IDs.")]
         public async Task ReactionsRemove(ICommand command)
         {
             var result = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
-                return s.Reactions.RemoveAll(x => x.Id == command[0]) > 0;
+                return s.Reactions.RemoveAll(x => x.Id == (int)command[0]) > 0;
             }).ConfigureAwait(false);
             
             if (!result)
@@ -71,7 +72,6 @@ namespace DustyBot.Modules
         }
 
         [Command("reactions", "list", "Lists all reactions.")]
-        [Usage("{p}reactions list")]
         public async Task ReactionsList(ICommand command)
         {
             var pages = new PageCollection();
@@ -94,7 +94,7 @@ namespace DustyBot.Modules
         }
 
         [Command("reactions", "clear", "Removes all reactions.")]
-        [Usage("{p}reactions clear")]
+        [Permissions(GuildPermission.ManageMessages)]
         public async Task ReactionsClear(ICommand command)
         {
             await Settings.Modify(command.GuildId, (ReactionsSettings s) =>

@@ -39,14 +39,20 @@ namespace DustyBot.Modules
 
         [Command("poll", "start", "Starts a poll.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}poll start `[anonymous]` `[Channel]` `Question` `Answer1` `Answer2` `[MoreAnswers]`\n\n● `anonymous` - optional; hide the answers\n● `Channel` - optional; channel where the poll will take place, uses this channel by default\n● `Question` - poll question\n● `Answers` - possible answers\n\n__Examples:__\n{p}poll start #main-chat \"Is hotdog a sandwich?\" Yes No\n{p}poll start anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
+        [Parameter("anonymous", "^anonymous$", ParameterFlags.Optional, "hide the answers")]
+        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll will take place, uses this channel by default")]
+        [Parameter("Question", ParameterType.String, "poll question")]
+        [Parameter("Answer1", ParameterType.String, "first answer")]
+        [Parameter("Answer2", ParameterType.String, "second answer")]
+        [Parameter("MoreAnswers", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "more answers")] //TODO
+        [Example("#main-chat \"Is hotdog a sandwich?\" Yes No")]
+        [Example("anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
         public async Task StartPoll(ICommand command)
         {
             //Build up the poll object
             bool anonymous = string.Compare(command[0], "anonymous", true) == 0;
-            var channelId = command[1].AsTextChannel?.Id ?? command.Message.Channel.Id;
-            int optParamsCount = (command[1].AsTextChannel != null ? 1 : 0) + (anonymous ? 1 : 0);
+            var channelId = command[anonymous ? 1 : 0].AsTextChannel?.Id ?? command.Message.Channel.Id;
+            int optParamsCount = (command[anonymous ? 1 : 0].AsTextChannel != null ? 1 : 0) + (anonymous ? 1 : 0);
 
             var poll = new Poll { Channel = channelId, Anonymous = anonymous, Question = command[optParamsCount] };
             foreach (var answer in command.GetParameters().Skip(optParamsCount + 1))
@@ -91,11 +97,11 @@ namespace DustyBot.Modules
 
         [Command("poll", "end", "Ends a poll and announces results.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll end `[ResultsChannel]`\n\n● `ResultsChannel` - optional; you can specify a different channel to receive the results")]
+        [Parameter("ResultsChannel", ParameterType.TextChannel, ParameterFlags.Optional, "you can specify a different channel to receive the results")]
         public async Task EndPoll(ICommand command)
         {
             var channelId = command.Message.Channel.Id;
-            var resultsChannel = command[0]?.AsTextChannel ?? command.Message.Channel as ITextChannel;
+            var resultsChannel = command[0].HasValue ? command[0].AsTextChannel : command.Message.Channel as ITextChannel;
 
             bool result = await PrintPollResults(command, true, channelId, resultsChannel).ConfigureAwait(false);
             if (!result)
@@ -108,18 +114,18 @@ namespace DustyBot.Modules
 
         [Command("poll", "results", "Checks results of a running poll.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}poll results `[ResultsChannel]`\n\n● `ResultsChannel` - optional; you can specify a different channel to receive the results")]
+        [Parameter("ResultsChannel", ParameterType.TextChannel, ParameterFlags.Optional, "you can specify a different channel to receive the results")]
         public async Task ResultsPoll(ICommand command)
         {
             var channelId = command.Message.Channel.Id;
-            var resultsChannel = command[0]?.AsTextChannel ?? command.Message.Channel as ITextChannel;
+            var resultsChannel = command[0].HasValue ? command[0].AsTextChannel : command.Message.Channel as ITextChannel;
 
             await PrintPollResults(command, false, channelId, resultsChannel).ConfigureAwait(false);
         }
 
         [Command("vote", "Votes in a poll.")]
-        [Parameters(ParameterType.UInt)]
-        [Usage("{p}vote `AnswerNumber`\n\n__Example:__ {p}vote 1")]
+        [Parameter("AnswerNumber", ParameterType.UInt)]
+        [Example("1")]
         public async Task Vote(ICommand command)
         {
             var vote = (int)command.GetParameter(0);

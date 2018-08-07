@@ -89,7 +89,7 @@ namespace DustyBot.Framework.Communication
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(command.GetUsage(Config.CommandPrefix))
+                    .WithDescription(BuildUsageString(command, Config))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
             return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, embed);
@@ -284,6 +284,51 @@ namespace DustyBot.Framework.Communication
                 embed.WithFooter(footer);
 
             return await channel.SendMessageAsync("", false, embed);
+        }
+
+        public static string BuildUsageString(Commands.CommandRegistration commandRegistration, Config.IEssentialConfig config)
+        {
+            string usage = $"{config.CommandPrefix}{commandRegistration.InvokeUsage}";
+            foreach (var param in commandRegistration.Parameters)
+            {
+                string tmp = param.Name;
+                if (param.Flags.HasFlag(Commands.ParameterFlags.Remainder))
+                    tmp += "...";
+
+                if (param.Flags.HasFlag(Commands.ParameterFlags.Optional))
+                    tmp = $"[{tmp}]";
+
+                usage += $" `{tmp}`";
+            }
+
+            string paramDescriptions = string.Empty;
+            foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
+            {
+                string tmp = $"● `{param.Name}` ‒ ";
+                if (param.Flags.HasFlag(Commands.ParameterFlags.Optional) || param.Flags.HasFlag(Commands.ParameterFlags.Remainder))
+                {
+                    if (param.Flags.HasFlag(Commands.ParameterFlags.Optional))
+                        tmp += "optional";
+
+                    if (param.Flags.HasFlag(Commands.ParameterFlags.Remainder))
+                        tmp += param.Flags.HasFlag(Commands.ParameterFlags.Optional) ? " remainder" : "remainder";
+
+                    tmp += "; ";
+                }
+
+                tmp += param.GetDescription(config.CommandPrefix);
+                paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "\n" + tmp;
+            }
+
+            var examples = commandRegistration.Examples
+                .Select(x => $"{config.CommandPrefix}{commandRegistration.InvokeUsage} {x}")
+                .DefaultIfEmpty()
+                .Aggregate((x, y) => x + "\n" + y);
+
+            return usage +
+                (string.IsNullOrWhiteSpace(paramDescriptions) ? string.Empty : "\n\n" + paramDescriptions) +
+                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(config.CommandPrefix)) ? string.Empty : "\n\n" + commandRegistration.GetComment(config.CommandPrefix)) +
+                (string.IsNullOrWhiteSpace(examples) ? string.Empty : "\n\n__Examples:__\n" + examples);
         }
     }
 }

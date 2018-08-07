@@ -33,14 +33,17 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("credential", "add", "Saves a credential. Direct message only."), DirectMessageOnly]
-        [Parameters(ParameterType.String, ParameterType.String, ParameterType.String)]
-        [Usage("{p}credential add `Login` `Password` `CustomName`\n\n● `CustomName` - type anything for you to recognize these credentials later\n\nYour credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, from a security standpoint, creating a new dedicated account instead of using your personal account is preferred.\n\n__Example:__ {p}johndoe1 mysecretpassword \"Google Mail\"")]
+        [Command("credential", "add", "Saves a credential. Direct message only.", CommandFlags.DirectMessageOnly)]
+        [Parameter("Login", ParameterType.String)]
+        [Parameter("Password", ParameterType.String)]
+        [Parameter("Description", ParameterType.String, "type anything for you to recognize these credentials later")]
+        [Comment("Your credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, from a security standpoint, creating a new dedicated account instead of using your personal account might be preferred")]
+        [Example("johndoe1 mysecretpassword \"Google Mail\"")]
         public async Task AddCredential(ICommand command)
         {
             var id = await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => 
             {
-                var c = new Credential { Login = (string)command.GetParameter(0), Password = ((string)command.GetParameter(1)).ToSecureString(), Name = (string)command.GetParameter(2) };
+                var c = new Credential { Login = command[0], Password = command[1].AsString.ToSecureString(), Name = command[2] };
                 s.Credentials.Add(c);
                 return c.Id;
             });
@@ -48,28 +51,24 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A credential with ID `{id}` has been added! Use `credential list` to view all your saved credentials.").ConfigureAwait(false);
         }
 
-        [Command("credential", "remove", "Removes a saved credential."), DirectMessageAllow]
-        [Parameters(ParameterType.String)]
-        [Usage("{p}credential remove `CredentialId`\n\nUse `credential list` to view your saved credentials.\n\n__Example:__ {p}credential remove 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
+        [Command("credential", "remove", "Removes a saved credential.", CommandFlags.DirectMessageAllow)]
+        [Parameter("CredentialId", ParameterType.Guid)]
+        [Comment("Use `credential list` to view your saved credentials.")]
+        [Example("5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task RemoveCredential(ICommand command)
         {
-            Guid id;
-            if (!Guid.TryParse((string)command.GetParameter(0), out id))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid ID format. Use `credential list` to view all your saved credentials and their IDs.");
-
             var removed = await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) =>
             {
-                return s.Credentials.RemoveAll(x => x.Id == id) > 0;
+                return s.Credentials.RemoveAll(x => x.Id == (Guid)command[0]) > 0;
             });
 
             if (removed)
                 await command.ReplySuccess(Communicator, $"Credential has been removed.").ConfigureAwait(false);
             else
-                await command.ReplyError(Communicator, $"Couldn't find a credential with ID `{id}`. Use `credential list` to view all your saved credentials and their IDs.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"Couldn't find a credential with ID `{command[0]}`. Use `credential list` to view all your saved credentials and their IDs.").ConfigureAwait(false);
         }
 
-        [Command("credential", "clear", "Removes all your saved credentials."), DirectMessageAllow]
-        [Usage("{p}credential clear")]
+        [Command("credential", "clear", "Removes all your saved credentials.", CommandFlags.DirectMessageAllow)]
         public async Task ClearCredential(ICommand command)
         {
             await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => s.Credentials.Clear());
@@ -77,8 +76,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"All your credentials have been removed.").ConfigureAwait(false);
         }
 
-        [Command("credential", "list", "Lists all your saved credentials."), DirectMessageAllow]
-        [Usage("{p}credential list")]
+        [Command("credential", "list", "Lists all your saved credentials.", CommandFlags.DirectMessageAllow)]
         public async Task ListCredential(ICommand command)
         {
             var settings = await Settings.ReadUser<UserCredentials>(command.Message.Author.Id);

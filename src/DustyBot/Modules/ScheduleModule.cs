@@ -104,9 +104,11 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "create", "Creates a new editable message with schedule.")]
-        [Parameters(ParameterType.TextChannel)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}schedule create `Channel` `[Header]` `[Footer]`\n\n● `Channel` - target channel\n● `Header` - optional; header for the message\n● `Footer` - optional; footer for the message\n\nSends an empty schedule message (e.g. to your `#schedule` channel). You can then add events with the `event add` command.")]
+        [Parameter("Channel", ParameterType.TextChannel, "target channel")]
+        [Parameter("Header", ParameterType.String, ParameterFlags.Optional, "header for the message")]
+        [Parameter("Footer", ParameterType.String, ParameterFlags.Optional, "footer for the message")]
+        [Comment("Sends an empty schedule message (e.g. to your `#schedule` channel). You can then add events with the `event add` command.")]
         public async Task CreateSchedule(ICommand command)
         {
             var message = await DefaultScheduleMessage.Create(command[0].AsTextChannel, command[1], command[2]);
@@ -120,35 +122,30 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "add", "Adds an existing message with schedule.")]
-        [Parameters(ParameterType.ULong)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}schedule add `MessageId`\n\nThe `schedule` command uses data from messages containing a schedule, which are already posted on your server. Expected format of a message with schedule is the following:\n\n[optional text...]```[MM/DD | HH:MM] Event description\n[MM/DD | HH:MM] Another event's description```[optional text...]\n\nThe `HH:MM` can be replaced with `??:??` if the event time is unknown. All times in KST.\n\nIf your server uses a different format for schedule posts and you aren't willing to change it, you can make a suggestion to have your format added with the `feedback` command, or by contacting the bot owner.\n\n__Example:__ {p}schedule add 464071206920781835")]
+        [Parameter("MessageId", ParameterType.GuildUserMessage)]
+        [Comment("The `schedule` command uses data from messages containing a schedule, which are already posted on your server. Expected format of a message with schedule is the following:\n\n[optional text...]```[MM/DD | HH:MM] Event description\n[MM/DD | HH:MM] Another event's description```[optional text...]\n\nThe `HH:MM` can be replaced with `??:??` if the event time is unknown. All times in KST.\n\nIf your server uses a different format for schedule posts and you aren't willing to change it, you can make a suggestion to have your format added with the `feedback` command, or by contacting the bot owner.")]
+        [Example("464071206920781835")]
         public async Task AddSchedule(ICommand command)
         {
-            var messageLoc = await command.Guild.GetMessageAsync((ulong)command[0]);
-            if (messageLoc == null)
+            await Settings.Modify(command.GuildId, async (MediaSettings s) =>
             {
-                await command.ReplyError(Communicator, "Couldn't find the specified message.").ConfigureAwait(false);
-                return;
-            }
-
-            await Settings.Modify(command.GuildId, (MediaSettings s) =>
-            {
-                s.ScheduleMessages.Add(new MessageLocation() { MessageId = messageLoc.Item1.Id, ChannelId = messageLoc.Item2.Id });
+                var message = await command[0].AsGuildUserMessage();
+                s.ScheduleMessages.Add(new MessageLocation() { MessageId = message.Id, ChannelId = message.Channel.Id });
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, "Schedule message has been added.").ConfigureAwait(false);
         }
 
         [Command("schedule", "remove", "Removes a schedule message.")]
-        [Parameters(ParameterType.ULong)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}schedule remove `MessageId`\n\nDoesn't delete the message, just stops using it for schedule.")]
+        [Parameter("MessageId", ParameterType.Id)]
+        [Comment("Doesn't delete the message, just stops using it for schedule.")]
         public async Task RemoveSchedule(ICommand command)
         {
             bool removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return s.ScheduleMessages.RemoveWhere(x => x.MessageId == (ulong)command.GetParameter(0)) > 0;
+                return s.ScheduleMessages.RemoveWhere(x => x.MessageId == (ulong)command[0]) > 0;
             }).ConfigureAwait(false);
             
             if (removed)
@@ -163,7 +160,6 @@ namespace DustyBot.Modules
 
         [Command("schedule", "list", "Lists all schedule messages.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}schedule list")]
         public async Task ListSchedule(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId, false).ConfigureAwait(false);
@@ -182,7 +178,7 @@ namespace DustyBot.Modules
 
         [Command("schedule", "clear", "Removes all schedule messages.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}schedule clear\n\nDoesn't delete the messages, just stops using them for schedule.")]
+        [Comment("Doesn't delete the messages, just stops using them for schedule.")]
         public async Task ClearSchedule(ICommand command)
         {
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
@@ -197,12 +193,18 @@ namespace DustyBot.Modules
         static Regex TimeRegex = new Regex(@"^([0-9]{1,2}):([0-9]{1,2})$", RegexOptions.Compiled);
 
         [Command("event", "add", "Adds an event to schedule.")]
-        [Parameters(ParameterType.ULong, ParameterType.String, ParameterType.String)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}event add `MessageId` `[Year]` `Date` `[Time]` `Description...`\n\n● `MessageId` - ID of a schedule message previously created with `schedule create`\n● `Year` - optional; year of the event, uses current year by default\n● `Date` - date in `MM/dd` format (e.g. `07/23`)\n● `Time` - optional; time in `HH:mm` format (eg. `08:45`); skip if the time is unknown\n● `Description` - remainder; event description\n\nAll times in KST.\n\n__Examples:__\n{p}event add 462366629247057930 07/23 08:45 Concert\n{p}event add 462366629247057930 07/23 Fansign")]
+        [Parameter("MessageId", ParameterType.GuildSelfMessage, "ID of a schedule message previously created with `schedule create`")]
+        [Parameter("Year", ParameterType.Int, ParameterFlags.Optional, "year of the event, uses current year by default")]
+        [Parameter("Date", ParameterType.String, "date in `MM/dd` format (e.g. `07/23`)")]
+        [Parameter("Time", ParameterType.String, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
+        [Comment("All times in KST.")]
+        [Example("462366629247057930 07/23 08:45 Concert")]
+        [Example("462366629247057930 07/23 Fansign")]
         public async Task AddEvent(ICommand command)
         {
-            var message = (await command.Guild.GetMessageAsync((ulong)command[0]))?.Item1 as IUserMessage;
+            var message = (await command.Guild.GetMessageAsync((ulong)command[0])) as IUserMessage;
             if (message == null)
             {
                 await command.ReplyError(Communicator, $"Cannot find this message.").ConfigureAwait(false);
@@ -221,7 +223,7 @@ namespace DustyBot.Modules
 
             int year = -1;
             if (command[1].AsString.All(x => char.IsDigit(x)))
-                year = (int)command[0];
+                year = (int)command[1];
 
             bool hasYear = year >= 0;
             
@@ -244,6 +246,9 @@ namespace DustyBot.Modules
                 Description = command.Remainder.After(2 + (hasYear ? 1 : 0) + (time.Success ? 1 : 0))
             };
 
+            if (string.IsNullOrEmpty(e.Description))
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
+
             schedule.Add(e);
             try
             {
@@ -259,12 +264,17 @@ namespace DustyBot.Modules
         }
 
         [Command("event", "remove", "Removes an event from schedule.")]
-        [Parameters(ParameterType.ULong, ParameterType.String)]
         [Permissions(GuildPermission.ManageMessages)]
-        [Usage("{p}event remove `MessageId` `[Date]` `[Time]` `Description...`\n\n● `MessageId` - ID of a schedule message previously created with `schedule create`\n● `Date` - optional; date in `MM/dd` format (e.g. `07/23`)\n● `Time` - optional; time in `HH:mm` format (eg. `08:45`)\n● `Description` - remainder; event description\n\nAll times in KST.\n\n__Examples:__\n{p}event remove 462366629247057930 Concert\n{p}event remove 462366629247057930 07/23 Fansign\n{p}event remove 462366629247057930 07/23 08:45 Festival")]
+        [Parameter("MessageId", ParameterType.GuildSelfMessage, "ID of a schedule message previously created with `schedule create`")]
+        [Parameter("Date", ParameterType.String, ParameterFlags.Optional, "date in `MM/dd` format (e.g. `07/23`)")]
+        [Parameter("Time", ParameterType.String, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
+        [Comment("All times in KST.")]
+        [Example("462366629247057930 Concert")]
+        [Example("462366629247057930 07/23 08:45 Festival")]
         public async Task RemoveEvent(ICommand command)
         {
-            var message = (await command.Guild.GetMessageAsync((ulong)command[0]))?.Item1 as IUserMessage;
+            var message = (await command.Guild.GetMessageAsync((ulong)command[0])) as IUserMessage;
             if (message == null)
             {
                 await command.ReplyError(Communicator, $"Cannot find this message.").ConfigureAwait(false);
@@ -282,8 +292,11 @@ namespace DustyBot.Modules
             }
             
             var date = command[1].AsString != null ? DateRegex.Match(command[1]) : Match.Empty;
-            var time = command[2].AsString != null ? DateRegex.Match(command[2]) : Match.Empty;
+            var time = command[2].AsString != null ? TimeRegex.Match(command[2]) : Match.Empty;
             string description = command.Remainder.After(1 + (date.Success ? 1 : 0) + (time.Success ? 1 : 0));
+
+            if (string.IsNullOrEmpty(description))
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
 
             var removed = schedule.RemoveAll(x =>
             {
@@ -379,7 +392,7 @@ namespace DustyBot.Modules
                 begin += 3;
                 if (begin >= end)
                     return null;
-
+                
                 var schedule = message.Content.Substring(begin, end - begin);
                 using (var reader = new StringReader(schedule))
                 {

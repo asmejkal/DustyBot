@@ -53,7 +53,7 @@ namespace DustyBot.Framework.Utility
                 .Replace("@here", "@\u200Bhere");
         }
 
-        public static async Task<Tuple<IMessage, ITextChannel>> GetMessageAsync(this IGuild guild, ulong id)
+        public static async Task<IMessage> GetMessageAsync(this IGuild guild, ulong id)
         {
             foreach (var c in await guild.GetChannelsAsync())
             {
@@ -61,7 +61,7 @@ namespace DustyBot.Framework.Utility
                 {
                     var message = await textChannel.GetMessageAsync(id);
                     if (message != null)
-                        return Tuple.Create(message, textChannel);
+                        return message;
                 }
             }
 

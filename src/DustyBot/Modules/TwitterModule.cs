@@ -20,7 +20,7 @@ using System.Threading;
 
 namespace DustyBot.Modules
 {
-    [Module("Twitter", "Twitter feeds and utility."), Hidden]
+    [Module("Twitter", "Twitter feeds and utility.", true)]
     class TwitterModule : Module
     {
         public ICommunicator Communicator { get; private set; }
@@ -30,14 +30,6 @@ namespace DustyBot.Modules
         {
             Communicator = communicator;
             Settings = settings;
-        }
-
-        [Command("twitter", "add", "Soon™")]
-        [Permissions(GuildPermission.Administrator)]
-        [Usage("{p}twitter add")]
-        public Task AddTweetFeed(ICommand command)
-        {
-            return Task.CompletedTask;
         }
     }
 }

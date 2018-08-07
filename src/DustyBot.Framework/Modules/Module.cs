@@ -26,7 +26,7 @@ namespace DustyBot.Framework.Modules
 
             Name = moduleAttr.Name;
             Description = moduleAttr.Description;
-            Hidden = module.GetCustomAttribute<HiddenAttribute>() != null;
+            Hidden = moduleAttr.Hidden;
 
             //Command attributes
             var handledCommandsList = new List<CommandRegistration>();
@@ -42,13 +42,14 @@ namespace DustyBot.Framework.Modules
                     InvokeString = commandAttr.InvokeString,
                     Verb = commandAttr.Verb,
                     Handler = (CommandRegistration.CommandHandler)method.CreateDelegate(typeof(CommandRegistration.CommandHandler), this),
-                    Description = commandAttr.Description
+                    Description = commandAttr.Description,
+                    Flags = commandAttr.Flags
                 };
 
                 //Optional
-                var parameters = method.GetCustomAttribute<ParametersAttribute>();
-                if (parameters != null)
-                    command.RequiredParameters = new List<ParameterType>(parameters.RequiredParameters);
+                command.Parameters = method.GetCustomAttributes<ParameterAttribute>()
+                    .Select(x => new ParameterRegistration() { Name = x.Name, Format = x.Format, Type = x.Type, Flags = x.Flags, Description = x.Description })
+                    .ToList();
 
                 var permissions = method.GetCustomAttribute<PermissionsAttribute>();
                 if (permissions != null)
@@ -58,16 +59,8 @@ namespace DustyBot.Framework.Modules
                 if (botPermissions != null)
                     command.BotPermissions = new HashSet<Discord.GuildPermission>(botPermissions.RequiredPermissions);
 
-                var usage = method.GetCustomAttribute<UsageAttribute>();
-                if (usage != null)
-                    command.Usage = usage.Usage;
-                
-                command.RunAsync = method.GetCustomAttribute<RunAsyncAttribute>() != null;
-                command.OwnerOnly = method.GetCustomAttribute<OwnerOnlyAttribute>() != null;
-                command.Hidden = method.GetCustomAttribute<HiddenAttribute>() != null;
-                command.DirectMessageOnly = method.GetCustomAttribute<DirectMessageOnlyAttribute>() != null;
-                command.DirectMessageAllow = method.GetCustomAttribute<DirectMessageAllowAttribute>() != null;
-                command.TypingIndicator = method.GetCustomAttribute<TypingIndicatorAttribute>() != null;
+                command.Examples = method.GetCustomAttributes<ExampleAttribute>().Select(x => x.Example).ToList();
+                command.Comment = method.GetCustomAttribute<CommentAttribute>()?.Comment;
 
                 handledCommandsList.Add(command);
             }

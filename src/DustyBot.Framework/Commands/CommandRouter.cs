@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Discord.WebSocket;
 using Discord;
 using DustyBot.Framework.Utility;
+using System.Text.RegularExpressions;
 
 namespace DustyBot.Framework.Commands
 {
@@ -64,7 +65,7 @@ namespace DustyBot.Framework.Commands
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))
                 {
-                    if (message.Channel is ITextChannel && commandRegistration.DirectMessageOnly)
+                    if (message.Channel is ITextChannel && commandRegistration.Flags.HasFlag(CommandFlags.DirectMessageOnly))
                         await Communicator.CommandReplyDirectMessageOnly(message.Channel, commandRegistration);
 
                     return;
@@ -82,7 +83,7 @@ namespace DustyBot.Framework.Commands
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{command.Invoker}{command.Verb?.PadLeft(command.Verb.Length + 1) ?? ""}\" by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check owner
-                if (commandRegistration.OwnerOnly && !Config.OwnerIDs.Contains(message.Author.Id))
+                if (commandRegistration.Flags.HasFlag(CommandFlags.OwnerOnly) && !Config.OwnerIDs.Contains(message.Author.Id))
                 {
                     await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
                     return;
@@ -111,9 +112,10 @@ namespace DustyBot.Framework.Commands
                 }
 
                 //Check expected parameters
-                if (!CheckRequiredParameters(command, commandRegistration))
+                var checkResult = await CheckParameters(command, command.GetParameters(), commandRegistration.Parameters).ConfigureAwait(false);
+                if (!checkResult.Item1)
                 {
-                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, "");
+                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, checkResult.Item2);
                     return;
                 }
 
@@ -121,7 +123,7 @@ namespace DustyBot.Framework.Commands
                 var executor = new Func<Task>(async () =>
                 {
                     IDisposable typingState = null;
-                    if (commandRegistration.TypingIndicator)
+                    if (commandRegistration.Flags.HasFlag(CommandFlags.TypingIndicator))
                         typingState = command.Message.Channel.EnterTypingState();
 
                     try
@@ -152,7 +154,7 @@ namespace DustyBot.Framework.Commands
                         typingState.Dispose();
                 });
                 
-                if (commandRegistration.RunAsync)
+                if (commandRegistration.Flags.HasFlag(CommandFlags.RunAsync))
                     TaskHelper.FireForget(executor);
                 else
                     await executor();
@@ -191,27 +193,69 @@ namespace DustyBot.Framework.Commands
 
         private bool IsValidCommandSource(IMessageChannel channel, CommandRegistration cr)
         {
-            if (channel is ITextChannel && !cr.DirectMessageOnly)
+            if (channel is ITextChannel && !cr.Flags.HasFlag(CommandFlags.DirectMessageOnly))
                 return true;
 
-            if (channel is IDMChannel && cr.DirectMessageAllow)
+            if (channel is IDMChannel && (cr.Flags.HasFlag(CommandFlags.DirectMessageAllow) || cr.Flags.HasFlag(CommandFlags.DirectMessageOnly)))
                 return true;
 
             return false;
         }
 
-        private bool CheckRequiredParameters(ICommand command, CommandRegistration commandRegistration)
+        private async Task<Tuple<bool, string>> CheckParameters(ICommand command, IEnumerable<ParameterToken> tokens, IEnumerable<ParameterRegistration> registrations)
         {
-            if (command.ParametersCount < commandRegistration.RequiredParameters.Count)
-                return false;
-
-            for (int i = 0; i < commandRegistration.RequiredParameters.Count; ++i)
+            Queue<ParameterToken> tokensQ = new Queue<ParameterToken>(tokens);
+            int count = 0;
+            foreach (var param in registrations)
             {
-                if (!command.GetParameter(i).IsType(commandRegistration.RequiredParameters[i]))
-                    return false;
+                count++;
+                if (tokensQ.Count <= 0)
+                {
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        continue;
+                    else
+                        return Tuple.Create(false, Properties.Resources.Command_NotEnoughParameters);
+                }
+
+                ParameterToken token;
+                if (!param.Flags.HasFlag(ParameterFlags.Remainder))
+                    token = tokensQ.Peek();
+                else
+                    token = command.Remainder.After(command.ParametersCount - tokensQ.Count);
+
+                if (!(await token.IsType(param.Type).ConfigureAwait(false)))
+                {
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        continue;
+                    else
+                        return Tuple.Create(false, string.Format(Properties.Resources.Command_InvalidParameterFormat, command.ParametersCount - tokensQ.Count + 1));
+                }
+                    
+                if (!string.IsNullOrEmpty(param.Format) && !Regex.IsMatch(param.Format, token.Raw, RegexOptions.Compiled | RegexOptions.IgnoreCase))
+                {
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        continue;
+                    else
+                        return Tuple.Create(false, string.Format(Properties.Resources.Command_InvalidParameterFormat, command.ParametersCount - tokensQ.Count + 1));
+                }
+
+                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                    return Tuple.Create(true, string.Empty);
+
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                {
+                    //Peek forward to check if we aren't stealing this token from a required parameter
+                    if ((await CheckParameters(command, tokensQ.Skip(1), registrations.Skip(count))).Item1 == false)
+                        continue; //The command would fail, so we can't take the token (it might fail otherwise, but that will be resolved later)
+                }
+
+                tokensQ.Dequeue();
             }
 
-            return true;
+            if (tokensQ.Count > 0)
+                return Tuple.Create(false, Properties.Resources.Command_TooManyParameters);
+
+            return Tuple.Create(true, string.Empty);
         }
     }
 }
