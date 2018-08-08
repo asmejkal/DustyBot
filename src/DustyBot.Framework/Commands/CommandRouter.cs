@@ -73,14 +73,14 @@ namespace DustyBot.Framework.Commands
 
                 //Create command
                 ICommand command;
-                if (!SocketCommand.TryCreate(userMessage, Config, out command, commandRegistration.HasVerb))
+                if (!SocketCommand.TryCreate(userMessage, Config, out command, commandRegistration.Verbs.Count))
                     return;
                 
                 //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
                 if (command.Guild != null)
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {command.Guild.Name}"));
                 else
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{command.Invoker}{command.Verb?.PadLeft(command.Verb.Length + 1) ?? ""}\" by {message.Author.Username} ({message.Author.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{commandRegistration.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check owner
                 if (commandRegistration.Flags.HasFlag(CommandFlags.OwnerOnly) && !Config.OwnerIDs.Contains(message.Author.Id))
@@ -142,6 +142,14 @@ namespace DustyBot.Framework.Commands
                     {
                         await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
                     }
+                    catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
+                    {
+                        await Communicator.CommandReplyMissingBotAccess(command.Message.Channel, commandRegistration);
+                    }
+                    catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50013)
+                    {
+                        await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration);
+                    }
                     catch (Exception ex)
                     {
                         await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
@@ -179,16 +187,28 @@ namespace DustyBot.Framework.Commands
             if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
                 return false;
 
-            //If there's a potential verb, try to find a registration of this invoker and verb combination
-            string verb = SocketCommand.ParseVerb(userMessage);
-            if (!string.IsNullOrEmpty(verb))
-                commandRegistration = commandRegistrations.FirstOrDefault(x => x.HasVerb && string.Compare(x.Verb, verb, true) == 0);
+            //Try to find the longest match
+            var verbs = SocketCommand.ParseVerbs(userMessage);
+            foreach (var r in commandRegistrations.OrderByDescending(x => x.Verbs.Count))
+            {
+                bool mismatch = false;
+                for (int i = 0; i < r.Verbs.Count; ++i)
+                {
+                    if (string.Compare(r.Verbs[i], verbs[i], true) != 0)
+                    {
+                        mismatch = true;
+                        break;
+                    }
+                }
 
-            //Or try to find a command registration for this invoker without a verb
-            if (commandRegistration == null)
-                commandRegistration = commandRegistrations.FirstOrDefault(x => !x.HasVerb);
+                if (!mismatch)
+                {
+                    commandRegistration = r;
+                    return true;
+                }
+            }
 
-            return commandRegistration != null;
+            return false;
         }
 
         private bool IsValidCommandSource(IMessageChannel channel, CommandRegistration cr)
@@ -223,16 +243,21 @@ namespace DustyBot.Framework.Commands
                 else
                     token = command.Remainder.After(command.ParametersCount - tokensQ.Count);
 
+                if (param.Type == ParameterType.Regex)
+                    token.Regex = new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
                 if (!(await token.IsType(param.Type).ConfigureAwait(false)))
                 {
+                    token.Regex = null;
                     if (param.Flags.HasFlag(ParameterFlags.Optional))
                         continue;
                     else
                         return Tuple.Create(false, string.Format(Properties.Resources.Command_InvalidParameterFormat, command.ParametersCount - tokensQ.Count + 1));
                 }
-                    
-                if (!string.IsNullOrEmpty(param.Format) && !Regex.IsMatch(param.Format, token.Raw, RegexOptions.Compiled | RegexOptions.IgnoreCase))
+
+                if (!string.IsNullOrEmpty(param.Format) && !Regex.IsMatch(token.Raw, param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase))
                 {
+                    token.Regex = null;
                     if (param.Flags.HasFlag(ParameterFlags.Optional))
                         continue;
                     else
@@ -240,15 +265,22 @@ namespace DustyBot.Framework.Commands
                 }
 
                 if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                {
+                    tokensQ.Peek().Parameter = param;
                     return Tuple.Create(true, string.Empty);
+                }    
 
                 if (param.Flags.HasFlag(ParameterFlags.Optional))
                 {
                     //Peek forward to check if we aren't stealing this token from a required parameter
                     if ((await CheckParameters(command, tokensQ.Skip(1), registrations.Skip(count))).Item1 == false)
+                    {
+                        token.Regex = null;
                         continue; //The command would fail, so we can't take the token (it might fail otherwise, but that will be resolved later)
+                    }
                 }
 
+                token.Parameter = param;
                 tokensQ.Dequeue();
             }
 

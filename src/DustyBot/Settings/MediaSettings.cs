@@ -38,7 +38,7 @@ namespace DustyBot.Settings
     public class MediaSettings : BaseServerSettings
     {
         public List<ComebackInfo> YouTubeComebacks { get; set; } = new List<ComebackInfo>();
-        public HashSet<MessageLocation> ScheduleMessages { get; set; } = new HashSet<MessageLocation>();
+        public List<MessageLocation> ScheduleMessages { get; set; } = new List<MessageLocation>();
         public List<DaumCafeFeed> DaumCafeFeeds { get; set; } = new List<DaumCafeFeed>();
     }
 }

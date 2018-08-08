@@ -12,29 +12,28 @@ namespace DustyBot.Framework.Commands
 {
     public class SocketCommand : ICommand
     {
+        private List<string> _verbs = new List<string>();
+        private List<Tuple<int, ParameterToken>> _tokens;
+        public Remainder Remainder { get; private set; }
+
         public IUserMessage Message { get; private set; }
         public ulong GuildId => (Message.Channel as IGuildChannel)?.GuildId ?? 0;
         public IGuild Guild => (Message.Channel as IGuildChannel)?.Guild;
 
         public string Prefix => Config.CommandPrefix;
         public string Invoker { get; private set; }
-        public string Verb { get; private set; }
-        public string Body
-        {
-            get
-            {
-                var result = Message.Content.Substring(Prefix.Length + Invoker.Length);
-                return string.IsNullOrEmpty(Verb) ? result.Trim() : new string(result.SkipWhile(c => char.IsWhiteSpace(c)).Skip(Verb.Length).ToArray()).Trim();
-            }
-        }
 
-        public int ParametersCount => Tokens.Count;
-        public ParameterToken GetParameter(int key) => Tokens.ElementAtOrDefault(key)?.Item2 ?? new ParameterToken(null, Guild as SocketGuild);
-        public IEnumerable<ParameterToken> GetParameters() => Tokens.Select(x => x.Item2);
+        public IEnumerable<string> Verbs => _verbs;
+
+        public string Body { get; private set; }
+
+        public int ParametersCount => _tokens.Count;
+        public int GetIndex(string name) => _tokens.FindIndex(x => string.Compare(x.Item2.Parameter?.Name, name, true) == 0);
+        public ParameterToken GetParameter(int key) => _tokens.ElementAtOrDefault(key)?.Item2 ?? new ParameterToken(null, Guild as SocketGuild);
+        public ParameterToken GetParameter(string name) => _tokens.FirstOrDefault(x => string.Compare(x.Item2.Parameter?.Name, name, true) == 0)?.Item2 ?? new ParameterToken(null, Guild as SocketGuild);
+        public IEnumerable<ParameterToken> GetParameters() => _tokens.Select(x => x.Item2);
         public ParameterToken this[int key] => GetParameter(key);
-
-        private List<Tuple<int, ParameterToken>> Tokens;
-        public Remainder Remainder { get; private set; }
+        public ParameterToken this[string name] => GetParameter(name);
 
         public Config.IEssentialConfig Config { get; set; }
 
@@ -51,43 +50,68 @@ namespace DustyBot.Framework.Commands
             return new string(message.Content.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(prefix.Length).ToArray());
         }
 
-        public static string ParseVerb(SocketUserMessage message)
+        public static List<string> ParseVerbs(SocketUserMessage message)
         {
-            return new string(message.Content
-                .SkipWhile(c => char.IsWhiteSpace(c))
-                .SkipWhile(c => !char.IsWhiteSpace(c))
-                .SkipWhile(c => char.IsWhiteSpace(c))
-                .TakeWhile(c => !char.IsWhiteSpace(c))
-                .ToArray());
+            return message.Content.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).ToList();
         }
 
-        public static bool TryCreate(SocketUserMessage message, Config.IEssentialConfig config, out ICommand command, bool hasVerb = false)
+        public static string ParseBody(SocketUserMessage message, int verbCount = 0)
+        {
+            var content = message.Content;
+            int toSkip = verbCount + 1;
+            int skipped = 0;
+            bool inWhiteSpace = true;
+            for (int i = 0; i < content.Length; ++i)
+            {
+                if (char.IsWhiteSpace(content[i]))
+                {
+                    inWhiteSpace = true;
+                }
+                else if (inWhiteSpace)
+                {
+                    if (skipped >= toSkip)
+                        return content.Substring(i);
+
+                    inWhiteSpace = false;
+                    skipped++;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        public static bool TryCreate(SocketUserMessage message, Config.IEssentialConfig config, out ICommand command, int verbCount = 0)
         {
             var socketCommand = new SocketCommand(config);
             command = socketCommand;
-            return socketCommand.TryParse(message, hasVerb);
+            return socketCommand.TryParse(message, verbCount);
         }
 
-        private bool TryParse(SocketUserMessage message, bool hasVerb = false)
+        private bool TryParse(SocketUserMessage message, int verbCount = 0)
         {
             Message = message;
 
             if (string.IsNullOrEmpty(Invoker = ParseInvoker(message, Prefix)))
                 return false;
-            
-            if (hasVerb && string.IsNullOrEmpty(Verb = ParseVerb(message)))
+
+            var allVerbs = ParseVerbs(message);
+            if (verbCount > allVerbs.Count)
                 return false;
+
+            _verbs = allVerbs.Take(verbCount).ToList();
+
+            Body = ParseBody(message, verbCount);
 
             TokenizeParameters('"');
 
-            Remainder = new SocketRemainder(Tokens.Select(x => x.Item1), Body, Guild as SocketGuild);
+            Remainder = new SocketRemainder(_tokens.Select(x => x.Item1), Body, Guild as SocketGuild);
 
             return true;
         }
 
         private void TokenizeParameters(params char[] textQualifiers)
         {
-            Tokens = new List<Tuple<int, ParameterToken>>();
+            _tokens = new List<Tuple<int, ParameterToken>>();
 
             string allParams = Body;
             if (allParams == null)
@@ -119,7 +143,7 @@ namespace DustyBot.Framework.Commands
                 {
                     if (token.Length > 0)
                     {
-                        Tokens.Add(Tuple.Create(i, new ParameterToken(token.ToString(), Guild as SocketGuild)));
+                        _tokens.Add(Tuple.Create(i, new ParameterToken(token.ToString(), Guild as SocketGuild)));
                         token = token.Remove(0, token.Length);
                     }
                     
@@ -130,7 +154,7 @@ namespace DustyBot.Framework.Commands
             }
 
             if (token.Length > 0)
-                Tokens.Add(Tuple.Create(allParams.Length, new ParameterToken(token.ToString(), Guild as SocketGuild)));
+                _tokens.Add(Tuple.Create(allParams.Length, new ParameterToken(token.ToString(), Guild as SocketGuild)));
         }
 
         public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message) => communicator.CommandReplySuccess(Message.Channel, message);

@@ -76,6 +76,12 @@ namespace DustyBot.Framework.Communication
         public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
             await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 
+        public async Task<IUserMessage> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command) =>
+            await CommandReplyError(channel, Properties.Resources.Command_MissingBotAccess);
+
+        public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command) =>
+            await CommandReplyError(channel, Properties.Resources.Command_MissingBotPermissionsUnknown);
+
         public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
             await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 

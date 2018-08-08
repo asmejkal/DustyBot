@@ -33,6 +33,9 @@ namespace DustyBot.Framework.Commands
         public string Raw { get; }
         public string LastError { get; private set; }
         public bool HasValue => !string.IsNullOrEmpty(Raw);
+        public ParameterRegistration Parameter { get; set; }
+
+        public Regex Regex { get; set; }
 
         public ParameterToken(string parameter, SocketGuild guild)
         {
@@ -61,6 +64,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.String: result = AsString; break;
                 case ParameterType.Uri: result = AsUri; break;
                 case ParameterType.Guid: result = AsGuid; break;
+                case ParameterType.Regex: result = AsRegex; break;
                 case ParameterType.Id: result = AsId; break;
                 case ParameterType.TextChannel: result = AsTextChannel; break;
                 case ParameterType.GuildUser: result = AsGuildUser; break;
@@ -86,6 +90,7 @@ namespace DustyBot.Framework.Commands
         public string AsString => Raw;
         public Uri AsUri => TryConvert<Uri>(this, ParameterType.Uri, x => new Uri(x));
         public Guid? AsGuid => TryConvert<Guid>(this, ParameterType.Guid, Guid.TryParse);
+        public Match AsRegex => TryConvert<Match>(this, ParameterType.Regex, x => Regex?.Match(x));
         public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
 
         private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
@@ -173,6 +178,7 @@ namespace DustyBot.Framework.Commands
         public static implicit operator string(ParameterToken token) => token.AsString;
         public static explicit operator Uri(ParameterToken token) => token.AsUri;
         public static explicit operator Guid? (ParameterToken token) => token.AsGuid;
+        public static explicit operator Match (ParameterToken token) => token.AsRegex;
 
         static T TryConvert<T>(ParameterToken token, ParameterType type, Func<string, T> parser)
             where T : class

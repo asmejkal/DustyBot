@@ -98,6 +98,15 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The bot is missing access..
+        /// </summary>
+        internal static string Command_MissingBotAccess {
+            get {
+                return ResourceManager.GetString("Command_MissingBotAccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The bot needs the {0} permission to perform this command..
         /// </summary>
         internal static string Command_MissingBotPermissions {
@@ -112,6 +121,15 @@ namespace DustyBot.Framework.Properties {
         internal static string Command_MissingBotPermissionsMultiple {
             get {
                 return ResourceManager.GetString("Command_MissingBotPermissionsMultiple", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The bot doesn&apos;t have the required permissions to perform this command..
+        /// </summary>
+        internal static string Command_MissingBotPermissionsUnknown {
+            get {
+                return ResourceManager.GetString("Command_MissingBotPermissionsUnknown", resourceCulture);
             }
         }
         

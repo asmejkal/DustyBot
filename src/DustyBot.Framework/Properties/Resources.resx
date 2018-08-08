@@ -129,11 +129,17 @@
   <data name="Command_InvalidParameterFormat" xml:space="preserve">
     <value>Parameter {0} is invalid.</value>
   </data>
+  <data name="Command_MissingBotAccess" xml:space="preserve">
+    <value>The bot is missing access.</value>
+  </data>
   <data name="Command_MissingBotPermissions" xml:space="preserve">
     <value>The bot needs the {0} permission to perform this command.</value>
   </data>
   <data name="Command_MissingBotPermissionsMultiple" xml:space="preserve">
     <value>The bot needs the {0} permissions to perform this command.</value>
+  </data>
+  <data name="Command_MissingBotPermissionsUnknown" xml:space="preserve">
+    <value>The bot doesn't have the required permissions to perform this command.</value>
   </data>
   <data name="Command_MissingPermissions" xml:space="preserve">
     <value>You don't have the required permissions for this command ({0}).</value>

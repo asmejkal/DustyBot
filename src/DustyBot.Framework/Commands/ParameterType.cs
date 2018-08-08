@@ -21,8 +21,9 @@ namespace DustyBot.Framework.Commands
         String,
         Uri,
         Guid,
-        Id,
+        Regex,
 
+        Id,
         TextChannel,
         GuildUser,
         Role,

@@ -59,9 +59,16 @@ namespace DustyBot.Framework.Utility
             {
                 if (c is ITextChannel textChannel)
                 {
-                    var message = await textChannel.GetMessageAsync(id);
-                    if (message != null)
-                        return message;
+                    try
+                    {
+                        var message = await textChannel.GetMessageAsync(id);
+                        if (message != null)
+                            return message;
+                    }
+                    catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
+                    {
+                        //Missing access
+                    }
                 }
             }
 

@@ -47,7 +47,7 @@ namespace DustyBot.Modules
                     if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 4 == 0)
                     {
                         pages.Add(new EmbedBuilder()
-                            .WithDescription("Full list also on [web](http://dustybot.info/reference.html).")
+                            .WithDescription("Also on [web](http://dustybot.info/reference.html).")
                             .WithTitle("Commands")
                             .WithFooter($"Type '{config.CommandPrefix}help command' to see usage of a specific command."));
                     }
@@ -69,12 +69,12 @@ namespace DustyBot.Modules
                 if (invoker.StartsWith(config.CommandPrefix))
                     invoker = invoker.Substring(config.CommandPrefix.Length);
 
-                var verb = new string(command.Body.Skip(config.CommandPrefix.Length + invoker.Length).SkipWhile(c => char.IsWhiteSpace(c)).TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
+                var verbs = command.Body.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
                 foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
                 {
                     foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))
                     {
-                        if (string.Compare(handledCommand.InvokeString, invoker, true) == 0 && string.Compare(verb, handledCommand.Verb ?? string.Empty, true) == 0)
+                        if (string.Compare(handledCommand.InvokeString, invoker, true) == 0 && verbs.SequenceEqual(handledCommand.Verbs.Select(x => x.ToLowerInvariant())))
                         {
                             commandRegistration = handledCommand;
                             break;
@@ -90,7 +90,7 @@ namespace DustyBot.Modules
 
                 //Build response
                 var embed = new EmbedBuilder()
-                    .WithTitle($"Command {config.CommandPrefix}{commandRegistration.InvokeString} {commandRegistration.Verb ?? ""}")
+                    .WithTitle($"Command {commandRegistration.InvokeUsage}")
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
                 
@@ -198,52 +198,96 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
-        //[Command("dump", "commands", "Generates a list of all commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
-        //public async Task Commandlist(ICommand command)
-        //{
-        //    var config = await Settings.ReadGlobal<BotConfig>();
-        //    var result = new StringBuilder();
-        //    int counter = 0;
-        //    foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
-        //    {
-        //        result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><h3>{module.Name}</h3>");
-        //        result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
-                
-        //        foreach (var handledCommand in module.HandledCommands.Where(x => !x.Hidden && !x.OwnerOnly))
-        //        {
-        //            counter++;
-        //            result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
-        //                $"<span class=\"paramlistcode\">{handledCommand.InvokeString}{(!string.IsNullOrEmpty(handledCommand.Verb) ? $" { handledCommand.Verb}" : "")}</span> – {handledCommand.Description}</p>");
-                    
-        //            var usage = handledCommand.GetUsage(config.CommandPrefix);
-        //            if (string.IsNullOrEmpty(usage))
-        //                continue;
+        [Command("dump", "commands", "Generates a list of all commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        public async Task Commandlist(ICommand command)
+        {
+            var config = await Settings.ReadGlobal<BotConfig>();
+            var result = new StringBuilder();
+            int counter = 0;
+            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            {
+                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><h3>{module.Name}</h3>");
+                result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
 
-        //            bool inside = false;
-        //            usage = usage.Split('`').Aggregate((x, y) => x + ((inside = !inside) ? "<span class=\"param\">" : "</span>") + y);
-        //            usage = usage.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
-        //            usage = usage.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
+                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
+                {
+                    counter++;
+                    result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
+                        $"&#9662; <span class=\"paramlistcode\">{handledCommand.InvokeUsage}</span> – {handledCommand.Description}</p>");
 
-        //            var lines = usage.Split('\n') as IEnumerable<string>;
+                    var usage = BuildWebUsageString(handledCommand, config);
+                    if (string.IsNullOrEmpty(usage))
+                        continue;
 
-        //            result.AppendLine($"<div id=\"usage{counter}\" class=\"collapse usage\">");
+                    result.AppendLine($"<div id=\"usage{counter}\" class=\"collapse usage\">");
+                    result.Append(usage);
+                    result.AppendLine("</div>");
+                }
 
-        //            if (lines.First().StartsWith(config.CommandPrefix))
-        //            {
-        //                result.AppendLine($"<span class=\"usagecode\">{lines.First()}</span><br/>");
-        //                lines = lines.Skip(1);
-        //            }
-                    
-        //            foreach (var line in lines)
-        //                result.AppendLine(line + "<br/>");
+                result.AppendLine("<br/></div></div>");
+            }
 
-        //            result.AppendLine("</div>");
-        //        }                    
+            using (var stream = new MemoryStream(Encoding.Unicode.GetBytes(result.ToString())))
+            {
+                await command.Message.Channel.SendFileAsync(stream, "output.html");
+            }
+        }
 
-        //        result.AppendLine("<br/></div></div>");
-        //    }
-            
-        //    await command.Reply(Communicator, result.ToString(), x => $"```{x}```", 6).ConfigureAwait(false);
-        //}
+        static string Markdown(string input)
+        {
+            bool inside = false;
+            input = input.Split('`').Aggregate((x, y) => x + ((inside = !inside) ? "<span class=\"param\">" : "</span>") + y);
+            input = input.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
+            input = input.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
+            input = input.Replace("\r\n", "<br/>");
+            input = input.Replace("\n", "<br/>");
+
+            return input;
+        }
+
+        static string BuildWebUsageString(CommandRegistration commandRegistration, Framework.Config.IEssentialConfig config)
+        {
+            string usage = $"{config.CommandPrefix}{commandRegistration.InvokeUsage}";
+            foreach (var param in commandRegistration.Parameters)
+            {
+                string tmp = param.Name;
+                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                    tmp += "...";
+
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                    tmp = $"[{tmp}]";
+
+                usage += $" `{tmp}`";
+            }
+
+            string paramDescriptions = string.Empty;
+            foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
+            {
+                string tmp = $"● `{param.Name}` ‒ ";
+                if (param.Flags.HasFlag(ParameterFlags.Optional) || param.Flags.HasFlag(ParameterFlags.Remainder))
+                {
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        tmp += "optional";
+
+                    if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                        tmp += param.Flags.HasFlag(ParameterFlags.Optional) ? " remainder" : "remainder";
+
+                    tmp += "; ";
+                }
+
+                tmp += param.GetDescription(config.CommandPrefix);
+                paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "<br/>" + tmp;
+            }
+
+            var examples = commandRegistration.Examples
+                .Select(x => $"{config.CommandPrefix}{commandRegistration.InvokeUsage} {x}")
+                .DefaultIfEmpty()
+                .Aggregate((x, y) => x + "<br/>" + y);
+
+            return $"<span class=\"usagecode\">{Markdown(usage)}</span>" +
+                (string.IsNullOrWhiteSpace(paramDescriptions) ? string.Empty : "<br/><br/>" + Markdown(paramDescriptions)) +
+                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(config.CommandPrefix)) ? string.Empty : "<br/><br/>" + Markdown(commandRegistration.GetComment(config.CommandPrefix))) +
+                (string.IsNullOrWhiteSpace(examples) ? string.Empty : "<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");
+        }
     }
 }

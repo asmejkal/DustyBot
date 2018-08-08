@@ -16,7 +16,7 @@ namespace DustyBot.Framework.Commands
         IGuild Guild { get; }
 
         string Invoker { get; }
-        string Verb { get; }
+        IEnumerable<string> Verbs { get; }
         string Body { get; }
         string Prefix { get; }
 
@@ -27,9 +27,12 @@ namespace DustyBot.Framework.Commands
         Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false, bool resend = false);
 
         int ParametersCount { get; }
+        int GetIndex(string name);
         ParameterToken GetParameter(int key);
+        ParameterToken GetParameter(string name);
         IEnumerable<ParameterToken> GetParameters();
         ParameterToken this[int key] { get; }
+        ParameterToken this[string name] { get; }
         Remainder Remainder { get; }
     }
 

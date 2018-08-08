@@ -40,7 +40,7 @@ namespace DustyBot.Framework.Modules
                 var command = new CommandRegistration
                 {
                     InvokeString = commandAttr.InvokeString,
-                    Verb = commandAttr.Verb,
+                    Verbs = commandAttr.Verbs,
                     Handler = (CommandRegistration.CommandHandler)method.CreateDelegate(typeof(CommandRegistration.CommandHandler), this),
                     Description = commandAttr.Description,
                     Flags = commandAttr.Flags

@@ -23,6 +23,9 @@ namespace DustyBot.Modules
     [Module("Schedule", "Helps with tracking upcoming events.")]
     class ScheduleModule : Module
     {
+        const string DateFormat = @"^(?:([0-9]{2})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
+        const string TimeFormat = @"^([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?$";
+
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
 
@@ -32,13 +35,13 @@ namespace DustyBot.Modules
             Settings = settings;
         }
         
-        [Command("schedule", "Shows the upcoming schedule.")]
+        [Command("schedule", "Shows upcoming events.")]
         public async Task Schedule(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId, false);
             if (settings == null || settings.ScheduleMessages.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No schedule has been set. Use the `schedule add` command.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, "No schedule has been set. Use the `schedule create` command.").ConfigureAwait(false);
                 return;
             }
 
@@ -118,36 +121,128 @@ namespace DustyBot.Modules
                 s.ScheduleMessages.Add(new MessageLocation() { MessageId = message.Message.Id, ChannelId = command[0].AsTextChannel.Id });
             }).ConfigureAwait(false);
 
-            await command.ReplySuccess(Communicator, $"Schedule message with ID `{message.Message.Id}` has been created. Use the `event add {message.Message.Id}` command to add events.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Schedule message with ID `{message.Message.Id}` has been created. Use the `event add` or `event add {message.Message.Id}` command to add events.").ConfigureAwait(false);
         }
 
-        [Command("schedule", "add", "Adds an existing message with schedule.")]
+        [Command("schedule", "edit", "header", "Sets a header for a schedule message.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameter("MessageId", ParameterType.GuildUserMessage)]
-        [Comment("The `schedule` command uses data from messages containing a schedule, which are already posted on your server. Expected format of a message with schedule is the following:\n\n[optional text...]```[MM/DD | HH:MM] Event description\n[MM/DD | HH:MM] Another event's description```[optional text...]\n\nThe `HH:MM` can be replaced with `??:??` if the event time is unknown. All times in KST.\n\nIf your server uses a different format for schedule posts and you aren't willing to change it, you can make a suggestion to have your format added with the `feedback` command, or by contacting the bot owner.")]
-        [Example("464071206920781835")]
-        public async Task AddSchedule(ICommand command)
+        [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
+        [Parameter("Header", ParameterType.String, ParameterFlags.Remainder, "new header")]
+        [Example("462366629247057930 Schedule (June)")]
+        public async Task HeaderSchedule(ICommand command)
         {
-            await Settings.Modify(command.GuildId, async (MediaSettings s) =>
-            {
-                var message = await command[0].AsGuildUserMessage();
-                s.ScheduleMessages.Add(new MessageLocation() { MessageId = message.Id, ChannelId = message.Channel.Id });
-            }).ConfigureAwait(false);
+            var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
 
-            await command.ReplySuccess(Communicator, "Schedule message has been added.").ConfigureAwait(false);
+            message.Header = command["Header"];
+            await message.CommitChanges();
+
+            await command.ReplySuccess(Communicator, $"Header has been set.").ConfigureAwait(false);
         }
 
-        [Command("schedule", "remove", "Removes a schedule message.")]
+        [Command("schedule", "edit", "footer", "Sets a footer for a schedule message.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
+        [Parameter("Footer", ParameterType.String, ParameterFlags.Remainder, "new footer")]
+        [Example("462366629247057930 Ooh, a new footer.")]
+        public async Task FooterSchedule(ICommand command)
+        {
+            var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
+
+            message.Footer = command["Footer"];
+            await message.CommitChanges();
+
+            await command.ReplySuccess(Communicator, $"Footer has been set.").ConfigureAwait(false);
+        }
+
+        private static readonly Regex _editEventRegex = new Regex(@"^\s*\[([0-9]+)\/([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)$");
+        [Command("schedule", "edit", "Edits the content of a schedule message.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
+        [Parameter("Events", @"^\s*\[[0-9]+\/[0-9]+\/[0-9]+\s*\|\s*[0-9?]+:[0-9?]+\].+", ParameterType.String, ParameterFlags.Remainder, "new content")]
+        [Comment("Old content will be replaced. The new content has to be in the following format:\n[18/08/10 | 08:00] Event 1\n[18/08/11 | ??:??] Event 2\n[18/08/12 | 10:00] Event 3\n...\n\nEach event has to be a on a new line.")]
+        [Example("462366629247057930\n[18/08/10 | 08:00] Event 1\n[18/08/11 | ??:??] Event 2\n[18/08/12 | 10:00] Event 3")]
+        public async Task EditSchedule(ICommand command)
+        {
+            var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
+
+            message.Clear();
+            var content = command.Remainder.After(command.GetIndex("Events"));
+            using (var reader = new StringReader(content))
+            {
+                for (string line = reader.ReadLine(); line != null; line = reader.ReadLine())
+                {
+                    try
+                    {
+                        var match = _editEventRegex.Match(line);
+
+                        if (!match.Success)
+                            throw new Framework.Exceptions.IncorrectParametersCommandException($"Line `{line}` is invalid");
+
+                        var newEvent = new ScheduleEvent
+                        {
+                            Description = match.Groups[6].Value.Trim(),
+                            HasTime = !match.Groups[4].Value.Contains('?') && !match.Groups[5].Value.Contains('?')
+                        };
+
+                        var year = match.Groups[1].Length > 0 ? 2000 + int.Parse(match.Groups[1].Value) : TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time")).Year;
+                        newEvent.Date = new DateTime(year,
+                            int.Parse(match.Groups[2].Value),
+                            int.Parse(match.Groups[3].Value),
+                            newEvent.HasTime ? int.Parse(match.Groups[4].Value) : 23,
+                            newEvent.HasTime ? int.Parse(match.Groups[5].Value) : 59, 0);
+
+                        message.Add(newEvent);
+                    }
+                    catch (Exception ex) when (ex is FormatException || ex is OverflowException)
+                    {
+                        throw new Framework.Exceptions.IncorrectParametersCommandException($"Line `{line}` is invalid");
+                    }
+                }
+            }
+
+            await message.CommitChanges();
+
+            await command.ReplySuccess(Communicator, $"Message has been edited.").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "move", "Moves a range of events from one message to another.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("SourceMessageId", ParameterType.Id, "ID of the source message (previously created with `schedule create`)")]
+        [Parameter("TargetMessageId", ParameterType.Id, "ID of the target message (previously created with `schedule create`)")]
+        [Parameter("FromDate", DateFormat, ParameterType.Regex, "move events from this date onward; date in `MM/dd` or `yy/MM/dd` format (e.g. `07/23` or `18/07/23`), uses current year by default")]
+        [Parameter("ToDate", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "move events before this date")]
+        [Example("462366629247057930 476740163159195649 08/09")]
+        [Example("462366629247057930 476740163159195649 18/08/09 18/12/01")]
+        public async Task SplitSchedule(ICommand command)
+        {
+            var source = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
+            var target = await GetScheduleMessage(command.Guild, (ulong?)command[1]);
+
+            var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+            var toDate = (command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : new DateTime(9999, 12, 0)) + new TimeSpan(23, 59, 0);
+
+            var moved = source.MoveAll(target, x => x.Date >= fromDate && x.Date < toDate);
+
+            if (moved > 0)
+            {
+                await target.CommitChanges();
+                await source.CommitChanges();
+            }
+
+            await command.ReplySuccess(Communicator, $"Moved {moved} events.").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "ignore", "Stops using a schedule message.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id)]
-        [Comment("Doesn't delete the message, just stops using it for schedule.")]
-        public async Task RemoveSchedule(ICommand command)
+        [Comment("Stops using this message for the `schedule` and `event add/remove` commands. Do this for old schedule messages to improve response times (if you don't want to delete them).")]
+        public async Task IgnoreSchedule(ICommand command)
         {
             bool removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return s.ScheduleMessages.RemoveWhere(x => x.MessageId == (ulong)command[0]) > 0;
+                return s.ScheduleMessages.RemoveAll(x => x.MessageId == (ulong)command[0]) > 0;
             }).ConfigureAwait(false);
-            
+
             if (removed)
             {
                 await command.ReplySuccess(Communicator, $"Schedule source has been removed.").ConfigureAwait(false);
@@ -176,74 +271,30 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result).ConfigureAwait(false);
         }
 
-        [Command("schedule", "clear", "Removes all schedule messages.")]
-        [Permissions(GuildPermission.ManageMessages)]
-        [Comment("Doesn't delete the messages, just stops using them for schedule.")]
-        public async Task ClearSchedule(ICommand command)
-        {
-            await Settings.Modify(command.GuildId, (MediaSettings s) =>
-            {
-                s.ScheduleMessages.Clear();
-            }).ConfigureAwait(false);
-            
-            await command.ReplySuccess(Communicator, $"Schedule has been cleared.").ConfigureAwait(false);
-        }
-
-        static Regex DateRegex = new Regex(@"^([0-9]{1,2})\/([0-9]{1,2})$", RegexOptions.Compiled);
-        static Regex TimeRegex = new Regex(@"^([0-9]{1,2}):([0-9]{1,2})$", RegexOptions.Compiled);
-
         [Command("event", "add", "Adds an event to schedule.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameter("MessageId", ParameterType.GuildSelfMessage, "ID of a schedule message previously created with `schedule create`")]
-        [Parameter("Year", ParameterType.Int, ParameterFlags.Optional, "year of the event, uses current year by default")]
-        [Parameter("Date", ParameterType.String, "date in `MM/dd` format (e.g. `07/23`)")]
-        [Parameter("Time", ParameterType.String, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
+        [Parameter("Date", DateFormat, ParameterType.Regex, "date in `MM/dd` or `yy/MM/dd` format (e.g. `07/23` or `18/07/23`), uses current year by default")]
+        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
         [Comment("All times in KST.")]
-        [Example("462366629247057930 07/23 08:45 Concert")]
+        [Example("07/23 08:45 Concert")]
         [Example("462366629247057930 07/23 Fansign")]
+        [Example("462366629247057930 19/01/23 Festival")]
         public async Task AddEvent(ICommand command)
         {
-            var message = (await command.Guild.GetMessageAsync((ulong)command[0])) as IUserMessage;
-            if (message == null)
-            {
-                await command.ReplyError(Communicator, $"Cannot find this message.").ConfigureAwait(false);
-                return;
-            }
+            var schedule = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
 
-            var schedule = ScheduleMessageFactory.TryParse(message);
-            if (schedule == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid schedule format.");
-
-            if (!schedule.IsEditable())
-            {
-                await command.ReplyError(Communicator, "The bot cannot edit this message. You can only edit messages sent by the `schedule create` command.").ConfigureAwait(false);
-                return;
-            }
-
-            int year = -1;
-            if (command[1].AsString.All(x => char.IsDigit(x)))
-                year = (int)command[1];
-
-            bool hasYear = year >= 0;
-            
-            var date = command[!hasYear ? 1 : 2].AsString != null ? DateRegex.Match(command[!hasYear ? 1 : 2]) : Match.Empty;
-            var time = command[!hasYear ? 2 : 3].AsString != null ? TimeRegex.Match(command[!hasYear ? 2 : 3]) : Match.Empty;
-            if (!date.Success)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid date.");
-
-            if (!hasYear)
-                 year = TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time")).Year;
-
-            DateTime dateTime = new DateTime(year, int.Parse(date.Groups[1].Value), int.Parse(date.Groups[2].Value));
-            if (time.Success)
-                dateTime = dateTime.Add(new TimeSpan(int.Parse(time.Groups[1].Value), int.Parse(time.Groups[2].Value), 0));
+            var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+            bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
+            if (hasTime)
+                dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
 
             var e = new ScheduleEvent
             {
                 Date = dateTime,
-                HasTime = time.Success,
-                Description = command.Remainder.After(2 + (hasYear ? 1 : 0) + (time.Success ? 1 : 0))
+                HasTime = hasTime,
+                Description = command.Remainder.After(command.GetIndex("Description"))
             };
 
             if (string.IsNullOrEmpty(e.Description))
@@ -260,53 +311,38 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await command.ReplySuccess(Communicator, $"Event `{e.Description}` taking place on `{e.Date.Year}/{e.Date.Month}/{e.Date.Day}`" + (e.HasTime ? $" at `{e.Date.Hour}:{e.Date.Minute}`" : "") + " has been added.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yy\/MM\/dd")}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm")}`" : "") + " has been added.").ConfigureAwait(false);
         }
 
         [Command("event", "remove", "Removes an event from schedule.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameter("MessageId", ParameterType.GuildSelfMessage, "ID of a schedule message previously created with `schedule create`")]
-        [Parameter("Date", ParameterType.String, ParameterFlags.Optional, "date in `MM/dd` format (e.g. `07/23`)")]
-        [Parameter("Time", ParameterType.String, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
+        [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "date in `MM/dd` or `yy/MM/dd` format (e.g. `07/23` or `18/07/23`), uses current year by default")]
+        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`)")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
         [Comment("All times in KST.")]
-        [Example("462366629247057930 Concert")]
+        [Example("Concert")]
         [Example("462366629247057930 07/23 08:45 Festival")]
         public async Task RemoveEvent(ICommand command)
         {
-            var message = (await command.Guild.GetMessageAsync((ulong)command[0])) as IUserMessage;
-            if (message == null)
-            {
-                await command.ReplyError(Communicator, $"Cannot find this message.").ConfigureAwait(false);
-                return;
-            }
+            var schedule = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
 
-            var schedule = ScheduleMessageFactory.TryParse(message);
-            if (schedule == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid schedule format.");
-
-            if (!schedule.IsEditable())
-            {
-                await command.ReplyError(Communicator, "The bot cannot edit this message. You can only edit messages sent by the `schedule create` command.").ConfigureAwait(false);
-                return;
-            }
-            
-            var date = command[1].AsString != null ? DateRegex.Match(command[1]) : Match.Empty;
-            var time = command[2].AsString != null ? TimeRegex.Match(command[2]) : Match.Empty;
-            string description = command.Remainder.After(1 + (date.Success ? 1 : 0) + (time.Success ? 1 : 0));
+            string description = command.Remainder.After(command.GetIndex("Description"));
 
             if (string.IsNullOrEmpty(description))
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
 
+            DateTime? date = command["Date"].HasValue ? new DateTime?(DateTime.ParseExact(command["Date"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None)) : null;
+            bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
             var removed = schedule.RemoveAll(x =>
             {
                 if (string.Compare(x.Description, description, true) != 0)
                     return false;
 
-                if (date.Success && (int.Parse(date.Groups[1].Value) != x.Date.Month || int.Parse(date.Groups[2].Value) != x.Date.Day))
+                if (date.HasValue && (date.Value.Year != x.Date.Year || date.Value.Month != x.Date.Month || date.Value.Day != x.Date.Day))
                     return false;
 
-                if (time.Success && (int.Parse(time.Groups[1].Value) != x.Date.Hour || int.Parse(time.Groups[2].Value) != x.Date.Minute))
+                if (hasTime && (int.Parse(command["Time"].AsRegex.Groups[1].Value) != x.Date.Hour || int.Parse(command["Time"].AsRegex.Groups[2].Value) != x.Date.Minute))
                     return false;
 
                 return true;
@@ -327,6 +363,35 @@ namespace DustyBot.Modules
             }
         }
 
+        async Task<IScheduleMessage> GetScheduleMessage(IGuild guild, ulong? messageId = null, bool mustBeEditable = true)
+        {
+            var settings = await Settings.Read<MediaSettings>(guild.Id);
+            MessageLocation messageLoc = messageId.HasValue ?
+                settings.ScheduleMessages.FirstOrDefault(x => x.MessageId == messageId) :
+                settings.ScheduleMessages.LastOrDefault();
+
+            if (messageLoc == null)
+                throw new Framework.Exceptions.IncorrectParametersCommandException(messageId.HasValue ? "This message hasn't been created by `schedule create`." : "No schedule message has been created. Use `schedule create`.");
+
+            var channel = await guild.GetTextChannelAsync(messageLoc.ChannelId);
+            var message = await channel?.GetMessageAsync(messageLoc.MessageId) as IUserMessage;
+            if (message == null)
+            {
+                //Deleted
+                await Settings.Modify(guild.Id, (MediaSettings x) => x.ScheduleMessages.Remove(messageLoc));
+                throw new Framework.Exceptions.IncorrectParametersCommandException($"Cannot find the schedule message (Id: `{messageLoc.MessageId}`).");
+            }
+
+            var schedule = ScheduleMessageFactory.TryParse(message);
+            if (schedule == null)
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid schedule format.");
+
+            if (mustBeEditable && !schedule.IsEditable())
+                throw new Framework.Exceptions.IncorrectParametersCommandException("The bot cannot edit this message. You can only edit messages sent by the `schedule create` command.");
+
+            return schedule;
+        }
+
         struct ScheduleEvent
         {
             public DateTime Date { get; set; }
@@ -338,10 +403,15 @@ namespace DustyBot.Modules
         {
             IReadOnlyList<ScheduleEvent> Events { get; }
 
+            string Header { get; set; }
+            string Footer { get; set; }
+
             IEnumerable<ScheduleEvent> GetEvents(DateTime from, DateTime to);
             void Add(ScheduleEvent e);
             void Remove(ScheduleEvent e);
             int RemoveAll(Predicate<ScheduleEvent> predicate);
+            int MoveAll(IScheduleMessage other, Predicate<ScheduleEvent> predicate);
+            void Clear();
 
             bool IsEditable();
             Task CommitChanges();
@@ -363,7 +433,8 @@ namespace DustyBot.Modules
 
         class DefaultScheduleMessage : IScheduleMessage
         {
-            private static Regex _scheduleLineRegex = new Regex(@"\s*\[([0-9]+)/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)", RegexOptions.Compiled);
+            public const string DefaultHeader = "Schedule";
+            private static Regex _scheduleLineRegex = new Regex(@"\s*`\[([0-9]+)\/([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]`\s*(.*)", RegexOptions.Compiled);
 
             private List<ScheduleEvent> _events = new List<ScheduleEvent>();
             private IUserMessage _message;
@@ -380,7 +451,7 @@ namespace DustyBot.Modules
                 Footer = footer;
             }
 
-            public static IScheduleMessage TryParse(IUserMessage message)
+            public static IScheduleMessage TryParseLegacy(IUserMessage message)
             {
                 var begin = message.Content.IndexOf("```");
                 var end = message.Content.LastIndexOf("```");
@@ -392,7 +463,7 @@ namespace DustyBot.Modules
                 begin += 3;
                 if (begin >= end)
                     return null;
-                
+
                 var schedule = message.Content.Substring(begin, end - begin);
                 using (var reader = new StringReader(schedule))
                 {
@@ -400,7 +471,7 @@ namespace DustyBot.Modules
                     {
                         try
                         {
-                            var match = _scheduleLineRegex.Match(line);
+                            var match = Regex.Match(line, @"\s*\[([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)", RegexOptions.Compiled);
 
                             if (match.Groups.Count < 6)
                                 continue;
@@ -430,34 +501,111 @@ namespace DustyBot.Modules
                 return result;
             }
 
+            public static IScheduleMessage TryParse(IUserMessage message)
+            {
+                var embed = message.Embeds.FirstOrDefault();
+                if (embed == null)
+                    return TryParseLegacy(message);
+                
+                var result = new DefaultScheduleMessage(message, embed.Title, embed.Footer?.Text);
+
+                var schedule = embed.Description ?? string.Empty;
+                using (var reader = new StringReader(schedule))
+                {
+                    for (string line = reader.ReadLine(); line != null; line = reader.ReadLine())
+                    {
+                        try
+                        {
+                            var match = _scheduleLineRegex.Match(line);
+
+                            if (!match.Success || match.Groups.Count < 7)
+                                continue;
+
+                            var newEvent = new ScheduleEvent
+                            {
+                                Description = match.Groups[6].Value.Trim(),
+                                HasTime = !match.Groups[4].Value.Contains('?') && !match.Groups[5].Value.Contains('?')
+                            };
+
+                            var year = match.Groups[1].Length > 0 ? 2000 + int.Parse(match.Groups[1].Value) : TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time")).Year;
+                            newEvent.Date = new DateTime(year,
+                                int.Parse(match.Groups[2].Value),
+                                int.Parse(match.Groups[3].Value),
+                                newEvent.HasTime ? int.Parse(match.Groups[4].Value) : 23,
+                                newEvent.HasTime ? int.Parse(match.Groups[5].Value) : 59, 0);
+
+                            result._events.Add(newEvent);
+                        }
+                        catch (Exception ex) when (ex is FormatException || ex is OverflowException)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                result._events = result._events.OrderBy(x => x.Date).ToList();
+                return result;
+            }
+
             public static async Task<IScheduleMessage> Create(ITextChannel channel, string header, string footer)
             {
-                var content = header + "\n``` ```\n" + footer;
-                var message = await channel.SendMessageAsync(content);
+                var embed = new EmbedBuilder()
+                    .WithTitle(string.IsNullOrEmpty(header) ? DefaultHeader : header)
+                    .WithDescription("")
+                    .WithFooter(footer);
+
+                var message = await channel.SendMessageAsync(string.Empty, embed: embed.Build());
                 return new DefaultScheduleMessage(message, header, footer);
             }
 
             public void Add(ScheduleEvent e)
             {
+                if (!e.HasTime)
+                    e.Date = new DateTime(e.Date.Year, e.Date.Month, e.Date.Day, 23, 59, 0, 0); //Standardize and sort at the end
+
                 var where = _events.FindIndex(x => x.Date > e.Date);
                 _events.Insert(where < 0 ? _events.Count : where, e);
             }
 
             public async Task CommitChanges()
             {
-                var result = new StringBuilder(Header + "```\n");
-
+                var result = new StringBuilder();
                 foreach (var e in Events)
-                    result.AppendLine(e.Date.ToString(e.HasTime ? @"[MM\/dd | HH:mm]" : @"[MM\/dd | ??:??]") + " " + e.Description);
+                    result.AppendLine(e.Date.ToString(e.HasTime ? @"`[yy\/MM\/dd | HH:mm]`" : @"`[yy\/MM\/dd | ??:??]`") + " " + e.Description);
 
-                result.Append("\n```" + Footer);
-                await _message.ModifyAsync(x => x.Content = result.ToString());
+                if (result.Length > 2000)
+                    throw new ArgumentException();
+
+                var embed = new EmbedBuilder()
+                    .WithTitle(string.IsNullOrEmpty(Header) ? DefaultHeader : Header)
+                    .WithDescription(result.ToString())
+                    .WithFooter(Footer);
+
+                await _message.ModifyAsync(x => { x.Content = string.Empty; x.Embed = embed.Build(); });
             }
 
             public IEnumerable<ScheduleEvent> GetEvents(DateTime from, DateTime to) => Events.SkipWhile(x => x.Date < from).TakeWhile(x => x.Date < to);
             public bool IsEditable() => _message.Author.Id == ((_message.Channel as ITextChannel)?.Guild as SocketGuild)?.CurrentUser.Id;
             public void Remove(ScheduleEvent e) => _events.Remove(e);
             public int RemoveAll(Predicate<ScheduleEvent> predicate) => _events.RemoveAll(predicate);
+
+            public int MoveAll(IScheduleMessage other, Predicate<ScheduleEvent> predicate)
+            {
+                int count = 0;
+                foreach (var e in Events)
+                {
+                    if (!predicate(e))
+                        continue;
+
+                    Remove(e);
+                    other.Add(e);
+                    count++;
+                }
+
+                return count;
+            }
+
+            public void Clear() => _events.Clear();
         }
     }
 }

@@ -54,7 +54,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A log channel for deleted messages has been {(command[0].HasValue ? "set" : "disabled")}.").ConfigureAwait(false);
         }
 
-        [Command("log", "messagefilter", "Sets or disables a regex filter for deleted messages.")]
+        [Command("log", "filter", "messages", "Sets or disables a regex filter for deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("RegularExpression", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "Messages that match this regular expression won't be logged.")]
         [Comment("Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
@@ -64,7 +64,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command.Remainder) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
         }
 
-        [Command("log", "channelfilter", "Excludes channels from logging of deleted messages.")]
+        [Command("log", "filter", "channels", "Excludes channels from logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
         [Parameter("MoreChannels", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)] //TODO
