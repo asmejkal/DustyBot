@@ -23,7 +23,7 @@ namespace DustyBot.Modules
     [Module("Schedule", "Helps with tracking upcoming events.")]
     class ScheduleModule : Module
     {
-        const string DateFormat = @"^(?:([0-9]{2})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
+        const string DateFormat = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
         const string TimeFormat = @"^([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?$";
 
         public ICommunicator Communicator { get; private set; }
@@ -133,7 +133,7 @@ namespace DustyBot.Modules
         {
             var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
 
-            message.Header = command["Header"];
+            message.Header = command.Remainder.After(1);
             await message.CommitChanges();
 
             await command.ReplySuccess(Communicator, $"Header has been set.").ConfigureAwait(false);
@@ -148,19 +148,19 @@ namespace DustyBot.Modules
         {
             var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
 
-            message.Footer = command["Footer"];
+            message.Footer = command.Remainder.After(1);
             await message.CommitChanges();
 
             await command.ReplySuccess(Communicator, $"Footer has been set.").ConfigureAwait(false);
         }
 
-        private static readonly Regex _editEventRegex = new Regex(@"^\s*\[([0-9]+)\/([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)$");
+        private static readonly Regex _editEventRegex = new Regex(@"^\s*\[([0-9]{4})\/([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)$");
         [Command("schedule", "edit", "Edits the content of a schedule message.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
-        [Parameter("Events", @"^\s*\[[0-9]+\/[0-9]+\/[0-9]+\s*\|\s*[0-9?]+:[0-9?]+\].+", ParameterType.String, ParameterFlags.Remainder, "new content")]
-        [Comment("Old content will be replaced. The new content has to be in the following format:\n[18/08/10 | 08:00] Event 1\n[18/08/11 | ??:??] Event 2\n[18/08/12 | 10:00] Event 3\n...\n\nEach event has to be a on a new line.")]
-        [Example("462366629247057930\n[18/08/10 | 08:00] Event 1\n[18/08/11 | ??:??] Event 2\n[18/08/12 | 10:00] Event 3")]
+        [Parameter("Events", @"^\s*\[[0-9]{4}\/[0-9]+\/[0-9]+\s*\|\s*[0-9?]+:[0-9?]+\].+", ParameterType.String, ParameterFlags.Remainder, "new content")]
+        [Comment("Old content will be replaced. The new content has to be in the following format:\n[2018/08/10 | 08:00] Event 1\n[2018/08/11 | ??:??] Event 2\n[2018/08/12 | 10:00] Event 3\n...\n\nEach event has to be a on a new line.")]
+        [Example("462366629247057930\n[2018/08/10 | 08:00] Event 1\n[2018/08/11 | ??:??] Event 2\n[2018/08/12 | 10:00] Event 3")]
         public async Task EditSchedule(ICommand command)
         {
             var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
@@ -184,8 +184,7 @@ namespace DustyBot.Modules
                             HasTime = !match.Groups[4].Value.Contains('?') && !match.Groups[5].Value.Contains('?')
                         };
 
-                        var year = match.Groups[1].Length > 0 ? 2000 + int.Parse(match.Groups[1].Value) : TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time")).Year;
-                        newEvent.Date = new DateTime(year,
+                        newEvent.Date = new DateTime(int.Parse(match.Groups[1].Value),
                             int.Parse(match.Groups[2].Value),
                             int.Parse(match.Groups[3].Value),
                             newEvent.HasTime ? int.Parse(match.Groups[4].Value) : 23,
@@ -209,10 +208,10 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("SourceMessageId", ParameterType.Id, "ID of the source message (previously created with `schedule create`)")]
         [Parameter("TargetMessageId", ParameterType.Id, "ID of the target message (previously created with `schedule create`)")]
-        [Parameter("FromDate", DateFormat, ParameterType.Regex, "move events from this date onward; date in `MM/dd` or `yy/MM/dd` format (e.g. `07/23` or `18/07/23`), uses current year by default")]
+        [Parameter("FromDate", DateFormat, ParameterType.Regex, "move events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("ToDate", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "move events before this date")]
         [Example("462366629247057930 476740163159195649 08/09")]
-        [Example("462366629247057930 476740163159195649 18/08/09 18/12/01")]
+        [Example("462366629247057930 476740163159195649 2018/08/09 2018/12/01")]
         public async Task SplitSchedule(ICommand command)
         {
             var source = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
@@ -274,18 +273,18 @@ namespace DustyBot.Modules
         [Command("event", "add", "Adds an event to schedule.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
-        [Parameter("Date", DateFormat, ParameterType.Regex, "date in `MM/dd` or `yy/MM/dd` format (e.g. `07/23` or `18/07/23`), uses current year by default")]
+        [Parameter("Date", DateFormat, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
         [Comment("All times in KST.")]
         [Example("07/23 08:45 Concert")]
         [Example("462366629247057930 07/23 Fansign")]
-        [Example("462366629247057930 19/01/23 Festival")]
+        [Example("462366629247057930 2019/01/23 Festival")]
         public async Task AddEvent(ICommand command)
         {
             var schedule = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
 
-            var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+            var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
             bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
             if (hasTime)
                 dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
@@ -317,7 +316,7 @@ namespace DustyBot.Modules
         [Command("event", "remove", "Removes an event from schedule.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
-        [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "date in `MM/dd` or `yy/MM/dd` format (e.g. `07/23` or `18/07/23`), uses current year by default")]
+        [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`)")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
         [Comment("All times in KST.")]
@@ -332,7 +331,7 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(description))
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
 
-            DateTime? date = command["Date"].HasValue ? new DateTime?(DateTime.ParseExact(command["Date"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None)) : null;
+            DateTime? date = command["Date"].HasValue ? new DateTime?(DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None)) : null;
             bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
             var removed = schedule.RemoveAll(x =>
             {
@@ -434,7 +433,7 @@ namespace DustyBot.Modules
         class DefaultScheduleMessage : IScheduleMessage
         {
             public const string DefaultHeader = "Schedule";
-            private static Regex _scheduleLineRegex = new Regex(@"\s*`\[([0-9]+)\/([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]`\s*(.*)", RegexOptions.Compiled);
+            private static Regex _scheduleLineRegex = new Regex(@"\s*`\[([0-9]{4})\/([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]`\s*(.*)", RegexOptions.Compiled);
 
             private List<ScheduleEvent> _events = new List<ScheduleEvent>();
             private IUserMessage _message;
@@ -527,8 +526,7 @@ namespace DustyBot.Modules
                                 HasTime = !match.Groups[4].Value.Contains('?') && !match.Groups[5].Value.Contains('?')
                             };
 
-                            var year = match.Groups[1].Length > 0 ? 2000 + int.Parse(match.Groups[1].Value) : TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time")).Year;
-                            newEvent.Date = new DateTime(year,
+                            newEvent.Date = new DateTime(int.Parse(match.Groups[1].Value),
                                 int.Parse(match.Groups[2].Value),
                                 int.Parse(match.Groups[3].Value),
                                 newEvent.HasTime ? int.Parse(match.Groups[4].Value) : 23,
@@ -571,7 +569,7 @@ namespace DustyBot.Modules
             {
                 var result = new StringBuilder();
                 foreach (var e in Events)
-                    result.AppendLine(e.Date.ToString(e.HasTime ? @"`[yy\/MM\/dd | HH:mm]`" : @"`[yy\/MM\/dd | ??:??]`") + " " + e.Description);
+                    result.AppendLine(e.Date.ToString(e.HasTime ? @"`[yyyy\/MM\/dd | HH:mm]`" : @"`[yyyy\/MM\/dd | ??:??]`") + " " + e.Description);
 
                 if (result.Length > 2000)
                     throw new ArgumentException();

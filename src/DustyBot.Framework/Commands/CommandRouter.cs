@@ -191,6 +191,9 @@ namespace DustyBot.Framework.Commands
             var verbs = SocketCommand.ParseVerbs(userMessage);
             foreach (var r in commandRegistrations.OrderByDescending(x => x.Verbs.Count))
             {
+                if (r.Verbs.Count > verbs.Count)
+                    continue;
+
                 bool mismatch = false;
                 for (int i = 0; i < r.Verbs.Count; ++i)
                 {
