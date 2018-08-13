@@ -35,7 +35,7 @@ namespace DustyBot.Modules
 
         [Command("cafe", "add", "Adds a Daum Cafe board feed.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
         [Permissions(GuildPermission.Administrator)]
-        [Parameter("BoardLink", ParameterType.Uri, "link to a Daum Cafe board section (either a comment board or a forum board)")]
+        [Parameter("BoardSectionLink", ParameterType.Uri, "link to a Daum Cafe board section (either a comment board or a forum board), ex. http://cafe.daum.net/mamamoo/2b6v")]
         [Parameter("Channel", ParameterType.TextChannel, "channel that will receive the updates")]
         [Parameter("CredentialId", ParameterType.Guid, ParameterFlags.Optional, "credentials to an account that can view this board (see `help` for the Credentials module on how to add a credential)")]
         [Comment("**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.")]

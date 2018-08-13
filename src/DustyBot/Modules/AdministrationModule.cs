@@ -129,13 +129,36 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Message edited.").ConfigureAwait(false);
         }
 
-        [Command("dump", "settings", "Dumps all settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
         [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
-        public async Task DumpSettings(ICommand command)
+        [Parameter("Module", ParameterType.String, "LiteDB collection name")]
+        public async Task GetSettings(ICommand command)
         {
             var channel = await command.Message.Author.GetOrCreateDMChannelAsync();
-            var result = await Settings.DumpSettings(command[0].AsId ?? command.GuildId);
+            var result = await Settings.DumpSettings(command[0].AsId ?? command.GuildId, command["Module"]);
             await Communicator.CommandReply(channel, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
+
+        //[Command("server", "settings", "set", "Sets settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        //[Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
+        //[Parameter("Module", ParameterType.String, "LiteDB collection name")]
+        //[Comment("Attach a text file with a valid JSON.")]
+        //public async Task SetSettings(ICommand command)
+        //{
+        //    if (command.Message.Attachments.Count <= 0)
+        //        throw new Framework.Exceptions.IncorrectParametersCommandException();
+
+        //    var attachment = command.Message.Attachments.First();
+        //    var request = WebRequest.CreateHttp(attachment.Url);
+        //    using (var response = await request.GetResponseAsync())
+        //    using (var stream = response.GetResponseStream())
+        //    using (var reader = new StreamReader(stream))
+        //    {
+        //        var content = await reader.ReadToEndAsync();
+        //        await Settings.SetSettings(command[0].AsId ?? command.GuildId, command["Module"], content);
+        //    }
+
+        //    await command.ReplySuccess(Communicator, "Settings have been set.");
+        //}
     }
 }

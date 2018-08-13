@@ -38,14 +38,9 @@ namespace DustyBot.Helpers
         }
 
         private DaumCafeSession(string user, SecureString password)
+            : this()
         {
             _credential = Tuple.Create(user, password);
-            _handler = new HttpClientHandler
-            {
-                UseCookies = true,
-                CookieContainer = new CookieContainer()
-            };
-            _client = new HttpClient(_handler);
         }
 
         public static async Task<DaumCafeSession> Create(string user, SecureString password)

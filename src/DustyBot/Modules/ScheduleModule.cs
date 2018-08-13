@@ -28,11 +28,13 @@ namespace DustyBot.Modules
 
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
+        public DiscordSocketClient Client { get; private set; }
 
-        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings)
+        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings, DiscordSocketClient client)
         {
             Communicator = communicator;
             Settings = settings;
+            Client = client;
         }
         
         [Command("schedule", "Shows upcoming events.")]
@@ -216,9 +218,9 @@ namespace DustyBot.Modules
         {
             var source = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
             var target = await GetScheduleMessage(command.Guild, (ulong?)command[1]);
-
-            var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-            var toDate = (command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : new DateTime(9999, 12, 0)) + new TimeSpan(23, 59, 0);
+            
+            var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+            var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) + new TimeSpan(23, 59, 0) : DateTime.MaxValue;
 
             var moved = source.MoveAll(target, x => x.Date >= fromDate && x.Date < toDate);
 
@@ -359,6 +361,41 @@ namespace DustyBot.Modules
             else
             {
                 await command.ReplyError(Communicator, $"Cannot find event `{description}`.").ConfigureAwait(false);
+            }
+        }
+
+        [Command("schedule", "update", "Updates all messages.", CommandFlags.OwnerOnly)]
+        public async Task UpdateSchedule(ICommand command)
+        {
+            foreach (var settings in await Settings.Read<MediaSettings>())
+            {
+                var guild = Client.GetGuild(settings.ServerId);
+                if (guild == null)
+                    continue;
+
+                foreach (var messageLoc in settings.ScheduleMessages)
+                {
+                    var channel = guild.TextChannels.FirstOrDefault(x => x.Id == messageLoc.ChannelId);
+                    if (channel == null)
+                    {
+                        await Settings.Modify(settings.ServerId, (MediaSettings x) => x.ScheduleMessages.RemoveAll(y => y.ChannelId == messageLoc.ChannelId));
+                        continue;
+                    }
+
+                    var message = await channel.GetMessageAsync(messageLoc.MessageId);
+                    if (message == null)
+                    {
+                        await Settings.Modify(settings.ServerId, (MediaSettings x) => x.ScheduleMessages.RemoveAll(y => y.MessageId == messageLoc.MessageId));
+                        continue;
+                    }
+
+                    if (message.Embeds.Count > 0)
+                        continue;
+
+                    var schedule = ScheduleMessageFactory.TryParse(message as IUserMessage);
+                    await schedule.CommitChanges();
+                }
+                
             }
         }
 
@@ -590,13 +627,13 @@ namespace DustyBot.Modules
             public int MoveAll(IScheduleMessage other, Predicate<ScheduleEvent> predicate)
             {
                 int count = 0;
-                foreach (var e in Events)
+                for (int i = _events.Count - 1; i >= 0; i--)
                 {
-                    if (!predicate(e))
+                    if (!predicate(_events[i]))
                         continue;
 
-                    Remove(e);
-                    other.Add(e);
+                    other.Add(_events[i]);
+                    _events.RemoveAt(i);
                     count++;
                 }
 

@@ -9,6 +9,7 @@ using LiteDB;
 using System.Threading;
 using Newtonsoft.Json;
 using System.Linq.Expressions;
+using JsonSerializer = LiteDB.JsonSerializer;
 
 namespace DustyBot.Framework.LiteDB
 {
@@ -143,22 +144,26 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
-        public Task<string> DumpSettings(ulong serverId)
+        public Task<string> DumpSettings(ulong serverId, string module)
         {
-            string result = "";
-            foreach (var colName in _dbObject.GetCollectionNames())
-            {
-                var col = _dbObject.GetCollection(colName);
+            var col = _dbObject.GetCollection(module);
                 
-                var settings = col.FindOne(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId );
-                if (settings == null)
-                    continue;
+            var settings = col.FindOne(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId );
+            if (settings == null)
+                return null;
 
-                result += colName + ":\n";
-                result += JsonConvert.SerializeObject(JsonConvert.DeserializeObject(settings.ToString()), Formatting.Indented) + "\n\n";
-            }
+            return Task.FromResult(JsonConvert.SerializeObject(JsonConvert.DeserializeObject(settings.ToString()), Formatting.Indented) + "\n\n");
+        }
 
-            return Task.FromResult(result);
+        public Task SetSettings(ulong serverId, string module, string json)
+        {
+            var col = _dbObject.GetCollection(module);
+
+            var dJson = JsonSerializer.Deserialize(json);
+            var doc = BsonMapper.Global.ToDocument(dJson);
+            col.Upsert(doc);
+
+            return Task.CompletedTask;
         }
 
         public async Task DeleteServer(ulong serverId)

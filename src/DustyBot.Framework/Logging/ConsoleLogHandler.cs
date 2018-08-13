@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using System.IO;
+using System.Threading;
 
 namespace DustyBot.Framework.Logging
 {
     public class ConsoleLogger : ILogger, IDisposable
     {
         StreamWriter _logWriter;
+        SemaphoreSlim _logWriterLock = new SemaphoreSlim(1, 1);
         private DiscordSocketClient _client;
 
         public ConsoleLogger(DiscordSocketClient client, string logFile = "")
@@ -34,7 +36,16 @@ namespace DustyBot.Framework.Logging
         public async Task Log(LogMessage message)
         {
             Console.WriteLine(message.ToString(fullException: false));
-            await _logWriter?.WriteLineAsync(DateTime.Now.ToString("MM//dd ") + message.ToString());
+
+            await _logWriterLock.WaitAsync();
+            try
+            {
+                await _logWriter?.WriteLineAsync(DateTime.Now.ToString(@"MM\/dd ") + message.ToString());
+            }
+            finally
+            {
+                _logWriterLock.Release();
+            }
         }
         
         #region IDisposable 

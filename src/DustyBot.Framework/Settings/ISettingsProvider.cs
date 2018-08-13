@@ -21,7 +21,8 @@ namespace DustyBot.Framework.Settings
         Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
             where T : IServerSettings, new();
 
-        Task<string> DumpSettings(ulong serverId);
+        Task<string> DumpSettings(ulong serverId, string module);
+        Task SetSettings(ulong serverId, string module, string json);
         Task DeleteServer(ulong serverId);
 
         //Global settings

@@ -234,5 +234,7 @@ namespace DustyBot.Framework.Commands
 
             return result;
         }
+
+        public override string ToString() => Raw;
     }
 }

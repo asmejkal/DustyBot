@@ -34,7 +34,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "channel", "Sets or disables a channel for role self-assignment.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
         [Comment("Use without parameters to disable role self-assignment.")]
         public async Task SetRoleChannel(ICommand command)
@@ -67,7 +67,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "clearing", "Toggles automatic clearing of role channel.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         [Comment("Disabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
         {
@@ -87,7 +87,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "add", "Adds a self-assignable role.")]
-        [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
+        [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, "A name or ID of the self-assignable role.")]
         [Parameter("Alias", ParameterType.String, ParameterFlags.Optional, "A custom alias that can be used to assign this role.")]
         [Parameter("MoreAliases", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)] //TODO
@@ -109,7 +109,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "remove", "Removes a self-assignable role.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role)]
         public async Task RemoveAutoRole(ICommand command)
         {
@@ -125,7 +125,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "clear", "Removes all self-assignable roles.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         public async Task ClearAutoRoles(ICommand command)
         {
             await Settings.Modify(command.GuildId, (RolesSettings s) =>
@@ -137,7 +137,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "list", "Lists all self-assignable roles.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         public async Task ListAutoRoles(ICommand command)
         {
             var settings = await Settings.Read<RolesSettings>(command.GuildId).ConfigureAwait(false);
@@ -175,7 +175,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "setbias", "Sets a primary-secondary bias role pair.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         [Parameter("PrimaryRoleNameOrID", ParameterType.Role)]
         [Parameter("SecondaryRoleNameOrID", ParameterType.Role)]
         [Comment("If a user already has **any** primary role assigned, then the bot will assign this secondary role instead. This means that the first bias role a user sets will be their primary. After that, any other bias role they assign will become secondary. They may change their primary bias by removing the primary bias and assigning a new one.\n\nIf you run:\n`{p}roles add Solar`\n`{p}roles add Wheein`\n`{p}roles setbias Solar .Solar`\n`{p}roles setbias Wheein .Wheein`\n\nThen typing this in the role channel:\n`Solar`\n`Wheein`\n\nWill result in the user having a primary `Solar` role and a secondary `.Wheein` role.")]
@@ -203,7 +203,7 @@ namespace DustyBot.Modules
         }
 
         [Command("autorole", "add", "Assign a role automatically upon joining.")]
-        [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
+        [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role)]
         public async Task AutoRoleAdd(ICommand command)
         {
@@ -212,7 +212,7 @@ namespace DustyBot.Modules
         }
 
         [Command("autorole", "remove", "Remove an automatically assigned role.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role)]
         public async Task AutoRoleRemove(ICommand command)
         {
