@@ -1,5 +1,5 @@
 # DustyBot
 
-A small multi-purpose bot built to fill the needs of kpop Discords.
+An open-source bot for music fan Discords.
 
 **Webpage:** [dustybot.info](http://dustybot.info).
