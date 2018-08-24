@@ -29,16 +29,9 @@ namespace DustyBot.Settings
         public Guid CredentialId { get; set; }
     }
 
-    public class MessageLocation
-    {
-        public ulong MessageId { get; set; }
-        public ulong ChannelId { get; set; }
-    }
-
     public class MediaSettings : BaseServerSettings
     {
         public List<ComebackInfo> YouTubeComebacks { get; set; } = new List<ComebackInfo>();
-        public List<MessageLocation> ScheduleMessages { get; set; } = new List<MessageLocation>();
         public List<DaumCafeFeed> DaumCafeFeeds { get; set; } = new List<DaumCafeFeed>();
     }
 }

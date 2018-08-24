@@ -51,7 +51,6 @@ namespace DustyBot.Settings.LiteDB
                     version: 3,
                     up: db =>
                     {
-                        //Change DaumCafeFeeds/LastPostId to signed integer
                         var col = db.GetCollection("MediaSettings");
                         foreach (var settings in col.FindAll())
                         {
@@ -71,6 +70,43 @@ namespace DustyBot.Settings.LiteDB
                             col.Update(settings);
                         }
                     }
+                ),
+
+                new Migration
+                (
+                    version: 4,
+                    up: db =>
+                    {
+                        //Schedule module reworked and settings moved (schedule headers, footers and events will be lost)
+                        var mediaCol = db.GetCollection("MediaSettings");
+                        var scheduleCol = db.GetCollection("ScheduleSettings");
+                        foreach (var mediaSettings in mediaCol.FindAll())
+                        {
+                            var scheduleSettings = new BsonDocument();
+                            scheduleSettings.Add("_id", mediaSettings["_id"]);
+                            scheduleSettings.Add("ServerId", mediaSettings["ServerId"]);
+
+                            if (mediaSettings["ScheduleMessages"].AsArray != null)
+                            {
+                                var scheduleData = new BsonArray();
+                                foreach (var mediaMessage in mediaSettings["ScheduleMessages"].AsArray)
+                                {
+                                    scheduleData.Add(new BsonDocument(new Dictionary<string, BsonValue>()
+                                    {
+                                        { "MessageId", mediaMessage.AsDocument["MessageId"] },
+                                        { "ChannelId", mediaMessage.AsDocument["ChannelId"] }
+                                    }));
+                                }
+
+                                scheduleSettings.Add("ScheduleData", scheduleData);
+                            }
+
+                            scheduleCol.Insert(scheduleSettings);
+
+                            mediaSettings.Remove("ScheduleMessages");
+                            mediaCol.Update(mediaSettings);
+                        }
+                    }
                 )
             };
         }
@@ -84,4 +120,14 @@ namespace DustyBot.Settings.LiteDB
             return result;
         }
     }
+
+    #region Legacy types
+
+    public class MessageLocation
+    {
+        public ulong MessageId { get; set; }
+        public ulong ChannelId { get; set; }
+    }
+
+    #endregion
 }

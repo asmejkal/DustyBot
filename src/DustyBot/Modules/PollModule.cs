@@ -60,18 +60,8 @@ namespace DustyBot.Modules
 
             if (poll.Answers.Count < 2)
                 throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
-            
-            //Add to settings
-            bool added = await Settings.Modify(command.GuildId, (PollSettings s) =>
-            {
-                if (s.Polls.Any(x => x.Channel == channelId))
-                    return false;
-                
-                s.Polls.Add(poll);
-                return true;
-            }).ConfigureAwait(false);
 
-            if (!added)
+            if ((await Settings.Read<PollSettings>(command.GuildId)).Polls.Any(x => x.Channel == channelId))
             {
                 await command.ReplyError(Communicator, "There is already a poll running in this channel. End it before starting a new one.");
                 return;
@@ -90,6 +80,16 @@ namespace DustyBot.Modules
                 .WithFooter("You may vote again to change your answer");
             
             await (await command.Guild.GetTextChannelAsync(channelId)).SendMessageAsync(string.Empty, false, embed.Build());
+
+            //Add to settings
+            bool added = await Settings.Modify(command.GuildId, (PollSettings s) =>
+            {
+                if (s.Polls.Any(x => x.Channel == channelId))
+                    throw new Exception("Unexpected race condition - poll already running.");
+
+                s.Polls.Add(poll);
+                return true;
+            }).ConfigureAwait(false);
 
             if (command.Message.Channel.Id != poll.Channel)
                 await command.ReplySuccess(Communicator, "Poll started!");

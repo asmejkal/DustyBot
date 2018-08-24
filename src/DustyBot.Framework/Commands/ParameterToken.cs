@@ -97,16 +97,17 @@ namespace DustyBot.Framework.Commands
         public ITextChannel AsTextChannel => TryConvert<ITextChannel>(this, ParameterType.TextChannel, x =>
         {
             ulong id;
-            if (!ulong.TryParse(x, out id))
-            {
-                var match = ChannelMentionRegex.Match(x);
-                if (!match.Success)
-                    return null;
+            if (ulong.TryParse(x, out id))
+                return _guild?.TextChannels.FirstOrDefault(y => y.Id == id);
 
+            var match = ChannelMentionRegex.Match(x);
+            if (match.Success)
+            {
                 id = ulong.Parse(match.Groups[1].Value);
+                return _guild?.TextChannels.FirstOrDefault(y => y.Id == id);
             }
 
-            return _guild?.TextChannels.FirstOrDefault(y => y.Id == id);
+            return _guild?.TextChannels.FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
         });
 
         private static Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);

@@ -128,7 +128,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.TwitterModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Client));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
