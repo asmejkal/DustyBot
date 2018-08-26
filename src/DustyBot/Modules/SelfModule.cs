@@ -9,6 +9,7 @@ using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
 using DustyBot.Settings;
+using DustyBot.Helpers;
 using System.Reflection;
 using Discord.WebSocket;
 using System.Net;
@@ -47,7 +48,7 @@ namespace DustyBot.Modules
                     if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 4 == 0)
                     {
                         pages.Add(new EmbedBuilder()
-                            .WithDescription("Also on [web](http://dustybot.info/reference.html).")
+                            .WithDescription("Also on [web](http://dustybot.info/reference). Join the [support server](https://discord.gg/mKKJFvZ) if you need help with any of the commands.")
                             .WithTitle("Commands")
                             .WithFooter($"Type '{config.CommandPrefix}help command' to see usage of a specific command."));
                     }
@@ -213,7 +214,9 @@ namespace DustyBot.Modules
                 {
                     counter++;
                     result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
-                        $"&#9662; <span class=\"paramlistcode\">{handledCommand.InvokeUsage}</span> – {handledCommand.Description}</p>");
+                        $"&#9662; <span class=\"paramlistcode\">{handledCommand.InvokeUsage}</span> – {handledCommand.Description} " +
+                        string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
+                        "</p>");
 
                     var usage = BuildWebUsageString(handledCommand, config);
                     if (string.IsNullOrEmpty(usage))

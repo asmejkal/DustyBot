@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
@@ -73,6 +74,13 @@ namespace DustyBot.Helpers
                 var tokens = input.ToLowerInvariant().Split(separators, StringSplitOptions.RemoveEmptyEntries);
                 return tokens.All(x => value.Contains(x));
             }
+        }
+
+        public static string SplitCamelCase(this string value, string delimiter = " ")
+        {
+            return string.Join(delimiter, Regex.Matches(value, @"(^\p{Ll}+|\p{Lu}+(?!\p{Ll})|\p{Lu}\p{Ll}+)")
+                .OfType<Match>()
+                .Select(m => m.Value));
         }
     }
 }

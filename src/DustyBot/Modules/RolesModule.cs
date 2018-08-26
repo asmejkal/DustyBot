@@ -256,6 +256,7 @@ namespace DustyBot.Modules
                     }
 
                     msgContent = msgContent.TrimStart('-', '+');
+                    msgContent = msgContent.Trim();
 
                     AssignableRole roleAar = null;
                     foreach (var assignableRole in settings.AssignableRoles)

@@ -24,6 +24,8 @@ namespace DustyBot.Modules
     [Module("Cafe", "Daum Cafe feeds, including private boards.")]
     class CafeModule : Module
     {
+        public const int ServerFeedLimit = 25;
+
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
 
@@ -43,23 +45,23 @@ namespace DustyBot.Modules
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task AddCafeFeed(ICommand command)
         {
-            if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= 25)
+            if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= ServerFeedLimit)
             {
                 await command.ReplyError(Communicator, "You've reached a feed limit for Daum Cafe on this server.");
                 return;
             }
 
             var feed = new DaumCafeFeed();
-            feed.TargetChannel = command[1].AsTextChannel.Id;
+            feed.TargetChannel = command["Channel"].AsTextChannel.Id;
 
             bool postsAccesible;
             try
             {
                 DaumCafeSession session;
-                if (command[2].HasValue)
+                if (command["CredentialId"].HasValue)
                 {
                     feed.CredentialUser = command.Message.Author.Id;
-                    feed.CredentialId = (Guid)command[2];
+                    feed.CredentialId = (Guid)command["CredentialId"];
 
                     var credential = await CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
                     session = await DaumCafeSession.Create(credential.Login, credential.Password);
@@ -69,7 +71,7 @@ namespace DustyBot.Modules
                     session = DaumCafeSession.Anonymous;
                 }
 
-                var info = await session.GetCafeAndBoardId(command[0]);
+                var info = await session.GetCafeAndBoardId(command["BoardSectionLink"]);
                 feed.CafeId = info.Item1;
                 feed.BoardId = info.Item2;
 
@@ -114,7 +116,7 @@ namespace DustyBot.Modules
         {
             bool removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return s.DaumCafeFeeds.RemoveAll(x => x.Id == (Guid)command[0]) > 0;
+                return s.DaumCafeFeeds.RemoveAll(x => x.Id == (Guid)command["FeedId"]) > 0;
             });
 
             if (removed)

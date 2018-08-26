@@ -71,6 +71,18 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, "Reaction removed.").ConfigureAwait(false);
         }
 
+        [Command("reactions", "clear", "Removes all reactions.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        public async Task ReactionsClear(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            {
+                s.Reset();
+            }).ConfigureAwait(false);
+
+            await command.ReplySuccess(Communicator, "All reactions cleared.").ConfigureAwait(false);
+        }
+
         [Command("reactions", "list", "Lists all reactions.")]
         public async Task ReactionsList(ICommand command)
         {
@@ -91,18 +103,6 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
-        }
-
-        [Command("reactions", "clear", "Removes all reactions.")]
-        [Permissions(GuildPermission.ManageMessages)]
-        public async Task ReactionsClear(ICommand command)
-        {
-            await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
-            {
-                s.Reset();
-            }).ConfigureAwait(false);
-            
-            await command.ReplySuccess(Communicator, "All reactions cleared.").ConfigureAwait(false);
         }
 
         public override Task OnMessageReceived(SocketMessage message)
