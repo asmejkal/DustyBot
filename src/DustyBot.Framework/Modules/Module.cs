@@ -47,9 +47,7 @@ namespace DustyBot.Framework.Modules
                 };
 
                 //Optional
-                command.Parameters = method.GetCustomAttributes<ParameterAttribute>()
-                    .Select(x => new ParameterRegistration() { Name = x.Name, Format = x.Format, Type = x.Type, Flags = x.Flags, Description = x.Description })
-                    .ToList();
+                command.Parameters = method.GetCustomAttributes<ParameterAttribute>().Select(x => x.Registration).ToList();
 
                 var permissions = method.GetCustomAttribute<PermissionsAttribute>();
                 if (permissions != null)

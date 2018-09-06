@@ -23,25 +23,70 @@ namespace DustyBot.Framework.Commands
                 _type = type;
             }
 
-            public dynamic TryGet(ParameterType type) => _type == type ? _value : null;
+            public bool TryGet(ParameterType type, out dynamic value)
+            {
+                if (_type == type)
+                {
+                    value = _value;
+                    return true;
+                }
+                else
+                {
+                    value = null;
+                    return false;
+                }                    
+            }
+
             public ParameterType Type => _type;
         }
 
-        DynamicValue _cache;
-        SocketGuild _guild;
+        private class ValueCache
+        {
+            Dictionary<ParameterType, DynamicValue> _data = new Dictionary<ParameterType, DynamicValue>();
 
-        public string Raw { get; }
+            public bool TryGet(ParameterType type, out dynamic value)
+            {
+                value = null;
+                DynamicValue cached;
+                return _data.TryGetValue(type, out cached) ? cached.TryGet(type, out value) : false;
+            }
+
+            public void Add(DynamicValue value) => _data.Add(value.Type, value);
+        }
+
+        public static readonly ParameterToken Empty = new ParameterToken();
+        ValueCache _cache = new ValueCache();
+
+        public SocketGuild Guild { get; }
+
+        public string Raw { get; } = string.Empty;
         public string LastError { get; private set; }
+        public ParameterRegistration Registration { get; set; }
         public bool HasValue => !string.IsNullOrEmpty(Raw);
-        public ParameterRegistration Parameter { get; set; }
+        public int Begin { get; }
+        public int End { get; }
 
         public Regex Regex { get; set; }
 
-        public ParameterToken(string parameter, SocketGuild guild)
+        private ParameterToken()
         {
-            Raw = parameter ?? string.Empty;
-            _guild = guild;
-            _cache = new DynamicValue(Raw, ParameterType.String);
+        }
+
+        public ParameterToken(StringExtensions.Token token, SocketGuild guild)
+        {
+            Begin = token.Begin;
+            End = token.End;
+            Raw = token.Value ?? string.Empty;
+            Guild = guild;
+        }
+
+        public ParameterToken(ParameterRegistration registration, int begin, int end, string value, SocketGuild guild)
+        {
+            Registration = registration;
+            Begin = begin;
+            End = end;
+            Raw = value ?? string.Empty;
+            Guild = guild;
         }
 
         public async Task<bool> IsType(ParameterType type) => (await GetValue(type).ConfigureAwait(false)) != null;
@@ -98,16 +143,16 @@ namespace DustyBot.Framework.Commands
         {
             ulong id;
             if (ulong.TryParse(x, out id))
-                return _guild?.TextChannels.FirstOrDefault(y => y.Id == id);
+                return Guild?.TextChannels.FirstOrDefault(y => y.Id == id);
 
             var match = ChannelMentionRegex.Match(x);
             if (match.Success)
             {
                 id = ulong.Parse(match.Groups[1].Value);
-                return _guild?.TextChannels.FirstOrDefault(y => y.Id == id);
+                return Guild?.TextChannels.FirstOrDefault(y => y.Id == id);
             }
 
-            return _guild?.TextChannels.FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
+            return Guild?.TextChannels.FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
         });
 
         private static Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
@@ -123,28 +168,35 @@ namespace DustyBot.Framework.Commands
                 id = ulong.Parse(match.Groups[1].Value);
             }
 
-            return _guild?.Users.FirstOrDefault(y => y.Id == id);
+            return Guild?.Users.FirstOrDefault(y => y.Id == id);
         });
 
+        private static Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
         public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>
         {
-            var role = _guild?.Roles.FirstOrDefault(r => string.Equals(r.Name, x, StringComparison.CurrentCultureIgnoreCase));
+            var role = Guild?.Roles.FirstOrDefault(r => string.Equals(r.Name, x, StringComparison.CurrentCultureIgnoreCase));
             if (role != null)
                 return role;
 
             ulong id;
             if (!ulong.TryParse(x, out id))
-                return null;
+            {
+                var match = RoleMentionRegex.Match(x);
+                if (!match.Success)
+                    return null;
 
-            return _guild?.GetRole(id);
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            return Guild?.GetRole(id);
         });
 
         public async Task<IUserMessage> AsGuildUserMessage() => await TryConvert<IUserMessage>(this, ParameterType.GuildUserMessage, async x =>
         {
-            if (AsULong == null || _guild == null)
+            if (AsULong == null || Guild == null)
                 return null;
 
-            var message = (await _guild.GetMessageAsync(AsULong.Value).ConfigureAwait(false)) as IUserMessage;
+            var message = (await Guild.GetMessageAsync(AsULong.Value).ConfigureAwait(false)) as IUserMessage;
             if (message == null)
                 LastError = Properties.Resources.Parameter_UserMessageNotFound;
 
@@ -154,10 +206,10 @@ namespace DustyBot.Framework.Commands
         public async Task<IUserMessage> AsGuildSelfMessage() => await TryConvert<IUserMessage>(this, ParameterType.GuildSelfMessage, async x =>
         {
             var message = await AsGuildUserMessage();
-            if (message == null || _guild == null)
+            if (message == null || Guild == null)
                 return null;
 
-            if (message.Author.Id != _guild.CurrentUser.Id)
+            if (message.Author.Id != Guild.CurrentUser.Id)
             {
                 LastError = Properties.Resources.Parameter_NotSelfMessage;
                 return null;
@@ -184,8 +236,8 @@ namespace DustyBot.Framework.Commands
         static T TryConvert<T>(ParameterToken token, ParameterType type, Func<string, T> parser)
             where T : class
         {
-            T result = token._cache.TryGet(type);
-            if (result != null)
+            dynamic result;
+            if (token._cache.TryGet(type, out result))
                 return result;
 
             try
@@ -197,15 +249,15 @@ namespace DustyBot.Framework.Commands
                 result = null;
             }
 
-            token._cache = new DynamicValue(result, type);
+            token._cache.Add(new DynamicValue(result, type));
             return result;
         }
 
         static async Task<T> TryConvert<T>(ParameterToken token, ParameterType type, Func<string, Task<T>> parser)
             where T : class
         {
-            T result = token._cache.TryGet(type);
-            if (result != null)
+            dynamic result;
+            if (token._cache.TryGet(type, out result))
                 return result;
 
             try
@@ -217,7 +269,7 @@ namespace DustyBot.Framework.Commands
                 result = null;
             }
 
-            token._cache = new DynamicValue(result, type);
+            token._cache.Add(new DynamicValue(result, type));
             return result;
         }
 
@@ -225,13 +277,13 @@ namespace DustyBot.Framework.Commands
         static T? TryConvert<T>(ParameterToken token, ParameterType type, TryParseDelegate<T> parser)
             where T : struct
         {
-            T? cache = token._cache.TryGet(type);
-            if (cache != null)
+            dynamic cache;
+            if (token._cache.TryGet(type, out cache))
                 return cache;
 
             T tmp;
             T? result = parser(token.Raw, out tmp) ? new T?(tmp) : new T?();
-            token._cache = new DynamicValue(result, type);
+            token._cache.Add(new DynamicValue(result, type));
 
             return result;
         }

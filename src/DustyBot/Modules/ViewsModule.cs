@@ -39,7 +39,7 @@ namespace DustyBot.Modules
         public async Task Views(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId);
-            string param = string.IsNullOrWhiteSpace(command.Remainder) ? null : (string)command.Remainder;
+            string param = string.IsNullOrWhiteSpace(command["SongOrCategoryName"]) ? null : (string)command["SongOrCategoryName"];
 
             var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, param, true) == 0).ToList();
             if (comebacks.Count <= 0 && param != null && param.Length > 2)
@@ -52,9 +52,9 @@ namespace DustyBot.Modules
                 if (settings.YouTubeComebacks.Count <= 0)
                     rec = "Use the `views add` command.";
                 else
-                    rec = GetOtherCategoriesRecommendation(settings, config, param, true);
+                    rec = "Try " + GetOtherCategoriesRecommendation(settings, config, param, true) + ".";
 
-                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. Try {rec}.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}").ConfigureAwait(false);
                 return;
             }
 

@@ -66,6 +66,8 @@ namespace DustyBot.Framework.Modules
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = true)]
     public class ParameterAttribute : Attribute
     {
+        #region basic
+
         public ParameterAttribute(string name, ParameterType type, string description = "")
             : this(name, null, type, ParameterFlags.None, description)
         {
@@ -75,6 +77,9 @@ namespace DustyBot.Framework.Modules
             : this(name, null, type, flags, description)
         {
         }
+
+        #endregion
+        #region with format
 
         public ParameterAttribute(string name, string format, string description = "")
             : this(name, format, ParameterType.String, ParameterFlags.None, description)
@@ -91,20 +96,20 @@ namespace DustyBot.Framework.Modules
         {
         }
 
+        #endregion
+
         public ParameterAttribute(string name, string format, ParameterType type, ParameterFlags flags, string description = "")
         {
-            Name = name;
-            Format = format;
-            Type = type;
-            Flags = flags;
-            Description = description;
+            Registration = new ParameterRegistration();
+
+            Registration.Name = name;
+            Registration.Format = format;
+            Registration.Type = type;
+            Registration.Flags = flags;
+            Registration.Description = description;
         }
 
-        public string Name { get; }
-        public string Format { get; }
-        public ParameterType Type { get; }
-        public ParameterFlags Flags { get; }
-        public string Description { get; }
+        public ParameterRegistration Registration { get; }
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]

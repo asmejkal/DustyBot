@@ -33,16 +33,5 @@ namespace DustyBot.Framework.Commands
         IEnumerable<ParameterToken> GetParameters();
         ParameterToken this[int key] { get; }
         ParameterToken this[string name] { get; }
-        Remainder Remainder { get; }
-    }
-
-    public abstract class Remainder : ParameterToken
-    {
-        public Remainder(string body, SocketGuild guild) 
-            : base(body, guild)
-        {
-        }
-
-        public abstract ParameterToken After(int count);
     }
 }

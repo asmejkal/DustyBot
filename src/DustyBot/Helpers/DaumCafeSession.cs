@@ -276,18 +276,18 @@ namespace DustyBot.Helpers
 
             //Try to retrieve a few post IDs
             int tries = 0;
-            foreach (var id in ids.OrderByDescending(x => x))
+            foreach (var postId in ids.OrderByDescending(x => x))
             {
                 try
                 {
-                    var _ = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}/{id}").ConfigureAwait(false);
+                    var _ = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}/{postId}").ConfigureAwait(false);
                     return true;
                 }
                 catch (HttpRequestException)
                 {
                 }
 
-                if (++tries >= 3)
+                if (++tries >= 10)
                     break;
             }
             

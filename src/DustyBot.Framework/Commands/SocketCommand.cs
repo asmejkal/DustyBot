@@ -6,15 +6,40 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using DustyBot.Framework.Utility;
 using DustyBot.Framework.Communication;
+using System.Text.RegularExpressions;
 
 namespace DustyBot.Framework.Commands
 {
     public class SocketCommand : ICommand
     {
+        public enum ParseResultType
+        {
+            Success,
+            InvalidPrefix,
+            InvalidInvoker,
+            MissingVerbs,
+            InvalidVerb,
+            NotEnoughParameters,
+            InvalidParameterFormat,
+            TooManyParameters
+        }
+
+        public class ParseResult
+        {
+            public ParseResult(ParseResultType type) => Type = type;
+            public ParseResultType Type { get; set; }
+        }
+
+        public class InvalidParameterParseResult : ParseResult
+        {
+            public InvalidParameterParseResult(ParseResultType type, int position) : base(type) => InvalidPosition = position;
+            public int InvalidPosition { get; set; }
+        }
+
         private List<string> _verbs = new List<string>();
-        private List<Tuple<int, ParameterToken>> _tokens;
-        public Remainder Remainder { get; private set; }
+        private List<ParameterToken> _tokens = new List<ParameterToken>();
 
         public IUserMessage Message { get; private set; }
         public ulong GuildId => (Message.Channel as IGuildChannel)?.GuildId ?? 0;
@@ -28,133 +53,177 @@ namespace DustyBot.Framework.Commands
         public string Body { get; private set; }
 
         public int ParametersCount => _tokens.Count;
-        public int GetIndex(string name) => _tokens.FindIndex(x => string.Compare(x.Item2.Parameter?.Name, name, true) == 0);
-        public ParameterToken GetParameter(int key) => _tokens.ElementAtOrDefault(key)?.Item2 ?? new ParameterToken(null, Guild as SocketGuild);
-        public ParameterToken GetParameter(string name) => _tokens.FirstOrDefault(x => string.Compare(x.Item2.Parameter?.Name, name, true) == 0)?.Item2 ?? new ParameterToken(null, Guild as SocketGuild);
-        public IEnumerable<ParameterToken> GetParameters() => _tokens.Select(x => x.Item2);
+        public int GetIndex(string name) => _tokens.FindIndex(x => string.Compare(x.Registration?.Name, name, true) == 0);
+        public ParameterToken GetParameter(int key) => _tokens.ElementAtOrDefault(key) ?? ParameterToken.Empty;
+        public ParameterToken GetParameter(string name) => _tokens.FirstOrDefault(x => string.Compare(x.Registration?.Name, name, true) == 0) ?? ParameterToken.Empty;
+        public IEnumerable<ParameterToken> GetParameters() => _tokens;
         public ParameterToken this[int key] => GetParameter(key);
         public ParameterToken this[string name] => GetParameter(name);
 
         public Config.IEssentialConfig Config { get; set; }
+        public CommandRegistration Registration { get; }
 
-        private SocketCommand(Config.IEssentialConfig config)
+        private SocketCommand(CommandRegistration registration, SocketUserMessage message, Config.IEssentialConfig config)
         {
+            Registration = registration;
+            Message = message;
             Config = config;
         }
 
-        public static string ParseInvoker(SocketUserMessage message, string prefix)
+        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, SocketUserMessage message, Config.IEssentialConfig config)
         {
-            if (!message.Content.StartsWith(prefix))
-                return null;
-
-            return new string(message.Content.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(prefix.Length).ToArray());
+            var command = new SocketCommand(registration, message, config);
+            return Tuple.Create(await command.TryParse(), command as ICommand);
         }
 
-        public static List<string> ParseVerbs(SocketUserMessage message)
-        {
-            return message.Content.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).ToList();
-        }
+        public static string ParseInvoker(string message, string prefix) => new string(message.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(prefix.Length).ToArray());
 
-        public static string ParseBody(SocketUserMessage message, int verbCount = 0)
+        public static CommandRegistration FindLongestMatch(string message, IEnumerable<CommandRegistration> possibleRegistrations)
         {
-            var content = message.Content;
-            int toSkip = verbCount + 1;
-            int skipped = 0;
-            bool inWhiteSpace = true;
-            for (int i = 0; i < content.Length; ++i)
+            var maxVerbs = possibleRegistrations.Max(x => x.Verbs.Count);
+            var split = message.Split(new char[0], maxVerbs + 2 /* (invoker and body) */, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var r in possibleRegistrations.OrderByDescending(x => x.Verbs.Count))
             {
-                if (char.IsWhiteSpace(content[i]))
+                if (!r.HasVerbs)
+                    return r;
+
+                if (split.Length < r.Verbs.Count + 1)
+                    continue; //Not enough verbs in the message
+
+                bool match = true;
+                for (int i = 0; i < r.Verbs.Count; ++i)
                 {
-                    inWhiteSpace = true;
-                }
-                else if (inWhiteSpace)
-                {
-                    if (skipped >= toSkip)
-                        return content.Substring(i);
-
-                    inWhiteSpace = false;
-                    skipped++;
-                }
-            }
-
-            return string.Empty;
-        }
-
-        public static bool TryCreate(SocketUserMessage message, Config.IEssentialConfig config, out ICommand command, int verbCount = 0)
-        {
-            var socketCommand = new SocketCommand(config);
-            command = socketCommand;
-            return socketCommand.TryParse(message, verbCount);
-        }
-
-        private bool TryParse(SocketUserMessage message, int verbCount = 0)
-        {
-            Message = message;
-
-            if (string.IsNullOrEmpty(Invoker = ParseInvoker(message, Prefix)))
-                return false;
-
-            var allVerbs = ParseVerbs(message);
-            if (verbCount > allVerbs.Count)
-                return false;
-
-            _verbs = allVerbs.Take(verbCount).ToList();
-
-            Body = ParseBody(message, verbCount);
-
-            TokenizeParameters('"');
-
-            Remainder = new SocketRemainder(_tokens.Select(x => x.Item1), Body, Guild as SocketGuild);
-
-            return true;
-        }
-
-        private void TokenizeParameters(params char[] textQualifiers)
-        {
-            _tokens = new List<Tuple<int, ParameterToken>>();
-
-            string allParams = Body;
-            if (allParams == null)
-                return;
-
-            char prevChar = '\0', nextChar = '\0', currentChar = '\0';
-            bool inString = false;
-
-            StringBuilder token = new StringBuilder();
-            for (int i = 0; i < allParams.Length; i++)
-            {
-                currentChar = allParams[i];
-                prevChar = i > 0 ? prevChar = allParams[i - 1] : '\0';
-                nextChar = i + 1 < allParams.Length ? allParams[i + 1] : '\0';
-
-                if (textQualifiers.Contains(currentChar) && (prevChar == '\0' || char.IsWhiteSpace(prevChar)) && !inString)
-                {
-                    inString = true;
-                    continue;
-                }
-
-                if (textQualifiers.Contains(currentChar) && (nextChar == '\0' || char.IsWhiteSpace(nextChar)) && inString && prevChar != '\\')
-                {
-                    inString = false;
-                    continue;
-                }
-
-                if (char.IsWhiteSpace(currentChar) && !inString)
-                {
-                    if (token.Length > 0)
+                    if (string.Compare(split[i + 1], r.Verbs[i], true) != 0)
                     {
-                        _tokens.Add(Tuple.Create(i, new ParameterToken(token.ToString(), Guild as SocketGuild)));
-                        token = token.Remove(0, token.Length);
+                        match = false;
+                        break;
                     }
-                    
-                    continue;
                 }
 
-                token = token.Append(currentChar);
+                if (match)
+                    return r;
             }
 
-            if (token.Length > 0)
-                _tokens.Add(Tuple.Create(allParams.Length, new ParameterToken(token.ToString(), Guild as SocketGuild)));
+            return null;
+        }
+
+        private async Task<ParseResult> TryParse()
+        {
+            //Prefix
+            var content = Message.Content;
+            if (!content.StartsWith(Prefix))
+                return new ParseResult(ParseResultType.InvalidPrefix);
+
+            //Invoker
+            Invoker = ParseInvoker(content, Prefix);
+            if (string.IsNullOrEmpty(Invoker) || string.Compare(Invoker, Registration.InvokeString, true) != 0)
+                return new ParseResult(ParseResultType.InvalidInvoker);
+
+            //Verbs
+            var split = content.Split(new char[0], Registration.Verbs.Count + 2 /* (invoker and body) */, StringSplitOptions.RemoveEmptyEntries);
+            if (Registration.HasVerbs)
+            {
+                if (split.Length < Registration.Verbs.Count + 1)
+                    return new ParseResult(ParseResultType.MissingVerbs);
+
+                for (int i = 0; i < Registration.Verbs.Count; ++i)
+                {
+                    if (string.Compare(split[i + 1], Registration.Verbs[i], true) != 0)
+                        return new ParseResult(ParseResultType.InvalidVerb);
+
+                    _verbs.Add(split[i + 1]);
+                }
+            }
+
+            Body = split.ElementAtOrDefault(Registration.Verbs.Count + 1 /* (invoker) */) ?? string.Empty;
+
+            return await TryParseParams();
+        }
+
+        private async Task<ParseResult> TryParseParams() 
+            => await TryParseParamsInner(Body.Tokenize('"').Select(x => new ParameterToken(x, Guild as SocketGuild)), Registration.Parameters);
+
+        private async Task<ParseResult> TryParseParamsInner(IEnumerable<ParameterToken> tokens, IEnumerable<ParameterRegistration> registrations, bool test = false)
+        {
+            var tokensQ = new Queue<ParameterToken>(tokens);
+            int count = 0;
+            foreach (var param in registrations)
+            {
+                count++;
+                if (tokensQ.Count <= 0)
+                {
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        continue;
+                    else
+                        return new ParseResult(ParseResultType.NotEnoughParameters);
+                }
+
+                var token = tokensQ.Peek();
+                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                {
+                    string value = Body.Substring(token.Begin);
+                    if (value.StartsWith("\"") && value.EndsWith("\""))
+                        token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild);
+                    else
+                        token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild);
+                }
+                    
+
+                if (param.Type == ParameterType.Regex)
+                    token.Regex = new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+                if (!(await token.IsType(param.Type).ConfigureAwait(false)))
+                {
+                    token.Regex = null;
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        continue;
+                    else
+                        return new InvalidParameterParseResult(ParseResultType.InvalidParameterFormat, ParametersCount + 1);
+                }
+
+                if (!string.IsNullOrEmpty(param.Format) && !Regex.IsMatch(token.Raw, param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase))
+                {
+                    token.Regex = null;
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                        continue;
+                    else
+                        return new InvalidParameterParseResult(ParseResultType.InvalidParameterFormat, ParametersCount + 1);
+                }
+
+                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                {
+                    if (!test)
+                    {
+                        token.Registration = param;
+                        _tokens.Add(token);
+                    }
+
+                    return new ParseResult(ParseResultType.Success);
+                }
+
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                {
+                    //Peek forward to check if we aren't stealing this token from a required parameter
+                    if ((await TryParseParamsInner(tokensQ.Skip(1), registrations.Skip(count), true)).Type != ParseResultType.Success)
+                    {
+                        token.Regex = null;
+                        continue; //The parsing would fail, so we can't take the token
+                    }
+                }
+
+                if (!test)
+                {
+                    token.Registration = param;
+                    _tokens.Add(token);
+                }                    
+
+                tokensQ.Dequeue();
+            }
+
+            if (tokensQ.Count > 0)
+                return new ParseResult(ParseResultType.TooManyParameters);
+
+            return new ParseResult(ParseResultType.Success);
         }
 
         public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message) => communicator.CommandReplySuccess(Message.Channel, message);
@@ -162,30 +231,5 @@ namespace DustyBot.Framework.Commands
         public Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message) => communicator.CommandReply(Message.Channel, message);
         public Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => communicator.CommandReply(Message.Channel, message, chunkDecorator, maxDecoratorOverhead);
         public Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false, bool resend = false) => communicator.CommandReply(Message.Channel, pages, controlledByInvoker ? Message.Author.Id : 0, resend);
-    }
-
-    public class SocketRemainder : Remainder
-    {
-        List<int> _tokenPositions;
-        SocketGuild _guild;
-        Dictionary<int, ParameterToken> _cache = new Dictionary<int, ParameterToken>();
-
-        public SocketRemainder(IEnumerable<int> tokenPositions, string body, SocketGuild guild)
-            : base(body.Trim(), guild)
-        {
-            _tokenPositions = new List<int>(tokenPositions);
-            _guild = guild;
-        }
-
-        public override ParameterToken After(int count)
-        {
-            ParameterToken result;
-            if (_cache.TryGetValue(count, out result))
-                return result;
-
-            result = new ParameterToken(Raw.Substring(count <= 0 ? 0 : (_tokenPositions.Count < count ? Raw.Length : _tokenPositions.ElementAtOrDefault(count - 1))).Trim(), _guild);
-            _cache.Add(count, result);
-            return result;
-        }
     }
 }

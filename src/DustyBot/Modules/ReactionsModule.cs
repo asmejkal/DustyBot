@@ -47,7 +47,7 @@ namespace DustyBot.Modules
             var id = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var newId = s.NextReactionId++;
-                s.Reactions.Add(new Reaction() { Id = newId, Trigger = command[0], Value = command.Remainder.After(1) });
+                s.Reactions.Add(new Reaction() { Id = newId, Trigger = command["Trigger"], Value = command["Response"] });
                 return newId;
             });
 

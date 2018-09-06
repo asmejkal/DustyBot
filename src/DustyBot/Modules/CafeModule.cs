@@ -125,6 +125,25 @@ namespace DustyBot.Modules
                 await command.ReplyError(Communicator, $"A feed with this ID does not exist.").ConfigureAwait(false);
         }
 
+        [Command("cafe", "remove", "global", "Removes a Daum Cafe board feed from any server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("FeedId", ParameterType.Guid)]
+        public async Task RemoveCafeFeedGlobal(ICommand command)
+        {
+            foreach (var settings in await Settings.Read<MediaSettings>())
+            {
+                if (settings.DaumCafeFeeds.Any(x => x.Id == command["FeedId"].AsGuid))
+                {
+                    var removed = await Settings.Modify(settings.ServerId, (MediaSettings x) => x.DaumCafeFeeds.RemoveAll(y => y.Id == command["FeedId"].AsGuid));
+
+                    await command.ReplySuccess(Communicator, $"Feed has been removed from server `{settings.ServerId}`.").ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            await command.ReplyError(Communicator, $"A feed with this ID does not exist.").ConfigureAwait(false);
+        }
+
         [Command("cafe", "list", "Lists all active Daum Cafe board feeds.")]
         [Permissions(GuildPermission.Administrator)]
         public async Task ListCafeFeeds(ICommand command)

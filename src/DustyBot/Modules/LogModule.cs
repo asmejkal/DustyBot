@@ -60,8 +60,8 @@ namespace DustyBot.Modules
         [Comment("Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
         public async Task SetMessagesFilter(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedFilter = command.Remainder).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command.Remainder) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedFilter = command["RegularExpression"]).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command["RegularExpression"]) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
         }
 
         [Command("log", "filter", "channels", "Excludes channels from logging of deleted messages.")]

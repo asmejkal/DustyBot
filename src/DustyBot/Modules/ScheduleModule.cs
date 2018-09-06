@@ -121,9 +121,9 @@ namespace DustyBot.Modules
         [Example("462366629247057930 Schedule (June)")]
         public async Task HeaderEditSchedule(ICommand command)
         {
-            var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
+            var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
-            message.Header = command.Remainder.After(1);
+            message.Header = command["Header"];
             await message.CommitChanges();
 
             await command.ReplySuccess(Communicator, $"Header has been set.").ConfigureAwait(false);
@@ -136,9 +136,9 @@ namespace DustyBot.Modules
         [Example("462366629247057930 Ooh, a new footer.")]
         public async Task FooterEditSchedule(ICommand command)
         {
-            var message = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
+            var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
-            message.Footer = command.Remainder.After(1);
+            message.Footer = command["Footer"];
             await message.CommitChanges();
 
             await command.ReplySuccess(Communicator, $"Footer has been set.").ConfigureAwait(false);
@@ -157,7 +157,7 @@ namespace DustyBot.Modules
             var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
             message.Clear();
-            var content = command.Remainder.After(command.GetIndex("Events"));
+            var content = command["Events"];
             using (var reader = new StringReader(content))
             {
                 for (string line = reader.ReadLine(); line != null; line = reader.ReadLine())
@@ -290,7 +290,7 @@ namespace DustyBot.Modules
                 {
                     Date = dateTime,
                     HasTime = hasTime,
-                    Description = command.Remainder.After(command.GetIndex("Description"))
+                    Description = command["Description"]
                 };
             }
             catch (FormatException)
@@ -328,7 +328,7 @@ namespace DustyBot.Modules
         {
             var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
-            string description = command.Remainder.After(command.GetIndex("Description"));
+            string description = command["Description"];
 
             if (string.IsNullOrEmpty(description))
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
@@ -400,7 +400,7 @@ namespace DustyBot.Modules
 
                 e.Date = dateTime;
                 e.HasTime = hasTime;
-                e.Description = command.Remainder.After(command.GetIndex("Description"));
+                e.Description = command["Description"];
             }
             catch (FormatException)
             {
@@ -431,7 +431,7 @@ namespace DustyBot.Modules
                 settings.ScheduleData.LastOrDefault();
 
             if (schedule == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("No schedule message has been created. Use `schedule create`.");
+                throw new Framework.Exceptions.IncorrectParametersCommandException(settings.ScheduleData.Any() ? "Not a registered schedule message. Use `schedule list` to see a list of all active messages." : "No schedule message has been created. Use `schedule create`.");
 
             var result = await PrintedScheduleMessage.Create(schedule, guild, Settings);
 
@@ -503,7 +503,7 @@ namespace DustyBot.Modules
             {
                 header = string.IsNullOrEmpty(header) ? DefaultHeader : header;
                 var embed = new EmbedBuilder()
-                    .WithTitle(header)
+                    .WithTitle(":calendar_spiral: " + header)
                     .WithDescription("")
                     .WithFooter(footer);
 

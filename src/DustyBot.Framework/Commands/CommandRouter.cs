@@ -62,6 +62,13 @@ namespace DustyBot.Framework.Commands
                 if (!TryGetCommandRegistration(userMessage, out commandRegistration))
                     return;
 
+                //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
+                var guild = (userMessage.Channel as IGuildChannel)?.Guild;
+                if (guild != null)
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {guild.Name}"));
+                else
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{commandRegistration.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
+
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))
                 {
@@ -71,53 +78,52 @@ namespace DustyBot.Framework.Commands
                     return;
                 }
 
-                //Create command
-                ICommand command;
-                if (!SocketCommand.TryCreate(userMessage, Config, out command, commandRegistration.Verbs.Count))
-                    return;
-                
-                //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
-                if (command.Guild != null)
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {command.Guild.Name}"));
-                else
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{commandRegistration.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
-
                 //Check owner
                 if (commandRegistration.Flags.HasFlag(CommandFlags.OwnerOnly) && !Config.OwnerIDs.Contains(message.Author.Id))
                 {
-                    await Communicator.CommandReplyNotOwner(command.Message.Channel, commandRegistration);
+                    await Communicator.CommandReplyNotOwner(message.Channel, commandRegistration);
                     return;
                 }
 
                 //Check guild permisssions
-                if (command.Guild != null)
+                if (userMessage.Channel is IGuildChannel guildChannel)
                 {
                     //User
                     var guildUser = message.Author as IGuildUser;
                     var missingPermissions = commandRegistration.RequiredPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
-                    if (missingPermissions.Count() > 0)
+                    if (missingPermissions.Any())
                     {
-                        await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, missingPermissions);
+                        await Communicator.CommandReplyMissingPermissions(message.Channel, commandRegistration, missingPermissions);
                         return;
                     }
 
                     //Bot
-                    var selfUser = await command.Guild.GetCurrentUserAsync();
+                    var selfUser = await guild.GetCurrentUserAsync();
                     var missingBotPermissions = commandRegistration.BotPermissions.Where(x => !selfUser.GuildPermissions.Has(x));
-                    if (missingBotPermissions.Count() > 0)
+                    if (missingBotPermissions.Any())
                     {
-                        await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, missingBotPermissions);
+                        await Communicator.CommandReplyMissingBotPermissions(message.Channel, commandRegistration, missingBotPermissions);
                         return;
                     }
                 }
 
-                //Check expected parameters
-                var checkResult = await CheckParameters(command, command.GetParameters(), commandRegistration.Parameters).ConfigureAwait(false);
-                if (!checkResult.Item1)
+                //Create command
+                var parseResult = await SocketCommand.TryCreate(commandRegistration, userMessage, Config);
+                if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
                 {
-                    await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, checkResult.Item2);
+                    string explanation = string.Empty;
+                    switch (parseResult.Item1.Type)
+                    {
+                        case SocketCommand.ParseResultType.NotEnoughParameters: explanation = Properties.Resources.Command_NotEnoughParameters; break;
+                        case SocketCommand.ParseResultType.TooManyParameters: explanation = Properties.Resources.Command_TooManyParameters; break;
+                        case SocketCommand.ParseResultType.InvalidParameterFormat: explanation = string.Format(Properties.Resources.Command_InvalidParameterFormat, ((SocketCommand.InvalidParameterParseResult)parseResult.Item1).InvalidPosition); break;
+                    }
+
+                    await Communicator.CommandReplyIncorrectParameters(message.Channel, commandRegistration, explanation);
                     return;
                 }
+
+                var command = parseResult.Item2;
 
                 //Execute
                 var executor = new Func<Task>(async () =>
@@ -133,6 +139,10 @@ namespace DustyBot.Framework.Commands
                     catch (Exceptions.IncorrectParametersCommandException ex)
                     {
                         await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                    }
+                    catch (Exceptions.MissingPermissionsException ex)
+                    {
+                        await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
                     }
                     catch (Exceptions.MissingBotPermissionsException ex)
                     {
@@ -177,8 +187,12 @@ namespace DustyBot.Framework.Commands
         {
             commandRegistration = null;
 
+            //Check prefix
+            if (!userMessage.Content.StartsWith(Config.CommandPrefix))
+                return false;
+
             //Check if the message contains a command invoker
-            var invoker = SocketCommand.ParseInvoker(userMessage, Config.CommandPrefix);
+            var invoker = SocketCommand.ParseInvoker(userMessage.Content, Config.CommandPrefix);
             if (string.IsNullOrEmpty(invoker))
                 return false;
 
@@ -187,31 +201,8 @@ namespace DustyBot.Framework.Commands
             if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
                 return false;
 
-            //Try to find the longest match
-            var verbs = SocketCommand.ParseVerbs(userMessage);
-            foreach (var r in commandRegistrations.OrderByDescending(x => x.Verbs.Count))
-            {
-                if (r.Verbs.Count > verbs.Count)
-                    continue;
-
-                bool mismatch = false;
-                for (int i = 0; i < r.Verbs.Count; ++i)
-                {
-                    if (string.Compare(r.Verbs[i], verbs[i], true) != 0)
-                    {
-                        mismatch = true;
-                        break;
-                    }
-                }
-
-                if (!mismatch)
-                {
-                    commandRegistration = r;
-                    return true;
-                }
-            }
-
-            return false;
+            commandRegistration = SocketCommand.FindLongestMatch(userMessage.Content, commandRegistrations);
+            return commandRegistration != null;
         }
 
         private bool IsValidCommandSource(IMessageChannel channel, CommandRegistration cr)
@@ -223,74 +214,6 @@ namespace DustyBot.Framework.Commands
                 return true;
 
             return false;
-        }
-
-        private async Task<Tuple<bool, string>> CheckParameters(ICommand command, IEnumerable<ParameterToken> tokens, IEnumerable<ParameterRegistration> registrations)
-        {
-            Queue<ParameterToken> tokensQ = new Queue<ParameterToken>(tokens);
-            int count = 0;
-            foreach (var param in registrations)
-            {
-                count++;
-                if (tokensQ.Count <= 0)
-                {
-                    if (param.Flags.HasFlag(ParameterFlags.Optional))
-                        continue;
-                    else
-                        return Tuple.Create(false, Properties.Resources.Command_NotEnoughParameters);
-                }
-
-                ParameterToken token;
-                if (!param.Flags.HasFlag(ParameterFlags.Remainder))
-                    token = tokensQ.Peek();
-                else
-                    token = command.Remainder.After(command.ParametersCount - tokensQ.Count);
-
-                if (param.Type == ParameterType.Regex)
-                    token.Regex = new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-                if (!(await token.IsType(param.Type).ConfigureAwait(false)))
-                {
-                    token.Regex = null;
-                    if (param.Flags.HasFlag(ParameterFlags.Optional))
-                        continue;
-                    else
-                        return Tuple.Create(false, string.Format(Properties.Resources.Command_InvalidParameterFormat, command.ParametersCount - tokensQ.Count + 1));
-                }
-
-                if (!string.IsNullOrEmpty(param.Format) && !Regex.IsMatch(token.Raw, param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase))
-                {
-                    token.Regex = null;
-                    if (param.Flags.HasFlag(ParameterFlags.Optional))
-                        continue;
-                    else
-                        return Tuple.Create(false, string.Format(Properties.Resources.Command_InvalidParameterFormat, command.ParametersCount - tokensQ.Count + 1));
-                }
-
-                if (param.Flags.HasFlag(ParameterFlags.Remainder))
-                {
-                    tokensQ.Peek().Parameter = param;
-                    return Tuple.Create(true, string.Empty);
-                }    
-
-                if (param.Flags.HasFlag(ParameterFlags.Optional))
-                {
-                    //Peek forward to check if we aren't stealing this token from a required parameter
-                    if ((await CheckParameters(command, tokensQ.Skip(1), registrations.Skip(count))).Item1 == false)
-                    {
-                        token.Regex = null;
-                        continue; //The command would fail, so we can't take the token (it might fail otherwise, but that will be resolved later)
-                    }
-                }
-
-                token.Parameter = param;
-                tokensQ.Dequeue();
-            }
-
-            if (tokensQ.Count > 0)
-                return Tuple.Create(false, Properties.Resources.Command_TooManyParameters);
-
-            return Tuple.Create(true, string.Empty);
         }
     }
 }

@@ -58,13 +58,13 @@ namespace DustyBot.Modules
             }
             else if (command.ParametersCount >= 2)
             {
-                if (!await command[0].IsType(ParameterType.TextChannel))
+                if (!await command["Channel"].IsType(ParameterType.TextChannel))
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Expected a text channel as first paramter.");
 
                 await Settings.Modify(command.GuildId, (EventsSettings s) =>
                 {
-                    s.GreetChannel = command[0].AsTextChannel.Id;
-                    s.GreetMessage = command.Remainder.After(1);
+                    s.GreetChannel = command["Channel"].AsTextChannel.Id;
+                    s.GreetMessage = command["Message"];
                 }).ConfigureAwait(false);
 
                 await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
@@ -92,13 +92,13 @@ namespace DustyBot.Modules
             }
             else if (command.ParametersCount >= 2)
             {
-                if (!await command[0].IsType(ParameterType.TextChannel))
+                if (!await command["Channel"].IsType(ParameterType.TextChannel))
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Expected a text channel as first paramter.");
 
                 await Settings.Modify(command.GuildId, (EventsSettings s) =>
                 {
-                    s.ByeChannel = command[0].AsTextChannel.Id;
-                    s.ByeMessage = command.Remainder.After(1);
+                    s.ByeChannel = command["Channel"].AsTextChannel.Id;
+                    s.ByeMessage = command["Message"];
                 }).ConfigureAwait(false);
 
                 await command.ReplySuccess(Communicator, "Bye message set.").ConfigureAwait(false);

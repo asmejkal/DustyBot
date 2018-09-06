@@ -153,7 +153,7 @@ namespace DustyBot.Modules
             {
                 var user = await Client.GetUserAsync(owner);
                 var author = command.Message.Author;
-                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command.Remainder);
+                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
             }
 
             await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
@@ -195,7 +195,7 @@ namespace DustyBot.Modules
         [Parameter("NewName", ParameterType.String, ParameterFlags.Remainder)]
         public async Task SetName(ICommand command)
         {
-            await Client.CurrentUser.ModifyAsync(x => x.Username = (string)command.Remainder);
+            await Client.CurrentUser.ModifyAsync(x => x.Username = (string)command["NewName"]);
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
