@@ -6,17 +6,40 @@ namespace DustyBot.Framework.Commands
 {
     public class ParameterRegistration
     {
-        public const int InfiniteRepeats = -1;
+        ParameterFlags _flags;
 
         public string Name { get; set; }
         public string Format { get; set; }
+        public bool Inverse { get; set; }
         public ParameterType Type { get; set; }
-        public ParameterFlags Flags { get; set; }
         public string Description { private get; set; }
+        public ParameterFlags Flags
+        {
+            get
+            {
+                return _flags;
+            }
+            set
+            {
+                if (value.HasFlag(ParameterFlags.Repeatable) && value.HasFlag(ParameterFlags.Remainder))
+                    throw new ArgumentException("Invalid flag combination.");
 
-        public int MinRepeats { get; set; } = 1;
-        int _maxRepeats = 1;
-        public int MaxRepeats { get => Flags.HasFlag(ParameterFlags.Remainder) ? 1 : _maxRepeats; set => _maxRepeats = value; }
+                _flags = value;
+            }
+        }
+
+        public ParameterRegistration()
+        {
+        }
+
+        public ParameterRegistration(ParameterRegistration o)
+        {
+            _flags = o._flags;
+            Name = o.Name;
+            Format = o.Format;
+            Type = o.Type;
+            Description = o.Description;
+        }
 
         public string GetDescription(string prefix) => Description?.Replace(CommandRegistration.PrefixWildcard, prefix);
     }

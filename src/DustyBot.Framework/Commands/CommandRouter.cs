@@ -67,7 +67,7 @@ namespace DustyBot.Framework.Commands
                 if (guild != null)
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {guild.Name}"));
                 else
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{commandRegistration.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{Config.CommandPrefix}{commandRegistration.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))

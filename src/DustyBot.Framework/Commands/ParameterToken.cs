@@ -34,7 +34,7 @@ namespace DustyBot.Framework.Commands
                 {
                     value = null;
                     return false;
-                }                    
+                }
             }
 
             public ParameterType Type => _type;
@@ -52,21 +52,25 @@ namespace DustyBot.Framework.Commands
             }
 
             public void Add(DynamicValue value) => _data.Add(value.Type, value);
+            public void Remove(ParameterType type) => _data.Remove(type);
         }
 
         public static readonly ParameterToken Empty = new ParameterToken();
+
         ValueCache _cache = new ValueCache();
+        Regex _regex;
 
         public SocketGuild Guild { get; }
-
         public string Raw { get; } = string.Empty;
         public string LastError { get; private set; }
         public ParameterRegistration Registration { get; set; }
         public bool HasValue => !string.IsNullOrEmpty(Raw);
         public int Begin { get; }
         public int End { get; }
+        public IList<ParameterToken> Repeats { get; } = new List<ParameterToken>();
+        public Regex Regex { get => _regex; set { _regex = value; _cache.Remove(ParameterType.Regex); } }
 
-        public Regex Regex { get; set; }
+        public ParameterToken this[int key] => Repeats.ElementAtOrDefault(key) ?? Empty;
 
         private ParameterToken()
         {
@@ -74,6 +78,7 @@ namespace DustyBot.Framework.Commands
 
         public ParameterToken(StringExtensions.Token token, SocketGuild guild)
         {
+            Repeats.Add(this);
             Begin = token.Begin;
             End = token.End;
             Raw = token.Value ?? string.Empty;
@@ -82,6 +87,7 @@ namespace DustyBot.Framework.Commands
 
         public ParameterToken(ParameterRegistration registration, int begin, int end, string value, SocketGuild guild)
         {
+            Repeats.Add(this);
             Registration = registration;
             Begin = begin;
             End = end;

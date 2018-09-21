@@ -43,7 +43,7 @@ namespace DustyBot.Modules
             await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command[0].HasValue ? command[0].AsTextChannel.Id : 0).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, $"Name change logging channel has been {(command[0].HasValue ? "set" : "disabled")}.").ConfigureAwait(false);
         }
-        
+
         [Command("log", "messages", "Sets or disables a channel for logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
@@ -66,12 +66,12 @@ namespace DustyBot.Modules
 
         [Command("log", "filter", "channels", "Excludes channels from logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
-        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
-        [Parameter("MoreChannels", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)] //TODO
-        [Comment("You may specify one or more channels. Use without parameters to disable.")]
+        [Parameter("Channels", ParameterType.TextChannel, ParameterFlags.Optional | ParameterFlags.Repeatable, "one or more channels")]
+        [Comment("Use without parameters to disable.")]
+        [Example("#roles #welcome")]
         public async Task SetMessagesChannelFilter(ICommand command)
         {
-            var channelIds = command.GetParameters().Select(x => x.AsTextChannel?.Id ?? 0).Where(x => x != 0).ToList();
+            var channelIds = command["Channels"].Repeats.Select(x => x.AsTextChannel?.Id ?? 0).Where(x => x != 0).ToList();
             await Settings.Modify(command.GuildId, (LogSettings s) =>
             {
                 s.EventMessageDeletedChannelFilter = channelIds;
@@ -165,6 +165,7 @@ namespace DustyBot.Modules
                         await Communicator.SendMessage(eventChannel, "Your message filter regex takes too long to evaluate.");
                     }
 
+                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging deleted message from {userMessage.Author.Username} on {guild.Name}"));
                     var embed = new EmbedBuilder()
                     .WithDescription($"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n" + userMessage.Content)
                     .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")})"));

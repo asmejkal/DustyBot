@@ -102,7 +102,7 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await command.Reply(Communicator, pages, true).ConfigureAwait(false);
+            await command.Reply(Communicator, pages).ConfigureAwait(false);
         }
 
         public override Task OnMessageReceived(SocketMessage message)

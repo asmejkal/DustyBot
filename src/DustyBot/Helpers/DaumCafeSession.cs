@@ -113,6 +113,13 @@ namespace DustyBot.Helpers
                 
                 result.Text = doc.DocumentNode.Descendants("span").FirstOrDefault(x => x.GetAttributeValue("class", "") == "txt_detail")?.ToPlainText().Trim();
                 result.ImageUrl = doc.DocumentNode.Descendants("img").FirstOrDefault(x => x.Attributes.Contains("src"))?.GetAttributeValue("src", "").Trim().Replace("C120x120", "R640x0");
+
+                //Discord stopped embedding the scaled down links (eg. https://img1.daumcdn.net/thumb/R640x0/?fname=http://cfile277.uf.daum.net/image/99D447415BA4896424BC9D)
+                var i = result.ImageUrl?.LastIndexOf("fname=") ?? -1;
+                if (i >= 0)
+                    result.ImageUrl = result.ImageUrl.Substring(i + "fname=".Length);
+
+                //Protocol sometimes missing
                 if (result.ImageUrl?.StartsWith("//") ?? false)
                     result.ImageUrl = "https:" + result.ImageUrl;
 

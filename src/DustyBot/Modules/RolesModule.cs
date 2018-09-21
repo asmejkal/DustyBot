@@ -89,7 +89,7 @@ namespace DustyBot.Modules
         [Command("roles", "add", "Adds a self-assignable role.")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder, "A name or ID of the self-assignable role.")]
-        [Comment("Any user can then assign this role to themselves by typing its name or alias in the channel set by the `roles channel` command. The role can be also self-removed by typing `-` followed by its name or alias (eg. `-Solar`).")]
+        [Comment("Any user can then assign this role to themselves by typing its name or alias (without any prefix) in the channel set by the `roles channel` command. The role can be also self-removed by typing `-` followed by its name or alias (eg. `-Solar`).")]
         [Example("Solar")]
         public async Task AddRole(ICommand command)
         {
@@ -236,15 +236,15 @@ namespace DustyBot.Modules
                 if (channel == null)
                     return;
 
-                var settings = await Settings.Read<RolesSettings>(channel.GuildId).ConfigureAwait(false);
-                if (channel.Id != settings.RoleChannel)
-                    return;
-
                 var user = message.Author as IGuildUser;
                 if (user == null)
                     return;
 
                 if (user.IsBot)
+                    return;
+
+                var settings = await Settings.Read<RolesSettings>(channel.GuildId).ConfigureAwait(false);
+                if (channel.Id != settings.RoleChannel)
                     return;
 
                 try

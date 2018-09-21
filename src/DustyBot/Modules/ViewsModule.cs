@@ -106,45 +106,24 @@ namespace DustyBot.Modules
             return result;
         }
 
-        private static Regex YouTubeLinkRegex = new Regex(@"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)", RegexOptions.Compiled);
+        public const string YouTubeLinkFormat = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
 
         [Command("views", "add", "Adds a song.")]
         [Permissions(GuildPermission.Administrator)]
-        [Parameter("CategoryName", ParameterType.String, ParameterFlags.Optional, "if you add a song to a category, its views will be displayed with `views CategoryName`")]
-        [Parameter("SongName", ParameterType.String, "name of the song")]
-        [Parameter("YouTubeLink", ParameterType.String, "one or more song links")]
-        [Parameter("MoreLinks", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
+        [Parameter("CategoryName", YouTubeLinkFormat, true, ParameterType.String, ParameterFlags.Optional, "if you add a song to a category, its views will be displayed with `views CategoryName`")]
+        [Parameter("SongName", YouTubeLinkFormat, true, ParameterType.String, "name of the song")]
+        [Parameter("YouTubeLinks", YouTubeLinkFormat, ParameterType.Regex, ParameterFlags.Repeatable, "one or more song links")]
         [Comment("If you add more than one link, their stats will be added together.")]
         [Example("\"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
         [Example("titles \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
         public async Task AddComeback(ICommand command)
         {
-            var info = new ComebackInfo();
-            bool linksEnded = false;
-            foreach (var param in command.GetParameters().Reverse())
+            var info = new ComebackInfo
             {
-                if (!linksEnded)
-                {
-                    var match = YouTubeLinkRegex.Match(param);
-                    if (!match.Success)
-                        linksEnded = true;
-                    else
-                        info.VideoIds.Add(Enumerable.Cast<Group>(match.Groups).Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value);
-                }
-                
-                if (linksEnded)
-                {
-                    if (info.Name == null)
-                        info.Name = param;
-                    else if (info.Category == null)
-                        info.Category = param;
-                    else
-                        throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
-                }
-            }
-
-            if (info.VideoIds.Count <= 0)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("No videos specified.");
+                Category = command["CategoryName"],
+                Name = command["SongName"],
+                VideoIds = new HashSet<string>(command["YouTubeLinks"].Repeats.Select(x => Enumerable.Cast<Group>(x.AsRegex.Groups).Skip(1).First(y => !string.IsNullOrEmpty(y.Value)).Value))
+            };
 
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {

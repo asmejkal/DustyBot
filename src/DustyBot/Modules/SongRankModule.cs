@@ -128,8 +128,8 @@ namespace DustyBot.Modules
             Logger = logger;
         }
 
-        [Command("songrank", "", CommandFlags.RunAsync)]
-        [Parameter("Artist", ParameterType.String, "Name of an artist, as it appears on https://musicbrainz.org/.")]
+        //[Command("songrank", "", CommandFlags.RunAsync)]
+        //[Parameter("Artist", ParameterType.String, "Name of an artist, as it appears on https://musicbrainz.org/.")]
         public async Task RankSongs(ICommand command)
         {
             Session session = null;

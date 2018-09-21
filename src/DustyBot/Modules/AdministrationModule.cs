@@ -72,7 +72,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Message edited.").ConfigureAwait(false);
         }
 
-        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
         [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
         [Parameter("Module", ParameterType.String, "LiteDB collection name")]
         public async Task GetSettings(ICommand command)

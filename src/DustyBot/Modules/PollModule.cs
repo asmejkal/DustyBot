@@ -44,22 +44,20 @@ namespace DustyBot.Modules
         [Parameter("Question", ParameterType.String, "poll question")]
         [Parameter("Answer1", ParameterType.String, "first answer")]
         [Parameter("Answer2", ParameterType.String, "second answer")]
-        [Parameter("MoreAnswers", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "more answers")] //TODO
+        [Parameter("MoreAnswers", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Repeatable, "more answers")]
         [Example("#main-chat \"Is hotdog a sandwich?\" Yes No")]
         [Example("anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
         public async Task StartPoll(ICommand command)
         {
-            //Build up the poll object
-            bool anonymous = string.Compare(command[0], "anonymous", true) == 0;
-            var channelId = command[anonymous ? 1 : 0].AsTextChannel?.Id ?? command.Message.Channel.Id;
-            int optParamsCount = (command[anonymous ? 1 : 0].AsTextChannel != null ? 1 : 0) + (anonymous ? 1 : 0);
-
-            var poll = new Poll { Channel = channelId, Anonymous = anonymous, Question = command[optParamsCount] };
-            foreach (var answer in command.GetParameters().Skip(optParamsCount + 1))
-                poll.Answers.Add(answer);
-
-            if (poll.Answers.Count < 2)
+            if (command["Question"].AsTextChannel != null)
                 throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
+
+            var channelId = command["Channel"].AsTextChannel?.Id ?? command.Message.Channel.Id;
+
+            var poll = new Poll { Channel = channelId, Anonymous = command["anonymous"].HasValue, Question = command["Question"] };
+            poll.Answers.Add(command["Answer1"]);
+            poll.Answers.Add(command["Answer2"]);
+            poll.Answers.AddRange(command["MoreAnswers"].Repeats.Select(x => x.AsString));
 
             if ((await Settings.Read<PollSettings>(command.GuildId)).Polls.Any(x => x.Channel == channelId))
             {
@@ -170,12 +168,13 @@ namespace DustyBot.Modules
 
             int i = 0;
             foreach (var result in poll.Results.OrderByDescending(x => x.Value))
-                description += $"{(++i).ToEnglishOrdinal()} **{poll.Answers[result.Key - 1]}** with **{result.Value}** votes.\n";    
+                description += $"{(++i).ToEnglishOrdinal()} **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
 
+            var total = poll.Results.Sum(x => x.Value);
             var embed = new EmbedBuilder()
                 .WithTitle(closed ? "Poll closed!" : "Poll results")
                 .WithDescription(description)
-                .WithFooter($"{poll.Results.Sum(x => x.Value)} votes total");
+                .WithFooter($"{total} vote{(total != 1 ? "s" : "")} total");
             
             await resultsChannel.SendMessageAsync(string.Empty, false, embed.Build());
             return true;

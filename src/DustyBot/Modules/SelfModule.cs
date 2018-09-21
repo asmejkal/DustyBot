@@ -215,7 +215,7 @@ namespace DustyBot.Modules
                     counter++;
                     result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
                         $"&#9662; <span class=\"paramlistcode\">{handledCommand.InvokeUsage}</span> – {handledCommand.Description} " +
-                        string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
+                        //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
                         "</p>");
 
                     var usage = BuildWebUsageString(handledCommand, config);

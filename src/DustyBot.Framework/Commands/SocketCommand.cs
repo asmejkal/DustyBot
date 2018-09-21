@@ -143,6 +143,7 @@ namespace DustyBot.Framework.Commands
         private async Task<ParseResult> TryParseParams() 
             => await TryParseParamsInner(Body.Tokenize('"').Select(x => new ParameterToken(x, Guild as SocketGuild)), Registration.Parameters);
 
+        //TODO: overcomplicated mess
         private async Task<ParseResult> TryParseParamsInner(IEnumerable<ParameterToken> tokens, IEnumerable<ParameterRegistration> registrations, bool test = false)
         {
             var tokensQ = new Queue<ParameterToken>(tokens);
@@ -158,72 +159,134 @@ namespace DustyBot.Framework.Commands
                         return new ParseResult(ParseResultType.NotEnoughParameters);
                 }
 
-                var token = tokensQ.Peek();
-                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                if (!param.Flags.HasFlag(ParameterFlags.Repeatable))
                 {
-                    string value = Body.Substring(token.Begin);
-                    if (value.StartsWith("\"") && value.EndsWith("\""))
-                        token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild);
-                    else
-                        token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild);
-                }
-                    
+                    var token = tokensQ.Peek();
+                    if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                    {
+                        string value = Body.Substring(token.Begin);
+                        if (value.StartsWith("\"") && value.EndsWith("\""))
+                            token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild);
+                        else
+                            token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild);
+                    }
 
-                if (param.Type == ParameterType.Regex)
-                    token.Regex = new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                    if (!await CheckToken(token, param))
+                    {
+                        if (param.Flags.HasFlag(ParameterFlags.Optional))
+                            continue;
+                        else
+                            return new InvalidParameterParseResult(ParseResultType.InvalidParameterFormat, ParametersCount + 1);
+                    }
 
-                if (!(await token.IsType(param.Type).ConfigureAwait(false)))
-                {
-                    token.Regex = null;
+                    if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                    {
+                        if (!test)
+                        {
+                            token.Registration = param;
+                            _tokens.Add(token);
+                        }
+
+                        return new ParseResult(ParseResultType.Success);
+                    }
+
                     if (param.Flags.HasFlag(ParameterFlags.Optional))
-                        continue;
-                    else
-                        return new InvalidParameterParseResult(ParseResultType.InvalidParameterFormat, ParametersCount + 1);
-                }
+                    {
+                        //Peek forward to check if we aren't stealing this token from a required parameter
+                        if ((await TryParseParamsInner(tokensQ.Skip(1), registrations.Skip(count), true)).Type != ParseResultType.Success)
+                        {
+                            token.Regex = null;
+                            continue; //The parsing would fail, so we can't take the token
+                        }
+                    }
 
-                if (!string.IsNullOrEmpty(param.Format) && !Regex.IsMatch(token.Raw, param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase))
-                {
-                    token.Regex = null;
-                    if (param.Flags.HasFlag(ParameterFlags.Optional))
-                        continue;
-                    else
-                        return new InvalidParameterParseResult(ParseResultType.InvalidParameterFormat, ParametersCount + 1);
-                }
-
-                if (param.Flags.HasFlag(ParameterFlags.Remainder))
-                {
                     if (!test)
                     {
                         token.Registration = param;
+                        token.Regex = param.Type == ParameterType.Regex ? new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase) : null;
                         _tokens.Add(token);
                     }
 
-                    return new ParseResult(ParseResultType.Success);
+                    tokensQ.Dequeue();
                 }
-
-                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                else
                 {
-                    //Peek forward to check if we aren't stealing this token from a required parameter
-                    if ((await TryParseParamsInner(tokensQ.Skip(1), registrations.Skip(count), true)).Type != ParseResultType.Success)
+                    var token = tokensQ.Peek();
+                    if (!await CheckToken(token, param))
                     {
-                        token.Regex = null;
-                        continue; //The parsing would fail, so we can't take the token
+                        if (param.Flags.HasFlag(ParameterFlags.Optional))
+                            continue;
+                        else
+                            return new InvalidParameterParseResult(ParseResultType.InvalidParameterFormat, ParametersCount + 1);
                     }
+
+                    var optParam = new ParameterRegistration(param);
+                    optParam.Flags = param.Flags | ParameterFlags.Optional;
+                    if (param.Flags.HasFlag(ParameterFlags.Optional))
+                    {
+                        //Peek forward to check if we aren't stealing this token from a required parameter
+                        if ((await TryParseParamsInner(tokensQ.Skip(1), registrations.Skip(count).Prepend(optParam), true)).Type != ParseResultType.Success)
+                            continue; //The parsing would fail, so we can't take the token
+                    }
+
+                    if (!test)
+                    {
+                        token.Registration = param;
+                        token.Regex = param.Type == ParameterType.Regex ? new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase) : null;
+                        _tokens.Add(token);
+                    }
+
+                    tokensQ.Dequeue();
+
+                    do
+                    {
+                        if (tokensQ.Count <= 0)
+                            break;
+
+                        var repeat = tokensQ.Peek();
+                        if (!await CheckToken(repeat, optParam))
+                            break;
+
+                        //Peek forward to check if we aren't stealing this token from a required parameter
+                        if ((await TryParseParamsInner(tokensQ.Skip(1), registrations.Skip(count).Prepend(optParam), true)).Type != ParseResultType.Success)
+                            break;
+
+                        if (!test)
+                        {
+                            repeat.Regex = optParam.Type == ParameterType.Regex ? new Regex(optParam.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase) : null;
+                            token.Repeats.Add(repeat);
+                        }
+
+                        tokensQ.Dequeue();
+                    } while (true);
                 }
-
-                if (!test)
-                {
-                    token.Registration = param;
-                    _tokens.Add(token);
-                }                    
-
-                tokensQ.Dequeue();
             }
 
             if (tokensQ.Count > 0)
                 return new ParseResult(ParseResultType.TooManyParameters);
 
             return new ParseResult(ParseResultType.Success);
+        }
+
+        private static async Task<bool> CheckToken(ParameterToken token, ParameterRegistration registration)
+        {
+            if (registration.Type == ParameterType.Regex)
+                token.Regex = new Regex(registration.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+            if (!(await token.IsType(registration.Type).ConfigureAwait(false)))
+            {
+                token.Regex = null;
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(registration.Format) && Regex.IsMatch(token.Raw, registration.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase) == registration.Inverse)
+            {
+                token.Regex = null;
+                return false;
+            }
+
+            token.Regex = null;
+            return true;
         }
 
         public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message) => communicator.CommandReplySuccess(Message.Channel, message);

@@ -9,6 +9,7 @@ namespace DustyBot.Framework.Commands
     {
         None = 0,
         Optional = 1 << 0,
-        Remainder = 1 << 1
+        Remainder = 1 << 1,
+        Repeatable = 1 << 2
     }
 }
