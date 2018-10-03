@@ -308,7 +308,7 @@ namespace DustyBot.Modules
             }
             catch (ArgumentOutOfRangeException)
             {
-                await command.ReplyError(Communicator, "The message is too long. Create a new one with the `schedule create` command.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, "The message is too long. Create a new one with the `schedule create` command or move events with the `schedule move` command.").ConfigureAwait(false);
                 return;
             }
 
@@ -377,13 +377,13 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
         [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it gets printed out when an event is added")]
-        [Parameter("Date", DateFormat, ParameterType.Regex, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
-        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "new event description")]
+        [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
+        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
         [Comment("All times in KST. An alternative to this command is `event remove` followed by `event add`.")]
-        [Example("5 07/23 08:45 Concert")]
+        [Example("5 08:45")]
         [Example("462366629247057930 13 07/23 Fansign")]
-        [Example("462366629247057930 25 2019/01/23 Festival")]
+        [Example("462366629247057930 25 Festival")]
         public async Task EditEvent(ICommand command)
         {
             var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
@@ -393,14 +393,26 @@ namespace DustyBot.Modules
 
             try
             {
-                var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-                bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-                if (hasTime)
-                    dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
+                var date = e.Date.Date;
+                var time = e.Date.TimeOfDay;
+                if (command["Date"].HasValue)
+                    date = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
 
-                e.Date = dateTime;
+                bool hasTime = e.HasTime;
+                if (command["Time"].HasValue)
+                {
+                    hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
+                    if (hasTime)
+                        time = new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0);
+                    else
+                        time = new TimeSpan();
+                }
+
+                e.Date = date.Add(time);
                 e.HasTime = hasTime;
-                e.Description = command["Description"];
+
+                if (command["Description"].HasValue)
+                    e.Description = command["Description"];
             }
             catch (FormatException)
             {
@@ -580,7 +592,7 @@ namespace DustyBot.Modules
                     result.AppendLine(e.Date.ToString(e.HasTime ? @"`[MM\/dd | HH:mm]`" : @"`[MM\/dd | ??:??]`") + " " + e.Description);
 
                 if (result.Length > 2000)
-                    throw new ArgumentException();
+                    throw new ArgumentOutOfRangeException();
 
                 var embed = new EmbedBuilder()
                     .WithTitle(string.IsNullOrEmpty(Header) ? DefaultHeader : Header)
