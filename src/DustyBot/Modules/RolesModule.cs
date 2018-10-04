@@ -224,8 +224,99 @@ namespace DustyBot.Modules
             }
             else
             {
-                await command.ReplySuccess(Communicator, $"Role {command[0].AsRole.Name} ({command[0].AsRole.Id}) has been set as a primary bias role to {command[1].AsRole.Name} ({command[1].AsRole.Id}).").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Role `{command[0].AsRole.Name} ({command[0].AsRole.Id})` has been set as a primary bias role to `{command[1].AsRole.Name} ({command[1].AsRole.Id})`.").ConfigureAwait(false);
             }
+        }
+
+        [Command("roles", "persistence", "Restore self-assignable roles upon rejoining the server.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Comment("Toggle. All self-assignable roles the user had upon leaving will be reapplied if they rejoin. The feature had to be turned on when the user left for it to function.")]
+        public async Task PersistentRoles(ICommand command)
+        {
+            var selfUser = await command.Guild.GetCurrentUserAsync();
+            var newVal = await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                if (!s.PersistentAssignableRoles && selfUser.GuildPermissions.ManageRoles == false)
+                    throw new Framework.Exceptions.MissingBotPermissionsException(GuildPermission.ManageRoles);
+
+                return s.PersistentAssignableRoles = !s.PersistentAssignableRoles;
+            }).ConfigureAwait(false);
+                        
+            await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.").ConfigureAwait(false);
+        }
+        
+        public override Task OnUserLeft(SocketGuildUser guildUser)
+        {
+            TaskHelper.FireForget(async () =>
+            {
+                try
+                {
+                    var settings = await Settings.Read<RolesSettings>(guildUser.Guild.Id, false);
+                    if (settings == null)
+                        return;
+
+                    if (!settings.PersistentAssignableRoles && settings.AdditionalPersistentRoles.Count <= 0)
+                        return;
+
+                    var roles = guildUser.Roles.Where(x => settings.AdditionalPersistentRoles.Contains(x.Id)).ToList();
+                    if (settings.PersistentAssignableRoles)
+                        roles.AddRange(guildUser.Roles.Where(x => settings.AssignableRoles.Any(y => y.RoleId == x.Id || y.SecondaryId == x.Id)));
+                    
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Saving {roles.Count} roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+
+                    await Settings.Modify(guildUser.Guild.Id, (RolesSettings x) =>
+                    {
+                        var userRoles = x.PersistentRolesData.GetOrCreate(guildUser.Id);
+                        userRoles.Clear();
+                        userRoles.AddRange(roles.Select(y => y.Id));
+                    });
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Roles", $"Failed to save persistent roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}", ex));
+                }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        public override Task OnUserJoined(SocketGuildUser guildUser)
+        {
+            TaskHelper.FireForget(async () =>
+            {
+                try
+                {
+                    var settings = await Settings.Read<RolesSettings>(guildUser.Guild.Id, false);
+                    if (settings == null)
+                        return;
+
+                    if (!settings.PersistentAssignableRoles && settings.AdditionalPersistentRoles.Count <= 0)
+                        return;
+
+                    List<ulong> roleIds;
+                    if (!settings.PersistentRolesData.TryGetValue(guildUser.Id, out roleIds))
+                        return;
+
+                    //Intersect with current persistent roles
+                    var intersected = roleIds.Where(x => settings.AdditionalPersistentRoles.Contains(x)).ToList();
+                    if (settings.PersistentAssignableRoles)
+                        intersected.AddRange(roleIds.Where(x => settings.AssignableRoles.Any(y => y.RoleId == x || y.SecondaryId == x)));
+
+                    var roles = intersected.Select(x => guildUser.Guild.Roles.FirstOrDefault(y => x == y.Id)).Where(x => x != null).ToList();
+
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Restoring {roles.Count} roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+
+                    await guildUser.AddRolesAsync(roles);
+
+                    await Settings.Modify(guildUser.Guild.Id, (RolesSettings x) => x.PersistentRolesData.Remove(guildUser.Id));
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Roles", $"Failed to save persistent roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}", ex));
+                }
+            });
+
+            return Task.CompletedTask;
         }
 
         public override async Task OnMessageReceived(SocketMessage message)
