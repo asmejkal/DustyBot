@@ -168,9 +168,6 @@ namespace DustyBot.Modules
 
             foreach (var channel in await user.Guild.GetChannelsAsync())
             {
-                if (channel == null)
-                    continue;
-
                 var overwrite = channel.GetPermissionOverwrite(muteRole);
                 if (overwrite == null || overwrite.Value.SendMessages != PermValue.Deny || overwrite.Value.Connect != PermValue.Deny || overwrite.Value.AddReactions != PermValue.Deny)
                     await channel.AddPermissionOverwriteAsync(muteRole, new OverwritePermissions(sendMessages: PermValue.Deny, connect: PermValue.Deny, addReactions: PermValue.Deny));

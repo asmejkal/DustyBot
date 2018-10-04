@@ -98,7 +98,7 @@ namespace DustyBot.Framework.Communication
                     .WithDescription(BuildUsageString(command, Config))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
-            return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, embed);
+            return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, embed.Build());
         }
 
         public async Task<IUserMessage> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command) =>
@@ -115,7 +115,7 @@ namespace DustyBot.Framework.Communication
                     pages[i].Embed.WithFooter($"Page {i + 1} of {pages.Count}");
 
             //Send the first page
-            var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed).ConfigureAwait(false);
+            var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed.Build()).ConfigureAwait(false);
 
             //If there's more pages, save a context
             if (pages.Count > 1)
@@ -181,7 +181,7 @@ namespace DustyBot.Framework.Communication
                         if (context.Resend)
                         {
                             await concMessage.DeleteAsync();
-                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content, false, newMessage.Embed);
+                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content, false, newMessage.Embed.Build());
 
                             lock (_paginatedMessages)
                             {
@@ -289,7 +289,7 @@ namespace DustyBot.Framework.Communication
             if (!string.IsNullOrEmpty(footer))
                 embed.WithFooter(footer);
 
-            return await channel.SendMessageAsync("", false, embed);
+            return await channel.SendMessageAsync("", false, embed.Build());
         }
 
         public static string BuildUsageString(Commands.CommandRegistration commandRegistration, Config.IEssentialConfig config)

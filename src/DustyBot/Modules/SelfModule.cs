@@ -116,11 +116,11 @@ namespace DustyBot.Modules
 
             var embed = new EmbedBuilder()
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
-                .AddInlineField("Author", "Yebafan#3517")
-                .AddInlineField("Owners", string.Join("\n", config.OwnerIDs))
-                .AddInlineField("Presence", $"{users.Count} users\n{guilds.Count} servers")
-                .AddInlineField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version)
-                .AddInlineField("Web", "http://dustybot.info")
+                .AddField("Author", "Yebafan#3517", true)
+                .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
+                .AddField("Presence", $"{users.Count} users\n{guilds.Count} servers", true)
+                .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
+                .AddField("Web", "http://dustybot.info", true)
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);

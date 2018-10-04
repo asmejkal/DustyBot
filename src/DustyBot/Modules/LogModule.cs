@@ -172,7 +172,7 @@ namespace DustyBot.Modules
                     if (userMessage.Attachments.Any())
                         embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
 
-                    await eventChannel.SendMessageAsync(string.Empty, false, embed).ConfigureAwait(false);
+                    await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
