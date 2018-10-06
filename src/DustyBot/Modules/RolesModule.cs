@@ -261,7 +261,10 @@ namespace DustyBot.Modules
                     var roles = guildUser.Roles.Where(x => settings.AdditionalPersistentRoles.Contains(x.Id)).ToList();
                     if (settings.PersistentAssignableRoles)
                         roles.AddRange(guildUser.Roles.Where(x => settings.AssignableRoles.Any(y => y.RoleId == x.Id || y.SecondaryId == x.Id)));
-                    
+
+                    if (roles.Count <= 0)
+                        return;
+
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Saving {roles.Count} roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
 
                     await Settings.Modify(guildUser.Guild.Id, (RolesSettings x) =>
@@ -306,7 +309,8 @@ namespace DustyBot.Modules
 
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Restoring {roles.Count} roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
 
-                    await guildUser.AddRolesAsync(roles);
+                    if (roles.Count > 0)
+                        await guildUser.AddRolesAsync(roles);
 
                     await Settings.Modify(guildUser.Guild.Id, (RolesSettings x) => x.PersistentRolesData.Remove(guildUser.Id));
                 }

@@ -111,7 +111,7 @@ namespace DustyBot.Modules
                 x.LogChannel = command["LogChannel"].AsTextChannel.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid-protection rules list` to see the active rules.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid-protection rules` to see the active rules.").ConfigureAwait(false);
         }
 
         [Command("raid-protection", "disable", "Disables raid protection.")]
@@ -123,29 +123,97 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Raid protection has been disabled.").ConfigureAwait(false);
         }
 
-        [Command("raid-protection", "rules", "list", "Displays active raid protection rules.")]
+        [Command("raid-protection", "rules", "Displays active raid protection rules.")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         public async Task ListRulesRaidProtection(ICommand command)
         {
             var settings = await Settings.Read<RaidProtectionSettings>(command.GuildId);
             var result = new StringBuilder();
-            result.AppendLine($"Protection **{(settings.Enabled ? "enabled" : "disabled")}**.\n");
+            result.AppendLine($"Protection **{(settings.Enabled ? "enabled" : "disabled")}**.");
+            result.AppendLine("Please contact the bot owner to modify any of these settings for your server.");
+            result.AppendLine("Phrase blacklist can be set with the `raid-protection blacklist` command.\n");
 
-            result.AppendLine($"**MassMentionsRule** - if enabled, blocks messages containing more than {settings.MassMentionsRule.MentionsLimit} mentions");
+            var PrintDefaultFlag = new Func<RaidProtectionRuleType, string>(x => settings.IsDefault(x) ? " (default)" : "");
+            result.AppendLine($"**MassMentionsRule** - if enabled, blocks messages containing more than {settings.MassMentionsRule.MentionsLimit} mentioned users" + PrintDefaultFlag(RaidProtectionRuleType.MassMentionsRule));
             result.AppendLine("`" + settings.MassMentionsRule + "`\n");
             
-            result.AppendLine($"**TextSpamRule** - if enabled, blocks more than {settings.TextSpamRule.Threshold} messages sent in {settings.TextSpamRule.Window.TotalSeconds} seconds by one user");
+            result.AppendLine($"**TextSpamRule** - if enabled, blocks more than {settings.TextSpamRule.Threshold} messages sent in {settings.TextSpamRule.Window.TotalSeconds} seconds by one user" + PrintDefaultFlag(RaidProtectionRuleType.TextSpamRule));
             result.AppendLine("`" + settings.TextSpamRule + "`\n");
 
-            result.AppendLine($"**ImageSpamRule** - if enabled, blocks more than {settings.ImageSpamRule.Threshold} images sent in {settings.ImageSpamRule.Window.TotalSeconds} seconds by one user");
+            result.AppendLine($"**ImageSpamRule** - if enabled, blocks more than {settings.ImageSpamRule.Threshold} images sent in {settings.ImageSpamRule.Window.TotalSeconds} seconds by one user" + PrintDefaultFlag(RaidProtectionRuleType.ImageSpamRule));
             result.AppendLine("`" + settings.ImageSpamRule + "`\n");
 
-            result.AppendLine($"**PhraseBlacklistRule** - if enabled, blocks messages containing any of the specified phrases");
+            result.AppendLine($"**PhraseBlacklistRule** - if enabled, blocks messages containing any of the specified phrases" + PrintDefaultFlag(RaidProtectionRuleType.PhraseBlacklistRule));
             result.AppendLine("`" + settings.PhraseBlacklistRule + "`\n");
 
             await command.Reply(Communicator, result.ToString()).ConfigureAwait(false);
         }
-        
+
+        [Command("raid-protection", "rules", "set", "Modifies a raid protection rule.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Parameter("ServerId", ParameterType.Id)]
+        [Parameter("Type", ParameterType.String)]
+        [Parameter("Rule", ParameterType.String, ParameterFlags.Remainder)]
+        public async Task SetRulesRaidProtection(ICommand command)
+        {
+            RaidProtectionRuleType type;
+            if (!Enum.TryParse(command["Type"], out type))
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown rule type.");
+
+            RaidProtectionRule newRule;
+            try
+            {
+                newRule = RaidProtectionRule.Create(type, command["Rule"]);
+            }
+            catch (Exception)
+            {
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid rule.");
+            }
+
+            await Settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.SetException(type, newRule));
+            await command.ReplySuccess(Communicator, $"Rule has been set.");
+        }
+
+        [Command("raid-protection", "rules", "reset", "Resets a raid protection rule to default.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Parameter("ServerId", ParameterType.Id)]
+        [Parameter("Type", ParameterType.String)]
+        public async Task ResetRulesRaidProtection(ICommand command)
+        {
+            RaidProtectionRuleType type;
+            if (!Enum.TryParse(command["Type"], out type))
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown rule type.");
+
+            await Settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.ResetException(type));
+            await command.ReplySuccess(Communicator, $"Rule has been reset.");
+        }
+
+        [Command("raid-protection", "blacklist", "Sets blacklisted phrases.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Blacklist", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "blacklisted phrases, separated by colons (`,`)")]
+        [Comment("Use without parameters to disable the blacklist. Messages that contain any of these phrases will be handled according to the PhraseBlacklist rule (default: the offending message will be deleted and upon commiting 3 offenses within 5 minutes the offending user will be muted).")]
+        public async Task SetBlacklistRaidProtection(ICommand command)
+        {
+            var newList = await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            {
+                var phrases = command["Blacklist"].AsString.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
+                {
+                    Type = x.PhraseBlacklistRule.Type,
+                    Enabled = phrases.Count > 0,
+                    Delete = x.PhraseBlacklistRule.Delete,
+                    MaxOffenseCount = x.PhraseBlacklistRule.MaxOffenseCount,
+                    OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
+                    Blacklist = phrases
+                });
+                
+                return phrases;
+            });
+
+            if (newList.Count <= 0)
+                await command.ReplySuccess(Communicator, "The phrase blacklist has been disabled.");
+            else
+                await command.ReplySuccess(Communicator, $"The phrase blacklist has been updated to the following: `{string.Join("`, `", newList)}`.");
+        }
+
         [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
         [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
         [Parameter("Module", ParameterType.String, "LiteDB collection name")]
@@ -273,6 +341,9 @@ namespace DustyBot.Modules
                     if (settings == null || !settings.Enabled)
                         return;
 
+                    if (user.GuildPermissions.Administrator)
+                        return;
+
                     if (settings.MassMentionsRule.Enabled)
                     {
                         if (message.MentionedUsers.Where(x => !x.IsBot).Select(x => x.Id).Distinct().Count() >= settings.MassMentionsRule.MentionsLimit)
@@ -286,7 +357,7 @@ namespace DustyBot.Modules
                     {
                         if (settings.PhraseBlacklistRule.Blacklist.Any(x => message.Content.Contains(x)))
                         {
-                            await EnforceRule(settings.MassMentionsRule, new IMessage[] { message }, channel, await GetUserContext(user), user, settings.LogChannel, message.Content);
+                            await EnforceRule(settings.PhraseBlacklistRule, new IMessage[] { message }, channel, await GetUserContext(user), user, settings.LogChannel, message.Content);
                             return;
                         }
                     }
@@ -296,7 +367,7 @@ namespace DustyBot.Modules
                         var userContext = await GetUserContext(user);
                         bool enforce = false;
                         var offendingMessages = new List<IMessage>();
-                        SpamRule appliedRule;
+                        ReadOnlySpamRule appliedRule;
                         try
                         {
                             await userContext.Mutex.WaitAsync();
@@ -342,7 +413,7 @@ namespace DustyBot.Modules
 
                         if (enforce)
                         {
-                            await EnforceRule(appliedRule, offendingMessages, channel, await GetUserContext(user), user, settings.LogChannel, $"Sent {offendingMessages.Count} messages in under {settings.ImageSpamRule.Window.TotalSeconds} seconds.");
+                            await EnforceRule(appliedRule, offendingMessages, channel, await GetUserContext(user), user, settings.LogChannel, $"Sent {offendingMessages.Count} messages in under {appliedRule.Window.TotalSeconds} seconds.");
                             return;
                         }
                     }
@@ -373,17 +444,6 @@ namespace DustyBot.Modules
 
                 _context.LastCleanup = now;
 
-                if (_context.LastReport < now - ReportTimer)
-                {
-                    _context.LastReport = now;
-                    var report = new StringBuilder();
-                    report.AppendLine($"Raid protection status - {_context.GuildContexts.Count} guild contexts: ");
-                    foreach (var guildContext in _context.GuildContexts)
-                        report.AppendLine($"{guildContext.Key} ({guildContext.Value.UserContexts.Count}) ");
-
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", report.ToString()));
-                }
-
                 var toRemove = new List<ulong>();
                 foreach (var guildContext in _context.GuildContexts)
                 {
@@ -398,7 +458,7 @@ namespace DustyBot.Modules
                                 await userContext.Value.Mutex.WaitAsync();
                                 foreach (var offenses in userContext.Value.Offenses.ToList())
                                 {
-                                    offenses.Value.SlideWindow(settings.Rules[offenses.Key].OffenseWindow, now - MaxMessageProcessingDelay);
+                                    offenses.Value.SlideWindow(settings.GetRule<ReadOnlyRaidProtectionRule>(offenses.Key).OffenseWindow, now - MaxMessageProcessingDelay);
                                     if (offenses.Value.Count <= 0)
                                         userContext.Value.Offenses.Remove(offenses.Key);
                                 }
@@ -426,6 +486,17 @@ namespace DustyBot.Modules
 
                 foreach (var removable in toRemove)
                     _context.GuildContexts.Remove(removable);
+
+                if (_context.LastReport < now - ReportTimer)
+                {
+                    _context.LastReport = now;
+                    var report = new StringBuilder();
+                    report.AppendLine($"Raid protection status - {_context.GuildContexts.Count} guild contexts: ");
+                    foreach (var guildContext in _context.GuildContexts)
+                        report.AppendLine($"{guildContext.Key} ({guildContext.Value.UserContexts.Count}) ");
+
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", report.ToString()));
+                }
             }
             finally
             {
@@ -460,7 +531,7 @@ namespace DustyBot.Modules
             return userContext;
         }
 
-        async Task EnforceRule(RaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
+        async Task EnforceRule(ReadOnlyRaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
         {
             if (rule.Delete)
                 foreach (var message in messages)
