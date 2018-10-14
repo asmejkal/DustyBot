@@ -101,13 +101,13 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "create", "Creates a new editable message with schedule.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("Channel", ParameterType.TextChannel, "target channel")]
         [Parameter("Header", ParameterType.String, ParameterFlags.Optional, "header for the message")]
         [Parameter("Footer", ParameterType.String, ParameterFlags.Optional, "footer for the message")]
         [Comment("Sends an empty schedule message (e.g. to your `#schedule` channel). You can then add events with the `event add` command.")]
         public async Task CreateSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var message = await PrintedScheduleMessage.CreateNew(command["Channel"].AsTextChannel, command["Header"], command["Footer"], Settings);
 
             await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
@@ -119,13 +119,13 @@ namespace DustyBot.Modules
         }
 
         //[Command("schedule", "link", "Link schedule with Google Calendar.")]
-        //[Permissions(GuildPermission.ManageMessages)]
         //[Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
         //[Parameter("CalendarId", @".+@.+", ParameterType.String)]
         //[Parameter("FromDate", DateFormat, ParameterType.Regex, "import events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         //[Parameter("ToDate", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "import events before this date")]
         //public async Task LinkSchedule(ICommand command)
         //{
+        //    await AssertPrivileges(command.Message.Author, command.GuildId);
         //    var config = await Settings.ReadGlobal<BotConfig>();
         //    if (config.GCalendarSAC == null)
         //    {
@@ -199,12 +199,12 @@ namespace DustyBot.Modules
         //}
 
         [Command("schedule", "edit", "header", "Sets a header for a schedule message.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
         [Parameter("Header", ParameterType.String, ParameterFlags.Remainder, "new header")]
         [Example("462366629247057930 Schedule (June)")]
         public async Task HeaderEditSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
             message.Header = command["Header"];
@@ -214,12 +214,12 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "edit", "footer", "Sets a footer for a schedule message.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
         [Parameter("Footer", ParameterType.String, ParameterFlags.Remainder, "new footer")]
         [Example("462366629247057930 Ooh, a new footer.")]
         public async Task FooterEditSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
             message.Footer = command["Footer"];
@@ -230,7 +230,6 @@ namespace DustyBot.Modules
 
         private static readonly Regex _editEventRegex = new Regex(@"^\s*\[([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)$");
         [Command("schedule", "edit", "Edits the content of a schedule message.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
         [Parameter("Year", ParameterType.Int, "the year the events take place in")]
         [Parameter("Events", @"^\s*\[[0-9]+\/[0-9]+\s*\|\s*[0-9?]+:[0-9?]+\].+", ParameterType.String, ParameterFlags.Remainder, "new content")]
@@ -238,6 +237,7 @@ namespace DustyBot.Modules
         [Example("462366629247057930 2018\n[08/10 | 08:00] Event 1\n[08/11 | ??:??] Event 2\n[08/12 | 10:00] Event 3")]
         public async Task EditSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
             message.Clear();
@@ -288,7 +288,6 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "move", "Moves a range of events from one message to another.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("SourceMessageId", ParameterType.Id, "ID of the source message (previously created with `schedule create`)")]
         [Parameter("TargetMessageId", ParameterType.Id, "ID of the target message (previously created with `schedule create`)")]
         [Parameter("FromDate", DateFormat, ParameterType.Regex, "move events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
@@ -297,6 +296,7 @@ namespace DustyBot.Modules
         [Example("462366629247057930 476740163159195649 2018/08/09 2018/12/01")]
         public async Task MoveSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var source = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
             var target = await GetScheduleMessage(command.Guild, (ulong?)command[1]);
             
@@ -315,11 +315,11 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "ignore", "Stops using a schedule message.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id)]
         [Comment("Stops using this message for the `schedule` and `event add/remove` commands.")]
         public async Task IgnoreSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             bool removed = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
                 return s.ScheduleData.RemoveAll(x => x.MessageId == (ulong)command[0]) > 0;
@@ -336,9 +336,9 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "list", "Lists all schedule messages.")]
-        [Permissions(GuildPermission.ManageMessages)]
         public async Task ListSchedule(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false).ConfigureAwait(false);
             if (settings == null || settings.ScheduleData.Count <= 0)
             {
@@ -356,8 +356,20 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result.ToString()).ConfigureAwait(false);
         }
 
+        [Command("schedule", "role", "Sets an optional role that allows users to edit the schedule.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Optional | ParameterFlags.Remainder)]
+        [Comment("Users with this role will be able to edit the schedule, in addition to users with the Manage Messages privilege.\n\nUse without parameters to disable.")]
+        public async Task ScheduleRole(ICommand command)
+        {
+            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default(ulong)).ConfigureAwait(false);
+            if (r == default(ulong))
+                await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.").ConfigureAwait(false);
+            else
+                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.").ConfigureAwait(false);
+        }
+
         [Command("event", "add", "Adds an event to schedule.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
         [Parameter("Date", DateFormat, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
@@ -368,6 +380,7 @@ namespace DustyBot.Modules
         [Example("462366629247057930 2019/01/23 Festival")]
         public async Task AddEvent(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
             ScheduleEvent e;
 
@@ -408,7 +421,6 @@ namespace DustyBot.Modules
         }
 
         [Command("event", "remove", "Removes an event from schedule.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
         [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`)")]
@@ -418,6 +430,7 @@ namespace DustyBot.Modules
         [Example("462366629247057930 07/23 08:45 Festival")]
         public async Task RemoveEvent(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
 
             string description = command["Description"];
@@ -466,7 +479,6 @@ namespace DustyBot.Modules
         }
 
         [Command("event", "edit", "Edits an event in schedule.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
         [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it gets printed out when an event is added")]
         [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
@@ -478,6 +490,7 @@ namespace DustyBot.Modules
         [Example("462366629247057930 25 Festival")]
         public async Task EditEvent(ICommand command)
         {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
             var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
             var e = schedule.Events.FirstOrDefault(x => x.Id == (int)command["EventId"]);
             if (e == null)
@@ -546,6 +559,21 @@ namespace DustyBot.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException("The bot cannot edit this message. You can only edit messages sent by the `schedule create` command.");
 
             return result;
+        }
+
+        async Task AssertPrivileges(IUser user, ulong guildId)
+        {
+            if (user is IGuildUser gu)
+            {
+                if (gu.GuildPermissions.ManageMessages)
+                    return;
+
+                var s = await Settings.Read<ScheduleSettings>(guildId);
+                if (s.ScheduleRole == default(ulong) || !gu.RoleIds.Contains(s.ScheduleRole))
+                    throw new Framework.Exceptions.MissingPermissionsException("You may bypass this requirement by asking for a schedule management role.", GuildPermission.ManageMessages);
+            }
+            else
+                throw new InvalidOperationException();
         }
 
         interface IScheduleMessage

@@ -142,7 +142,7 @@ namespace DustyBot.Framework.Commands
                     }
                     catch (Exceptions.MissingPermissionsException ex)
                     {
-                        await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
+                        await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, ex.Permissions, ex.Message);
                     }
                     catch (Exceptions.MissingBotPermissionsException ex)
                     {

@@ -43,5 +43,6 @@ namespace DustyBot.Settings
     public class ScheduleSettings : BaseServerSettings
     {
         public List<ScheduleData> ScheduleData { get; set; } = new List<ScheduleData>();
+        public ulong ScheduleRole { get; set; }
     }
 }
