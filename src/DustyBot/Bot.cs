@@ -11,8 +11,7 @@ using DustyBot.Framework.LiteDB;
 using DustyBot.Settings.LiteDB;
 using CommandLine;
 using System.IO;
-
-using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
 
 namespace DustyBot
 {
@@ -46,7 +45,7 @@ namespace DustyBot
             [Option("token", HelpText = "Bot token.")]
             public string Token { get; set; }
 
-            [Option("prefix", Default = Definitions.GlobalDefinitions.DefaultPrefix, HelpText = "Command prefix.")]
+            [Option("prefix", HelpText = "Command prefix.")]
             public string Prefix { get; set; }
 
             [Option("owners", HelpText = "Owner IDs.")]
@@ -54,6 +53,9 @@ namespace DustyBot
 
             [Option("ytkey", HelpText = "Youtube API Key.")]
             public string YouTubeKey { get; set; }
+
+            [Option("gcalendarkey", HelpText = "Google Calendar service account key file.")]
+            public string GCalendarKey { get; set; }
         }
 
         [Verb("encrypt", HelpText = "Encrypt the settings database.")]
@@ -175,16 +177,17 @@ namespace DustyBot
                     
                     if (opts.OwnerIDs == null || !opts.OwnerIDs.Any() || string.IsNullOrWhiteSpace(opts.Token))
                         throw new ArgumentException("Owner IDs and bot token must be specified to create an instance.");
-                    
+
                     using (var db = DatabaseHelpers.CreateOrOpen(instancePath, opts.Password))
                     {
                         db.Engine.UserVersion = Definitions.GlobalDefinitions.SettingsVersion;
                         db.GetCollection<Settings.BotConfig>().Insert(new Settings.BotConfig
                         {
                             BotToken = opts.Token,
-                            CommandPrefix = opts.Prefix,
+                            CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? Definitions.GlobalDefinitions.DefaultPrefix : opts.Prefix,
                             OwnerIDs = new List<ulong>(opts.OwnerIDs),
-                            YouTubeKey = opts.YouTubeKey
+                            YouTubeKey = opts.YouTubeKey,
+                            GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null
                         });
                     }
                 }
@@ -193,6 +196,8 @@ namespace DustyBot
                     if (!File.Exists(instancePath))
                         throw new InvalidOperationException($"Instance {opts.Instance} not found");
 
+                    var GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
+
                     using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
                     {
                         await settings.ModifyGlobal((Settings.BotConfig s) =>
@@ -200,14 +205,17 @@ namespace DustyBot
                             if (opts.Token != null)
                                 s.BotToken = opts.Token;
 
-                            if (opts.Prefix != null)
-                                s.CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? Definitions.GlobalDefinitions.DefaultPrefix : s.CommandPrefix = opts.Prefix;
+                            if (!string.IsNullOrWhiteSpace(opts.Prefix))
+                                s.CommandPrefix = opts.Prefix;
 
                             if (opts.OwnerIDs != null && opts.OwnerIDs.Count() > 0)
                                 s.OwnerIDs = new List<ulong>(opts.OwnerIDs);
 
                             if (opts.YouTubeKey != null)
                                 s.YouTubeKey = opts.YouTubeKey;
+
+                            if (GCalendarSAC != null)
+                                s.GCalendarSAC = GCalendarSAC;
                         });
                     }
                 }

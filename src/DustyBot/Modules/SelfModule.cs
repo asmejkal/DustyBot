@@ -66,11 +66,11 @@ namespace DustyBot.Modules
             {
                 //Try to find the command
                 CommandRegistration commandRegistration = null;
-                var invoker = new string(command.Body.TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
+                var invoker = new string(command["Command"].AsString.TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
                 if (invoker.StartsWith(config.CommandPrefix))
                     invoker = invoker.Substring(config.CommandPrefix.Length);
 
-                var verbs = command.Body.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
+                var verbs = command["Command"].AsString.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
                 foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
                 {
                     foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))

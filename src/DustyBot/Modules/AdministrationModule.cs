@@ -355,7 +355,7 @@ namespace DustyBot.Modules
 
                     if (settings.PhraseBlacklistRule.Enabled)
                     {
-                        if (settings.PhraseBlacklistRule.Blacklist.Any(x => message.Content.Contains(x)))
+                        if (settings.PhraseBlacklistRule.Blacklist.Any(x => message.Content.IndexOf(x, StringComparison.OrdinalIgnoreCase) >= 0))
                         {
                             await EnforceRule(settings.PhraseBlacklistRule, new IMessage[] { message }, channel, await GetUserContext(user), user, settings.LogChannel, message.Content);
                             return;

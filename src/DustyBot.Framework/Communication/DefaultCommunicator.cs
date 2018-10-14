@@ -115,7 +115,7 @@ namespace DustyBot.Framework.Communication
                     pages[i].Embed.WithFooter($"Page {i + 1} of {pages.Count}");
 
             //Send the first page
-            var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed.Build()).ConfigureAwait(false);
+            var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed?.Build()).ConfigureAwait(false);
 
             //If there's more pages, save a context
             if (pages.Count > 1)
@@ -181,7 +181,7 @@ namespace DustyBot.Framework.Communication
                         if (context.Resend)
                         {
                             await concMessage.DeleteAsync();
-                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content, false, newMessage.Embed.Build());
+                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content, false, newMessage.Embed?.Build());
 
                             lock (_paginatedMessages)
                             {
@@ -193,7 +193,7 @@ namespace DustyBot.Framework.Communication
                         }
                         else
                         {
-                            await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed.Build(); });
+                            await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed?.Build(); });
                             await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
                         }
                             

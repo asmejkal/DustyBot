@@ -17,6 +17,10 @@ using DustyBot.Settings;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using System.Threading;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Calendar.v3;
+using Google.Apis.Calendar.v3.Data;
+using Google.Apis.Services;
 
 namespace DustyBot.Modules
 {
@@ -114,6 +118,86 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Schedule message with ID `{message.Data.MessageId}` has been created. Use the `event add` or `event add {message.Data.MessageId}` command to add events.").ConfigureAwait(false);
         }
 
+        //[Command("schedule", "link", "Link schedule with Google Calendar.")]
+        //[Permissions(GuildPermission.ManageMessages)]
+        //[Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
+        //[Parameter("CalendarId", @".+@.+", ParameterType.String)]
+        //[Parameter("FromDate", DateFormat, ParameterType.Regex, "import events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        //[Parameter("ToDate", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "import events before this date")]
+        //public async Task LinkSchedule(ICommand command)
+        //{
+        //    var config = await Settings.ReadGlobal<BotConfig>();
+        //    if (config.GCalendarSAC == null)
+        //    {
+        //        await command.ReplyError(Communicator, "Google Calendar API credentials are not set up. Contact the bot owner.");
+        //        return;
+        //    }
+
+        //    var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+        //    var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : DateTime.MaxValue;
+
+        //    var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
+
+        //    var sac = new ServiceAccountCredential(new ServiceAccountCredential.Initializer(config.GCalendarSAC.Id).FromPrivateKey(config.GCalendarSAC.Key));
+        //    var credential = GoogleCredential.FromServiceAccountCredential(sac).CreateScoped(new string[] { CalendarService.Scope.Calendar });
+        //    var service = new CalendarService(new BaseClientService.Initializer() { HttpClientInitializer = credential, ApplicationName = "Dusty Bot" });
+
+        //    string name;
+        //    try
+        //    {
+        //        var calendar = await service.CalendarList.Insert(new CalendarListEntry() { Id = command["CalendarId"] }).ExecuteAsync();
+        //        name = calendar.Summary;
+
+        //        var tz = TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time");
+        //        var events = await service.Events.List(command["CalendarId"]).ExecuteAsync();
+        //        foreach (var e in events.Items)
+        //        {
+        //            DateTime start;
+        //            if (e.Start.DateTime.HasValue)
+        //                start = TimeZoneInfo.ConvertTime(e.Start.DateTime.Value, tz);
+        //            else if (!string.IsNullOrEmpty(e.Start.Date))
+        //            {
+        //                if (!DateTime.TryParseExact(e.Start.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out start))
+        //                    continue;
+        //            }
+        //            else
+        //                continue;
+
+        //            if (start < fromDate || start >= toDate)
+        //                continue;
+
+        //            var scheduleEvent = new ScheduleEvent()
+        //            {
+        //                Date = start,
+        //                HasTime = e.Start.DateTime.HasValue,
+        //                Description = string.IsNullOrWhiteSpace(e.Summary) ? "Unnamed event" : e.Summary
+        //            };
+
+        //            message.Add(scheduleEvent);
+        //        }
+
+        //        await Settings.Modify(command.GuildId, (ScheduleSettings x) => x.ScheduleData.First(y => y.MessageId == message.Message.Id).GCalendarId = calendar.Id);
+        //    }
+        //    catch (Exception)
+        //    {
+        //        await command.ReplyError(Communicator, "Failed to add the calendar.");
+        //        return;
+        //    }
+
+        //    try
+        //    {
+        //        await message.CommitChanges();
+        //    }
+        //    catch (ArgumentOutOfRangeException)
+        //    {
+        //        await command.ReplyError(Communicator, "The specified schedule message cannot contain all of the imported events, try narrowing the date range.").ConfigureAwait(false);
+        //        return;
+        //    }
+
+        //    var dateExplanation = command["ToDate"].HasValue ? $"between `{fromDate.ToString(@"yyyy\/MM\/dd HH:mm")}` and `{toDate.ToString(@"yyyy\/MM\/dd HH:mm")}`" : $"older than `{fromDate.ToString(@"yyyy\/MM\/dd HH:mm")}`";
+        //    await command.ReplySuccess(Communicator, $"Events from calendar `{name}` {dateExplanation} have been linked to message `{command["MessageId"].AsId}`.").ConfigureAwait(false);
+        //}
+
         [Command("schedule", "edit", "header", "Sets a header for a schedule message.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
@@ -190,7 +274,15 @@ namespace DustyBot.Modules
                 }
             }
 
-            await message.CommitChanges();
+            try
+            {
+                await message.CommitChanges();
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                await command.ReplyError(Communicator, "The message is too long.").ConfigureAwait(false);
+                return;
+            }
 
             await command.ReplySuccess(Communicator, $"Message has been edited.").ConfigureAwait(false);
         }
@@ -209,7 +301,7 @@ namespace DustyBot.Modules
             var target = await GetScheduleMessage(command.Guild, (ulong?)command[1]);
             
             var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-            var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) + new TimeSpan(23, 59, 0) : DateTime.MaxValue;
+            var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : DateTime.MaxValue;
 
             var moved = source.MoveAll(target, x => x.Date >= fromDate && x.Date < toDate);
 

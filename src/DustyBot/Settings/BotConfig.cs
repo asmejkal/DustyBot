@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DustyBot.Framework.LiteDB;
+using static DustyBot.Helpers.GoogleHelpers;
 
 namespace DustyBot.Settings
 {
@@ -13,5 +14,6 @@ namespace DustyBot.Settings
         public string BotToken { get; set; }
         public List<ulong> OwnerIDs { get; set; } = new List<ulong>();
         public string YouTubeKey { get; set; }
+        public RawServiceAccountCredential GCalendarSAC { get; set; }
     }
 }

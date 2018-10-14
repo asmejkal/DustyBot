@@ -34,6 +34,8 @@ namespace DustyBot.Settings
         public string Header { get; set; }
         public string Footer { get; set; }
 
+        public string GCalendarId { get; set; }
+
         public int NextEventId { get; set; } = 1;
         public SortedList<ScheduleEvent> Events { get; set; } = new SortedList<ScheduleEvent>();
     }

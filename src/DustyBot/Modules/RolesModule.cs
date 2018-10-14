@@ -244,7 +244,69 @@ namespace DustyBot.Modules
                         
             await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.").ConfigureAwait(false);
         }
-        
+
+        [Command("roles", "stats", "Server roles statistics.", CommandFlags.RunAsync)]
+        [Parameter("all", "all", ParameterFlags.Optional, "prints stats for all roles")]
+        public async Task RolesStats(ICommand command)
+        {
+            var data = new Dictionary<ulong, int>();
+            foreach (var role in command.Guild.Roles)
+                data[role.Id] = 0;
+
+            foreach (var user in await command.Guild.GetUsersAsync())
+                foreach (var role in user.RoleIds)
+                    data[role] += 1;
+
+            var pages = new PageCollection();
+            const int MaxLines = 30;
+            if (command["all"].HasValue)
+            {
+                int count = 0;
+                foreach (var kv in data.OrderByDescending(x => x.Value))
+                {
+                    if (command.Guild.EveryoneRole.Id == kv.Key)
+                        continue;
+
+                    if (count++ % MaxLines == 0)
+                        pages.Add(new EmbedBuilder().WithTitle("All roles").WithDescription(string.Empty));
+
+                    pages.Last.Embed.Description += $"**{command.Guild.Roles.First(x => x.Id == kv.Key).Name}:** {kv.Value} user{(kv.Value != 1 ? "s" : "")}\n";
+                }
+            }
+            else
+            {
+                var settings = await Settings.Read<RolesSettings>(command.GuildId, false);
+                if (settings == null || settings.AssignableRoles.Count <= 0)
+                {
+                    await command.Reply(Communicator, "No self-assignable roles have been set. For overall stats use `roles stats all`.").ConfigureAwait(false);
+                    return;
+                }
+
+                int count = 0;
+                foreach (var kv in data.OrderByDescending(x => x.Value))
+                {
+                    var role = settings.AssignableRoles.FirstOrDefault(x => x.RoleId == kv.Key);
+                    if (role == null)
+                        continue;
+
+                    if (count++ % MaxLines == 0)
+                        pages.Add(new EmbedBuilder().WithTitle("Self-assignable roles").WithDescription(string.Empty));
+
+                    pages.Last.Embed.Description += $"**{role.Names.First()}:** {kv.Value} user{(kv.Value != 1 ? "s" : "")}\n";
+                    
+                    if (role.SecondaryId != default(ulong))
+                    {
+                        pages.Last.Embed.Description += $" ┕ Secondary: {data[role.SecondaryId]} users\n";
+
+                        if (count % MaxLines != 0)
+                            count++;
+                    }                        
+                }
+            }
+
+            await command.Reply(Communicator, pages).ConfigureAwait(false);
+        }
+
         public override Task OnUserLeft(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
