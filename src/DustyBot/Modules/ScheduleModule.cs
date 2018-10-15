@@ -70,7 +70,7 @@ namespace DustyBot.Modules
             string result = string.Empty;
             foreach (var item in events.OrderBy(x => x.Date))
             {
-                result += "\n" + item.Date.ToString(item.HasTime ? @"`[MM\/dd | HH:mm]`" : @"`[MM\/dd | ??:??]`") + " " + item.Description;
+                result += "\n" + PrintedScheduleMessage.FormatEvent(item, settings.EventFormat);
 
                 if (!item.HasTime)
                 {
@@ -367,6 +367,21 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.").ConfigureAwait(false);
             else
                 await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "style", "Switches between display styles.")]
+        [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
+        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** – embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** – default with korean date formatting:\n`[181006 | 13:00]` Event\n\nExisting messages will switch to the new style once they are edited. If you have an idea for a style that isn't listed here, please make a suggestion on the [support server](https://discord.gg/mKKJFvZ) or contact the bot owner.")]
+        [Example("KoreanDate")]
+        public async Task FormatSchedule(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            if (!Enum.TryParse(command["EventFormat"], true, out EventFormat format))
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown event formatting type.");
+
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.EventFormat = format).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Schedule display style has been set to `{format}`. Existing messages will switch to the new style once they are edited.").ConfigureAwait(false);
         }
 
         [Command("event", "add", "Adds an event to schedule.")]
@@ -707,9 +722,11 @@ namespace DustyBot.Modules
 
             public async Task CommitChanges()
             {
+                var settings = await _settings.Read<ScheduleSettings>(((ITextChannel)Message.Channel).GuildId);
+
                 var result = new StringBuilder();
                 foreach (var e in Events)
-                    result.AppendLine(e.Date.ToString(e.HasTime ? @"`[MM\/dd | HH:mm]`" : @"`[MM\/dd | ??:??]`") + " " + e.Description);
+                    result.AppendLine(FormatEvent(e, settings.EventFormat));
 
                 if (result.Length > 2000)
                     throw new ArgumentOutOfRangeException();
@@ -730,6 +747,14 @@ namespace DustyBot.Modules
                 });
 
                 await Message.ModifyAsync(x => { x.Content = string.Empty; x.Embed = embed.Build(); });
+            }
+
+            public static string FormatEvent(ScheduleEvent e, EventFormat format)
+            {
+                if (format == EventFormat.KoreanDate)
+                    return e.Date.ToString(e.HasTime ? @"`[yyMMdd | HH:mm]`" : @"`[yyMMdd | ??:??]`") + " " + e.Description;
+                else
+                    return e.Date.ToString(e.HasTime ? @"`[MM\/dd | HH:mm]`" : @"`[MM\/dd | ??:??]`") + " " + e.Description;
             }
         }
     }

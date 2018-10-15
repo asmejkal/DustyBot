@@ -40,9 +40,16 @@ namespace DustyBot.Settings
         public SortedList<ScheduleEvent> Events { get; set; } = new SortedList<ScheduleEvent>();
     }
 
+    public enum EventFormat
+    {
+        Default,
+        KoreanDate
+    }
+
     public class ScheduleSettings : BaseServerSettings
     {
         public List<ScheduleData> ScheduleData { get; set; } = new List<ScheduleData>();
         public ulong ScheduleRole { get; set; }
+        public EventFormat EventFormat { get; set; } = EventFormat.Default;
     }
 }
