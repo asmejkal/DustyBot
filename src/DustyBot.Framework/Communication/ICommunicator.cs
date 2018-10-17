@@ -23,7 +23,7 @@ namespace DustyBot.Framework.Communication
 
     public interface ICommunicator
     {
-        Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message);
+        Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null);
         Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);

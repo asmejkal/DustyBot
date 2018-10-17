@@ -66,7 +66,7 @@ namespace DustyBot.Framework.Communication
             Logger = logger;
         }
 
-        public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message) => await channel.SendMessageAsync(":white_check_mark: " + message.Sanitise());
+        public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null) => await channel.SendMessageAsync(":white_check_mark: " + message.Sanitise(), embed: embed);
         public async Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message) => await channel.SendMessageAsync(":no_entry: " + message.Sanitise());
 
         public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await SendMessage(channel, message);
@@ -111,8 +111,16 @@ namespace DustyBot.Framework.Communication
         {
             //Set footers where applicable
             for (int i = 0; i < pages.Count; ++i)
-                if (pages[i].Embed != null && pages[i].Embed.Footer == null)
-                    pages[i].Embed.WithFooter($"Page {i + 1} of {pages.Count}");
+            {
+                if (pages[i].Embed == null)
+                    continue;
+
+                var footer = $"Page {i + 1} of {pages.Count}" + (!string.IsNullOrEmpty(pages[i].Embed.Footer?.Text) ? $" • {pages[i].Embed.Footer.Text}" : "");
+                if (pages[i].Embed.Footer != null)
+                    pages[i].Embed.Footer.Text = footer;
+                else
+                    pages[i].Embed.WithFooter(x => x.WithText(footer));
+            }
 
             //Send the first page
             var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed?.Build()).ConfigureAwait(false);

@@ -110,12 +110,26 @@ namespace DustyBot.Modules
             await AssertPrivileges(command.Message.Author, command.GuildId);
             var message = await PrintedScheduleMessage.CreateNew(command["Channel"].AsTextChannel, command["Header"], command["Footer"], Settings);
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            bool first = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
                 s.ScheduleData.Add(message.Data);
+                return s.ScheduleData.Count <= 1;
             }).ConfigureAwait(false);
 
-            await command.ReplySuccess(Communicator, $"Schedule message with ID `{message.Data.MessageId}` has been created. Use the `event add` or `event add {message.Data.MessageId}` command to add events.").ConfigureAwait(false);
+            Embed guide = null;
+            if (first)
+            {
+                guide = new EmbedBuilder()
+                    .WithTitle("Guide")
+                    .WithDescription("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role.")
+                    .AddField(x => x.WithName(":one: You may create more than one message").WithValue("Servers usually create one message for each month of schedule or one for every two-weeks etc. You can even maintain multiple different schedules."))
+                    .AddField(x => x.WithName(":two: Where to place the schedule").WithValue("Usually, servers place their schedule messages in a #schedule channel or pin them in main chat or #updates."))
+                    .AddField(x => x.WithName(":three: The \"schedule\" command").WithValue("The `schedule` command is for convenience. Users can use it to see events happening in the next two weeks across all schedules, with countdowns."))
+                    .AddField(x => x.WithName(":four: Adding events").WithValue("Use the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter."))
+                    .Build();
+            }
+
+            await command.ReplySuccess(Communicator, $"Schedule message with ID `{message.Data.MessageId}` has been created. Use the `event add` or `event add {message.Data.MessageId}` command to add events.", guide).ConfigureAwait(false);
         }
 
         //[Command("schedule", "link", "Link schedule with Google Calendar.")]
@@ -615,7 +629,7 @@ namespace DustyBot.Modules
 
         class PrintedScheduleMessage : IScheduleMessage
         {
-            const string DefaultHeader = "Schedule";
+            const string DefaultHeader = ":calendar_spiral: Schedule";
 
             ISettingsProvider _settings;
 
@@ -650,7 +664,7 @@ namespace DustyBot.Modules
             {
                 header = string.IsNullOrEmpty(header) ? DefaultHeader : header;
                 var embed = new EmbedBuilder()
-                    .WithTitle(":calendar_spiral: " + header)
+                    .WithTitle(header)
                     .WithDescription("")
                     .WithFooter(footer);
 

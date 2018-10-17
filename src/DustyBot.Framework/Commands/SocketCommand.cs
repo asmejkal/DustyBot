@@ -289,7 +289,7 @@ namespace DustyBot.Framework.Commands
             return true;
         }
 
-        public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message) => communicator.CommandReplySuccess(Message.Channel, message);
+        public Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message, Embed embed = null) => communicator.CommandReplySuccess(Message.Channel, message, embed);
         public Task<IUserMessage> ReplyError(ICommunicator communicator, string message) => communicator.CommandReplyError(Message.Channel, message);
         public Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message) => communicator.CommandReply(Message.Channel, message);
         public Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => communicator.CommandReply(Message.Channel, message, chunkDecorator, maxDecoratorOverhead);

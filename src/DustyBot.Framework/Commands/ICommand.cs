@@ -20,7 +20,7 @@ namespace DustyBot.Framework.Commands
         string Body { get; }
         string Prefix { get; }
 
-        Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message);
+        Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message, Embed embed = null);
         Task<IUserMessage> ReplyError(ICommunicator communicator, string message);
         Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message);
         Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
