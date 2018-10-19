@@ -104,7 +104,11 @@ namespace DustyBot.Modules
         [Parameter("Channel", ParameterType.TextChannel, "target channel")]
         [Parameter("Header", ParameterType.String, ParameterFlags.Optional, "header for the message")]
         [Parameter("Footer", ParameterType.String, ParameterFlags.Optional, "footer for the message")]
-        [Comment("Sends an empty schedule message (e.g. to your `#schedule` channel). You can then add events with the `event add` command.")]
+        [Comment("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role." +
+                 "\n\n:one: **You may create more than one message**\nServers usually create one message for each month of schedule or one for every two-weeks etc. You can even maintain multiple different schedules." +
+                 "\n\n:two: **Where to place the schedule**\nUsually, servers place their schedule messages in a #schedule channel or pin them in main chat or #updates." +
+                 "\n\n:three: **The \"schedule\" command**\nThe `schedule` command is for convenience. Users can use it to see events happening in the next two weeks across all schedules, with countdowns." +
+                 "\n\n:four: **Adding events**\nUse the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter.")]
         public async Task CreateSchedule(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
@@ -314,8 +318,8 @@ namespace DustyBot.Modules
             var source = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
             var target = await GetScheduleMessage(command.Guild, (ulong?)command[1]);
             
-            var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-            var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : DateTime.MaxValue;
+            var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+            var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : DateTime.MaxValue;
 
             var moved = source.MoveAll(target, x => x.Date >= fromDate && x.Date < toDate);
 
@@ -415,7 +419,7 @@ namespace DustyBot.Modules
 
             try
             {
-                var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+                var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
                 bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
                 if (hasTime)
                     dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
@@ -470,7 +474,7 @@ namespace DustyBot.Modules
             DateTime? date;
             try
             { 
-                date = command["Date"].HasValue ? new DateTime?(DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None)) : null;
+                date = command["Date"].HasValue ? new DateTime?(DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None)) : null;
             }
             catch (FormatException)
             {
@@ -530,7 +534,7 @@ namespace DustyBot.Modules
                 var date = e.Date.Date;
                 var time = e.Date.TimeOfDay;
                 if (command["Date"].HasValue)
-                    date = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+                    date = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
 
                 bool hasTime = e.HasTime;
                 if (command["Time"].HasValue)

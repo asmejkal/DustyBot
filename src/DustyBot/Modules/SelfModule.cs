@@ -114,12 +114,15 @@ namespace DustyBot.Modules
                     users.Add(user.Id);
             }
 
+            var uptime = (DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime());
+
             var embed = new EmbedBuilder()
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddField("Author", "Yebafan#3517", true)
                 .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
                 .AddField("Presence", $"{users.Count} users\n{guilds.Count} servers", true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
+                .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
                 .AddField("Web", "http://dustybot.info", true)
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
@@ -199,8 +202,8 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
-        [Command("dump", "commands", "Generates a list of all commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
-        public async Task Commandlist(ICommand command)
+        [Command("help", "dump", "Generates a list of all commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        public async Task DumpHelp(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
             var result = new StringBuilder();
