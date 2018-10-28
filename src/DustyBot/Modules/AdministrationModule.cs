@@ -101,7 +101,7 @@ namespace DustyBot.Modules
 
         [Command("raid-protection", "enable", "Protects the server against raids.")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles, GuildPermission.ManageMessages)]
-        [Parameter("LogChannel", ParameterType.TextChannel, "a channel that will recieve notifications about performed actions")]
+        [Parameter("LogChannel", ParameterType.TextChannel, ParameterFlags.Remainder, "a channel that will recieve notifications about performed actions")]
         [Comment("Upon enabling this feature, the bot will automatically delete obviously malicious messages and warn or mute offending users. The default rules are set up to only affect obvious raiders.")]
         public async Task EnableRaidProtection(ICommand command)
         {
