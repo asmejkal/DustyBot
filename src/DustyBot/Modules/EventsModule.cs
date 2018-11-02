@@ -31,6 +31,7 @@ namespace DustyBot.Modules
         public const string NamePlaceholder = "{name}";
         public const string FullNamePlaceholder = "{fullname}";
         public const string IdPlaceholder = "{id}";
+        public const string ServerPlaceholder = "{server}";
 
         public EventsModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {
@@ -42,7 +43,7 @@ namespace DustyBot.Modules
         [Command("greet", "Sets or disables a greeting message.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "a channel that will receive the messages")]
-        [Parameter("Message", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders")]
         [Comment("Use without parameters to disable the greeting message.")]
         public async Task Greet(ICommand command)
         {
@@ -76,7 +77,7 @@ namespace DustyBot.Modules
         [Command("bye", "Sets or disables a goodbye message.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "a channel that will receive the messages")]
-        [Parameter("Message", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "the bye message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + " and " + IdPlaceholder + " placeholders")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "the bye message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders")]
         [Comment("Use without parameters to disable the bye message.")]
         public async Task Bye(ICommand command)
         {
@@ -112,7 +113,8 @@ namespace DustyBot.Modules
             return message.Replace(MentionPlaceholder, user.Mention)
                 .Replace(NamePlaceholder, user.Username)
                 .Replace(FullNamePlaceholder, user.Username + "#" + user.Discriminator)
-                .Replace(IdPlaceholder, user.Id.ToString());
+                .Replace(IdPlaceholder, user.Id.ToString())
+                .Replace(ServerPlaceholder, user.Guild.Name);
         }
 
         public override Task OnUserJoined(SocketGuildUser guildUser)

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,6 +16,7 @@ namespace DustyBot.Helpers
             public string Id { get; set; }
             public string Key { get; set; }
         }
+
         public static async Task<RawServiceAccountCredential> ParseServiceAccountKeyFile(string path)
         {
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))

@@ -152,7 +152,7 @@ namespace DustyBot.Modules
 
             string result = string.Empty;
             foreach (var feed in settings.DaumCafeFeeds)
-                result += $"Id: `{feed.Id}` Board: `{feed.CafeId}/{feed.BoardId}` Channel: `{feed.TargetChannel}`" + (feed.CredentialId != Guid.Empty ? $" Credential: `{feed.CredentialId}`\n" : "\n");
+                result += $"Id: `{feed.Id}` Board: `{feed.CafeId}/{feed.BoardId}` Channel: <#{feed.TargetChannel}>" + (feed.CredentialId != Guid.Empty ? $" Credential: `{feed.CredentialId}`\n" : "\n");
 
             if (string.IsNullOrEmpty(result))
                 result = "No feeds have been set up. Use the `cafe add` command.";

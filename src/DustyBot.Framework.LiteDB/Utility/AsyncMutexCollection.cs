@@ -8,8 +8,7 @@ namespace DustyBot.Framework.LiteDB.Utility
 {
     public class AsyncMutexCollection<TKey> : IDisposable
     {
-        SemaphoreSlim _thisLock = new SemaphoreSlim(1, 1);
-        public SemaphoreSlim ThisLock => _thisLock;
+        public SemaphoreSlim ThisLock { get; private set; } = new SemaphoreSlim(1, 1);
 
         Dictionary<TKey, SemaphoreSlim> _locks = new Dictionary<TKey, SemaphoreSlim>();
 
@@ -17,7 +16,7 @@ namespace DustyBot.Framework.LiteDB.Utility
         {
             try
             {
-                await _thisLock.WaitAsync();
+                await ThisLock.WaitAsync();
 
                 SemaphoreSlim result;
                 if (!_locks.TryGetValue(key, out result))
@@ -27,7 +26,7 @@ namespace DustyBot.Framework.LiteDB.Utility
             }
             finally
             {
-                _thisLock.Release();
+                ThisLock.Release();
             }
         }
 
@@ -35,13 +34,13 @@ namespace DustyBot.Framework.LiteDB.Utility
         {
             try
             {
-                await _thisLock.WaitAsync();
+                await ThisLock.WaitAsync();
 
                 await action(_locks);
             }
             finally
             {
-                _thisLock.Release();
+                ThisLock.Release();
             }
         }
 
@@ -49,13 +48,13 @@ namespace DustyBot.Framework.LiteDB.Utility
         {
             try
             {
-                await _thisLock.WaitAsync();
+                await ThisLock.WaitAsync();
 
                 return await action(_locks);
             }
             finally
             {
-                _thisLock.Release();
+                ThisLock.Release();
             }
         }
 
@@ -76,8 +75,8 @@ namespace DustyBot.Framework.LiteDB.Utility
             {
                 if (disposing)
                 {
-                    _thisLock.Dispose();
-                    _thisLock = null;
+                    ThisLock.Dispose();
+                    ThisLock = null;
 
                     foreach (var l in _locks)
                         l.Value.Dispose();

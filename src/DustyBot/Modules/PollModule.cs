@@ -145,7 +145,7 @@ namespace DustyBot.Modules
                 await command.ReplyError(Communicator, "There is no poll running in this channel.").ConfigureAwait(false);
             else
             {
-                var confMessage = await command.ReplySuccess(Communicator, $"**{DiscordHelpers.EscapeMention("@" + command.Message.Author.Username)}** vote cast.").ConfigureAwait(false);
+                var confMessage = await command.ReplySuccess(Communicator, $"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.").ConfigureAwait(false);
                 if (poll.Anonymous)
                 {
                     await command.Message.DeleteAsync();

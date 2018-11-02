@@ -44,8 +44,60 @@ namespace DustyBot.Framework.Utility
             await EnsureBotPermissions(guildChannel, perms);
         }
 
-        public static string EscapeMention(string mention) => mention.Replace("@", "@\u200B");
-        
+        private static Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
+        public static async Task<string> ReplaceUserMentions(string content, IEnumerable<ulong> mentionedUserIds, IGuild guild)
+        {
+            var names = new Dictionary<ulong, string>();
+            foreach (var userId in mentionedUserIds)
+            {
+                var user = await guild.GetUserAsync(userId);
+                if (user != null)
+                    names[userId] = user.Username;
+            }
+
+            return UserMentionRegex.Replace(content, x =>
+            {
+                if (string.IsNullOrEmpty(x.Groups[1].Value))
+                    return x.Value;
+
+                if (!ulong.TryParse(x.Groups[1].Value, out var id) || !names.TryGetValue(id, out var name))
+                    return x.Value;
+
+                return "@" + name;
+            });
+        }
+
+        private static Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
+        public static string ReplaceRoleMentions(string content, IEnumerable<ulong> mentionedRoleIds, IGuild guild)
+        {
+            var names = new Dictionary<ulong, string>();
+            foreach (var roleId in mentionedRoleIds)
+            {
+                var role = guild.GetRole(roleId);
+                if (role != null)
+                    names[roleId] = role.Name;
+            }
+
+            return RoleMentionRegex.Replace(content, x =>
+            {
+                if (string.IsNullOrEmpty(x.Groups[1].Value))
+                    return x.Value;
+
+                if (!ulong.TryParse(x.Groups[1].Value, out var id) || !names.TryGetValue(id, out var name))
+                    return x.Value;
+
+                return "@" + name;
+            });
+        }
+
+        public static async Task<string> ReplaceMentions(string content, IEnumerable<ulong> mentionedUserIds, IEnumerable<ulong> mentionedRoleIds, IGuild guild)
+        {
+            var result = await ReplaceUserMentions(content, mentionedUserIds, guild);
+            return ReplaceRoleMentions(result, mentionedRoleIds, guild);
+        }
+
+        public static string EscapeMentions(string mention) => mention.Replace("@", "@\u200B");
+
         public static string Sanitise(this string value)
         {
             return value

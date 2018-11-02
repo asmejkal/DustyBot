@@ -15,9 +15,11 @@ namespace DustyBot.Framework.Exceptions
     
     public class IncorrectParametersCommandException : CommandException
     {
-        public IncorrectParametersCommandException() { }
-        public IncorrectParametersCommandException(string message) : base(message) { }
-        public IncorrectParametersCommandException(string message, Exception inner) : base(message, inner) { }
+        public IncorrectParametersCommandException(bool showUsage = true) { ShowUsage = showUsage; }
+        public IncorrectParametersCommandException(string message, bool showUsage = true) : base(message) { ShowUsage = showUsage; }
+        public IncorrectParametersCommandException(string message, Exception inner, bool showUsage = true) : base(message, inner) { ShowUsage = showUsage; }
+
+        public bool ShowUsage { get; }
     }
 
     public class MissingPermissionsException : Exception

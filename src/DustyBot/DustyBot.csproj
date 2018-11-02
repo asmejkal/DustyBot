@@ -16,8 +16,8 @@
     <Authors>Yebafan</Authors>
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
-    <AssemblyVersion>2.6.1.1</AssemblyVersion>
-    <FileVersion>2.6.1.1</FileVersion>
+    <AssemblyVersion>2.7.0.0</AssemblyVersion>
+    <FileVersion>2.7.0.0</FileVersion>
     <Version>2.5.0</Version>
   </PropertyGroup>
 
@@ -37,6 +37,7 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
     <PackageReference Include="Nito.Collections.Deque" Version="1.0.4" />
     <PackageReference Include="System.Security.SecureString" Version="4.3.0" />
+    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
 
 </Project>

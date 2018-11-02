@@ -633,7 +633,7 @@ namespace DustyBot.Modules
 
         class PrintedScheduleMessage : IScheduleMessage
         {
-            const string DefaultHeader = ":calendar_spiral: Schedule";
+            const string DefaultHeader = "Schedule";
 
             ISettingsProvider _settings;
 

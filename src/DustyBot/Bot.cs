@@ -51,11 +51,14 @@ namespace DustyBot
             [Option("owners", HelpText = "Owner IDs.")]
             public IEnumerable<ulong> OwnerIDs { get; set; }
 
-            [Option("ytkey", HelpText = "Youtube API Key.")]
+            [Option("ytkey", HelpText = "Youtube API key.")]
             public string YouTubeKey { get; set; }
 
             [Option("gcalendarkey", HelpText = "Google Calendar service account key file.")]
             public string GCalendarKey { get; set; }
+
+            [Option("shortenerkey", HelpText = "Bit.ly generic access token.")]
+            public string ShortenerKey { get; set; }
         }
 
         [Verb("encrypt", HelpText = "Encrypt the settings database.")]
@@ -139,6 +142,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.SongRankModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
                     _modules = components.Modules;
 
                     //Choose services
@@ -187,7 +191,8 @@ namespace DustyBot
                             CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? Definitions.GlobalDefinitions.DefaultPrefix : opts.Prefix,
                             OwnerIDs = new List<ulong>(opts.OwnerIDs),
                             YouTubeKey = opts.YouTubeKey,
-                            GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null
+                            GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null,
+                            ShortenerKey = opts.ShortenerKey
                         });
                     }
                 }
@@ -216,6 +221,9 @@ namespace DustyBot
 
                             if (GCalendarSAC != null)
                                 s.GCalendarSAC = GCalendarSAC;
+
+                            if (opts.ShortenerKey != null)
+                                s.ShortenerKey = opts.ShortenerKey;
                         });
                     }
                 }

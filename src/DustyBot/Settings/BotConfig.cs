@@ -15,5 +15,6 @@ namespace DustyBot.Settings
         public List<ulong> OwnerIDs { get; set; } = new List<ulong>();
         public string YouTubeKey { get; set; }
         public RawServiceAccountCredential GCalendarSAC { get; set; }
+        public string ShortenerKey { get; set; }
     }
 }
