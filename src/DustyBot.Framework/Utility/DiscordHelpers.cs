@@ -126,5 +126,13 @@ namespace DustyBot.Framework.Utility
 
             return null;
         }
+
+        public static string GetFullName(this IEmote emote)
+        {
+            if (emote is Emote customEmote)
+                return $"<:{customEmote.Name}:{customEmote.Id}>";
+            else
+                return emote.Name;
+        }
     }
 }

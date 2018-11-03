@@ -110,7 +110,7 @@ namespace DustyBot.Framework.Communication
         public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
         {
             //Set footers where applicable (only if we have more than one page or if the only page has no custom footer)
-            if (pages.Count > 1 || (pages.Count == 1 && string.IsNullOrEmpty(pages[0].Embed.Footer?.Text)))
+            if (pages.Count > 1 || (pages.Count == 1 && pages[0].Embed != null && string.IsNullOrEmpty(pages[0].Embed.Footer?.Text)))
             {
                 for (int i = 0; i < pages.Count; ++i)
                 {

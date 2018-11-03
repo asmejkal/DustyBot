@@ -107,6 +107,29 @@ namespace DustyBot.Settings.LiteDB
                             mediaCol.Update(mediaSettings);
                         }
                     }
+                ),
+
+                new Migration
+                (
+                    version: 5,
+                    up: db =>
+                    {
+                        //Starboard now allows multiple emojis
+                        var col = db.GetCollection("StarboardSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            if (s["Starboards"].AsArray != null)
+                            {
+                                foreach (var board in s["Starboards"].AsArray)
+                                {
+                                    board.AsDocument["Emojis"] = new BsonArray() { board.AsDocument["Emoji"] };
+                                    board.AsDocument.Remove("Emoji");
+                                }
+                            }
+
+                            col.Update(s);
+                        }
+                    }
                 )
             };
         }

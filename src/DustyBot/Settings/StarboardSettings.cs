@@ -21,11 +21,11 @@ namespace DustyBot.Settings
     public class Starboard
     {
         public const uint DefaultThreshold = 1;
-        public const string DefaultEmoji = "⭐";
+        public static readonly List<string> DefaultEmojis = new List<string>() { "⭐" };
 
         public int Id { get; set; }
         public ulong Channel { get; set; }
-        public string Emoji { get; set; } = DefaultEmoji;
+        public List<string> Emojis { get; set; } = DefaultEmojis;
 
         uint _threshold = DefaultThreshold;
         public uint Threshold

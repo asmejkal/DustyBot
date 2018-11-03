@@ -57,10 +57,10 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
         }
 
-        [Command("starboard", "emoji", "Sets a custom emoji for a starboard.")]
+        [Command("starboard", "emojis", "Sets one or more custom emoji for a starboard.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
-        [Parameter("Emoji", ParameterType.String, "an emoji that will be used to star messages instead of the default :star: emoji")]
+        [Parameter("Emojis", ParameterType.String, ParameterFlags.Repeatable, "one or more emojis that will be used to star messages instead of the default :star: emoji; the first emoji will be the main one")]
         public async Task SetEmojis(ICommand command)
         {
             var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
@@ -69,11 +69,11 @@ namespace DustyBot.Modules
                 if (board == null)
                     throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
 
-                board.Emoji = command["Emoji"].AsString;
+                board.Emojis = new List<string>(command["Emojis"].Repeats.Select(x => x.AsString));
                 return board.Id;
             }).ConfigureAwait(false);
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now look for the {command["Emoji"]} emoji.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now look for {(command["Emojis"].Repeats.Count == 1 ? "the " : "")}{command["Emojis"].Repeats.Select(x => x.AsString).WordJoin()} emoji{(command["Emojis"].Repeats.Count > 1 ? "s" : "")}.").ConfigureAwait(false);
         }
 
         [Command("starboard", "threshold", "Sets the minimum reactions for a starboard.")]
@@ -141,7 +141,7 @@ namespace DustyBot.Modules
 
             var result = new StringBuilder();
             foreach (var s in settings.Starboards)
-                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Emoji: {s.Emoji} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
+                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Emojis: {s.Emojis.WordJoin()} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
 
             await command.Reply(Communicator, result.ToString());
         }
@@ -174,9 +174,9 @@ namespace DustyBot.Modules
                 foreach (var message in board.StarredMessages)
                 {
                     if (data.TryGetValue(message.Value.Author, out var value))
-                        data[message.Value.Author] = value + 1;
+                        data[message.Value.Author] = value + message.Value.Starrers.Count;
                     else
-                        data[message.Value.Author] = 1;
+                        data[message.Value.Author] = message.Value.Starrers.Count;
                 }
             }
 
@@ -205,6 +205,52 @@ namespace DustyBot.Modules
                 .WithDescription(result.ToString());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build());
+        }
+
+        [Command("starboard", "top", "Shows the top ranked messages.", CommandFlags.RunAsync)]
+        public async Task StarboardTop(ICommand command)
+        {
+            var settings = await Settings.Read<StarboardSettings>(command.GuildId);
+
+            var data = new Dictionary<(ulong channel, ulong message), int>();
+            foreach (var board in settings.Starboards)
+            {
+                foreach (var message in board.StarredMessages)
+                {
+                    if (message.Value.StarboardMessage == default(ulong))
+                        continue;
+
+                    var key = (board.Channel, message.Value.StarboardMessage);
+                    if (data.TryGetValue(key, out var value))
+                        data[key] = value + message.Value.Starrers.Count;
+                    else
+                        data[key] = message.Value.Starrers.Count;
+                }
+            }
+
+            var pages = new PageCollection();
+            foreach (var dataPair in data.OrderByDescending(x => x.Value))
+            {
+                var channel = await command.Guild.GetTextChannelAsync(dataPair.Key.channel);
+                if (channel == null)
+                    continue;
+
+                var message = await channel.GetMessageAsync(dataPair.Key.message);
+                if (message == null)
+                    continue;
+
+                pages.Add(new Page() { Content = $"**[#{pages.Count + 1}]** " + message.Content });
+                if (pages.Count >= 20)
+                    break;
+            }
+
+            if (pages.Count <= 0)
+            {
+                await command.Reply(Communicator, "There are no starred messages on this server.");
+                return;
+            }
+
+            await command.Reply(Communicator, pages);
         }
 
         public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
@@ -257,7 +303,7 @@ namespace DustyBot.Modules
 
         public async Task ProcessNewStar(Starboard board, ITextChannel channel, Cacheable<IUserMessage, ulong> cachedMessage, SocketReaction reaction)
         {
-            if (board.Emoji != reaction.Emote.Name)
+            if (!board.Emojis.Contains(reaction.Emote.GetFullName()))
                 return;
 
             if (board.ChannelsWhitelist.Count > 0 && !board.ChannelsWhitelist.Contains(channel.Id))
@@ -300,7 +346,7 @@ namespace DustyBot.Modules
             {
                 //Post new
                 var attachments = await ProcessAttachments(message.Attachments);
-                var built = await BuildStarMessage(message, channel, entry.Starrers.Count, reaction.Emote, false, attachments);
+                var built = await BuildStarMessage(message, channel, entry.Starrers.Count, board.Emojis.First(), false, attachments);
                 var starMessage = await starChannel.SendMessageAsync(built);
 
                 await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
@@ -320,7 +366,7 @@ namespace DustyBot.Modules
                 if (starMessage == null)
                     return; //Probably got deleted from starboard
 
-                var built = await BuildStarMessage(message, channel, entry.Starrers.Count, reaction.Emote, true, entry.Attachments);
+                var built = await BuildStarMessage(message, channel, entry.Starrers.Count, board.Emojis.First(), true, entry.Attachments);
                 await starMessage.ModifyAsync(x => x.Content = built);
             }
         }
@@ -375,7 +421,7 @@ namespace DustyBot.Modules
 
         public async Task ProcessRemovedStar(Starboard board, ITextChannel channel, Cacheable<IUserMessage, ulong> cachedMessage, SocketReaction reaction)
         {
-            if (board.Emoji != reaction.Emote.Name)
+            if (!board.Emojis.Contains(reaction.Emote.GetFullName()))
                 return;
 
             var message = await cachedMessage.GetOrDownloadAsync();
@@ -417,7 +463,7 @@ namespace DustyBot.Modules
             if (starMessage == null)
                 return; //Probably got deleted from starboard
 
-            var built = await BuildStarMessage(message, channel, entry.Starrers.Count, reaction.Emote, true, entry.Attachments);
+            var built = await BuildStarMessage(message, channel, entry.Starrers.Count, board.Emojis.First(), true, entry.Attachments);
             await starMessage.ModifyAsync(x => x.Content = built);
         }
 
@@ -428,7 +474,10 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    result.Add(await UrlShortener.ShortenUrl(a.Url, Config.ShortenerKey));
+                    if (a.Url.EndsWith(".jpg") || a.Url.EndsWith(".jpeg") || a.Url.EndsWith(".png"))
+                        result.Add(await UrlShortener.ShortenUrl(a.Url, Config.ShortenerKey));
+                    else
+                        result.Add(a.Url);
                 }
                 catch (Exception ex)
                 {
@@ -440,15 +489,32 @@ namespace DustyBot.Modules
             return result;
         }
 
-        async Task<string> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, IEmote emote, bool editing, List<string> attachments)
+        static readonly Regex HttpUrlRegex = new Regex(@"^http[s]?://[^\s]+$", RegexOptions.Compiled);
+        async Task<string> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, bool editing, List<string> attachments)
         {
-            var footer = $"\n\n{emote.Name} {starCount} | `{message.CreatedAt.ToUniversalTime().ToString(@"MMM d yyyy HH:mm", new CultureInfo("en-US"))}` | {channel.Mention}";
-            string content = $"**@{message.Author.Username}:**\n";
-            if (!string.IsNullOrWhiteSpace(message.Content))
-                content += message.Content;
+            var footer = $"\n{emote} {starCount} | `{message.CreatedAt.ToUniversalTime().ToString(@"MMM d yyyy HH:mm", new CultureInfo("en-US"))}` | {channel.Mention}";
+            string attachmentsSection = string.Join("\n", attachments);
 
-            if (attachments.Count > 0)
-                content += (!string.IsNullOrWhiteSpace(message.Content) ? "\n\n" : "") + string.Join("\n", attachments);
+            string content = $"**@{message.Author.Username}:**\n";
+
+            if (string.IsNullOrWhiteSpace(message.Content))
+            {
+                //No content, should have attachments
+                if (attachments.Count > 0)
+                    content += attachmentsSection;
+            }
+            else if (message.Embeds.Count > 0 && HttpUrlRegex.IsMatch(message.Content))
+            {
+                content += message.Content;
+                if (attachments.Count > 0)
+                    content += "\n" + attachmentsSection;
+            }
+            else
+            {
+                content += message.Content + "\n";
+                if (attachments.Count > 0)
+                    content += attachmentsSection + "\n";
+            }
 
             content = await DiscordHelpers.ReplaceMentions(content, message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
             return DiscordHelpers.EscapeMentions(content + footer);
