@@ -141,7 +141,7 @@ namespace DustyBot.Modules
 
             var result = new StringBuilder();
             foreach (var s in settings.Starboards)
-                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Emojis: {s.Emojis.WordJoin()} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
+                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Emojis: {string.Join(" ", s.Emojis)} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
 
             await command.Reply(Communicator, result.ToString());
         }
