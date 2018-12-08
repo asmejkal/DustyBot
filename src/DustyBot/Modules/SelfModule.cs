@@ -56,10 +56,10 @@ namespace DustyBot.Modules
                     var description = module.Description + "\n";
                     foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
                         description += $"\n`{config.CommandPrefix}{handledCommand.InvokeUsage}` – {handledCommand.Description}";
-                    
+
                     pages.Last.Embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
                 }
-                
+
                 await command.Reply(Communicator, pages).ConfigureAwait(false);
             }
             else
@@ -94,7 +94,7 @@ namespace DustyBot.Modules
                     .WithTitle($"Command {commandRegistration.InvokeUsage}")
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
-                
+
                 embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, config)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
@@ -137,13 +137,41 @@ namespace DustyBot.Modules
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 10 == 0)
                     pages.Add(new EmbedBuilder());
-                                
+
                 pages.Last.Embed.AddField(x => x
                     .WithName(guild.Name)
                     .WithValue($"{guild.Id}\n{guild.MemberCount} members\nOwned by {guild.Owner.Username}#{guild.Owner.Discriminator} ({guild.OwnerId})"));
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
+        }
+
+        [Command("server", "Shows information about a server.", CommandFlags.OwnerOnly)]
+        [Parameter("ServerNameOrId", ParameterType.String, "Id or name of a server")]
+        public async Task ServerInfo(ICommand command)
+        {
+            SocketGuild guild;
+            if (command["ServerNameOrId"].AsId.HasValue)
+                guild = (await Client.GetGuildAsync(command["ServerNameOrId"].AsId.Value).ConfigureAwait(false)) as SocketGuild;
+            else
+                guild = (await Client.GetGuildsAsync().ConfigureAwait(false)).FirstOrDefault(x => x.Name == command["ServerNameOrId"]) as SocketGuild;
+
+            if (guild == null)
+            {
+                await command.ReplyError(Communicator, "No guild with this name or ID.");
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle(guild.Name)
+                .WithThumbnailUrl(guild.IconUrl)
+                .AddField(x => x.WithIsInline(true).WithName("ID").WithValue(guild.Id))
+                .AddField(x => x.WithIsInline(true).WithName("Owner").WithValue($"{guild.Owner.Username}#{guild.Owner.Discriminator}"))
+                .AddField(x => x.WithIsInline(true).WithName("Owner ID").WithValue(guild.OwnerId))
+                .AddField(x => x.WithIsInline(true).WithName("Members").WithValue(guild.MemberCount))
+                .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString("dd.MM.yyyy H:mm:ss UTC")));
+
+            await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
         }
 
         [Command("feedback", "Suggest a modification or report an issue.")]
@@ -170,7 +198,7 @@ namespace DustyBot.Modules
             if (command.ParametersCount <= 0 && command.Message.Attachments.Count <= 0)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Missing attachment.");
 
-            var request = WebRequest.CreateHttp((string)command[0] ?? command.Message.Attachments.First().Url);
+            var request = WebRequest.CreateHttp(command["Url"].HasValue ? command["Url"] : command.Message.Attachments.First().Url);
             using (var response = await request.GetResponseAsync())
             using (var stream = response.GetResponseStream())
             using (var memStream = new MemoryStream())

@@ -146,7 +146,7 @@ namespace DustyBot.Services
 
             while (lastPostId > currentPostId)
             {
-                var preview = await CreatePreview(session, $"http://m.cafe.daum.net/{feed.CafeId}/{feed.BoardId}/{currentPostId + 1}", feed.CafeId);
+                var preview = await CreatePreview(session, feed.CafeId, feed.BoardId, currentPostId + 1);
                 
                 await channel.SendMessageAsync(preview.Item1.Sanitise(), false, preview.Item2);
                 currentPostId++;
@@ -176,24 +176,27 @@ namespace DustyBot.Services
             return embedBuilder.Build();
         }
 
-        public async Task<Tuple<string, Embed>> CreatePreview(DaumCafeSession session, string mobileUrl, string cafeName)
+        public async Task<Tuple<string, Embed>> CreatePreview(DaumCafeSession session, string cafeId, string boardId, int postId)
         {
-            var text = $"<{mobileUrl}>";
+            var mobileUrl = $"http://m.cafe.daum.net/{cafeId}/{boardId}/{postId}";
+            var desktopUrl = $"http://cafe.daum.net/{cafeId}/{boardId}/{postId}";
+
+            var text = $"<{desktopUrl}>";
             Embed embed = null;
             try
             {
                 var metadata = await session.GetPageMetadata(new Uri(mobileUrl));
                 if (metadata.Type == "comment" && (!string.IsNullOrWhiteSpace(metadata.Body.Text) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
                 {
-                    embed = BuildPreview("New memo", mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeName);
+                    embed = BuildPreview("New memo", mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeId);
                 }
                 else if (!string.IsNullOrEmpty(metadata.Body.Subject) && (!string.IsNullOrWhiteSpace(metadata.Body.Text) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
                 {
-                    embed = BuildPreview(metadata.Body.Subject, mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeName);
+                    embed = BuildPreview(metadata.Body.Subject, mobileUrl, metadata.Body.Text, metadata.Body.ImageUrl, cafeId);
                 }
                 else if (metadata.Type == "article" && !string.IsNullOrWhiteSpace(metadata.Title) && (!string.IsNullOrWhiteSpace(metadata.Description) || !string.IsNullOrWhiteSpace(metadata.ImageUrl)))
                 {
-                    embed = BuildPreview(metadata.Title, mobileUrl, metadata.Description, metadata.ImageUrl, cafeName);
+                    embed = BuildPreview(metadata.Title, mobileUrl, metadata.Description, metadata.ImageUrl, cafeId);
                 }
             }
             catch (Exception ex)

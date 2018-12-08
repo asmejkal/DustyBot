@@ -37,7 +37,19 @@ namespace DustyBot.Modules
             Config = config;
         }
 
-        [Command("poll", "start", "Starts a poll.")]
+        [Command("poll", "start", "Starts a poll.", CommandFlags.Hidden)]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("anonymous", "^anonymous$", ParameterFlags.Optional, "hide the answers")]
+        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll will take place, uses this channel by default")]
+        [Parameter("Question", ParameterType.String, "poll question")]
+        [Parameter("Answer1", ParameterType.String, "first answer")]
+        [Parameter("Answer2", ParameterType.String, "second answer")]
+        [Parameter("MoreAnswers", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Repeatable, "more answers")]
+        [Example("#main-chat \"Is hotdog a sandwich?\" Yes No")]
+        [Example("anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
+        public async Task StartPollLegacy(ICommand command) => await StartPoll(command);
+
+        [Command("poll", "Starts a poll.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("anonymous", "^anonymous$", ParameterFlags.Optional, "hide the answers")]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll will take place, uses this channel by default")]
@@ -68,7 +80,7 @@ namespace DustyBot.Modules
             //Build and send the poll message
             var description = string.Empty;
             for (int i = 0; i < poll.Answers.Count; ++i)
-                description += $"`{i + 1}.` {poll.Answers[i]}\n";
+                description += $"`[{i + 1}]` {poll.Answers[i]}\n";
             
             description += $"\nVote by typing `{Config.CommandPrefix}vote number`.";
 
@@ -122,11 +134,11 @@ namespace DustyBot.Modules
         }
 
         [Command("vote", "Votes in a poll.")]
-        [Parameter("AnswerNumber", ParameterType.UInt)]
+        [Parameter("AnswerNumber", @"^\[?([0-9]+)\]?$", ParameterType.Regex)]
         [Example("1")]
         public async Task Vote(ICommand command)
         {
-            var vote = (int)command.GetParameter(0);
+            var vote = int.Parse(command["AnswerNumber"].AsRegex.Groups[1].Value);
             var poll = await Settings.Modify(command.GuildId, (PollSettings s) =>
             {
                 var p = s.Polls.FirstOrDefault(x => x.Channel == command.Message.Channel.Id);
@@ -167,8 +179,18 @@ namespace DustyBot.Modules
             var description = poll.Question + "\n\n";
 
             int i = 0;
+            var emotes = new Dictionary<int, string>()
+            {
+                { 1, ":first_place:" },
+                { 2, ":second_place:" },
+                { 3, ":third_place:" }
+            };
+
             foreach (var result in poll.Results.OrderByDescending(x => x.Value))
-                description += $"{(++i).ToEnglishOrdinal()} **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
+            {
+                ++i;
+                description += $"{(emotes.ContainsKey(i) ? emotes[i] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
+            }                
 
             var total = poll.Results.Sum(x => x.Value);
             var embed = new EmbedBuilder()
