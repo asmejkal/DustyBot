@@ -104,35 +104,5 @@ namespace DustyBot.Framework.Utility
                 .Replace("@everyone", "@\u200Beveryone")
                 .Replace("@here", "@\u200Bhere");
         }
-
-        public static async Task<IMessage> GetMessageAsync(this IGuild guild, ulong id)
-        {
-            foreach (var c in await guild.GetChannelsAsync())
-            {
-                if (c is ITextChannel textChannel)
-                {
-                    try
-                    {
-                        var message = await textChannel.GetMessageAsync(id);
-                        if (message != null)
-                            return message;
-                    }
-                    catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
-                    {
-                        //Missing access
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        public static string GetFullName(this IEmote emote)
-        {
-            if (emote is Emote customEmote)
-                return $"<:{customEmote.Name}:{customEmote.Id}>";
-            else
-                return emote.Name;
-        }
     }
 }

@@ -152,6 +152,10 @@ namespace DustyBot.Framework.Commands
                     {
                         await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
                     }
+                    catch (Exceptions.CommandException ex)
+                    {
+                        await Communicator.CommandReplyError(command.Message.Channel, ex.Message);
+                    }
                     catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
                     {
                         await Communicator.CommandReplyMissingBotAccess(command.Message.Channel, commandRegistration);

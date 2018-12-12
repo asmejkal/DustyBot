@@ -143,6 +143,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.SongRankModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
+                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services
