@@ -14,42 +14,89 @@ namespace DustyBot.Settings
     public class ScheduleEvent : IComparable<ScheduleEvent>
     {
         public int Id { get; set; }
+        public string Tag { get; set; }
 
-        public DateTime Date { get; set; }
+        private DateTime _date;
+        private DateTime _wholeDay;
+        public DateTime Date {
+            get => HasTime ? _date : _wholeDay;
+            set
+            {
+                _date = value;
+                _wholeDay = ConvertToWholeDay(value);
+            }
+        }
+
         public bool HasTime { get; set; }
         public string Description { get; set; }
 
+        [BsonIgnore]
+        public bool HasTag => Tag != null;
+
         public int CompareTo(ScheduleEvent other)
         {
-            var c = Date.CompareTo(other.Date);
-            return c != 0 ? c : Description.CompareTo(other.Description);
+            int c = 0;
+            if ((c = Date.CompareTo(other.Date)) != 0)
+                return c;
+
+            if ((c = Description.CompareTo(other.Description)) != 0)
+                return c;
+            
+            if ((c = (Tag ?? string.Empty).CompareTo(other.Tag ?? string.Empty)) != 0)
+                return c;
+            
+            return Id.CompareTo(other.Id);
         }
+
+        private static DateTime ConvertToWholeDay(DateTime dt) => dt.Date.Add(new TimeSpan(23, 59, 59));
     }
 
-    public class ScheduleData
+    public class ScheduleCalendar
     {
         public ulong MessageId { get; set; }
         public ulong ChannelId { get; set; }
 
-        public string Header { get; set; }
+        public string Tag { get; set; }
+
+        //Inclusive
+        private DateTime _beginDate;
+        public DateTime BeginDate { get => _beginDate; set => _beginDate = value.Date; }
+
+        //Exclusive
+        private DateTime _endDate;
+        public DateTime EndDate { get => _endDate; set => _endDate = value.Date; }
+
+        public string Title { get; set; }
         public string Footer { get; set; }
 
-        public string GCalendarId { get; set; }
+        [BsonIgnore]
+        public bool HasEndDate => _endDate != DateTime.MaxValue.Date;
 
-        public int NextEventId { get; set; } = 1;
-        public SortedList<ScheduleEvent> Events { get; set; } = new SortedList<ScheduleEvent>();
+        [BsonIgnore]
+        public bool HasTag => Tag != null;
+
+        [BsonIgnore]
+        public bool IsMonthCalendar => EndDate - BeginDate == TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month));
     }
 
     public enum EventFormat
     {
         Default,
-        KoreanDate
+        KoreanDate,
+        MonthName
     }
 
     public class ScheduleSettings : BaseServerSettings
     {
-        public List<ScheduleData> ScheduleData { get; set; } = new List<ScheduleData>();
+        public int NextEventId { get; set; } = 1;
+
+        public SortedList<ScheduleEvent> Events { get; set; } = new SortedList<ScheduleEvent>();
+        public List<ScheduleCalendar> Calendars { get; set; } = new List<ScheduleCalendar>();
+
         public ulong ScheduleRole { get; set; }
         public EventFormat EventFormat { get; set; } = EventFormat.Default;
+        public TimeSpan TimezoneOffset { get; set; } = TimeSpan.FromHours(9);
+
+        public bool ShowMigrateHelp { get; set; }
     }
 }

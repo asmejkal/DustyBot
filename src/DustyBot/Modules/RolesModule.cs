@@ -204,7 +204,7 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.Administrator)]
         [Parameter("PrimaryRoleNameOrID", ParameterType.Role)]
         [Parameter("SecondaryRoleNameOrID", ParameterType.Role)]
-        [Comment("If a user already has **any** primary bias role assigned, then the bot will assign this secondary role instead. This means that the first bias role a user sets will be their primary. After that, any other bias role they assign will become secondary. They may change their primary bias by removing the primary bias and assigning a new one.\n\nIf you run:\n`{p}roles add Solar`\n`{p}roles add Wheein`\n`{p}roles setbias Solar .Solar`\n`{p}roles setbias Wheein .Wheein`\n\nThen typing this in the role channel:\n`Solar`\n`Wheein`\n\nWill result in the user having a primary `Solar` role and a secondary `.Wheein` role.")]
+        [Comment("Marks a role as a primary bias role and links it with a secondary role. If a user already has **any** primary bias role assigned, then the bot will assign this secondary role instead. This means that the first bias role a user sets will be their primary. After that, any other bias role they assign will become secondary. They may change their primary bias by removing the primary bias and assigning a new one.\n\nIf you run:\n`{p}roles add Solar`\n`{p}roles add Wheein`\n`{p}roles setbias Solar .Solar`\n`{p}roles setbias Wheein .Wheein`\n\nThen typing this in the role channel:\n`Solar`\n`Wheein`\n\nWill result in the user having a primary `Solar` role and a secondary `.Wheein` role.")]
         [Example("Solar .Solar")]
         public async Task SetBiasRole(ICommand command)
         {

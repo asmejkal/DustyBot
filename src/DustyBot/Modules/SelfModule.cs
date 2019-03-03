@@ -42,25 +42,11 @@ namespace DustyBot.Modules
             var config = await Settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
-                var pages = new PageCollection();
-                foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
-                {
-                    if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 4 == 0)
-                    {
-                        pages.Add(new EmbedBuilder()
-                            .WithDescription("Also on [web](http://dustybot.info/reference). Join the [support server](https://discord.gg/mKKJFvZ) if you need help with any of the commands.")
-                            .WithTitle("Commands")
-                            .WithFooter($"Type '{config.CommandPrefix}help command' to see usage of a specific command."));
-                    }
+                var embed = new EmbedBuilder()
+                    .WithDescription($"● For a full list of commands see the [website](http://dustybot.info/reference).\n● Type `{config.CommandPrefix}help command name` to see quick help for a specific command.\n\nIf you need further assistance or have any questions, please join the [support server](https://discord.gg/mKKJFvZ).")
+                    .WithTitle("❔ Help");
 
-                    var description = module.Description + "\n";
-                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
-                        description += $"\n`{config.CommandPrefix}{handledCommand.InvokeUsage}` – {handledCommand.Description}";
-
-                    pages.Last.Embed.AddField(x => x.WithName(":pushpin: " + module.Name).WithValue(description));
-                }
-
-                await command.Reply(Communicator, pages).ConfigureAwait(false);
+                await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
             }
             else
             {
@@ -238,12 +224,16 @@ namespace DustyBot.Modules
             int counter = 0;
             foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
             {
-                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><h3>{module.Name}</h3>");
+                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{module.Name.Replace(' ', '-').ToLowerInvariant()}\"></a><h3>{module.Name}</h3>");
                 result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
 
                 foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
                 {
                     counter++;
+
+                    if (handledCommand.InvokeUsage == "calendar create")
+                        result.AppendLine("</br><p class=\"text-muted\">Calendars are automatically updated messages which display parts of the schedule.</p>");
+
                     result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
                         $"&#9662; <span class=\"paramlistcode\">{handledCommand.InvokeUsage}</span> – {handledCommand.Description} " +
                         //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
@@ -271,8 +261,16 @@ namespace DustyBot.Modules
         {
             bool inside = false;
             input = input.Split('`').Aggregate((x, y) => x + ((inside = !inside) ? "<span class=\"param\">" : "</span>") + y);
+
+            inside = false;
             input = input.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
+
+            inside = false;
+            input = input.Split(new string[] { "*" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<i>" : "</i>") + y);
+
+            inside = false;
             input = input.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
+            
             input = input.Replace("\r\n", "<br/>");
             input = input.Replace("\n", "<br/>");
 

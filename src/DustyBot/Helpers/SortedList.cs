@@ -69,6 +69,9 @@ namespace DustyBot.Helpers
             m_innerList.RemoveAt(index);
         }
 
+        public int RemoveAll(Predicate<T> match) => m_innerList.RemoveAll(match);
+        public int FindIndex(Predicate<T> match) => m_innerList.FindIndex(match);
+
         public void CopyTo(T[] array)
         {
             m_innerList.CopyTo(array);

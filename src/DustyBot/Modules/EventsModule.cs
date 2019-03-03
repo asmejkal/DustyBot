@@ -127,7 +127,7 @@ namespace DustyBot.Modules
                     if (settings == null)
                         return;
 
-                    if (settings.GreetChannel == default(ulong) || string.IsNullOrWhiteSpace(settings.GreetMessage))
+                    if (settings.GreetChannel == default || string.IsNullOrWhiteSpace(settings.GreetMessage))
                         return;
 
                     var channel = guildUser.Guild.GetTextChannel(settings.GreetChannel);
@@ -157,7 +157,7 @@ namespace DustyBot.Modules
                     if (settings == null)
                         return;
 
-                    if (settings.ByeChannel == default(ulong) || string.IsNullOrWhiteSpace(settings.ByeMessage))
+                    if (settings.ByeChannel == default || string.IsNullOrWhiteSpace(settings.ByeMessage))
                         return;
 
                     var channel = guildUser.Guild.GetTextChannel(settings.ByeChannel);

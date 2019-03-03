@@ -129,11 +129,12 @@ namespace DustyBot
 
                     //Choose modules
                     components.Modules.Add(new Modules.SelfModule(components.Communicator, components.Settings, this, components.Client));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Logger, client));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.TwitterModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
@@ -142,7 +143,6 @@ namespace DustyBot
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.SongRankModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
                     components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 

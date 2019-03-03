@@ -27,7 +27,7 @@ namespace DustyBot.Modules
     {
         //TODO: Look into multi-keyword searching algos
         //possible improvements: dynamically reduce the tree during search by already found keywords and/or users
-        //current profiling results: 16x faster than naive
+        //current profiling results: 16x faster than naive search (700 keywords, 2000 message length)
         public class KeywordTree
         {
             private class Node
@@ -112,9 +112,9 @@ namespace DustyBot.Modules
             {
                 await command.Message.DeleteAsync();
             }
-            catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50013)
+            catch (Discord.Net.HttpException)
             {
-                //missing permissions, ignore
+                //most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
             }            
 
             await Settings.Modify(command.GuildId, (NotificationSettings s) =>
@@ -147,9 +147,9 @@ namespace DustyBot.Modules
             {
                 await command.Message.DeleteAsync();
             }
-            catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50013)
+            catch (Discord.Net.HttpException)
             {
-                //missing permissions, ignore
+                //most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
             }
 
             var lowered = command["Word"].AsString.ToLowerInvariant();
@@ -237,7 +237,7 @@ namespace DustyBot.Modules
                             .WithAuthor(x => x.WithName(message.Author.Username).WithIconUrl(message.Author.GetAvatarUrl()))
                             .WithDescription($"{message.Content}\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}");
 
-                        await dm.SendMessageAsync($"🔔 User `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
+                        await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
                     }
                 }
                 catch (Exception ex)

@@ -63,14 +63,14 @@ namespace DustyBot.Framework.Commands
         public Config.IEssentialConfig Config { get; set; }
         public CommandRegistration Registration { get; }
 
-        private SocketCommand(CommandRegistration registration, SocketUserMessage message, Config.IEssentialConfig config)
+        private SocketCommand(CommandRegistration registration, IUserMessage message, Config.IEssentialConfig config)
         {
             Registration = registration;
             Message = message;
             Config = config;
         }
 
-        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, SocketUserMessage message, Config.IEssentialConfig config)
+        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, IUserMessage message, Config.IEssentialConfig config)
         {
             var command = new SocketCommand(registration, message, config);
             return Tuple.Create(await command.TryParse(), command as ICommand);
@@ -184,6 +184,7 @@ namespace DustyBot.Framework.Commands
                         if (!test)
                         {
                             token.Registration = param;
+                            token.Regex = param.Type == ParameterType.Regex ? new Regex(param.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase) : null;
                             _tokens.Add(token);
                         }
 

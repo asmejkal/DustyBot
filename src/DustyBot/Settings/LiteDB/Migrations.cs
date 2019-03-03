@@ -12,7 +12,68 @@ namespace DustyBot.Settings.LiteDB
     public class Migrations : IMigrations
     {
         private SortedSet<Migration> _migrations = new SortedSet<Migration>();
-        
+
+        public enum Month
+        {
+            NotSet = 0,
+            January = 1,
+            February = 2,
+            March = 3,
+            April = 4,
+            May = 5,
+            June = 6,
+            July = 7,
+            August = 8,
+            September = 9,
+            October = 10,
+            November = 11,
+            December = 12
+        }
+
+        public enum Part
+        {
+            Whole,
+            FirstHalf,
+            SecondHalf
+        }
+
+        public class Calendar
+        {
+            public DateTime BeginDate { get; }
+            public DateTime EndDate { get; }
+            public string Tag { get; }
+
+            public Calendar(DateTime beginDate, DateTime? endDate = null, string tag = null)
+            {
+                BeginDate = beginDate.Date;
+                EndDate = endDate?.Date ?? DateTime.MaxValue.Date;
+                Tag = tag;
+            }
+
+            public Calendar(int year, Month month, Part part = Part.Whole, string tag = null)
+            {
+                if (part == Part.Whole)
+                {
+                    BeginDate = new DateTime(year, (int)month, 1);
+                    EndDate = BeginDate.Add(TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month)));
+                }
+                else if (part == Part.FirstHalf)
+                {
+                    BeginDate = new DateTime(year, (int)month, 1);
+                    EndDate = BeginDate.Add(TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month) / 2));
+                }
+                else if (part == Part.SecondHalf)
+                {
+                    BeginDate = new DateTime(year, (int)month, 1).Add(TimeSpan.FromDays(DateTime.DaysInMonth(year, (int)month) / 2));
+                    EndDate = new DateTime(year, (int)month, 1).Add(TimeSpan.FromDays(DateTime.DaysInMonth(year, (int)month)));
+                }
+                else
+                    throw new InvalidOperationException();
+
+                Tag = tag;
+            }
+        }
+
         public Migrations()
         {
             _migrations = new SortedSet<Migration>()
@@ -127,6 +188,92 @@ namespace DustyBot.Settings.LiteDB
                                 }
                             }
 
+                            col.Update(s);
+                        }
+                    }
+                ),
+
+                new Migration
+                (
+                    version: 6,
+                    up: db =>
+                    {
+                        //Schedule module reworked
+                        var map = new Dictionary<ulong, Calendar>
+                        {
+                            
+                        };
+
+                        var col = db.GetCollection("ScheduleSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            if (s.ContainsKey("Calendars"))
+                                continue; //Already migrated
+
+                            var events = new BsonArray();
+                            var calendars = new BsonArray();
+                            var count = 1;
+                            bool showMigrateHelp = false;
+                            ulong server = s["ServerId"].AsUInt64();
+                            if (s["ScheduleData"].AsArray != null)
+                            {
+                                foreach (var scheduleMessage in s["ScheduleData"].AsArray.Select(x => x.AsDocument).Where(x => x != null))
+                                {
+                                    Calendar mapping;
+                                    try
+                                    {
+                                        mapping = map[scheduleMessage["MessageId"].AsUInt64()];
+                                        if (mapping == null)
+                                            continue;
+                                    }
+                                    catch (Exception)
+                                    {
+                                        throw;
+                                    }
+
+                                    showMigrateHelp = true;
+
+                                    string title = scheduleMessage["Header"].AsString;
+                                    if (string.IsNullOrEmpty(title) || title == "Schedule")
+                                        title = null;
+
+                                    calendars.Add(new BsonDocument(new Dictionary<string, BsonValue>()
+                                    {
+                                        { "MessageId", scheduleMessage["MessageId"] },
+                                        { "ChannelId", scheduleMessage["ChannelId"] },
+                                        { "Tag", mapping.Tag },
+                                        { "BeginDate", mapping.BeginDate },
+                                        { "EndDate", mapping.EndDate },
+                                        { "Title",  title},
+                                        { "Footer", scheduleMessage["Footer"]},
+                                    }));
+
+                                    if (scheduleMessage["Events"].AsArray == null)
+                                        continue;
+
+                                    foreach (var e in scheduleMessage["Events"].AsArray.Select(x => x.AsDocument).Where(x => x != null))
+                                    {
+                                        if (e == null)
+                                            continue;
+
+                                        events.Add(new BsonDocument(new Dictionary<string, BsonValue>()
+                                        {
+                                            { "_id", count++ },
+                                            { "Tag", mapping.Tag },
+                                            { "Date", e["Date"] },
+                                            { "HasTime", e["HasTime"] },
+                                            { "Description", e["Description"] },
+                                        }));
+                                    }
+                                }
+                            }
+
+                            s.Add("NextEventId", count);
+                            s.Add("Events", events);
+                            s.Add("Calendars", calendars);
+                            s.Add("TimezoneOffset", 324000000000); //KST
+                            s.Add("ShowMigrateHelp", showMigrateHelp);
+                            s.Remove("ScheduleData");
                             col.Update(s);
                         }
                     }

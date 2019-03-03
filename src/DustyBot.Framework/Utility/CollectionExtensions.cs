@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Utility
@@ -69,11 +70,17 @@ namespace DustyBot.Framework.Utility
             } while (hasRemainingItems);
 
             if (result == null)
-                result = item.ToString();
+                result = item != null ? item.ToString() : string.Empty;
             else
                 result += lastSeparator + item.ToString();
 
             return result;
+        }
+
+        public static string WordJoinQuoted<T>(this IEnumerable<T> values, string quote = "`", string separator = ", ", string lastSeparator = " and ")
+        {
+            var result = new StringBuilder(values.WordJoin(quote + separator + quote, quote + lastSeparator + quote));
+            return result.Length > 0 ? (quote + result + quote) : string.Empty;
         }
 
         public static IEnumerable<T> SkipLast<T>(this IEnumerable<T> source, int n = 1)

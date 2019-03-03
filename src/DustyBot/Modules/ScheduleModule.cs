@@ -13,6 +13,8 @@ using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Exceptions;
 using DustyBot.Settings;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
@@ -21,109 +23,14 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    [Module("Schedule", "Helps with tracking upcoming events.")]
+    [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"schedule\">guide</a>.")]
     class ScheduleModule : Module
     {
-        const string DateFormat = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
-        const string TimeFormat = @"^([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?$";
-
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-
-        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings)
-        {
-            Communicator = communicator;
-            Settings = settings;
-        }
-        
-        [Command("schedule", "Shows upcoming events.")]
-        public async Task Schedule(ICommand command)
-        {
-            var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
-            if (settings == null || settings.ScheduleData.Count <= 0)
-            {
-                await command.ReplyError(Communicator, "No schedule has been set. Use the `schedule create` command.").ConfigureAwait(false);
-                return;
-            }
-
-            var events = new List<ScheduleEvent>();
-            var currentTime = TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time"));
-            foreach (var message in settings.ScheduleData)
-                events.AddRange(message.Events.SkipWhile(x => x.Date < currentTime.AddHours(-2)).TakeWhile(x => x.Date < currentTime.AddDays(14)));
-
-            if (events.Count <= 0)
-            {
-                await command.Reply(Communicator, "No events planned for the next two weeks.").ConfigureAwait(false);
-                return;
-            }
-
-            var channelReferences = new HashSet<string>();
-            foreach (var id in settings.ScheduleData.Select(x => x.ChannelId).Distinct())
-            {
-                var channel = await command.Guild.GetChannelAsync(id);
-                channelReferences.Add("#" + channel.Name);
-            }
-
-            string result = string.Empty;
-            foreach (var item in events.OrderBy(x => x.Date))
-            {
-                result += "\n" + PrintedScheduleMessage.FormatEvent(item, settings.EventFormat);
-
-                if (!item.HasTime)
-                {
-                    if (currentTime.Date == item.Date.Date)
-                        result += $" `<today>`";
-                }
-                else
-                {
-                    var timeLeft = item.Date - currentTime;
-                    if (timeLeft <= TimeSpan.FromHours(-1))
-                        result += $" `<{-timeLeft.Hours}h {-timeLeft.Minutes}min ago>`";
-                    else if (timeLeft < TimeSpan.Zero)
-                        result += $" `<{-timeLeft.Minutes}min ago>`";
-                    else if (timeLeft < TimeSpan.FromHours(1))
-                        result += $" `<in {timeLeft.Minutes}min>`";
-                    else if (timeLeft < TimeSpan.FromHours(48))
-                        result += $" `<in {Math.Floor(timeLeft.TotalHours)}h {timeLeft.Minutes}min>`";
-                }
-            }
-
-            var embed = new EmbedBuilder()
-                .WithTitle("Upcoming events")
-                .WithDescription(result)
-                .WithFooter($"Events until {currentTime.AddDays(14).ToString(@"MM\/dd")} • Full schedule in {channelReferences.WordJoin()}")
-                .WithColor(0xbe, 0xe7, 0xb6);
-
-            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
-        }
-
-        [Command("schedule", "create", "Creates a new editable message with schedule.")]
-        [Parameter("Channel", ParameterType.TextChannel, "target channel")]
-        [Parameter("Header", ParameterType.String, ParameterFlags.Optional, "header for the message")]
-        [Parameter("Footer", ParameterType.String, ParameterFlags.Optional, "footer for the message")]
-        [Comment("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role." +
-                 "\n\n:one: **You may create more than one message**\nServers usually create one message for each month of schedule or one for every two-weeks etc. You can even maintain multiple different schedules." +
-                 "\n\n:two: **Where to place the schedule**\nUsually, servers place their schedule messages in a #schedule channel or pin them in main chat or #updates." +
-                 "\n\n:three: **The \"schedule\" command**\nThe `schedule` command is for convenience. Users can use it to see events happening in the next two weeks across all schedules, with countdowns." +
-                 "\n\n:four: **Adding events**\nUse the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter.")]
-        public async Task CreateSchedule(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-            var message = await PrintedScheduleMessage.CreateNew(command["Channel"].AsTextChannel, command["Header"], command["Footer"], Settings);
-
-            bool first = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
-            {
-                s.ScheduleData.Add(message.Data);
-                return s.ScheduleData.Count <= 1;
-            }).ConfigureAwait(false);
-
-            Embed guide = null;
-            if (first)
-            {
-                guide = new EmbedBuilder()
+        public static readonly Embed Guide = new EmbedBuilder()
                     .WithTitle("Guide")
                     .WithDescription("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role.")
                     .AddField(x => x.WithName(":one: You may create more than one message").WithValue("Servers usually create one message for each month of schedule or one for every two-weeks etc. You can even maintain multiple different schedules."))
@@ -131,16 +38,471 @@ namespace DustyBot.Modules
                     .AddField(x => x.WithName(":three: The \"schedule\" command").WithValue("The `schedule` command is for convenience. Users can use it to see events happening in the next two weeks across all schedules, with countdowns."))
                     .AddField(x => x.WithName(":four: Adding events").WithValue("Use the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter."))
                     .Build();
+
+        public static readonly CultureInfo Culture = new CultureInfo("en-US");
+
+        const string DateRegex = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
+        const string TimeRegex = @"^([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?$";
+        static readonly string[] MonthFormats = new string[] { "MMMM", "MMM", "%M" };
+        static readonly string[] DateFormats = new string[] { "yyyy/M/d", "M/d" };
+
+        public ICommunicator Communicator { get; private set; }
+        public ISettingsProvider Settings { get; private set; }
+        public ILogger Logger { get; private set; }
+        public IDiscordClient Client { get; private set; }
+
+        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IDiscordClient client)
+        {
+            Communicator = communicator;
+            Settings = settings;
+            Logger = logger;
+            Client = client;
+        }
+
+        [Command("schedule", "Shows upcoming events.")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "use to display only events with this tag; displays all events if omitted")]
+        public async Task Schedule(ICommand command)
+        {
+            const int UpcomingEventsDisplayLimit = 15;
+
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
+            if (settings == null || settings.Events.Count <= 0)
+            {
+                await command.ReplyError(Communicator, "No events to display on this server. To set up a schedule check out the guide at <http://dustybot.info/schedule>.").ConfigureAwait(false);
+                return;
             }
 
-            await command.ReplySuccess(Communicator, $"Schedule message with ID `{message.Data.MessageId}` has been created. Use the `event add` or `event add {message.Data.MessageId}` command to add events.", guide).ConfigureAwait(false);
+            var currentTime = DateTime.UtcNow.Add(settings.TimezoneOffset);
+
+            var events = settings.Events
+                .Where(x => command["Tag"].HasValue ? string.Compare(x.Tag, command["Tag"], true) == 0 : true)
+                .SkipWhile(x => x.Date < currentTime.AddHours(-2))
+                .Take(UpcomingEventsDisplayLimit + 1)
+                .ToList();
+
+            bool truncateWarning = events.Count > UpcomingEventsDisplayLimit;
+            if (truncateWarning)
+                events = events.SkipLast().ToList();
+
+            if (events.Count <= 0)
+            {
+                await command.Reply(Communicator, command["Tag"].HasValue ? $"No upcoming events with tag `{command["Tag"]}`." : "No upcoming events.").ConfigureAwait(false);
+                return;
+            }
+
+            var result = new StringBuilder();
+            var displayed = 0;
+            foreach (var item in events)
+            {
+                string line = FormatEvent(item, settings.EventFormat);
+
+                if (!item.HasTime)
+                {
+                    if (currentTime.Date == item.Date.Date)
+                        line += $" `<today>`";
+                }
+                else
+                {
+                    var timeLeft = item.Date - currentTime;
+                    if (timeLeft <= TimeSpan.FromHours(-1))
+                        line += $" `<{-timeLeft.TotalHours}h {-timeLeft.Minutes}min ago>`";
+                    else if (timeLeft < TimeSpan.Zero)
+                        line += $" `<{-timeLeft.Minutes}min ago>`";
+                    else if (timeLeft < TimeSpan.FromHours(1))
+                        line += $" `<in {timeLeft.Minutes}min>`";
+                    else if (timeLeft < TimeSpan.FromHours(48))
+                        line += $" `<in {Math.Floor(timeLeft.TotalHours)}h {timeLeft.Minutes}min>`";
+                }
+
+                if (result.Length + line.Length > 2000)
+                {
+                    truncateWarning = true;
+                    break;
+                }
+
+                result.AppendLine(line);
+                displayed++;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("Upcoming events")
+                .WithDescription(result.ToString())
+                .WithFooter($"{BuildUTCOffsetString(settings.TimezoneOffset)}" + (truncateWarning ? $" • Shows first {displayed} events" : string.Empty))
+                .WithColor(0xbe, 0xe7, 0xb6);
+
+            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+        }
+
+        [Command("schedule", "help", "Shows a usage guide.", CommandFlags.Hidden)]
+        public async Task ScheduleHelp(ICommand command) =>
+            await command.Reply(Communicator, "Check out the quickstart guide at <http://dustybot.info/schedule>!");
+
+        [Command("schedule", "set", "style", "Switches between display styles.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
+        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the [support server](https://discord.gg/mKKJFvZ) or contact the bot owner.")]
+        [Example("KoreanDate")]
+        public async Task ScheduleSetStyle(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            if (!Enum.TryParse(command["EventFormat"], true, out EventFormat format))
+                throw new IncorrectParametersCommandException("Unknown event formatting type.");
+
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.EventFormat = format).ConfigureAwait(false);
+            var result = await RefreshCalendars(command.Guild);
+            await command.ReplySuccess(Communicator, $"Schedule display style has been set to `{format}`. {result}").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "set", "role", "Sets an optional role that allows users to edit the schedule.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Optional | ParameterFlags.Remainder)]
+        [Comment("Users with this role will be able to edit the schedule, in addition to users with the Manage Messages privilege.\n\nUse without parameters to disable.")]
+        public async Task ScheduleRole(ICommand command)
+        {
+            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default(ulong)).ConfigureAwait(false);
+            if (r == default)
+                await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.").ConfigureAwait(false);
+            else
+                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Parameter("Offset", @"^(?:UTC)?\+?(-)?([0-9]{1,2}):?([0-9]{1,2})?$", ParameterType.Regex, ParameterFlags.Remainder, "the timezone's offset from UTC (eg. `UTC-5` or `UTC+12:30`)")]
+        [Comment("The default timezone is KST (UTC+9). The times of existing events will stay correct (recalculated to the new timezone).")]
+        [Example("UTC-5")]
+        [Example("UTC+12:30")]
+        public async Task SetScheduleTimezone(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var offset = TimeSpan.FromHours(double.Parse(command["Offset"].AsRegex.Groups[2].Value));
+            if (command["Offset"].AsRegex.Groups[3].Success)
+                offset += TimeSpan.FromMinutes(double.Parse(command["Offset"].AsRegex.Groups[3].Value));
+
+            if (command["Offset"].AsRegex.Groups[1].Success)
+                offset = offset.Negate();
+
+            if (offset < TimeSpan.FromHours(-12) || offset > TimeSpan.FromHours(14))
+                throw new IncorrectParametersCommandException("Unknown timezone.", false);
+
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var difference = offset - s.TimezoneOffset;
+                var newEvents = new SortedList<ScheduleEvent>();
+                foreach (var e in s.Events)
+                {
+                    if (e.HasTime) //Keep whole-day events on the same date
+                        e.Date = e.Date.Add(difference);
+
+                    newEvents.Add(e);
+                }
+
+                s.Events = newEvents; //We need to do it like this because the sort order can change (because of whole day events)
+                s.TimezoneOffset = offset;
+            }).ConfigureAwait(false);
+            var result = await RefreshCalendars(command.Guild);
+            await command.ReplySuccess(Communicator, $"The schedule's timezone has been set to `{BuildUTCOffsetString(offset)}`. {result}").ConfigureAwait(false);
+        }
+
+        [Command("event", "add", "Adds an event to schedule.")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
+        [Parameter("Date", DateRegex, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
+        [Comment("The default timezone is KST (can be changed with `schedule set timezone`).")]
+        [Example("07/23 08:45 Concert")]
+        [Example("07/23 Fansign")]
+        [Example("2019/01/23 Festival")]
+        [Example("birthday 02/21 00:00 Solar's birthday")]
+        public async Task AddEvent(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            ScheduleEvent e;
+            try
+            {
+                //Parse datetime
+                var dateTime = DateTime.ParseExact(command["Date"], DateFormats, Culture, DateTimeStyles.None);
+                bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
+                if (hasTime)
+                    dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
+
+                //Create event
+                e = new ScheduleEvent
+                {
+                    Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
+                    Date = dateTime,
+                    HasTime = hasTime,
+                    Description = command["Description"]
+                };
+            }
+            catch (FormatException)
+            {
+                throw new IncorrectParametersCommandException("Invalid date.", false);
+            }
+
+            if (string.IsNullOrEmpty(e.Description))
+                throw new IncorrectParametersCommandException("Description is required.");
+
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                e.Id = s.NextEventId++;
+                s.Events.Add(e);
+            });
+
+            var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
+            await command.ReplySuccess(Communicator, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd", Culture)}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm", Culture)}`" : string.Empty) + $" has been added with ID `{e.Id}`" + (e.HasTag ? $" and tag `{e.Tag}`" : string.Empty) + $". {result}").ConfigureAwait(false);
+        }
+
+        [Command("event", "remove", "Removes an event from schedule, by ID or search.")]
+        [Parameter("IdOrSearchString", ParameterType.String, ParameterFlags.Remainder, "the event's ID or a part of description (you will be asked to choose one if multiple events match the description)")]
+        [Example("13")]
+        [Example("Osaka concert")]
+        public async Task RemoveEvent(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            if (command["IdOrSearchString"].AsInt.HasValue)
+            {
+                var e = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+                {
+                    var i = s.Events.FindIndex(x => x.Id == (int)command["IdOrSearchString"]);
+                    if (i < 0)
+                        return null;
+
+                    var removed = s.Events[i];
+                    s.Events.RemoveAt(i);
+                    return removed;
+                });
+
+                if (e != null)
+                {
+                    var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
+                    await command.ReplySuccess(Communicator, $"Event `{e.Description}` has been removed. {result}").ConfigureAwait(false);
+                }
+                else
+                    await command.ReplyError(Communicator, $"Cannot find an event with ID `{command["IdOrSearchString"].AsInt}`.").ConfigureAwait(false);
+            }
+            else
+            {
+                var searchString = command["IdOrSearchString"].AsString;
+                var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+                var events = settings.Events.Where(x => x.Description.IndexOf(searchString, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (events.Skip(1).Any())
+                {
+                    //Multiple results
+                    var pages = BuildEventList(settings, "Multiple matches", events, footer: "Please pick one event and run the command again with its ID number.");
+                    await command.Reply(Communicator, pages);
+                }
+                else if (events.Count() == 1)
+                {
+                    var e = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+                    {
+                        var i = s.Events.FindIndex(x => x.Id == events.First().Id);
+                        if (i < 0)
+                            return null;
+
+                        var removed = s.Events[i];
+                        s.Events.RemoveAt(i);
+                        return removed;
+                    });
+
+                    if (e != null)
+                    {
+                        var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
+                        await command.ReplySuccess(Communicator, $"Event `{e.Description}` with ID `{e.Id}` has been removed. {result}").ConfigureAwait(false);
+                    }
+                }
+                else
+                    await command.Reply(Communicator, $"No events found containing `{searchString}` in their description.");
+            }
+        }
+
+        [Command("event", "edit", "Edits an event in schedule.")]
+        [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it shows when an event is added or with `event search`")]
+        [Parameter("Date", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
+        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
+        [Comment("All times in KST. An alternative to this command is `event remove` followed by `event add`.")]
+        [Example("5 08:45")]
+        [Example("13 07/23 Fansign")]
+        [Example("25 Festival")]
+        public async Task EditEvent(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            DateTime? date = null;
+            TimeSpan? time = null;
+            bool? hasTime = null;
+            string description = null;
+            try
+            {
+                if (command["Date"].HasValue)
+                    date = DateTime.ParseExact(command["Date"], DateFormats, Culture, DateTimeStyles.None);
+
+                if (command["Time"].HasValue)
+                {
+                    hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
+                    if ((bool)hasTime)
+                        time = new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0);
+                }
+
+                if (command["Description"].HasValue)
+                    description = command["Description"];
+            }
+            catch (FormatException)
+            {
+                throw new IncorrectParametersCommandException("Invalid date.", false);
+            }
+
+            if (description != null && string.IsNullOrWhiteSpace(description))
+                throw new IncorrectParametersCommandException("Description cannot be empty.");
+
+            var (edited, origDate, newDate) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
+                if (i < 0)
+                    throw new CommandException("Cannot find an event with this ID.");
+
+                var e = s.Events[i];
+                s.Events.RemoveAt(i);
+
+                var orig = e.Date;
+                if (date.HasValue)
+                    e.Date = date.Value.Date + e.Date.TimeOfDay;
+
+                if (hasTime.HasValue)
+                    e.HasTime = hasTime.Value;
+
+                if (time.HasValue)
+                    e.Date = e.Date.Date + time.Value;
+
+                if (!string.IsNullOrWhiteSpace(description))
+                    e.Description = description;
+
+                s.Events.Add(e); //Have to remove and re-add to sort properly
+                return (e, orig, e.Date);
+            });
+
+            var result = await RefreshCalendars(command.Guild, origDate, edited.Tag);
+            if (newDate != origDate)
+                result.Merge(await RefreshCalendars(command.Guild, newDate, edited.Tag));
+
+            await command.ReplySuccess(Communicator, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", Culture)}`" : string.Empty) + $". {result}").ConfigureAwait(false);
+        }
+
+        [Command("event", "batch", "Perform multiple event add/remove/edit operations at once.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Parameter("Batch", ParameterType.String, ParameterFlags.Remainder, "a batch of `add/remove/edit` commands to be executed in order; please see the example")]
+        [Comment("To see the syntax for the individual commands, please see their respective help sections (`event add`, `event remove` and `event edit`).")]
+        [Example("\nadd 07/23 08:45 Concert\nremove 4th anniversary celebration\nedit 4 8:15\nadd birthday 02/21 00:00 Solar's birthday")]
+        public async Task BatchEvent(ICommand command)
+        {
+            //TODO: hacky and inefficient
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var config = await Settings.ReadGlobal<BotConfig>();
+            var allowedCommands = new List<CommandRegistration>()
+            {
+                HandledCommands.First(x => x.InvokeUsage == "event add"),
+                HandledCommands.First(x => x.InvokeUsage == "event remove"),
+                HandledCommands.First(x => x.InvokeUsage == "event edit")
+            };
+
+            using (var reader = new StringReader(command["Batch"]))
+            {
+                var lineNum = 0;
+                try
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lineNum++;
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        line = line.TrimStart();
+                        if (line.StartsWith("event"))
+                            line = config.CommandPrefix + line;
+                        else if (!line.StartsWith(config.CommandPrefix + "event"))
+                            line = config.CommandPrefix + "event " + line;
+
+                        var partialCommandRegistration = SocketCommand.FindLongestMatch(line, allowedCommands);
+                        if (partialCommandRegistration == null)
+                            throw new IncorrectParametersCommandException($"Unknown command. Only {allowedCommands.WordJoinQuoted()} commands are allowed.");
+
+                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, new UserMessageAdapter(command.Message) { Content = line }, config);
+                        if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
+                            throw new IncorrectParametersCommandException();
+
+                        var partialCommand = parseResult.Item2;
+
+                        await partialCommandRegistration.Handler(partialCommand);
+                    }
+                }
+                catch (Exception)
+                {
+                    await command.Reply(Communicator, $"An error encountered on line {lineNum}:");
+                    throw;
+                }
+            }
+
+            await command.ReplySuccess(Communicator, $"Batch finished!").ConfigureAwait(false);
+        }
+
+        [Command("event", "search", "Searches for events and shows their IDs.", CommandFlags.RunAsync)]
+        [Parameter("SearchString", ParameterType.String, ParameterFlags.Remainder, "a part of event's description; finds all events containing this string")]
+        [Example("Osaka")]
+        public async Task SearchEvent(ICommand command)
+        {
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+            var searchString = command["SearchString"].AsString;
+            var pages = BuildEventList(settings, "Search results", predicate: x => x.Description.IndexOf(searchString, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (pages.Count <= 0)
+            {
+                await command.Reply(Communicator, $"No events found containing `{searchString}` in their description.");
+                return;
+            }
+
+            await command.Reply(Communicator, pages);
+        }
+
+        [Command("event", "list", "Lists all events in a specified month.", CommandFlags.RunAsync)]
+        [Parameter("Month", ParameterType.String, "list events from this month (use english month name or number)")]
+        [Parameter("Year", ParameterType.UInt, ParameterFlags.Optional, "the month's year, uses current year by default")]
+        [Example("February")]
+        [Example("Feb")]
+        [Example("Mar 2019")]
+        public async Task ListEvents(ICommand command)
+        {
+            DateTime month;
+            if (!DateTime.TryParseExact(command["Month"], MonthFormats, Culture, DateTimeStyles.None, out month))
+                throw new IncorrectParametersCommandException("Unrecognizable month name.");
+
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+            var beginDate = new DateTime(command["Year"].HasValue ? (int)command["Year"] : DateTime.UtcNow.Add(settings.TimezoneOffset).Year, month.Month, 1);
+            var endDate = beginDate.AddMonths(1);
+
+            var pages = BuildEventList(settings, $"All events in {beginDate.ToString("MMMM yyyy", Culture)}", beginDate, endDate);
+            if (pages.Count <= 0)
+            {
+                await command.Reply(Communicator, $"No events have been added for {beginDate.ToString("MMMM yyyy", Culture)}.");
+                return;
+            }
+
+            await command.Reply(Communicator, pages);
         }
 
         //[Command("schedule", "link", "Link schedule with Google Calendar.")]
         //[Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
         //[Parameter("CalendarId", @".+@.+", ParameterType.String)]
-        //[Parameter("FromDate", DateFormat, ParameterType.Regex, "import events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        //[Parameter("ToDate", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "import events before this date")]
+        //[Parameter("FromDate", DateRegex, ParameterType.Regex, "import events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        //[Parameter("ToDate", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "import events before this date")]
         //public async Task LinkSchedule(ICommand command)
         //{
         //    await AssertPrivileges(command.Message.Author, command.GuildId);
@@ -216,382 +578,499 @@ namespace DustyBot.Modules
         //    await command.ReplySuccess(Communicator, $"Events from calendar `{name}` {dateExplanation} have been linked to message `{command["MessageId"].AsId}`.").ConfigureAwait(false);
         //}
 
-        [Command("schedule", "edit", "header", "Sets a header for a schedule message.")]
-        [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
-        [Parameter("Header", ParameterType.String, ParameterFlags.Remainder, "new header")]
-        [Example("462366629247057930 Schedule (June)")]
-        public async Task HeaderEditSchedule(ICommand command)
+        [Command("calendar", "create", "Creates a permanent message to display events.")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events")]
+        [Parameter("Channel", ParameterType.TextChannel, "target channel")]
+        [Parameter("FromDate", DateRegex, ParameterType.Regex, "display events from this date onward (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Parameter("ToDate", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "display only events up to this this date (inclusive)")]
+        [Example("#schedule 08/01 08/14")]
+        [Example("#schedule 2018/01/01")]
+        [Example("birthday #schedule 2018/01/01 2018/12/31")]
+        public async Task CreateCalendar(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
-            var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-
-            message.Header = command["Header"];
-            await message.CommitChanges();
-
-            await command.ReplySuccess(Communicator, $"Header has been set.").ConfigureAwait(false);
-        }
-
-        [Command("schedule", "edit", "footer", "Sets a footer for a schedule message.")]
-        [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
-        [Parameter("Footer", ParameterType.String, ParameterFlags.Remainder, "new footer")]
-        [Example("462366629247057930 Ooh, a new footer.")]
-        public async Task FooterEditSchedule(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-            var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-
-            message.Footer = command["Footer"];
-            await message.CommitChanges();
-
-            await command.ReplySuccess(Communicator, $"Footer has been set.").ConfigureAwait(false);
-        }
-
-        private static readonly Regex _editEventRegex = new Regex(@"^\s*\[([0-9]+)\/([0-9]+)\s*\|\s*([0-9?]+):([0-9?]+)\]\s*(.*)$");
-        [Command("schedule", "edit", "Edits the content of a schedule message.")]
-        [Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
-        [Parameter("Year", ParameterType.Int, "the year the events take place in")]
-        [Parameter("Events", @"^\s*\[[0-9]+\/[0-9]+\s*\|\s*[0-9?]+:[0-9?]+\].+", ParameterType.String, ParameterFlags.Remainder, "new content")]
-        [Comment("Old content will be replaced. The new content has to be in the following format:\n[08/10 | 08:00] Event 1\n[08/11 | ??:??] Event 2\n[08/12 | 10:00] Event 3\n...\n\nEach event has to be a on a new line.")]
-        [Example("462366629247057930 2018\n[08/10 | 08:00] Event 1\n[08/11 | ??:??] Event 2\n[08/12 | 10:00] Event 3")]
-        public async Task EditSchedule(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-            var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-
-            message.Clear();
-            var content = command["Events"];
-            using (var reader = new StringReader(content))
-            {
-                for (string line = reader.ReadLine(); line != null; line = reader.ReadLine())
-                {
-                    try
-                    {
-                        var match = _editEventRegex.Match(line);
-
-                        if (!match.Success)
-                            throw new Framework.Exceptions.IncorrectParametersCommandException($"Line `{line}` is invalid");
-
-                        var newEvent = new ScheduleEvent
-                        {
-                            Description = match.Groups[5].Value.Trim(),
-                            HasTime = !match.Groups[3].Value.Contains('?') && !match.Groups[4].Value.Contains('?')
-                        };
-
-                        newEvent.Date = new DateTime((int)command["Year"],
-                            int.Parse(match.Groups[1].Value),
-                            int.Parse(match.Groups[2].Value),
-                            newEvent.HasTime ? int.Parse(match.Groups[3].Value) : 23,
-                            newEvent.HasTime ? int.Parse(match.Groups[4].Value) : 59, 0);
-
-                        message.Add(newEvent);
-                    }
-                    catch (Exception ex) when (ex is FormatException || ex is OverflowException)
-                    {
-                        throw new Framework.Exceptions.IncorrectParametersCommandException($"Line `{line}` is invalid");
-                    }
-                }
-            }
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
 
             try
             {
-                await message.CommitChanges();
+                var fromDate = DateTime.ParseExact(command["FromDate"], DateFormats, Culture, DateTimeStyles.None);
+                var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], DateFormats, Culture, DateTimeStyles.None).AddDays(1) : DateTime.MaxValue;
+
+                if (toDate <= fromDate)
+                    throw new IncorrectParametersCommandException("The begin date has to be earlier than the end date.");
+
+                var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+                var calendar = new ScheduleCalendar()
+                {
+                    Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
+                    ChannelId = command["Channel"].AsTextChannel.Id,
+                    BeginDate = fromDate,
+                    EndDate = toDate
+                };
+
+                try
+                { 
+                    var (text, embed) = BuildCalendarMessage(calendar, settings);
+                    var message = await command["Channel"].AsTextChannel.SendMessageAsync(text, embed: embed);
+                    calendar.MessageId = message.Id;
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    throw new CommandException($"Could not create the calendar because it would be too long to display. Try narrowing the range of dates for the calendar.");
+                }
+
+                await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+
+                await command.ReplySuccess(Communicator, $"A calendar has been created to display events {BuildCalendarSpanString(calendar)}{(calendar.HasTag ? $" with tag `{calendar.Tag}`" : string.Empty)} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+            }
+            catch (FormatException)
+            {
+                throw new IncorrectParametersCommandException("Invalid date.", false);
+            }
+        }
+
+        [Command("calendar", "create", "month", "Creates a permanent message to display events in a specific month.")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events")]
+        [Parameter("Channel", ParameterType.TextChannel, "target channel")]
+        [Parameter("Month", ParameterType.String, "display only events taking place in this month (eg. `January`)")]
+        [Parameter("Year", ParameterType.UInt, ParameterFlags.Optional, "the month's year, uses current year by default")]
+        [Example("#schedule February")]
+        [Example("#schedule Jan 2019")]
+        [Example("birthday #schedule March")]
+        public async Task CreateMonthCalendar(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            DateTime month;
+            if (!DateTime.TryParseExact(command["Month"], MonthFormats, Culture, DateTimeStyles.None, out month))
+                throw new IncorrectParametersCommandException("Unrecognizable month name.");
+
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+            var beginDate = new DateTime(command["Year"].HasValue ? (int)command["Year"] : DateTime.UtcNow.Add(settings.TimezoneOffset).Year, month.Month, 1);
+            var calendar = new ScheduleCalendar()
+            {
+                Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
+                ChannelId = command["Channel"].AsTextChannel.Id,
+                BeginDate = beginDate,
+                EndDate = beginDate.AddMonths(1)
+            };
+
+            try
+            { 
+                var (text, embed) = BuildCalendarMessage(calendar, settings);
+                var message = await command["Channel"].AsTextChannel.SendMessageAsync(text, embed: embed);
+                calendar.MessageId = message.Id;
             }
             catch (ArgumentOutOfRangeException)
             {
-                await command.ReplyError(Communicator, "The message is too long.").ConfigureAwait(false);
-                return;
+                throw new CommandException($"Could not create the calendar because it would be too long to display. Try narrowing the range of dates for the calendar.");
             }
 
-            await command.ReplySuccess(Communicator, $"Message has been edited.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+
+            await command.ReplySuccess(Communicator, $"A calendar has been created to display the `{calendar.BeginDate.ToString(@"MMMM", Culture)}` schedule{(calendar.HasTag ? $" for events with tag `{calendar.Tag}`" : string.Empty)} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
         }
 
-        [Command("schedule", "move", "Moves a range of events from one message to another.")]
-        [Parameter("SourceMessageId", ParameterType.Id, "ID of the source message (previously created with `schedule create`)")]
-        [Parameter("TargetMessageId", ParameterType.Id, "ID of the target message (previously created with `schedule create`)")]
-        [Parameter("FromDate", DateFormat, ParameterType.Regex, "move events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Parameter("ToDate", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "move events before this date")]
-        [Example("462366629247057930 476740163159195649 08/09")]
-        [Example("462366629247057930 476740163159195649 2018/08/09 2018/12/01")]
-        public async Task MoveSchedule(ICommand command)
+        [Command("calendar", "set", "begin", "Moves the begin date of a calendar.")]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("Date", DateRegex, ParameterType.Regex, "display events from this date onward (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Example("462366629247057930 12/01")]
+        public async Task SetCalendarBegin(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
-            var source = await GetScheduleMessage(command.Guild, (ulong?)command[0]);
-            var target = await GetScheduleMessage(command.Guild, (ulong?)command[1]);
-            
-            var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-            var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : DateTime.MaxValue;
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
 
-            var moved = source.MoveAll(target, x => x.Date >= fromDate && x.Date < toDate);
+            if (!DateTime.TryParseExact(command["Date"], DateFormats, Culture, DateTimeStyles.None, out var from))
+                throw new IncorrectParametersCommandException("Invalid date.", false);
 
-            if (moved > 0)
+            var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                await target.CommitChanges();
-                await source.CommitChanges();
-            }
+                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                if (c == null)
+                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
 
-            await command.ReplySuccess(Communicator, $"Moved {moved} events.").ConfigureAwait(false);
+                if (c.EndDate <= from)
+                    throw new IncorrectParametersCommandException("The begin date has to be earlier than the end date.");
+
+                c.BeginDate = from;
+                return (c, s);
+            });
+
+            var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}").ConfigureAwait(false);
         }
 
-        [Command("schedule", "ignore", "Stops using a schedule message.")]
-        [Parameter("MessageId", ParameterType.Id)]
-        [Comment("Stops using this message for the `schedule` and `event add/remove` commands.")]
-        public async Task IgnoreSchedule(ICommand command)
+        [Command("calendar", "set", "end", "Moves the end date of a calendar.")]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("Date", DateRegex, ParameterType.Regex, "display only events up to this this date (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Example("462366629247057930 03/31")]
+        public async Task SetCalendarEnd(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
-            bool removed = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
-            {
-                return s.ScheduleData.RemoveAll(x => x.MessageId == (ulong)command[0]) > 0;
-            }).ConfigureAwait(false);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
 
-            if (removed)
+            if (!DateTime.TryParseExact(command["Date"], DateFormats, Culture, DateTimeStyles.None, out var date))
+                throw new IncorrectParametersCommandException("Invalid date.", false);
+
+            date = date.AddDays(1); //End boundary is exclusive internally: <begin, end)
+
+            var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                await command.ReplySuccess(Communicator, $"Schedule source has been removed.").ConfigureAwait(false);
-            }
-            else
-            {
-                await command.ReplyError(Communicator, $"A message with this ID has not been registered as a schedule source.").ConfigureAwait(false);
-            }
+                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                if (c == null)
+                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
+
+                if (date <= c.BeginDate)
+                    throw new IncorrectParametersCommandException("The end date has to be later than the begin date.");
+
+                c.EndDate = date;
+                return (c, s);
+            });
+
+            var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}").ConfigureAwait(false);
         }
 
-        [Command("schedule", "list", "Lists all schedule messages.")]
-        public async Task ListSchedule(ICommand command)
+        [Command("calendar", "set", "month", "Sets an existing calendar to display a different month.")]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("Month", ParameterType.String, "display only events taking place in this month (eg. `January`)")]
+        [Parameter("Year", ParameterType.UInt, ParameterFlags.Optional, "the month's year, uses current year by default")]
+        [Example("462366629247057930 February")]
+        [Example("462366629247057930 Jan 2019")]
+        public async Task SetCalendarMonth(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            DateTime month;
+            if (!DateTime.TryParseExact(command["Month"], MonthFormats, Culture, DateTimeStyles.None, out month))
+                throw new IncorrectParametersCommandException("Unrecognizable month name.");
+
+            var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                if (c == null)
+                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
+
+                var beginDate = new DateTime(command["Year"].HasValue ? (int)command["Year"] : DateTime.UtcNow.Add(s.TimezoneOffset).Year, month.Month, 1);
+                c.BeginDate = beginDate;
+                c.EndDate = beginDate.AddMonths(1);
+                return (c, s);
+            });
+
+            var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display the `{calendar.BeginDate.ToString(@"MMMM", Culture)}` schedule. {result}").ConfigureAwait(false);
+        }
+        
+        [Command("calendar", "set", "title", "Sets a custom title for a calendar.")]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("Title", ParameterType.String, ParameterFlags.Remainder, "new header")]
+        [Example("462366629247057930 A special calendar")]
+        public async Task SetCalendarTitle(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                if (c == null)
+                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
+
+                c.Title = command["Title"];
+                return (c, s);
+            });
+
+            var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"New title has been set.").ConfigureAwait(false);
+        }
+
+        [Command("calendar", "set", "footer", "Sets a custom footer for a calendar.")]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("Footer", ParameterType.String, ParameterFlags.Remainder, "new footer")]
+        [Example("462366629247057930 A new footer")]
+        public async Task SetCalendarFooter(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                if (c == null)
+                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
+
+                c.Footer = command["Footer"];
+                return (c, s);
+            });
+
+            var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"New footer has been set.").ConfigureAwait(false);
+        }
+
+        [Command("calendar", "list", "Lists all active calendars on this server.")]
+        public async Task ListCalendars(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false).ConfigureAwait(false);
-            if (settings == null || settings.ScheduleData.Count <= 0)
+            if (settings == null || settings.Calendars.Count <= 0)
             {
-                await command.Reply(Communicator, $"No schedule sources.").ConfigureAwait(false);
+                await command.Reply(Communicator, $"No calendars found. Use one of the `calendar create` commands to create a calendar.").ConfigureAwait(false);
                 return;
             }
 
             var result = new StringBuilder();
-            foreach (var message in settings.ScheduleData)
+            foreach (var calendar in settings.Calendars)
             {
-                result.AppendLine($"Channel: <#{message.ChannelId}> Id: `{message.MessageId}` Header: `{message.Header}`");
-            }
-                
+                result.Append($"Id: `{calendar.MessageId}` Channel: <#{calendar.ChannelId}> Title: `{BuildCalendarTitle(calendar)}`");
+                if (calendar.IsMonthCalendar)
+                    result.Append($" Month: `{ calendar.BeginDate.ToString("MMMM", Culture)}`");
+                else
+                    result.Append($" Begin: `{ calendar.BeginDate.ToString(@"MM\/dd", Culture)}`" + (calendar.HasEndDate ? $" End: `{calendar.EndDate.AddDays(-1).ToString(@"MM\/dd", Culture)}` (inclusive)" : string.Empty));
+
+                if (calendar.HasTag)
+                    result.Append($" Tag: `{calendar.Tag}`");
+
+                result.AppendLine();
+            }                
 
             await command.Reply(Communicator, result.ToString()).ConfigureAwait(false);
         }
 
-        [Command("schedule", "role", "Sets an optional role that allows users to edit the schedule.")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Optional | ParameterFlags.Remainder)]
-        [Comment("Users with this role will be able to edit the schedule, in addition to users with the Manage Messages privilege.\n\nUse without parameters to disable.")]
-        public async Task ScheduleRole(ICommand command)
-        {
-            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default(ulong)).ConfigureAwait(false);
-            if (r == default(ulong))
-                await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.").ConfigureAwait(false);
-            else
-                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.").ConfigureAwait(false);
-        }
-
-        [Command("schedule", "style", "Switches between display styles.")]
-        [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
-        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** – embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** – default with korean date formatting:\n`[181006 | 13:00]` Event\n\nExisting messages will switch to the new style once they are edited. If you have an idea for a style that isn't listed here, please make a suggestion on the [support server](https://discord.gg/mKKJFvZ) or contact the bot owner.")]
-        [Example("KoreanDate")]
-        public async Task FormatSchedule(ICommand command)
+        [Command("calendar", "split", "Splits a calendar in two by a given date.", CommandFlags.RunAsync)]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("Date", DateRegex, ParameterType.Regex, "a date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Comment("The calendar will be split in two. All events *before* the provided date will stay in the old calendar. All events from the provided date onwards (inclusive) will be displayed in a new calendar which will be created.")]
+        [Example("462366629247057930 12/15")]
+        public async Task SplitCalendar(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
 
-            if (!Enum.TryParse(command["EventFormat"], true, out EventFormat format))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown event formatting type.");
+            //Get original calendar
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+            var origCalendar = settings.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+            if (origCalendar == null)
+                throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.EventFormat = format).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Schedule display style has been set to `{format}`. Existing messages will switch to the new style once they are edited.").ConfigureAwait(false);
-        }
+            //Check date
+            if (!DateTime.TryParseExact(command["Date"], DateFormats, Culture, DateTimeStyles.None, out var date))
+                throw new IncorrectParametersCommandException("Invalid date.", false);
 
-        [Command("event", "add", "Adds an event to schedule.")]
-        [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
-        [Parameter("Date", DateFormat, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
-        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
-        [Comment("All times in KST.")]
-        [Example("07/23 08:45 Concert")]
-        [Example("462366629247057930 07/23 Fansign")]
-        [Example("462366629247057930 2019/01/23 Festival")]
-        public async Task AddEvent(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-            var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-            ScheduleEvent e;
+            if (date <= origCalendar.BeginDate || date >= origCalendar.EndDate)
+                throw new IncorrectParametersCommandException($"The date has to be betweeen the calendar's begin and end dates ({BuildCalendarSpanString(origCalendar)}).");
+
+            //Create new calendar
+            var newCalendar = new ScheduleCalendar()
+            {
+                Tag = origCalendar.Tag,
+                ChannelId = origCalendar.ChannelId,
+                BeginDate = date,
+                EndDate = origCalendar.EndDate
+            };
 
             try
             {
-                var dateTime = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-                bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-                if (hasTime)
-                    dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
+                var (text, embed) = BuildCalendarMessage(newCalendar, settings);
+                var channel = await command.Guild.GetTextChannelAsync(origCalendar.ChannelId);
+                if (channel == null)
+                    throw new CommandException("Channel not found.");
 
-                e = new ScheduleEvent
-                {
-                    Date = dateTime,
-                    HasTime = hasTime,
-                    Description = command["Description"]
-                };
-            }
-            catch (FormatException)
-            {
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid date.");
-            }
-
-            if (string.IsNullOrEmpty(e.Description))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
-
-            try
-            {
-                schedule.Add(e);
-                await schedule.CommitChanges();
+                var message = await channel.SendMessageAsync(text, embed: embed);
+                newCalendar.MessageId = message.Id;
             }
             catch (ArgumentOutOfRangeException)
             {
-                await command.ReplyError(Communicator, "The message is too long. Create a new one with the `schedule create` command or move events with the `schedule move` command.").ConfigureAwait(false);
-                return;
+                throw new CommandException($"Could not create the new calendar because it would be too long to display. Try narrowing the range of dates for the calendar.");
             }
 
-            await command.ReplySuccess(Communicator, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd")}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm")}`" : "") + $" has been added with ID `{e.Id}`.").ConfigureAwait(false);
-        }
-
-        [Command("event", "remove", "Removes an event from schedule.")]
-        [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
-        [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`)")]
-        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
-        [Comment("All times in KST.")]
-        [Example("Concert")]
-        [Example("462366629247057930 07/23 08:45 Festival")]
-        public async Task RemoveEvent(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-            var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-
-            string description = command["Description"];
-
-            if (string.IsNullOrEmpty(description))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
-
-            DateTime? date;
-            try
-            { 
-                date = command["Date"].HasValue ? new DateTime?(DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None)) : null;
-            }
-            catch (FormatException)
+            //Save
+            settings = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid date.");
-            }
+                origCalendar = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                if (origCalendar == null)
+                    throw new CommandException("Please try again."); //Race condition
 
-            bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-            var removed = schedule.RemoveAll(x =>
-            {
-                if (string.Compare(x.Description, description, true) != 0)
-                    return false;
-
-                if (date.HasValue && (date.Value.Year != x.Date.Year || date.Value.Month != x.Date.Month || date.Value.Day != x.Date.Day))
-                    return false;
-
-                if (hasTime && (int.Parse(command["Time"].AsRegex.Groups[1].Value) != x.Date.Hour || int.Parse(command["Time"].AsRegex.Groups[2].Value) != x.Date.Minute))
-                    return false;
-
-                return true;
+                origCalendar.EndDate = date;
+                s.Calendars.Add(newCalendar);
+                return s;
             });
-            
-            if (removed > 0)
-            {
-                await schedule.CommitChanges();
 
-                if (removed > 1)
-                    await command.ReplySuccess(Communicator, $"Removed {removed} events with description `{description}`.").ConfigureAwait(false);
-                else
-                    await command.ReplySuccess(Communicator, $"Event `{description}` has been removed.").ConfigureAwait(false);
-            }
-            else
-            {
-                await command.ReplyError(Communicator, $"Cannot find event `{description}`.").ConfigureAwait(false);
-            }
+            var result = new RefreshResult(origCalendar, await RefreshCalendar(origCalendar, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"The original calendar will now display events {BuildCalendarSpanString(origCalendar)}. A new calendar has been created to display events {BuildCalendarSpanString(newCalendar)}.\n**Tip:** You can reorder calendars in your schedule channel with the `calendar swap` or `calendar set begin/end` commands. {result.ToString(false)}").ConfigureAwait(false);
         }
 
-        [Command("event", "edit", "Edits an event in schedule.")]
-        [Parameter("MessageId", ParameterType.Id, ParameterFlags.Optional, "ID of a schedule message previously created with `schedule create`, uses the latest by default")]
-        [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it gets printed out when an event is added")]
-        [Parameter("Date", DateFormat, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Parameter("Time", TimeFormat, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
-        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
-        [Comment("All times in KST. An alternative to this command is `event remove` followed by `event add`.")]
-        [Example("5 08:45")]
-        [Example("462366629247057930 13 07/23 Fansign")]
-        [Example("462366629247057930 25 Festival")]
-        public async Task EditEvent(ICommand command)
+        [Command("calendar", "swap", "Swaps two calendars.", CommandFlags.RunAsync)]
+        [Parameter("FirstMessageId", ParameterType.Id, "message ID of the first calendar; use `calendar list` to see all active calendars and their IDs")]
+        [Parameter("SecondMessageId", ParameterType.Id, "message ID of the second calendar")]
+        [Comment("All properties and events of these two calendars will be swapped. Useful for reordering calendars in a #schedule channel.")]
+        [Example("462366629247057930 524282594225815562")]
+        public async Task SwapCalendars(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
-            var schedule = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-            var e = schedule.Events.FirstOrDefault(x => x.Id == (int)command["EventId"]);
-            if (e == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException($"Cannot find an event with ID `{(int)command["EventId"]}` in message `{schedule.Message.Id}`.");
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
 
-            try
+            var (first, second, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var date = e.Date.Date;
-                var time = e.Date.TimeOfDay;
-                if (command["Date"].HasValue)
-                    date = DateTime.ParseExact(command["Date"], new string[] { "yyyy/MM/d", "MM/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
+                var fc = s.Calendars.FirstOrDefault(x => x.MessageId == command["FirstMessageId"].AsId);
+                if (fc == null)
+                    throw new IncorrectParametersCommandException($"Can't find a calendar with message ID `{command["FirstMessageId"].AsId}`. Use `calendar list` to see all active calendars and their IDs.");
 
-                bool hasTime = e.HasTime;
-                if (command["Time"].HasValue)
-                {
-                    hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-                    if (hasTime)
-                        time = new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0);
-                    else
-                        time = new TimeSpan();
-                }
+                var sc = s.Calendars.FirstOrDefault(x => x.MessageId == command["SecondMessageId"].AsId);
+                if (sc == null)
+                    throw new IncorrectParametersCommandException($"Can't find a calendar with message ID `{command["SecondMessageId"].AsId}`. Use `calendar list` to see all active calendars and their IDs.");
 
-                e.Date = date.Add(time);
-                e.HasTime = hasTime;
+                var tmp = (fc.ChannelId, fc.MessageId);
+                fc.ChannelId = sc.ChannelId;
+                fc.MessageId = sc.MessageId;
 
-                if (command["Description"].HasValue)
-                    e.Description = command["Description"];
-            }
-            catch (FormatException)
-            {
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid date.");
-            }
+                sc.ChannelId = tmp.ChannelId;
+                sc.MessageId = tmp.MessageId;
+                return (fc, sc, s);
+            });
 
-            if (string.IsNullOrEmpty(e.Description))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Description is required.");
-
-            try
-            {
-                await schedule.CommitChanges();
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                await command.ReplyError(Communicator, "The message is too long. Create a new one with the `schedule create` command.").ConfigureAwait(false);
-                return;
-            }
-
-            await command.ReplySuccess(Communicator, $"Event `{e.Id}` has been edited to `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd")}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm")}`" : "") + $".").ConfigureAwait(false);
+            var result = new RefreshResult();
+            result.Add(first, await RefreshCalendar(first, command.Guild, settings));
+            result.Add(second, await RefreshCalendar(second, command.Guild, settings));
+            await command.ReplySuccess(Communicator, $"Calendars have been swapped. {result}").ConfigureAwait(false);
         }
 
-        async Task<IScheduleMessage> GetScheduleMessage(IGuild guild, ulong? messageId = null, bool mustBeEditable = true)
+        [Command("calendar", "delete", "Deletes a calendar.")]
+        [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to display all active calendars and their message IDs")]
+        [Comment("Deleting a calendar doesn't delete any events.")]
+        public async Task DeleteCalendar(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var removed = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var i = s.Calendars.FindIndex(x => x.MessageId == command["MessageId"].AsId);
+                if (i < 0)
+                    return null;
+
+                var c = s.Calendars[i];
+                s.Calendars.RemoveAt(i);
+                return c;
+            }).ConfigureAwait(false);
+
+            if (removed == null)
+                throw new IncorrectParametersCommandException("Cannot find a calendar with this message ID.");
+
+            try
+            {
+                var channel = await command.Guild.GetTextChannelAsync(removed.ChannelId);
+                if (channel != null)
+                {
+                    var message = (await channel.GetMessageAsync(removed.MessageId)) as IUserMessage;
+                    if (message != null)
+                        await message.DeleteAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Schedule", $"Failed to remove calendar message {removed.MessageId} in channel {removed.ChannelId} on {command.Guild.Name} ({command.GuildId}).", ex));
+            }
+
+            await command.ReplySuccess(Communicator, $"Calendar has been deleted.").ConfigureAwait(false);
+        }
+
+        class RefreshResult
+        {
+            public enum Reason
+            {
+                Success,
+                Error,
+                MessageTooLong,
+                Removed
+            }
+
+            public List<(ScheduleCalendar calendar, Reason reason)> Calendars { get; } = new List<(ScheduleCalendar, Reason)> ();
+
+            public RefreshResult() { }
+            public RefreshResult(ScheduleCalendar calendar, Reason reason) => Calendars.Add((calendar, reason));
+
+            public void Add(ScheduleCalendar calendar, Reason reason) => Calendars.Add((calendar, reason));
+            public void Merge(RefreshResult other) => Calendars.AddRange(other.Calendars);
+
+            public override string ToString() => ToString(true);
+
+            public string ToString(bool showSuceeded = true)
+            {
+                var builder = new StringBuilder();
+                if (showSuceeded)
+                {
+                    var numSucceeded = Calendars.Where(x => x.reason == Reason.Success).Count();
+                    if (numSucceeded > 0)
+                        builder.AppendLine($"Updated {numSucceeded} calendar{(numSucceeded > 1 ? "s" : string.Empty)}.");
+                    else
+                        builder.AppendLine();
+                }
+                else
+                    builder.AppendLine();
+
+                var unknown = Calendars.Where(x => x.reason == Reason.Error).ToList();
+                if (unknown.Any())
+                    builder.AppendLine($"⚠ Failed to update {unknown.Count} calendar{(unknown.Count > 1 ? "s" : string.Empty)} ({unknown.Select(x => x.calendar.MessageId).WordJoinQuoted()}).");
+
+                foreach (var calendar in Calendars.Where(x => x.reason == Reason.MessageTooLong).Select(x => x.calendar))
+                    builder.AppendLine($"⚠ Could not update calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because it is too long. You can split the calendar in two with the `calendar split` command.");
+
+                foreach (var calendar in Calendars.Where(x => x.reason == Reason.Removed).Select(x => x.calendar))
+                    builder.AppendLine($"ℹ Removed calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because the calendar message no longer exists.");
+
+                return builder.ToString();
+            }
+        }
+
+        async Task<RefreshResult> RefreshCalendars(IGuild guild, DateTime? dateTime = null, Optional<string> tag = default)
         {
             var settings = await Settings.Read<ScheduleSettings>(guild.Id);
-            var schedule = messageId.HasValue ?
-                settings.ScheduleData.FirstOrDefault(x => x.MessageId == messageId) :
-                settings.ScheduleData.LastOrDefault();
+            var result = new RefreshResult();
+            foreach (var calendar in settings.Calendars)
+            {
+                if (dateTime.HasValue && (dateTime.Value < calendar.BeginDate || dateTime.Value >= calendar.EndDate))
+                    continue;
 
-            if (schedule == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException(settings.ScheduleData.Any() ? "Not a registered schedule message. Use `schedule list` to see a list of all active messages." : "No schedule message has been created. Use `schedule create`.");
+                if (tag.IsSpecified && string.Compare(tag.Value, calendar.Tag, true) != 0)
+                    continue;
 
-            var result = await PrintedScheduleMessage.Create(schedule, guild, Settings);
-
-            if (result == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException($"Cannot find the schedule message (ID `{schedule.MessageId}`).");
-
-            if (mustBeEditable && !result.Editable)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("The bot cannot edit this message. You can only edit messages sent by the `schedule create` command.");
+                result.Add(calendar, await RefreshCalendar(calendar, guild, settings));
+            }
 
             return result;
+        }
+
+        async Task<RefreshResult.Reason> RefreshCalendar(ScheduleCalendar calendar, IGuild guild, ScheduleSettings settings)
+        {
+            var result = new RefreshResult();
+            try
+            {
+                var channel = await guild.GetTextChannelAsync(calendar.ChannelId).ConfigureAwait(false);
+                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId).ConfigureAwait(false)) as IUserMessage : null;
+                if (message == null)
+                {
+                    await Settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
+                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Schedule", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
+                    return RefreshResult.Reason.Removed;
+                }
+
+                var (text, embed) = BuildCalendarMessage(calendar, settings);
+                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; }).ConfigureAwait(false);
+                return RefreshResult.Reason.Success;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return RefreshResult.Reason.MessageTooLong;
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Schedule", $"Failed to update calendar {calendar.MessageId} on {guild.Name} ({guild.Id})", ex));
+                return RefreshResult.Reason.Error;
+            }
         }
 
         async Task AssertPrivileges(IUser user, ulong guildId)
@@ -602,178 +1081,248 @@ namespace DustyBot.Modules
                     return;
 
                 var s = await Settings.Read<ScheduleSettings>(guildId);
-                if (s.ScheduleRole == default(ulong) || !gu.RoleIds.Contains(s.ScheduleRole))
-                    throw new Framework.Exceptions.MissingPermissionsException("You may bypass this requirement by asking for a schedule management role.", GuildPermission.ManageMessages);
+                if (s.ScheduleRole == default || !gu.RoleIds.Contains(s.ScheduleRole))
+                    throw new MissingPermissionsException("You may bypass this requirement by asking for a schedule management role.", GuildPermission.ManageMessages);
             }
             else
                 throw new InvalidOperationException();
         }
 
-        interface IScheduleMessage
+        static string BuildCalendarTitle(ScheduleCalendar calendar)
         {
-            IReadOnlyCollection<ScheduleEvent> Events { get; }
-
-            string Header { get; set; }
-            string Footer { get; set; }
-
-            bool Editable { get; }
-            IUserMessage Message { get; }
-
-            ScheduleData Data { get; }
-
-            IEnumerable<ScheduleEvent> GetEvents(DateTime from, DateTime to);
-            void Add(ScheduleEvent e);
-            void Remove(ScheduleEvent e);
-            int RemoveAll(Predicate<ScheduleEvent> predicate);
-            int MoveAll(IScheduleMessage other, Predicate<ScheduleEvent> predicate);
-            void Clear();
-
-            Task CommitChanges();
+            if (string.IsNullOrEmpty(calendar.Title))
+                return calendar.IsMonthCalendar ? $"{calendar.BeginDate.ToString("MMMM", Culture)} schedule" : "Schedule";
+            else
+                return calendar.Title;
         }
 
-        class PrintedScheduleMessage : IScheduleMessage
+        (string text, Embed embed) BuildCalendarMessage(ScheduleCalendar calendar, ScheduleSettings settings)
         {
-            const string DefaultHeader = "Schedule";
+            var result = new StringBuilder();
+            var events = settings.Events
+                .SkipWhile(x => x.Date < calendar.BeginDate)
+                .TakeWhile(x => x.Date < calendar.EndDate)
+                .Where(x => string.Compare(x.Tag, calendar.Tag, true) == 0);
 
-            ISettingsProvider _settings;
+            foreach (var e in events)
+                result.AppendLine(FormatEvent(e, settings.EventFormat));
 
-            public ScheduleData Data { get; }
+            if (result.Length > 2000)
+                throw new ArgumentOutOfRangeException();
 
-            public string Header { get => Data.Header; set => Data.Header = value; }
-            public string Footer { get => Data.Footer; set => Data.Footer = value; }
-
-            public bool Editable => Message.Author.Id == ((Message.Channel as ITextChannel)?.Guild as SocketGuild)?.CurrentUser.Id;
-            public IUserMessage Message { get; }
-
-            public IReadOnlyCollection<ScheduleEvent> Events => Data.Events as IReadOnlyCollection<ScheduleEvent>;
-
-            private PrintedScheduleMessage(ScheduleData data, IUserMessage message, ISettingsProvider settings)
+            string footer = calendar.Footer;
+            if (string.IsNullOrEmpty(footer))
             {
-                Data = data;
-                Message = message;
-                _settings = settings;
-            }
-
-            public static async Task<PrintedScheduleMessage> Create(ScheduleData data, IGuild guild, ISettingsProvider settings)
-            {
-                var channel = await guild.GetTextChannelAsync(data.ChannelId);
-                var message = channel != null ? await channel.GetMessageAsync(data.MessageId) as IUserMessage : null;
-                if (message == null)
-                    return null;
-
-                return new PrintedScheduleMessage(data, message, settings);
-            }
-
-            public static async Task<PrintedScheduleMessage> CreateNew(ITextChannel channel, string header, string footer, ISettingsProvider settings)
-            {
-                header = string.IsNullOrEmpty(header) ? DefaultHeader : header;
-                var embed = new EmbedBuilder()
-                    .WithTitle(header)
-                    .WithDescription("")
-                    .WithFooter(footer);
-
-                var message = await channel.SendMessageAsync(string.Empty, embed: embed.Build());
-
-                var data = new ScheduleData()
-                {
-                    MessageId = message.Id,
-                    ChannelId = channel.Id,
-                    Header = header,
-                    Footer = footer
-                };
-
-                return new PrintedScheduleMessage(data, message, settings);
-            }
-
-            public IEnumerable<ScheduleEvent> GetEvents(DateTime from, DateTime to) => Events.SkipWhile(x => x.Date < from).TakeWhile(x => x.Date < to);
-
-            public void Add(ScheduleEvent e)
-            {
-                if (!e.HasTime)
-                    e.Date = new DateTime(e.Date.Year, e.Date.Month, e.Date.Day, 23, 59, 0, 0); //Standardize and sort at the end
-
-                if (e.Id == default(int))
-                    e.Id = Data.NextEventId++;
-
-                if (Data.Events.Any(x => x.Id == e.Id))
-                    throw new ArgumentException("Duplicate event ID.");
-
-                Data.Events.Add(e);
-            }
-
-            public void Remove(ScheduleEvent e) => Data.Events.Remove(e);
-
-            public int RemoveAll(Predicate<ScheduleEvent> predicate)
-            {
-                int count = 0;
-                for (int i = Data.Events.Count - 1; i >= 0; i--)
-                {
-                    if (!predicate(Data.Events[i]))
-                        continue;
-
-                    Data.Events.RemoveAt(i);
-                    count++;
-                }
-
-                return count;
-            }
-
-            public int MoveAll(IScheduleMessage other, Predicate<ScheduleEvent> predicate)
-            {
-                int count = 0;
-                for (int i = Data.Events.Count - 1; i >= 0; i--)
-                {
-                    var e = Data.Events[i];
-                    if (!predicate(e))
-                        continue;
-
-                    e.Id = default(int);
-                    other.Add(e);
-                    Data.Events.RemoveAt(i);
-                    count++;
-                }
-
-                return count;
-            }
-
-            public void Clear() => Data.Events.Clear();
-
-            public async Task CommitChanges()
-            {
-                var settings = await _settings.Read<ScheduleSettings>(((ITextChannel)Message.Channel).GuildId);
-
-                var result = new StringBuilder();
-                foreach (var e in Events)
-                    result.AppendLine(FormatEvent(e, settings.EventFormat));
-
-                if (result.Length > 2000)
-                    throw new ArgumentOutOfRangeException();
-
-                var embed = new EmbedBuilder()
-                    .WithTitle(string.IsNullOrEmpty(Header) ? DefaultHeader : Header)
-                    .WithDescription(result.ToString())
-                    .WithFooter(Footer);
-
-                await _settings.Modify(((ITextChannel)Message.Channel).GuildId, (ScheduleSettings s) =>
-                {
-                    var i = s.ScheduleData.FindIndex(x => x.MessageId == Message.Id);
-
-                    if (i < 0)
-                        throw new ArgumentException();
-
-                    s.ScheduleData[i] = Data;
-                });
-
-                await Message.ModifyAsync(x => { x.Content = string.Empty; x.Embed = embed.Build(); });
-            }
-
-            public static string FormatEvent(ScheduleEvent e, EventFormat format)
-            {
-                if (format == EventFormat.KoreanDate)
-                    return e.Date.ToString(e.HasTime ? @"`[yyMMdd | HH:mm]`" : @"`[yyMMdd | ??:??]`") + " " + e.Description;
+                if (calendar.IsMonthCalendar && !string.IsNullOrEmpty(calendar.Title))
+                    footer = $"{calendar.BeginDate.ToString("MMMM", Culture)} schedule • {BuildUTCOffsetString(settings.TimezoneOffset)}";
                 else
-                    return e.Date.ToString(e.HasTime ? @"`[MM\/dd | HH:mm]`" : @"`[MM\/dd | ??:??]`") + " " + e.Description;
+                    footer = $"All times in {BuildUTCOffsetString(settings.TimezoneOffset)}";
             }
+
+            var embed = new EmbedBuilder()
+                .WithTitle(BuildCalendarTitle(calendar))
+                .WithDescription(result.ToString())
+                .WithFooter(footer);
+
+            return (string.Empty, embed.Build());
         }
+
+        PageCollection BuildEventList(ScheduleSettings settings, string header, DateTime? beginDate = null, DateTime? endDate = null, Func<ScheduleEvent, bool> predicate = null, string footer = null)
+        {
+            if (predicate == null)
+                predicate = x => true;
+
+            if (beginDate == null)
+                beginDate = DateTime.MinValue;
+
+            if (endDate == null)
+                endDate = DateTime.MaxValue;
+
+            return BuildEventList(settings, header, settings.Events.SkipWhile(x => x.Date < beginDate).TakeWhile(x => x.Date < endDate).Where(predicate), footer);
+        }
+
+        PageCollection BuildEventList(ScheduleSettings settings, string header, IEnumerable<ScheduleEvent> events, string footer = null)
+        {
+            var result = new StringBuilder();
+            var pages = new PageCollection();
+            var embedBuilder = new Func<string, EmbedBuilder>((d) => new EmbedBuilder()
+                .WithTitle(header)
+                .WithDescription(d)
+                .WithFooter(footer ?? BuildUTCOffsetString(settings.TimezoneOffset)));
+
+            foreach (var e in events)
+            {
+                var line = FormatEvent(e, settings.EventFormat, showId: true, showTag: true);
+                if (result.Length + line.Length > 2000)
+                {
+                    pages.Add(embedBuilder(result.ToString()));
+                    result.Clear();
+                }
+
+                result.AppendLine(line);
+            }
+
+            if (result.Length > 0)
+                pages.Add(embedBuilder(result.ToString()));
+
+            return pages;
+        }
+
+        static string BuildUTCOffsetString(TimeSpan offset) => $"UTC{offset.TotalHours:+#0;-#0}" + (offset.Minutes != 0 ? $":{Math.Abs(offset.Minutes):00}" : string.Empty);
+
+        static string BuildCalendarSpanString(ScheduleCalendar calendar)
+            => $"from `{calendar.BeginDate.ToString(@"yyyy\/MM\/dd", Culture)}`{(calendar.HasEndDate ? $" to `{calendar.EndDate.AddDays(-1).ToString(@"yyyy\/MM\/dd", Culture)}`" : string.Empty)} (inclusive)";
+
+        public static string FormatEvent(ScheduleEvent e, EventFormat format, bool showId = false, bool showTag = false)
+        {
+            var result = new StringBuilder();
+            if (showId)
+                result.Append($"`{e.Id:00}` ");
+
+            if (format == EventFormat.KoreanDate)
+                result.Append(e.Date.ToString(e.HasTime ? @"`[yyMMdd | HH:mm]` " : @"`[yyMMdd | ??:??]` ", Culture));
+            else if (format == EventFormat.MonthName)
+                result.Append(e.Date.ToString(e.HasTime ? @"`[MMM dd | HH:mm]` " : @"`[MMM dd | ??:??]` ", Culture));
+            else
+                result.Append(e.Date.ToString(e.HasTime ? @"`[MM\/dd | HH:mm]` " : @"`[MM\/dd | ??:??]` ", Culture));
+
+            if (showTag && e.HasTag)
+                result.Append($"`{e.Tag}` ");
+
+            result.Append(e.Description);
+            return result.ToString();
+        }
+
+        #region Migration
+
+        [Command("schedule", "help", "migration", "Shows migration info.", CommandFlags.Hidden)]
+        public async Task ScheduleHelpMigration(ICommand command) =>
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+        [Command("schedule", "create", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleCreate(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel);
+
+        [Command("schedule", "edit", "header", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleEditHeader(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar set title");
+
+        [Command("schedule", "edit", "footer", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleEditFooter(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar set footer");
+
+        [Command("schedule", "edit", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleEdit(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "event batch");
+
+        [Command("schedule", "move", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleMove(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel);
+
+        [Command("schedule", "ignore", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleIgnore(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar delete");
+
+        [Command("schedule", "list", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleList(ICommand command) =>
+            await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar list");
+
+        [Command("schedule", "role", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleRole(ICommand command) =>
+            await command.Reply(Communicator, "This command has been replaced with `schedule set role`.");
+
+        [Command("schedule", "style", "Removed command.", CommandFlags.Hidden)]
+        public async Task RemovedScheduleStyle(ICommand command) =>
+            await command.Reply(Communicator, "This command has been replaced with `schedule set style`.");
+
+        [Command("calendar", "global", "refresh", "Refreshes calendars across all servers.", CommandFlags.Hidden | CommandFlags.OwnerOnly)]
+        public async Task CalendarGlobalRefresh(ICommand command)
+        {
+            var settings = await Settings.Read<ScheduleSettings>();
+            var result = new RefreshResult();
+            foreach (var s in settings)
+            {
+                var guild = await Client.GetGuildAsync(s.ServerId);
+                if (guild == null)
+                    continue;
+
+                foreach (var c in s.Calendars)
+                {
+                    result.Add(c, await RefreshCalendar(c, guild, s));
+                }
+            }
+
+            await command.Reply(Communicator, result.ToString());
+        }
+
+        //[Command("calendar", "global", "list", "Lists calendars across all servers.", CommandFlags.Hidden | CommandFlags.OwnerOnly)]
+        //public async Task CalendarGlobalList(ICommand command)
+        //{
+        //    var settings = await Settings.Read<ScheduleSettings>();
+        //    var result = new StringBuilder();
+        //    foreach (var s in settings)
+        //    {
+        //        result.AppendLine();
+        //        result.AppendLine();
+
+        //        result.Append($"Guild: `{s.ServerId}` ");
+        //        var guild = await Client.GetGuildAsync(s.ServerId);
+        //        if (guild == null)
+        //            continue;
+
+        //        result.Append($"Name: `{guild.Name}` ");
+
+        //        foreach (var c in s.Calendars)
+        //        {
+        //            result.AppendLine();
+        //            result.Append($"MessageId: `{}` ");
+        //            result.Add(c, await RefreshCalendar(c, guild, s));
+        //        }
+        //    }
+
+        //    await command.Reply(Communicator, result.ToString());
+        //}
+
+        private async Task<bool> PrintMigrationHelp(IGuild guild, IMessageChannel channel)
+        {
+            var settings = await Settings.Read<ScheduleSettings>(guild.Id, false);
+            if (settings == null || !settings.ShowMigrateHelp)
+                return false;
+
+            var embed = new EmbedBuilder()
+                .WithTitle("📅 Schedule update")
+                .WithDescription("Hi~ Dusty has switched to a new schedule system. All of your old schedule has been automatically migrated.")
+                .AddField(x => x.WithName("What is the new system?")
+                    .WithValue("With the new system you no longer add events to specific schedule messages. Instead, all events are added to a hidden pool in the background, one for your whole server.\n\nAll commands then draw events from this pool to display them in various ways. For example, the `schedule` command draws and displays up to 15 upcoming events. This means that if you are fine with using only the `schedule` command, you won't need to have any permanent schedule messages on your server at all."))
+                .AddField(x => x.WithName("What happened to my schedule messages?")
+                    .WithValue("Instead of schedule messages, you can now create __calendars__. A calendar is an automatically updated message, similar to the old schedule messages, which displays a range of events from your server's event pool, e.g. a specific month, a range of dates etc. You can create as many calendars as you need.\n\nAll your active schedule messages were transformed into calendars. You can view all your current calendars with the `calendar list` command. If there were any mistakes, please let us know in the [support server](https://discord.gg/mKKJFvZ).\n\nIf you had multiple different schedules on your server, your events have been [tagged](http://dustybot.info/schedule#tags). If you would prefer different tags, please contact us."))
+                .AddField(x => x.WithName("How will it help me?")
+                    .WithValue("The new system should make working with events much less painful. It also opens up new possibilites in the future, like a Google Calendar integration, creation of calendars which only display upcoming events etc."))
+                .AddField(x => x.WithName("Getting started")
+                    .WithValue("To get started with the new system, please check out the [reference page](http://dustybot.info/reference#schedule) and [schedule guide](http://dustybot.info/schedule). If you have any questions, we'll be happy to help in the [support server](https://discord.gg/mKKJFvZ)."));
+
+            await channel.SendMessageAsync(string.Empty, embed: embed.Build());
+            await Settings.Modify(guild.Id, (ScheduleSettings s) => s.ShowMigrateHelp = false);
+            return true;
+        }
+
+        private async Task PrintDeprecatedCommandHelp(IGuild guild, IMessageChannel channel, params string[] alternatives)
+        {
+            var showGettingStarted = !await PrintMigrationHelp(guild, channel);
+
+            var alternativesString = string.Empty;
+            if (alternatives.Length == 1)
+                alternativesString = $"A possible alternative is `{alternatives.First()}`.";
+            else if (alternatives.Length > 1)
+                alternativesString = $"Possible alternatives are {alternatives.WordJoinQuoted()}.";
+
+            var embed = new EmbedBuilder()
+                .WithTitle("This command has been removed")
+                .WithDescription($"This command is no longer available, since Dusty has switched to a new schedule system. {alternativesString}" + (showGettingStarted ? "\n\nTo get started with the new system, please check out the [reference page](http://dustybot.info/reference) and [schedule guide](http://dustybot.info/schedule). If you have any questions, we'll be happy to help in the [support server](https://discord.gg/mKKJFvZ)." : string.Empty));
+
+            await channel.SendMessageAsync(string.Empty, embed: embed.Build());
+        }
+
+        #endregion
     }
 }

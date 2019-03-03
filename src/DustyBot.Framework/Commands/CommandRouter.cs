@@ -138,7 +138,7 @@ namespace DustyBot.Framework.Commands
                     }
                     catch (Exceptions.IncorrectParametersCommandException ex)
                     {
-                        await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message);
+                        await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message, ex.ShowUsage);
                     }
                     catch (Exceptions.MissingPermissionsException ex)
                     {

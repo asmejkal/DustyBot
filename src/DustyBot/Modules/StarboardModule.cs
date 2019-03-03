@@ -217,7 +217,7 @@ namespace DustyBot.Modules
             {
                 foreach (var message in board.StarredMessages)
                 {
-                    if (message.Value.StarboardMessage == default(ulong))
+                    if (message.Value.StarboardMessage == default)
                         continue;
 
                     var key = (board.Channel, message.Value.StarboardMessage);
@@ -342,7 +342,7 @@ namespace DustyBot.Modules
             if (starChannel == null)
                 return;
 
-            if (entry.StarboardMessage == default(ulong))
+            if (entry.StarboardMessage == default)
             {
                 //Post new
                 var attachments = await ProcessAttachments(message.Attachments);
@@ -377,7 +377,7 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
+                    if (reaction == null || !reaction.User.IsSpecified || reaction.User.Value == null || reaction.User.Value.IsBot)
                         return;
 
                     if (!(channel is ITextChannel textChannel))
@@ -452,7 +452,7 @@ namespace DustyBot.Modules
             if (entry == null)
                 return;
 
-            if (entry.StarboardMessage == default(ulong))
+            if (entry.StarboardMessage == default)
                 return;
 
             var starChannel = await channel.Guild.GetTextChannelAsync(board.Channel);

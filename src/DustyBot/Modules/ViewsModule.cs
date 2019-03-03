@@ -130,7 +130,7 @@ namespace DustyBot.Modules
                 s.YouTubeComebacks.Add(info);
             }).ConfigureAwait(false);
             
-            await command.ReplySuccess(Communicator, $"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos `{info.VideoIds.WordJoin("`, `", "` and `")}`.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos {info.VideoIds.WordJoinQuoted()}.").ConfigureAwait(false);
         }
 
         [Command("views", "remove", "Removes a song.")]

@@ -123,7 +123,6 @@ namespace DustyBot.Modules
         }
 
         [Command("poll", "results", "Checks results of a running poll.")]
-        [Permissions(GuildPermission.ManageMessages)]
         [Parameter("ResultsChannel", ParameterType.TextChannel, ParameterFlags.Optional, "you can specify a different channel to receive the results")]
         public async Task ResultsPoll(ICommand command)
         {
@@ -176,9 +175,15 @@ namespace DustyBot.Modules
                 return false;
             }
 
-            var description = poll.Question + "\n\n";
+            var user = command.Message.Author as IGuildUser;
+            if (user == null)
+                throw new Exception("Unexpected context.");
 
-            int i = 0;
+            if (poll.Anonymous && !user.GuildPermissions.ManageMessages)
+                throw new Framework.Exceptions.MissingPermissionsException("Results of anonymous polls can only be viewed by moderators.", GuildPermission.ManageMessages);
+
+            var description = poll.Question + "\n\n";
+                        
             var emotes = new Dictionary<int, string>()
             {
                 { 1, ":first_place:" },
@@ -186,10 +191,14 @@ namespace DustyBot.Modules
                 { 3, ":third_place:" }
             };
 
+            int i = 0, prevScore = int.MaxValue, currentPlace = 0;
             foreach (var result in poll.Results.OrderByDescending(x => x.Value))
             {
                 ++i;
-                description += $"{(emotes.ContainsKey(i) ? emotes[i] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
+                currentPlace = prevScore == result.Value ? currentPlace : i; //Place vote ties in the same placemenet
+                prevScore = result.Value;
+
+                description += $"{(emotes.ContainsKey(currentPlace) ? emotes[currentPlace] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
             }                
 
             var total = poll.Results.Sum(x => x.Value);
