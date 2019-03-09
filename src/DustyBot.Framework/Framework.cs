@@ -37,6 +37,8 @@ namespace DustyBot.Framework
             }
         }
 
+        public event Action Ready;
+
         private SemaphoreSlim _awaiter = new SemaphoreSlim(0);
 
         private HashSet<Modules.IModule> _modules;
@@ -80,11 +82,16 @@ namespace DustyBot.Framework
             await Client.LoginAsync(TokenType.Bot, Config.BotToken);
             await Client.StartAsync();
 
+            var s = new SemaphoreSlim(0);
+            Client.Ready += () => Task.FromResult(s.Release());
+            await s.WaitAsync();
+
             foreach (var service in _services)
                 service.Start();
 
             await Client.SetGameAsync(status);
 
+            Ready?.Invoke();
             await _awaiter.WaitAsync();
         }
 

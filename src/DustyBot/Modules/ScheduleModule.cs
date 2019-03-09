@@ -27,6 +27,7 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
+    //TODO: Rework into a proper OO design...
     [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"schedule\">guide</a>.")]
     class ScheduleModule : Module
     {
@@ -99,13 +100,13 @@ namespace DustyBot.Modules
                 if (!item.HasTime)
                 {
                     if (currentTime.Date == item.Date.Date)
-                        line += $" `<today>`";
+                        line += " `<today>`";
                 }
                 else
                 {
                     var timeLeft = item.Date - currentTime;
                     if (timeLeft <= TimeSpan.FromHours(-1))
-                        line += $" `<{-timeLeft.TotalHours}h {-timeLeft.Minutes}min ago>`";
+                        line += $" `<{Math.Floor(-timeLeft.TotalHours)}h {-timeLeft.Minutes}min ago>`";
                     else if (timeLeft < TimeSpan.Zero)
                         line += $" `<{-timeLeft.Minutes}min ago>`";
                     else if (timeLeft < TimeSpan.FromHours(1))
@@ -114,7 +115,7 @@ namespace DustyBot.Modules
                         line += $" `<in {Math.Floor(timeLeft.TotalHours)}h {timeLeft.Minutes}min>`";
                 }
 
-                if (result.Length + line.Length > 2000)
+                if (result.Length + line.Length > EmbedBuilder.MaxDescriptionLength)
                 {
                     truncateWarning = true;
                     break;
@@ -327,10 +328,10 @@ namespace DustyBot.Modules
         [Parameter("Date", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
-        [Comment("All times in KST. An alternative to this command is `event remove` followed by `event add`.")]
+        [Comment("All parameters are optional – you can specify just the parts you wish to be edited (date, time, and/or description). The parts you leave out will stay the same.")]
         [Example("5 08:45")]
-        [Example("13 07/23 Fansign")]
-        [Example("25 Festival")]
+        [Example("13 07/23 18:00 Fansign")]
+        [Example("25 22:00 Festival")]
         public async Task EditEvent(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
@@ -389,10 +390,7 @@ namespace DustyBot.Modules
                 return (e, orig, e.Date);
             });
 
-            var result = await RefreshCalendars(command.Guild, origDate, edited.Tag);
-            if (newDate != origDate)
-                result.Merge(await RefreshCalendars(command.Guild, newDate, edited.Tag));
-
+            var result = await RefreshCalendars(command.Guild, new[] { origDate, newDate }, edited.Tag);
             await command.ReplySuccess(Communicator, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", Culture)}`" : string.Empty) + $". {result}").ConfigureAwait(false);
         }
 
@@ -600,7 +598,7 @@ namespace DustyBot.Modules
                     throw new IncorrectParametersCommandException("The begin date has to be earlier than the end date.");
 
                 var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
-                var calendar = new ScheduleCalendar()
+                var calendar = new RangeScheduleCalendar()
                 {
                     Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
                     ChannelId = command["Channel"].AsTextChannel.Id,
@@ -648,7 +646,7 @@ namespace DustyBot.Modules
 
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
             var beginDate = new DateTime(command["Year"].HasValue ? (int)command["Year"] : DateTime.UtcNow.Add(settings.TimezoneOffset).Year, month.Month, 1);
-            var calendar = new ScheduleCalendar()
+            var calendar = new RangeScheduleCalendar()
             {
                 Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
                 ChannelId = command["Channel"].AsTextChannel.Id,
@@ -672,6 +670,63 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A calendar has been created to display the `{calendar.BeginDate.ToString(@"MMMM", Culture)}` schedule{(calendar.HasTag ? $" for events with tag `{calendar.Tag}`" : string.Empty)} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
         }
 
+        [Command("calendar", "create", "upcoming", "Creates a permanent message to display only upcoming events.")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events")]
+        [Parameter("Channel", ParameterType.TextChannel, "target channel")]
+        [Parameter("Days", ParameterType.UInt, ParameterFlags.Optional, "display events up to this many days in the future; if ommited, displays as many as possible")]
+        [Comment("This calendar gets automatically updated every day at 0:00 (in your schedule's timezone) to show only events happening from that day onwards.")]
+        [Example("#schedule")]
+        [Example("#schedule 14")]
+        [Example("birthday #schedule")]
+        public async Task CreateUpcomingSpanCalendar(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var calendar = new UpcomingSpanScheduleCalendar()
+            {
+                Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
+                ChannelId = command["Channel"].AsTextChannel.Id,
+                DaysSpan = command["Days"].HasValue ? command["Days"].AsInt.Value : 0
+            };
+
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+            var (text, embed) = BuildCalendarMessage(calendar, settings);
+            var message = await command["Channel"].AsTextChannel.SendMessageAsync(text, embed: embed);
+
+            calendar.MessageId = message.Id;
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+
+            await command.ReplySuccess(Communicator, $"A calendar has been created to display upcoming{(calendar.DaysSpan > 0 ? $" {calendar.DaysSpan} days of" : string.Empty)} schedule{(calendar.HasTag ? $" for events with tag `{calendar.Tag}`" : string.Empty)} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+        }
+
+        [Command("calendar", "create", "upcoming", "week", "Creates a permanent message to display events in the next 7 days.")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events")]
+        [Parameter("Channel", ParameterType.TextChannel, "target channel")]
+        [Comment("This calendar gets automatically updated every day at 0:00 (in your schedule's timezone).")]
+        [Example("#schedule")]
+        [Example("birthday #schedule")]
+        public async Task CreateUpcomingWeekCalendar(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+            await PrintMigrationHelp(command.Guild, command.Message.Channel);
+
+            var calendar = new UpcomingWeekScheduleCalendar()
+            {
+                Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
+                ChannelId = command["Channel"].AsTextChannel.Id
+            };
+
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
+            var (text, embed) = BuildCalendarMessage(calendar, settings);
+            var message = await command["Channel"].AsTextChannel.SendMessageAsync(text, embed: embed);
+
+            calendar.MessageId = message.Id;
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+
+            await command.ReplySuccess(Communicator, $"A calendar has been created to display the upcoming week of schedule{(calendar.HasTag ? $" for events with tag `{calendar.Tag}`" : string.Empty)} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+        }
+
         [Command("calendar", "set", "begin", "Moves the begin date of a calendar.")]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "display events from this date onward (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
@@ -686,10 +741,7 @@ namespace DustyBot.Modules
 
             var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
-                if (c == null)
-                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
-
+                var c = GetCalendarOfType<RangeScheduleCalendar>(s, command["MessageId"].AsId.Value);
                 if (c.EndDate <= from)
                     throw new IncorrectParametersCommandException("The begin date has to be earlier than the end date.");
 
@@ -717,10 +769,7 @@ namespace DustyBot.Modules
 
             var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
-                if (c == null)
-                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
-
+                var c = GetCalendarOfType<RangeScheduleCalendar>(s, command["MessageId"].AsId.Value);
                 if (date <= c.BeginDate)
                     throw new IncorrectParametersCommandException("The end date has to be later than the begin date.");
 
@@ -749,9 +798,7 @@ namespace DustyBot.Modules
 
             var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
-                if (c == null)
-                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
+                var c = GetCalendarOfType<RangeScheduleCalendar>(s, command["MessageId"].AsId.Value);
 
                 var beginDate = new DateTime(command["Year"].HasValue ? (int)command["Year"] : DateTime.UtcNow.Add(s.TimezoneOffset).Year, month.Month, 1);
                 c.BeginDate = beginDate;
@@ -774,10 +821,7 @@ namespace DustyBot.Modules
 
             var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
-                if (c == null)
-                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
-
+                var c = GetCalendarOfType<ScheduleCalendar>(s, command["MessageId"].AsId.Value);
                 c.Title = command["Title"];
                 return (c, s);
             });
@@ -789,6 +833,7 @@ namespace DustyBot.Modules
         [Command("calendar", "set", "footer", "Sets a custom footer for a calendar.")]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Footer", ParameterType.String, ParameterFlags.Remainder, "new footer")]
+        [Comment("Not recommended for calendars created with `calendar create upcoming`, as they have footers with useful dynamic information.")]
         [Example("462366629247057930 A new footer")]
         public async Task SetCalendarFooter(ICommand command)
         {
@@ -797,10 +842,7 @@ namespace DustyBot.Modules
 
             var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var c = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
-                if (c == null)
-                    throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
-
+                var c = GetCalendarOfType<ScheduleCalendar>(s, command["MessageId"].AsId.Value);
                 c.Footer = command["Footer"];
                 return (c, s);
             });
@@ -826,10 +868,23 @@ namespace DustyBot.Modules
             foreach (var calendar in settings.Calendars)
             {
                 result.Append($"Id: `{calendar.MessageId}` Channel: <#{calendar.ChannelId}> Title: `{BuildCalendarTitle(calendar)}`");
-                if (calendar.IsMonthCalendar)
-                    result.Append($" Month: `{ calendar.BeginDate.ToString("MMMM", Culture)}`");
+                if (calendar is RangeScheduleCalendar rangeCalendar)
+                {
+                    if (rangeCalendar.IsMonthCalendar)
+                        result.Append($" Month: `{rangeCalendar.BeginDate.ToString("MMMM", Culture)}`");
+                    else
+                        result.Append($" Begin: `{rangeCalendar.BeginDate.ToString(@"MM\/dd", Culture)}`" + (rangeCalendar.HasEndDate ? $" End: `{rangeCalendar.EndDate.AddDays(-1).ToString(@"MM\/dd", Culture)}` (inclusive)" : string.Empty));
+                }
+                else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
+                {
+                    result.Append($" Upcoming: `{(upcomingSpanCalendar.DaysSpan > 0 ? $"{upcomingSpanCalendar.DaysSpan} days" : "all")}`");
+                }
+                else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)
+                {
+                    result.Append($" Upcoming: `Week`");
+                }
                 else
-                    result.Append($" Begin: `{ calendar.BeginDate.ToString(@"MM\/dd", Culture)}`" + (calendar.HasEndDate ? $" End: `{calendar.EndDate.AddDays(-1).ToString(@"MM\/dd", Culture)}` (inclusive)" : string.Empty));
+                    throw new InvalidOperationException("Unknown calendar type.");
 
                 if (calendar.HasTag)
                     result.Append($" Tag: `{calendar.Tag}`");
@@ -852,9 +907,7 @@ namespace DustyBot.Modules
 
             //Get original calendar
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
-            var origCalendar = settings.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
-            if (origCalendar == null)
-                throw new IncorrectParametersCommandException("Can't find a calendar with this message ID. Use `calendar list` to see all active calendars and their IDs.", false);
+            var origCalendar = GetCalendarOfType<RangeScheduleCalendar>(settings, command["MessageId"].AsId.Value);
 
             //Check date
             if (!DateTime.TryParseExact(command["Date"], DateFormats, Culture, DateTimeStyles.None, out var date))
@@ -864,7 +917,7 @@ namespace DustyBot.Modules
                 throw new IncorrectParametersCommandException($"The date has to be betweeen the calendar's begin and end dates ({BuildCalendarSpanString(origCalendar)}).");
 
             //Create new calendar
-            var newCalendar = new ScheduleCalendar()
+            var newCalendar = new RangeScheduleCalendar()
             {
                 Tag = origCalendar.Tag,
                 ChannelId = origCalendar.ChannelId,
@@ -890,7 +943,7 @@ namespace DustyBot.Modules
             //Save
             settings = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                origCalendar = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId);
+                origCalendar = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId) as RangeScheduleCalendar;
                 if (origCalendar == null)
                     throw new CommandException("Please try again."); //Race condition
 
@@ -915,13 +968,8 @@ namespace DustyBot.Modules
 
             var (first, second, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
-                var fc = s.Calendars.FirstOrDefault(x => x.MessageId == command["FirstMessageId"].AsId);
-                if (fc == null)
-                    throw new IncorrectParametersCommandException($"Can't find a calendar with message ID `{command["FirstMessageId"].AsId}`. Use `calendar list` to see all active calendars and their IDs.");
-
-                var sc = s.Calendars.FirstOrDefault(x => x.MessageId == command["SecondMessageId"].AsId);
-                if (sc == null)
-                    throw new IncorrectParametersCommandException($"Can't find a calendar with message ID `{command["SecondMessageId"].AsId}`. Use `calendar list` to see all active calendars and their IDs.");
+                var fc = GetCalendarOfType<ScheduleCalendar>(s, command["FirstMessageId"].AsId.Value);
+                var sc = GetCalendarOfType<ScheduleCalendar>(s, command["SecondMessageId"].AsId.Value);
 
                 var tmp = (fc.ChannelId, fc.MessageId);
                 fc.ChannelId = sc.ChannelId;
@@ -1026,13 +1074,17 @@ namespace DustyBot.Modules
             }
         }
 
-        async Task<RefreshResult> RefreshCalendars(IGuild guild, DateTime? dateTime = null, Optional<string> tag = default)
+        async Task<RefreshResult> RefreshCalendars(IGuild guild, DateTime? affectedTime = null, Optional<string> tag = default)
+            => await RefreshCalendars(guild, affectedTime.HasValue ? new[] { affectedTime.Value } : Enumerable.Empty<DateTime>(), tag);
+
+        async Task<RefreshResult> RefreshCalendars(IGuild guild, IEnumerable<DateTime> affectedTimes, Optional<string> tag = default)
         {
             var settings = await Settings.Read<ScheduleSettings>(guild.Id);
             var result = new RefreshResult();
             foreach (var calendar in settings.Calendars)
             {
-                if (dateTime.HasValue && (dateTime.Value < calendar.BeginDate || dateTime.Value >= calendar.EndDate))
+                var (beginDate, endDate) = GetDateSpan(calendar, settings);
+                if (affectedTimes.Any() && affectedTimes.All(x => x < beginDate || x >= endDate))
                     continue;
 
                 if (tag.IsSpecified && string.Compare(tag.Value, calendar.Tag, true) != 0)
@@ -1088,15 +1140,79 @@ namespace DustyBot.Modules
                 throw new InvalidOperationException();
         }
 
+        static T GetCalendarOfType<T>(ScheduleSettings settings, ulong id)
+            where T : ScheduleCalendar
+        {
+            var c = settings.Calendars.FirstOrDefault(x => x.MessageId == id);
+            if (c == null)
+                throw new IncorrectParametersCommandException($"Can't find a calendar with message ID `{id}`. Use `calendar list` to see all active calendars and their IDs.");
+
+            var typed = c as T;
+            if (typed == null)
+            {
+                if (typeof(T) == typeof(RangeScheduleCalendar))
+                    throw new IncorrectParametersCommandException($"This command can only be used for standard calendars (created with `calendar create` or `calendar create month`).", false);
+                else if (typeof(T) == typeof(UpcomingSpanScheduleCalendar))
+                    throw new IncorrectParametersCommandException($"This command can only be used for upcoming event calendars (created with `calendar create upcoming`).", false);
+                else if (typeof(T) == typeof(UpcomingWeekScheduleCalendar))
+                    throw new IncorrectParametersCommandException($"This command can only be used for weekly calendars (created with `calendar create upcoming week`).", false);
+                else
+                    throw new IncorrectParametersCommandException($"This command cannot be used with this calendar type.", false);
+            }
+            else
+                return typed;
+        }
+
+        static (DateTime begin, DateTime end) GetDateSpan(ScheduleCalendar calendar, ScheduleSettings settings)
+        {
+            if (calendar is RangeScheduleCalendar rangeCalendar)
+                return (rangeCalendar.BeginDate, rangeCalendar.EndDate);
+            else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
+            {
+                var beginDate = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
+                var endDate = upcomingSpanCalendar.DaysSpan > 0 ? beginDate.AddDays(upcomingSpanCalendar.DaysSpan) : DateTime.MaxValue.Date;
+                return (beginDate, endDate);
+            }
+            else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)
+            {
+                var beginDate = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
+                var endDate = beginDate.AddDays(7);
+                return (beginDate, endDate);
+            }
+            else
+                throw new InvalidOperationException("Unknown calendar type.");
+        }
+
         static string BuildCalendarTitle(ScheduleCalendar calendar)
         {
             if (string.IsNullOrEmpty(calendar.Title))
-                return calendar.IsMonthCalendar ? $"{calendar.BeginDate.ToString("MMMM", Culture)} schedule" : "Schedule";
+            {
+                if (calendar is RangeScheduleCalendar rangeCalendar && rangeCalendar.IsMonthCalendar)
+                    return $"📅 {rangeCalendar.BeginDate.ToString("MMMM", Culture)} schedule";
+                else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
+                    return "📅 Upcoming events";
+                else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)
+                    return "📅 This week's schedule";
+                else
+                    return "📅 Schedule";
+            }
             else
                 return calendar.Title;
         }
 
-        (string text, Embed embed) BuildCalendarMessage(ScheduleCalendar calendar, ScheduleSettings settings)
+        public static (string text, Embed embed) BuildCalendarMessage(ScheduleCalendar calendar, ScheduleSettings settings)
+        {
+            if (calendar is RangeScheduleCalendar rangeScheduleCalendar)
+                return BuildCalendarMessage(rangeScheduleCalendar, settings);
+            else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
+                return BuildCalendarMessage(upcomingSpanCalendar, settings);
+            else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)
+                return BuildCalendarMessage(upcomingWeekCalendar, settings);
+            else
+                throw new InvalidOperationException("Unknown calendar type.");
+        }
+
+        public static (string text, Embed embed) BuildCalendarMessage(RangeScheduleCalendar calendar, ScheduleSettings settings)
         {
             var result = new StringBuilder();
             var events = settings.Events
@@ -1107,7 +1223,7 @@ namespace DustyBot.Modules
             foreach (var e in events)
                 result.AppendLine(FormatEvent(e, settings.EventFormat));
 
-            if (result.Length > 2000)
+            if (result.Length > EmbedBuilder.MaxDescriptionLength)
                 throw new ArgumentOutOfRangeException();
 
             string footer = calendar.Footer;
@@ -1123,6 +1239,97 @@ namespace DustyBot.Modules
                 .WithTitle(BuildCalendarTitle(calendar))
                 .WithDescription(result.ToString())
                 .WithFooter(footer);
+
+            return (string.Empty, embed.Build());
+        }
+
+        public static (string text, Embed embed) BuildCalendarMessage(UpcomingSpanScheduleCalendar calendar, ScheduleSettings settings)
+        {
+            var (beginDate, endDate) = GetDateSpan(calendar, settings);
+            var events = settings.Events
+                .SkipWhile(x => x.Date < beginDate)
+                .TakeWhile(x => x.Date < endDate)
+                .Where(x => string.Compare(x.Tag, calendar.Tag, true) == 0)
+                .ToList();
+
+            var result = new StringBuilder();
+            var displayed = 0;
+            var today = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
+            foreach (var e in events)
+            {
+                string line = FormatEvent(e, settings.EventFormat);
+                if (result.Length + line.Length > EmbedBuilder.MaxDescriptionLength)
+                    break;
+
+                result.AppendLine(line + (e.Date.Date == today ? " `<today>`" : string.Empty));
+                displayed++;
+            }                
+
+            string footer = calendar.Footer;
+            if (string.IsNullOrEmpty(footer))
+            {
+                footer = $"{BuildUTCOffsetString(settings.TimezoneOffset)}";
+                if (events.Count == displayed)
+                    footer += calendar.DaysSpan > 0 ? $" • Shows the next {calendar.DaysSpan} days of events" : $" • All upcoming events";
+                else
+                    footer += $" • Shows next {displayed} events";
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle(BuildCalendarTitle(calendar))
+                .WithDescription(result.ToString())
+                .WithFooter(footer);
+
+            return (string.Empty, embed.Build());
+        }
+
+        public static (string text, Embed embed) BuildCalendarMessage(UpcomingWeekScheduleCalendar calendar, ScheduleSettings settings)
+        {
+            var (beginDate, endDate) = GetDateSpan(calendar, settings);
+            var events = settings.Events
+                .SkipWhile(x => x.Date < beginDate)
+                .TakeWhile(x => x.Date < endDate)
+                .Where(x => string.Compare(x.Tag, calendar.Tag, true) == 0)
+                .ToList();
+
+            string footer = calendar.Footer;
+            if (string.IsNullOrEmpty(footer))
+                footer = $"All times in {BuildUTCOffsetString(settings.TimezoneOffset)}";
+
+            var embed = new EmbedBuilder().WithTitle(BuildCalendarTitle(calendar)).WithFooter(footer);
+            var today = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
+            var day = beginDate;
+            while (day < endDate)
+            {
+                var nextDay = day.AddDays(1);
+                var result = new StringBuilder();
+                foreach (var e in events.SkipWhile(x => x.Date < day).TakeWhile(x => x.Date < nextDay))
+                {
+                    string line = FormatDayEvent(e, settings.EventFormat);
+                    if (result.Length + line.Length > EmbedFieldBuilder.MaxFieldValueLength - 5)
+                    {
+                        result.AppendLine("...");
+                        break;
+                    }
+
+                    result.AppendLine(line);
+                }
+
+                if (result.Length <= 0)
+                    result.AppendLine("No events");
+
+                string dayName;
+                if (day == beginDate)
+                    dayName = "Today";
+                else if (day == beginDate.AddDays(1))
+                    dayName = "Tommorow";
+                else
+                    dayName = day.ToString("dddd", Culture);
+
+                embed.AddField(x => x.WithIsInline(false).WithName(dayName).WithValue(result.ToString()));
+
+                day = nextDay;
+            }
 
             return (string.Empty, embed.Build());
         }
@@ -1153,7 +1360,7 @@ namespace DustyBot.Modules
             foreach (var e in events)
             {
                 var line = FormatEvent(e, settings.EventFormat, showId: true, showTag: true);
-                if (result.Length + line.Length > 2000)
+                if (result.Length + line.Length > EmbedBuilder.MaxDescriptionLength)
                 {
                     pages.Add(embedBuilder(result.ToString()));
                     result.Clear();
@@ -1170,7 +1377,7 @@ namespace DustyBot.Modules
 
         static string BuildUTCOffsetString(TimeSpan offset) => $"UTC{offset.TotalHours:+#0;-#0}" + (offset.Minutes != 0 ? $":{Math.Abs(offset.Minutes):00}" : string.Empty);
 
-        static string BuildCalendarSpanString(ScheduleCalendar calendar)
+        static string BuildCalendarSpanString(RangeScheduleCalendar calendar)
             => $"from `{calendar.BeginDate.ToString(@"yyyy\/MM\/dd", Culture)}`{(calendar.HasEndDate ? $" to `{calendar.EndDate.AddDays(-1).ToString(@"yyyy\/MM\/dd", Culture)}`" : string.Empty)} (inclusive)";
 
         public static string FormatEvent(ScheduleEvent e, EventFormat format, bool showId = false, bool showTag = false)
@@ -1193,6 +1400,14 @@ namespace DustyBot.Modules
             return result.ToString();
         }
 
+        public static string FormatDayEvent(ScheduleEvent e, EventFormat format)
+        {
+            var result = new StringBuilder();
+            result.Append(e.HasTime ? e.Date.ToString(@"`HH:mm` ", Culture) : @"`??:??` ");
+            result.Append(e.Description);
+            return result.ToString();
+        }
+
         #region Migration
 
         [Command("schedule", "help", "migration", "Shows migration info.", CommandFlags.Hidden)]
@@ -1200,38 +1415,47 @@ namespace DustyBot.Modules
             await PrintMigrationHelp(command.Guild, command.Message.Channel);
 
         [Command("schedule", "create", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleCreate(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel);
 
         [Command("schedule", "edit", "header", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleEditHeader(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar set title");
 
         [Command("schedule", "edit", "footer", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleEditFooter(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar set footer");
 
         [Command("schedule", "edit", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleEdit(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "event batch");
 
         [Command("schedule", "move", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleMove(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel);
 
         [Command("schedule", "ignore", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleIgnore(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar delete");
 
         [Command("schedule", "list", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleList(ICommand command) =>
             await PrintDeprecatedCommandHelp(command.Guild, command.Message.Channel, "calendar list");
 
         [Command("schedule", "role", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleRole(ICommand command) =>
             await command.Reply(Communicator, "This command has been replaced with `schedule set role`.");
 
         [Command("schedule", "style", "Removed command.", CommandFlags.Hidden)]
+        [Parameter("Placeholder", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder)]
         public async Task RemovedScheduleStyle(ICommand command) =>
             await command.Reply(Communicator, "This command has been replaced with `schedule set style`.");
 

@@ -47,9 +47,9 @@ namespace DustyBot.Services
             _timer = null;
         }
 
-        async void OnUpdate(object state)
+        void OnUpdate(object state)
         {
-            await Task.Run(async () =>
+            TaskHelper.FireForget(async () =>
             {
                 if (_updating)
                     return; //Skip if the previous update is still running

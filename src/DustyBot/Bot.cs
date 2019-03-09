@@ -120,7 +120,7 @@ namespace DustyBot
                 using (var logger = new Framework.Logging.ConsoleLogger(client, Definitions.GlobalDefinitions.GetLogFile(opts.Instance)))
                 {
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
-
+                    
                     //Get config
                     components.Config = await components.Settings.ReadGlobal<Settings.BotConfig>();
 
@@ -148,6 +148,7 @@ namespace DustyBot
 
                     //Choose services
                     components.Services.Add(new Services.DaumCafeService(components.Client, components.Settings, components.Logger));
+                    components.Services.Add(new Services.ScheduleService(components.Client, components.Settings, components.Logger));
                     _services = components.Services;
 
                     //Init framework

@@ -50,14 +50,23 @@ namespace DustyBot.Settings
 
         private static DateTime ConvertToWholeDay(DateTime dt) => dt.Date.Add(new TimeSpan(23, 59, 59));
     }
-
-    public class ScheduleCalendar
+    
+    public abstract class ScheduleCalendar
     {
         public ulong MessageId { get; set; }
         public ulong ChannelId { get; set; }
 
         public string Tag { get; set; }
+        
+        public string Title { get; set; }
+        public string Footer { get; set; }
 
+        [BsonIgnore]
+        public bool HasTag => Tag != null;
+    }
+
+    public class RangeScheduleCalendar : ScheduleCalendar
+    {
         //Inclusive
         private DateTime _beginDate;
         public DateTime BeginDate { get => _beginDate; set => _beginDate = value.Date; }
@@ -66,17 +75,24 @@ namespace DustyBot.Settings
         private DateTime _endDate;
         public DateTime EndDate { get => _endDate; set => _endDate = value.Date; }
 
-        public string Title { get; set; }
-        public string Footer { get; set; }
-
         [BsonIgnore]
         public bool HasEndDate => _endDate != DateTime.MaxValue.Date;
 
         [BsonIgnore]
-        public bool HasTag => Tag != null;
+        public bool IsMonthCalendar => EndDate - BeginDate == TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month)) && BeginDate.Day == 1;
+    }
 
-        [BsonIgnore]
-        public bool IsMonthCalendar => EndDate - BeginDate == TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month));
+    public abstract class UpcomingScheduleCalendar : ScheduleCalendar
+    {
+    }
+
+    public class UpcomingSpanScheduleCalendar : UpcomingScheduleCalendar
+    {
+        public int DaysSpan { get; set; }
+    }
+
+    public class UpcomingWeekScheduleCalendar : UpcomingScheduleCalendar
+    {
     }
 
     public enum EventFormat
@@ -96,6 +112,7 @@ namespace DustyBot.Settings
         public ulong ScheduleRole { get; set; }
         public EventFormat EventFormat { get; set; } = EventFormat.Default;
         public TimeSpan TimezoneOffset { get; set; } = TimeSpan.FromHours(9);
+        public DateTime LastUpcomingCalendarsUpdate { get; set; } = DateTime.MinValue.Date;
 
         public bool ShowMigrateHelp { get; set; }
     }

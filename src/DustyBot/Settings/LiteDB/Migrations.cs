@@ -201,7 +201,6 @@ namespace DustyBot.Settings.LiteDB
                         //Schedule module reworked
                         var map = new Dictionary<ulong, Calendar>
                         {
-                            
                         };
 
                         var col = db.GetCollection("ScheduleSettings");
@@ -274,6 +273,28 @@ namespace DustyBot.Settings.LiteDB
                             s.Add("TimezoneOffset", 324000000000); //KST
                             s.Add("ShowMigrateHelp", showMigrateHelp);
                             s.Remove("ScheduleData");
+                            col.Update(s);
+                        }
+                    }
+                ),
+
+                new Migration
+                (
+                    version: 7,
+                    up: db =>
+                    {
+                        var col = db.GetCollection("ScheduleSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            var calendars = s["Calendars"].AsArray;
+                            if (calendars != null)
+                            {
+                                foreach (var calendar in calendars.Select(x => x.AsDocument).Where(x => x != null))
+                                {
+                                    calendar.Add("_type", "DustyBot.Settings.RangeScheduleCalendar, DustyBot");
+                                }
+                            }
+
                             col.Update(s);
                         }
                     }
