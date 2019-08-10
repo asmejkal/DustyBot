@@ -48,5 +48,41 @@ namespace DustyBot.Framework.LiteDB
             File.Delete(sourceConn.Filename);
             File.Move(tmpPath, sourceConn.Filename);
         }
+
+        public static void FixSequence(string dbPath, string password)
+        {
+            var sourceConn = new ConnectionString($"Filename={dbPath};Password={password}");
+
+            var tmpPath = sourceConn.Filename + "_tmp";
+            if (File.Exists(tmpPath))
+                File.Delete(tmpPath);
+
+            using (var source = new LiteDatabase(sourceConn))
+            {
+                string destConnString = $"Filename={tmpPath};Password={password}";
+                using (var destination = new LiteDatabase(destConnString))
+                {
+                    foreach (var name in source.GetCollectionNames())
+                    {
+                        var oldCol = source.GetCollection(name);
+                        var newCol = destination.GetCollection(name);
+                        
+                        var items = oldCol.FindAll();
+                        var id = 1;
+                        foreach (var item in items)
+                        {
+                            item["_id"] = id++;
+                            newCol.Insert(item);
+                        }
+                    }
+
+                    destination.Engine.UserVersion = source.Engine.UserVersion;
+                    destination.Engine.Shrink(password);
+                }
+            }
+
+            File.Delete(sourceConn.Filename);
+            File.Move(tmpPath, sourceConn.Filename);
+        }
     }
 }

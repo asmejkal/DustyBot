@@ -199,7 +199,7 @@ namespace DustyBot.Helpers
             //to make this harder to distinguish from normal Chrome users, just in case... (sans the cookies)
             string fuid;
             {
-                var request = WebRequest.CreateHttp("https://logins.daum.net/accounts/loginform.do");
+                var request = WebRequest.CreateHttp("https://logins.daum.net/accounts/signinform.do");
                 request.Method = "GET";
                 request.Headers["Connection"] = "keep-alive";
                 request.Headers["Cache-Control"] = "max-age=0";
@@ -236,7 +236,7 @@ namespace DustyBot.Helpers
                 request.ContentType = "application/x-www-form-urlencoded";
                 request.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36"; //required
                 request.Headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
-                request.Headers["Referer"] = "https://logins.daum.net/accounts/loginform.do"; //required
+                request.Headers["Referer"] = "https://logins.daum.net/accounts/signinform.do"; //required
                 request.Headers["Accept-Encoding"] = "gzip, deflate, br";
                 request.Headers["Accept-Language"] = "en,cs-CZ;q=0.9,cs;q=0.8";
                 

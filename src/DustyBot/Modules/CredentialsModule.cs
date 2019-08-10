@@ -37,7 +37,7 @@ namespace DustyBot.Modules
         [Parameter("Login", ParameterType.String)]
         [Parameter("Password", ParameterType.String)]
         [Parameter("Description", ParameterType.String, "type anything for you to recognize these credentials later")]
-        [Comment("Your credentials are stored in an encrypted database and retrieved by the bot only when necessary. However, from a security standpoint, creating a new dedicated account instead of using your personal account might be preferred")]
+        [Comment("Your credentials are stored in an encrypted database and retrieved by the bot only when necessary.")]
         [Example("johndoe1 mysecretpassword \"Google Mail\"")]
         public async Task AddCredential(ICommand command)
         {

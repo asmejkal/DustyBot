@@ -42,7 +42,7 @@ namespace DustyBot.Modules
             string param = string.IsNullOrWhiteSpace(command["SongOrCategoryName"]) ? null : (string)command["SongOrCategoryName"];
 
             var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, param, true) == 0).ToList();
-            if (comebacks.Count <= 0 && param != null && param.Length > 2)
+            if (comebacks.Count <= 0 && !string.IsNullOrWhiteSpace(param))
                 comebacks = settings.YouTubeComebacks.Where(x => x.Name.Search(param, true)).ToList();
 
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -109,7 +109,7 @@ namespace DustyBot.Modules
         public const string YouTubeLinkFormat = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
 
         [Command("views", "add", "Adds a song.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         [Parameter("CategoryName", YouTubeLinkFormat, true, ParameterType.String, ParameterFlags.Optional, "if you add a song to a category, its views will be displayed with `views CategoryName`")]
         [Parameter("SongName", YouTubeLinkFormat, true, ParameterType.String, "name of the song")]
         [Parameter("YouTubeLinks", YouTubeLinkFormat, ParameterType.Regex, ParameterFlags.Repeatable, "one or more song links")]
@@ -134,7 +134,7 @@ namespace DustyBot.Modules
         }
 
         [Command("views", "remove", "Removes a song.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         [Parameter("CategoryName", ParameterType.String, ParameterFlags.Optional, "specify to remove comeback in a category, omit to delete from the default category")]
         [Parameter("SongName", ParameterType.String)]
         public async Task RemoveComeback(ICommand command)
@@ -167,7 +167,7 @@ namespace DustyBot.Modules
         }
 
         [Command("views", "rename", "Renames a category or song.")]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         [Parameter("OldName", ParameterType.String)]
         [Parameter("NewName", ParameterType.String)]
         [Comment("Use `default` to rename from/to default category.")]
@@ -254,7 +254,7 @@ namespace DustyBot.Modules
                 {
                     var statistics = item["statistics"];
                     totalViews += (ulong)statistics["viewCount"];
-                    totalLikes += (ulong)statistics["likeCount"];
+                    totalLikes += (ulong?)statistics["likeCount"] ?? 0;
                     var publishedAt = (DateTime)item["snippet"]["publishedAt"];
 
                     if (publishedAt < firstPublishedAt)

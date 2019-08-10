@@ -54,14 +54,15 @@ namespace DustyBot.Helpers
 
         public ulong Id => Inner.Id;
 
+        public MessageActivity Activity => Inner.Activity;
+
+        public MessageApplication Application => Inner.Application;
+
         public async Task AddReactionAsync(IEmote emote, RequestOptions options = null)
             => await Inner.AddReactionAsync(emote, options);
 
         public async Task DeleteAsync(RequestOptions options = null)
             => await Inner.DeleteAsync(options);
-
-        public async Task<IReadOnlyCollection<IUser>> GetReactionUsersAsync(IEmote emoji, int limit = 100, ulong? afterUserId = null, RequestOptions options = null)
-            => await Inner.GetReactionUsersAsync(emoji, limit, afterUserId, options);
 
         public async Task ModifyAsync(Action<MessageProperties> func, RequestOptions options = null)
             => await Inner.ModifyAsync(func, options);
@@ -80,5 +81,8 @@ namespace DustyBot.Helpers
 
         public async Task UnpinAsync(RequestOptions options = null)
             => await Inner.UnpinAsync(options);
+
+        public IAsyncEnumerable<IReadOnlyCollection<IUser>> GetReactionUsersAsync(IEmote emoji, int limit, RequestOptions options = null) 
+            => Inner.GetReactionUsersAsync(emoji, limit, options);
     }
 }

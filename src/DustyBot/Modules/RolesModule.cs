@@ -95,7 +95,7 @@ namespace DustyBot.Modules
         {
             var newRole = new AssignableRole();
             newRole.RoleId = command["RoleNameOrID"].AsRole.Id;
-            newRole.Names.Add(command["RoleNameOrID"].AsString);
+            newRole.Names.Add(command["RoleNameOrID"].AsRole.Name);
 
             await Settings.Modify(command.GuildId, (RolesSettings s) => s.AssignableRoles.Add(newRole));
 

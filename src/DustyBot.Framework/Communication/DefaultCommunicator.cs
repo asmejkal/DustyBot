@@ -101,6 +101,16 @@ namespace DustyBot.Framework.Communication
             return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, showUsage ? embed.Build() : null);
         }
 
+        public async Task<IUserMessage> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
+        {
+            var embed = new EmbedBuilder()
+                    .WithTitle(Properties.Resources.Command_Usage)
+                    .WithDescription(BuildUsageString(command, Config))
+                    .WithFooter(Properties.Resources.Command_UsageFooter);
+
+            return await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null);
+        }
+
         public async Task<IUserMessage> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_DirectMessageOnly);
 

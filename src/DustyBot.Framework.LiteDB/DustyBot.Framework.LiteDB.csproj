@@ -2,17 +2,15 @@
 
   <PropertyGroup>
     <VersionPrefix>1.1.0</VersionPrefix>
-    <TargetFramework>netstandard1.6</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>DustyBot.Framework.LiteDB</AssemblyName>
     <PackageId>DustyBot.Framework.LiteDB</PackageId>
-    <NetStandardImplicitPackageVersion>2.0.1</NetStandardImplicitPackageVersion>
-    <PackageTargetFallback>$(PackageTargetFallback);dnxcore50</PackageTargetFallback>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <Version>2.8.1</Version>
-    <AssemblyVersion>2.8.1.0</AssemblyVersion>
-    <FileVersion>2.8.1.0</FileVersion>
+    <Version>2.8.3</Version>
+    <AssemblyVersion>2.8.3.0</AssemblyVersion>
+    <FileVersion>2.8.3.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LiteDB" Version="4.1.2" />
+    <PackageReference Include="LiteDB" Version="4.1.4" />
   </ItemGroup>
 
 </Project>

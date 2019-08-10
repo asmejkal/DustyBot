@@ -47,6 +47,12 @@ namespace DustyBot.Framework.Events
             client.UserUnbanned += Client_UserUnbanned;
             client.UserUpdated += Client_UserUpdated;
             client.UserVoiceStateUpdated += Client_UserVoiceStateUpdated;
+            client.MessagesBulkDeleted += Client_MessagesBulkDeleted;
+        }
+
+        private async Task Client_MessagesBulkDeleted(IReadOnlyCollection<Discord.Cacheable<Discord.IMessage, ulong>> arg1, ISocketMessageChannel arg2)
+        {
+            await _handlers.ForEachAsync(async x => await x.OnMessagesBulkDeleted(arg1, arg2));
         }
 
         private async Task Client_UserVoiceStateUpdated(SocketUser arg1, SocketVoiceState arg2, SocketVoiceState arg3)

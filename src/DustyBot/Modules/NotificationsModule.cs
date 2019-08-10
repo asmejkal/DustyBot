@@ -232,12 +232,19 @@ namespace DustyBot.Modules
                         await Settings.Modify(channel.GuildId, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
                         notifiedUsers.Add(n.User);
 
-                        var dm = await targetUser.GetOrCreateDMChannelAsync();
-                        var embed = new EmbedBuilder()
-                            .WithAuthor(x => x.WithName(message.Author.Username).WithIconUrl(message.Author.GetAvatarUrl()))
-                            .WithDescription($"{message.Content}\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}");
+                        try
+                        {
+                            var dm = await targetUser.GetOrCreateDMChannelAsync();
+                            var embed = new EmbedBuilder()
+                                .WithAuthor(x => x.WithName(message.Author.Username).WithIconUrl(message.Author.GetAvatarUrl()))
+                                .WithDescription($"{message.Content}\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}");
 
-                        await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
+                            await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
+                        }
+                        catch (Exception ex)
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Failed to send notification to user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id})", ex));
+                        }
                     }
                 }
                 catch (Exception ex)

@@ -18,6 +18,7 @@ using DustyBot.Framework.Config;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using Discord.WebSocket;
+using DustyBot.Framework.Exceptions;
 
 namespace DustyBot.Modules
 {
@@ -62,7 +63,7 @@ namespace DustyBot.Modules
         public async Task StartPoll(ICommand command)
         {
             if (command["Question"].AsTextChannel != null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
+                throw new IncorrectParametersCommandException(string.Empty);
 
             var channelId = command["Channel"].AsTextChannel?.Id ?? command.Message.Channel.Id;
 
@@ -81,8 +82,8 @@ namespace DustyBot.Modules
             var description = string.Empty;
             for (int i = 0; i < poll.Answers.Count; ++i)
                 description += $"`[{i + 1}]` {poll.Answers[i]}\n";
-            
-            description += $"\nVote by typing `{Config.CommandPrefix}vote number`.";
+
+            description += $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
 
             var embed = new EmbedBuilder()
                 .WithTitle(poll.Question)
@@ -107,46 +108,64 @@ namespace DustyBot.Modules
 
         [Command("poll", "end", "Ends a poll and announces results.")]
         [Permissions(GuildPermission.ManageMessages)]
-        [Parameter("ResultsChannel", ParameterType.TextChannel, ParameterFlags.Optional, "you can specify a different channel to receive the results")]
+        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll is taking place, uses current channel if omitted")]
         public async Task EndPoll(ICommand command)
         {
-            var channelId = command.Message.Channel.Id;
-            var resultsChannel = command[0].HasValue ? command[0].AsTextChannel : command.Message.Channel as ITextChannel;
+            var channelId = command[0].HasValue ? command[0].AsTextChannel.Id : command.Message.Channel.Id;
+            var resultsChannel = command.Message.Channel as ITextChannel;
 
             bool result = await PrintPollResults(command, true, channelId, resultsChannel).ConfigureAwait(false);
             if (!result)
                 return;
 
             await Settings.Modify(command.GuildId, (PollSettings s) => s.Polls.RemoveAll(x => x.Channel == channelId) > 0).ConfigureAwait(false);
-            if (channelId != resultsChannel.Id)
-                await command.ReplySuccess(Communicator, "Poll was ended.").ConfigureAwait(false);
         }
 
         [Command("poll", "results", "Checks results of a running poll.")]
-        [Parameter("ResultsChannel", ParameterType.TextChannel, ParameterFlags.Optional, "you can specify a different channel to receive the results")]
+        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll is taking place, uses current channel if omitted")]
         public async Task ResultsPoll(ICommand command)
         {
-            var channelId = command.Message.Channel.Id;
-            var resultsChannel = command[0].HasValue ? command[0].AsTextChannel : command.Message.Channel as ITextChannel;
+            var channelId = command[0].HasValue ? command[0].AsTextChannel.Id : command.Message.Channel.Id;
+            var resultsChannel = command.Message.Channel as ITextChannel;
 
             await PrintPollResults(command, false, channelId, resultsChannel).ConfigureAwait(false);
         }
 
         [Command("vote", "Votes in a poll.")]
-        [Parameter("AnswerNumber", @"^\[?([0-9]+)\]?$", ParameterType.Regex)]
+        [Parameter("Answer", ParameterType.String, ParameterFlags.Remainder, "answer number or a bit of the answer text")]
         [Example("1")]
+        [Example("yes")]
         public async Task Vote(ICommand command)
         {
-            var vote = int.Parse(command["AnswerNumber"].AsRegex.Groups[1].Value);
             var poll = await Settings.Modify(command.GuildId, (PollSettings s) =>
             {
                 var p = s.Polls.FirstOrDefault(x => x.Channel == command.Message.Channel.Id);
                 if (p != null)
                 {
-                    if (vote > p.Answers.Count || vote < 1)
-                        throw new Framework.Exceptions.IncorrectParametersCommandException("There is no answer with this number.");
+                    if (command["Answer"].AsString.All(x => char.IsDigit(x)))
+                    {
+                        var vote = command["Answer"].AsInt.Value;
+                        if (vote > p.Answers.Count || vote < 1)
+                            throw new IncorrectParametersCommandException("There is no answer with this number.");
 
-                    p.Votes[command.Message.Author.Id] = vote;
+                        p.Votes[command.Message.Author.Id] = vote;
+                    }
+                    else
+                    {
+                        var tokens = new string(command["Answer"].AsString.Select(c => char.IsLetterOrDigit(c) ? c : ' ').ToArray()).Split(new char[] { }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.ToLowerInvariant()).ToList();
+                        var scores = new List<int>();
+                        foreach (var answerTokens in p.Answers.Select(x => new string(x.Select(c => char.IsLetterOrDigit(c) ? c : ' ').ToArray()).Split(new char[] { }, StringSplitOptions.RemoveEmptyEntries).Select(y => y.ToLowerInvariant()).ToList()))
+                            scores.Add(tokens.Where(x => answerTokens.Contains(x)).Count());
+
+                        if (!scores.Any(x => x > 0))
+                            throw new UnclearParametersCommandException($"I don't recognize this answer. Try to vote with `{Config.CommandPrefix}vote answer number` instead.", false);
+
+                        var max = scores.Max();
+                        if (scores.Where(x => x == max).Count() > 1)
+                            throw new UnclearParametersCommandException($"I'm not sure which answer you meant. Try to vote with `{Config.CommandPrefix}vote answer number` instead.", false);
+
+                        p.Votes[command.Message.Author.Id] = scores.FindIndex(x => x == max) + 1;
+                    }
                 }
 
                 return p;
@@ -171,7 +190,7 @@ namespace DustyBot.Modules
             var poll = settings.Polls.FirstOrDefault(x => x.Channel == channelId);
             if (poll == null)
             {
-                await command.ReplyError(Communicator, "No poll is currently running in this channel.");
+                await command.ReplyError(Communicator, $"No poll is currently running in the specified channel.");
                 return false;
             }
 
@@ -180,7 +199,7 @@ namespace DustyBot.Modules
                 throw new Exception("Unexpected context.");
 
             if (poll.Anonymous && !user.GuildPermissions.ManageMessages)
-                throw new Framework.Exceptions.MissingPermissionsException("Results of anonymous polls can only be viewed by moderators.", GuildPermission.ManageMessages);
+                throw new MissingPermissionsException("Results of anonymous polls can only be viewed by moderators.", GuildPermission.ManageMessages);
 
             var description = poll.Question + "\n\n";
                         
@@ -198,8 +217,11 @@ namespace DustyBot.Modules
                 currentPlace = prevScore == result.Value ? currentPlace : i; //Place vote ties in the same placemenet
                 prevScore = result.Value;
 
-                description += $"{(emotes.ContainsKey(currentPlace) ? emotes[currentPlace] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
-            }                
+                description += $"{(emotes.ContainsKey(currentPlace) && result.Value > 0 ? emotes[currentPlace] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
+            }
+
+            if (!closed)
+                description += $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
 
             var total = poll.Results.Sum(x => x.Value);
             var embed = new EmbedBuilder()

@@ -140,6 +140,10 @@ namespace DustyBot.Framework.Commands
                     {
                         await Communicator.CommandReplyIncorrectParameters(command.Message.Channel, commandRegistration, ex.Message, ex.ShowUsage);
                     }
+                    catch (Exceptions.UnclearParametersCommandException ex)
+                    {
+                        await Communicator.CommandReplyUnclearParameters(command.Message.Channel, commandRegistration, ex.Message, ex.ShowUsage);
+                    }
                     catch (Exceptions.MissingPermissionsException ex)
                     {
                         await Communicator.CommandReplyMissingPermissions(command.Message.Channel, commandRegistration, ex.Permissions, ex.Message);
@@ -167,7 +171,7 @@ namespace DustyBot.Framework.Commands
                     catch (Exception ex)
                     {
                         await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
-                            $"Exception encountered while processing command {commandRegistration.InvokeString} in module {commandRegistration.Handler.Target.GetType()}", ex));
+                            $"Exception encountered while processing command {commandRegistration.InvokeUsage} in module {commandRegistration.Handler.Target.GetType()}", ex));
 
                         await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
                     }

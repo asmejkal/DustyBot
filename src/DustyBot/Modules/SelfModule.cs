@@ -133,7 +133,7 @@ namespace DustyBot.Modules
         }
 
         [Command("server", "Shows information about a server.", CommandFlags.OwnerOnly)]
-        [Parameter("ServerNameOrId", ParameterType.String, "Id or name of a server")]
+        [Parameter("ServerNameOrId", ParameterType.String, ParameterFlags.Remainder, "Id or name of a server")]
         public async Task ServerInfo(ICommand command)
         {
             SocketGuild guild;
@@ -255,6 +255,24 @@ namespace DustyBot.Modules
             {
                 await command.Message.Channel.SendFileAsync(stream, "output.html");
             }
+        }
+
+        [Command("cleanup", "commands", "Cleans output of the bot's commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Parameter("Count", ParameterType.Int, ParameterFlags.Remainder, "number of commands to cleanup")]
+        public async Task CleanupCommands(ICommand command)
+        {
+            var messages = await command.Message.Channel.GetMessagesAsync(500).ToList();
+            var tasks = new List<Task>();
+            var count = 0;
+            foreach (var m in messages.SelectMany(x => x).Where(x => x.Author.Id == Client.CurrentUser.Id))
+            {
+                if (++count > command["Count"].AsInt)
+                    break;
+
+                tasks.Add(m.DeleteAsync());
+            }
+
+            await Task.WhenAll(tasks);
         }
 
         static string Markdown(string input)

@@ -24,7 +24,7 @@ namespace DustyBot.Framework.LiteDB
 
         public SettingsProvider(string dbPath, Migrator migrator, string password = null)
         {
-            _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password}"));
+            _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password};Utc=True"));
             migrator.MigrateCurrent(_dbObject);
         }
 

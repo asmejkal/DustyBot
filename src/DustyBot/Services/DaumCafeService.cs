@@ -24,7 +24,7 @@ namespace DustyBot.Services
         public DiscordSocketClient Client { get; private set; }
         public ILogger Logger { get; private set; }
 
-        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(4);
+        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(5);
         bool _updating = false;
 
         Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
@@ -101,8 +101,7 @@ namespace DustyBot.Services
             DaumCafeSession session;
             if (feed.CredentialId != Guid.Empty)
             {
-                Tuple<DateTime, DaumCafeSession> dateSession;
-                if (!_sessionCache.TryGetValue(feed.CredentialId, out dateSession) || DateTime.Now - dateSession.Item1 > SessionLifetime)
+                if (!_sessionCache.TryGetValue(feed.CredentialId, out var dateSession) || DateTime.Now - dateSession.Item1 > SessionLifetime)
                 {
                     var credential = await Modules.CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
                     try

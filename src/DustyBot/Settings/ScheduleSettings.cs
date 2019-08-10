@@ -53,6 +53,8 @@ namespace DustyBot.Settings
     
     public abstract class ScheduleCalendar
     {
+        public const string AllTag = "all";
+
         public ulong MessageId { get; set; }
         public ulong ChannelId { get; set; }
 
@@ -63,6 +65,17 @@ namespace DustyBot.Settings
 
         [BsonIgnore]
         public bool HasTag => Tag != null;
+
+        [BsonIgnore]
+        public bool HasAllTag => Tag == AllTag;
+
+        public bool FitsTag(string tag)
+        {
+            if (HasAllTag)
+                return true;
+
+            return string.Compare(tag, this.Tag, true) == 0;
+        }
     }
 
     public class RangeScheduleCalendar : ScheduleCalendar
@@ -104,6 +117,7 @@ namespace DustyBot.Settings
 
     public class ScheduleSettings : BaseServerSettings
     {
+        public const int DefaultUpcomingEventsDisplayLimit = 15;
         public int NextEventId { get; set; } = 1;
 
         public SortedList<ScheduleEvent> Events { get; set; } = new SortedList<ScheduleEvent>();
@@ -112,6 +126,7 @@ namespace DustyBot.Settings
         public ulong ScheduleRole { get; set; }
         public EventFormat EventFormat { get; set; } = EventFormat.Default;
         public TimeSpan TimezoneOffset { get; set; } = TimeSpan.FromHours(9);
+        public int UpcomingEventsDisplayLimit { get; set; } = DefaultUpcomingEventsDisplayLimit;
         public DateTime LastUpcomingCalendarsUpdate { get; set; } = DateTime.MinValue.Date;
 
         public bool ShowMigrateHelp { get; set; }

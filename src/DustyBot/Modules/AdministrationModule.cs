@@ -224,6 +224,41 @@ namespace DustyBot.Modules
             await Communicator.CommandReply(channel, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
 
+        [Command("moddm", "Send an anonymous direct message from a moderator to a server member.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("User", ParameterType.GuildUser, "the user to be messaged")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "content of the direct message, see below for how the whole message will look like")]
+        [Comment("● Only server administrators can use this command, and only server members can be messaged. \n● This command won't work if the user has disabled private messages in their privacy settings. \n● For security reasons, this command cannot be used on servers below 100 members.\n\n**The direct message will have the following format:**\n:envelope: Message from a moderator of `MAMAMOO` (`167744403455082496`):\n\nYou have been muted for breaking the rule 3.")]
+        [Example("@User You have been muted for breaking the rule 3.")]
+        public async Task ModDm(ICommand command)
+        {
+            const int userThreshold = 100;
+            var users = await command.Guild.GetUsersAsync();
+            if (users.Count < userThreshold)
+            {
+                await command.ReplyError(Communicator, $"For security reasons, this command cannot be used on servers below {userThreshold} members.");
+                return;
+            }
+
+            if (command["User"].AsGuildUser.IsBot)
+            {
+                await command.ReplyError(Communicator, $"This is a bot.");
+                return;
+            }
+
+            var channel = await command["User"].AsGuildUser.GetOrCreateDMChannelAsync();
+
+            try
+            {
+                await channel.SendMessageAsync($":envelope: Message from a moderator of `{command.Guild.Name}` (`{command.GuildId}`):\n\n" + command["Message"]);
+                await command.ReplySuccess(Communicator, "The user has been messaged.");
+            }
+            catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50007)
+            {
+                await command.ReplyError(Communicator, $"Can't send direct messages to this user. They have likely disabled private messages in their privacy settings.");
+            }
+        }
+
         public static async Task Mute(IGuildUser user, string reason, ISettingsProvider settings)
         {
             IRole muteRole = user.Guild.Roles.FirstOrDefault(x => x.Name == MuteRoleName);

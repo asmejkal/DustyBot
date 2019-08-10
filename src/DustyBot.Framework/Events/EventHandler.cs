@@ -38,5 +38,6 @@ namespace DustyBot.Framework.Events
         public virtual Task OnUserUnbanned(SocketUser user, SocketGuild guild) => Task.CompletedTask;
         public virtual Task OnUserUpdated(SocketUser before, SocketUser after) => Task.CompletedTask;
         public virtual Task OnUserVoiceStateUpdated(SocketUser user, SocketVoiceState before, SocketVoiceState after) => Task.CompletedTask;
+        public virtual Task OnMessagesBulkDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> arg1, ISocketMessageChannel arg2) => Task.CompletedTask;
     }
 }

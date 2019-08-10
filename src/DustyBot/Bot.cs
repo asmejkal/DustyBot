@@ -81,6 +81,16 @@ namespace DustyBot
             public string Path { get; set; }
         }
 
+        [Verb("fix-sequence", HelpText = "Fixes broken sequence numbers in collections.")]
+        public class FixSequenceOptions
+        {
+            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
+            public string Password { get; set; }
+
+            [Value(1, MetaName = "Path", Required = true, HelpText = "Path to the database file.")]
+            public string Path { get; set; }
+        }
+
         private ICollection<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
 
@@ -89,12 +99,13 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, FixSequenceOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
                     (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
                     (EncryptOptions opts) => new Bot().RunEncrypt(opts),
                     (DecryptOptions opts) => new Bot().RunDecrypt(opts),
+                    (FixSequenceOptions opts) => new Bot().FixSequence(opts),
                     errs => 1);
 
             return result;
@@ -107,7 +118,8 @@ namespace DustyBot
                 var clientConfig = new DiscordSocketConfig
                 {
                     MessageCacheSize = 200,
-                    ConnectionTimeout = int.MaxValue
+                    ConnectionTimeout = int.MaxValue,
+                    ExclusiveBulkDelete = true
                 };
 
                 //Check if this instance exists
@@ -270,6 +282,20 @@ namespace DustyBot
             try
             {
                 DatabaseHelpers.Decrypt(opts.Path, opts.Password);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failure: " + ex.ToString());
+            }
+
+            return 0;
+        }
+
+        public int FixSequence(FixSequenceOptions opts)
+        {
+            try
+            {
+                DatabaseHelpers.FixSequence(opts.Path, opts.Password);
             }
             catch (Exception ex)
             {

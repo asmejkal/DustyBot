@@ -153,26 +153,21 @@ namespace DustyBot.Modules
                     var filter = settings.EventMessageDeletedFilter;
                     try
                     {
-                        if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(userMessage.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(5)))
+                        if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(userMessage.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(3)))
                             return;
                     }
                     catch (ArgumentException)
                     {
-                        await Communicator.SendMessage(eventChannel, "Your message filter regex is malformed.");
+                        await Communicator.SendMessage(eventChannel, "Failed to log a deleted message because your message filter regex is malformed.");
+                        return;
                     }
                     catch (RegexMatchTimeoutException)
                     {
-                        await Communicator.SendMessage(eventChannel, "Your message filter regex takes too long to evaluate.");
+                        await Communicator.SendMessage(eventChannel, "Failed to log a deleted message because your message filter regex takes too long to evaluate.");
+                        return;
                     }
 
-                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging deleted message from {userMessage.Author.Username} on {guild.Name}"));
-                    var embed = new EmbedBuilder()
-                    .WithDescription($"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n" + userMessage.Content)
-                    .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")})"));
-                    if (userMessage.Attachments.Any())
-                        embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
-
-                    await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                    await LogSingleMessage(userMessage, guild, textChannel, eventChannel);
                 }
                 catch (Exception ex)
                 {
@@ -181,6 +176,141 @@ namespace DustyBot.Modules
             });
 
             return Task.CompletedTask;
+        }
+
+        public override Task OnMessagesBulkDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> cacheables, ISocketMessageChannel channel)
+        {
+            TaskHelper.FireForget(async () =>
+            {
+                try
+                {
+                    var textChannel = channel as ITextChannel;
+                    if (textChannel == null)
+                        return;
+
+                    var guild = textChannel.Guild as SocketGuild;
+                    if (guild == null)
+                        return;
+
+                    var messages = cacheables
+                        .Where(x => x.HasValue)
+                        .Select(x => x.Value)
+                        .OfType<IUserMessage>()
+                        .Where(x => !x.Author.IsBot)
+                        .ToList();
+
+                    if (!messages.Any())
+                        return;
+
+                    var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
+
+                    var eventChannelId = settings.EventMessageDeletedChannel;
+                    if (eventChannelId == 0)
+                        return;
+
+                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
+                    if (eventChannel == null)
+                        return;
+
+                    if (settings.EventMessageDeletedChannelFilter.Contains(channel.Id))
+                        return;
+
+                    var logs = new List<string>();
+                    var filter = settings.EventMessageDeletedFilter;
+                    try
+                    {
+                        foreach (var message in messages)
+                        {
+                            if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(message.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(3)))
+                                continue;
+
+                            var sb = new StringBuilder();
+                            sb.AppendLine($"**Message by {message.Author.Mention} in {textChannel.Mention} was deleted:**");
+
+                            if (!string.IsNullOrWhiteSpace(message.Content))
+                                sb.AppendLine(message.Content);
+
+                            if (message.Attachments.Any())
+                                sb.AppendLine(string.Join("\n", message.Attachments.Select(a => a.Url)));
+
+                            sb.Append(message.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC"));
+
+                            if (sb.Length > EmbedBuilder.MaxDescriptionLength / 2)
+                            {
+                                try
+                                {
+                                    await LogSingleMessage(message, guild, textChannel, eventChannel);
+                                }
+                                catch (Exception ex)
+                                {
+                                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to log single deleted message in a bulk delete", ex));
+                                }
+
+                                continue;
+                            }
+                            else
+                            {
+                                logs.Add(sb.ToString());
+                            }
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        await Communicator.SendMessage(eventChannel, "Failed to log a deleted message because your message filter regex is malformed.");
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted messages on {guild.Name} ({guild.Id}) because the message filter regex is malformed"));
+                        return;
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        await Communicator.SendMessage(eventChannel, "Failed to log a deleted message because your message filter regex takes too long to evaluate.");
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted messages on {guild.Name} ({guild.Id}) because the message filter regex took to long to evaluate"));
+                        return;
+                    }
+
+                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging {logs.Count} deleted messages on {guild.Name} ({guild.Id})"));
+
+                    var embed = new EmbedBuilder();
+                    var delimiter = "\n\n";
+                    foreach (var log in logs)
+                    {
+                        var totalLength = log.Length + delimiter.Length;
+                        if (totalLength > EmbedBuilder.MaxDescriptionLength)
+                            throw new InvalidOperationException(); // Shouldn't happen
+
+                        if ((embed.Description?.Length ?? 0) + totalLength > EmbedBuilder.MaxDescriptionLength)
+                        {
+                            await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                            embed = new EmbedBuilder();
+                        }
+                        else
+                        {
+                            embed.Description += log + delimiter;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(embed.Description))
+                        await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process deleted messages", ex));
+                }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        private async Task LogSingleMessage(IUserMessage userMessage, IGuild guild, ITextChannel textChannel, IMessageChannel eventChannel)
+        {
+            await Logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging deleted message from {userMessage.Author.Username} on {guild.Name}"));
+            var preface = $"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n";
+            var embed = new EmbedBuilder()
+            .WithDescription(preface + userMessage.Content.Truncate(EmbedBuilder.MaxDescriptionLength - preface.Length))
+            .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")})"));
+            if (userMessage.Attachments.Any())
+                embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
+
+            await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
     }
 }

@@ -42,36 +42,46 @@ namespace DustyBot.Modules
 
         [Command("greet", "Sets or disables a greeting message.")]
         [Permissions(GuildPermission.Administrator)]
-        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "a channel that will receive the messages")]
-        [Parameter("Message", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders")]
+        [Parameter("Channel", ParameterType.TextChannel, "a channel that will receive the messages")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders")]
         [Comment("Use without parameters to disable the greeting message.")]
         public async Task Greet(ICommand command)
         {
-            if (command.ParametersCount <= 0)
+            await Settings.Modify(command.GuildId, (EventsSettings s) =>
             {
-                await Settings.Modify(command.GuildId, (EventsSettings s) =>
-                {
-                    s.GreetChannel = 0;
-                    s.GreetMessage = string.Empty;
-                }).ConfigureAwait(false);
+                s.ResetGreet();
+                s.GreetChannel = command["Channel"].AsTextChannel.Id;
+                s.GreetMessage = command["Message"];
+            }).ConfigureAwait(false);
 
-                await command.ReplySuccess(Communicator, "Greeting has been disabled.").ConfigureAwait(false);
-            }
-            else if (command.ParametersCount >= 2)
+            await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
+        }
+
+        [Command("greet", "embed", "Sets an embed greeting message.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Channel", ParameterType.TextChannel, "a channel that will receive the messages")]
+        [Parameter("Title", ParameterType.String, "title of the message; you can use the placeholders listed below")]
+        [Parameter("Image", ParameterType.Uri, ParameterFlags.Optional, "link to an image/gif to show in the embed")]
+        [Parameter("Body", ParameterType.String, ParameterFlags.Remainder, "body of the greeting message; you can use the placeholders listed below")]
+        [Comment("You can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders.")]
+        public async Task GreetEmbed(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (EventsSettings s) =>
             {
-                if (!await command["Channel"].IsType(ParameterType.TextChannel))
-                    throw new Framework.Exceptions.IncorrectParametersCommandException("Expected a text channel as first paramter.");
+                s.ResetGreet();
+                s.GreetChannel = command["Channel"].AsTextChannel.Id;
+                s.GreetEmbed = new GreetEmbed(command["Title"], command["Body"], command["Image"].AsUri);
+            }).ConfigureAwait(false);
 
-                await Settings.Modify(command.GuildId, (EventsSettings s) =>
-                {
-                    s.GreetChannel = command["Channel"].AsTextChannel.Id;
-                    s.GreetMessage = command["Message"];
-                }).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
+        }
 
-                await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
-            }
-            else
-                throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
+        [Command("greet", "disable", "Disables greeting messages.")]
+        [Permissions(GuildPermission.Administrator)]
+        public async Task GreetDisable(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (EventsSettings s) => s.ResetGreet()).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Greeting has been disabled.").ConfigureAwait(false);
         }
 
         [Command("bye", "Sets or disables a goodbye message.")]
@@ -127,16 +137,33 @@ namespace DustyBot.Modules
                     if (settings == null)
                         return;
 
-                    if (settings.GreetChannel == default || string.IsNullOrWhiteSpace(settings.GreetMessage))
+                    if (settings.GreetChannel == default)
                         return;
 
                     var channel = guildUser.Guild.GetTextChannel(settings.GreetChannel);
                     if (channel == null)
                         return;
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeted user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
 
-                    await Communicator.SendMessage(channel, ReplacePlaceholders(settings.GreetMessage, guildUser));
+                    if (settings.GreetMessage != default)
+                    {
+                        await Communicator.SendMessage(channel, ReplacePlaceholders(settings.GreetMessage, guildUser));
+                    }
+                    else if (settings.GreetEmbed != default)
+                    {
+                        var embed = new EmbedBuilder()
+                            .WithTitle(ReplacePlaceholders(settings.GreetEmbed.Title, guildUser))
+                            .WithDescription(ReplacePlaceholders(settings.GreetEmbed.Body, guildUser))
+                            .WithThumbnailUrl(guildUser.GetAvatarUrl());
+
+                        if (settings.GreetEmbed.Image != default)
+                            embed.WithImageUrl(settings.GreetEmbed.Image.AbsoluteUri);
+
+                        await channel.SendMessageAsync(embed: embed.Build());
+                    }
+                    else
+                        throw new InvalidOperationException("Inconsistent settings");
                 }
                 catch (Exception ex)
                 {

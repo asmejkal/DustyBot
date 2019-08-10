@@ -40,7 +40,7 @@ namespace DustyBot.Modules
         [Parameter("BoardSectionLink", ParameterType.Uri, "link to a Daum Cafe board section (either a comment board or a forum board), ex. http://cafe.daum.net/mamamoo/2b6v")]
         [Parameter("Channel", ParameterType.TextChannel, "channel that will receive the updates")]
         [Parameter("CredentialId", ParameterType.Guid, ParameterFlags.Optional, "credentials to an account that can view this board (see `help` for the Credentials module on how to add a credential)")]
-        [Comment("**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.")]
+        [Comment("**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\nCurrently only Daum accounts are supported ")]
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel")]
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task AddCafeFeed(ICommand command)
