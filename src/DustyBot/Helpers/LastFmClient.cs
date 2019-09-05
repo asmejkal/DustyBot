@@ -433,20 +433,23 @@ namespace DustyBot.Helpers
 
         public async Task<IEnumerable<LfScore<LfArtist>>> GetArtistScores(LfStatsPeriod period, int count, Task<int> totalPlaycount)
         {
+            var items = await GetTopArtists(period, count);
             var playcount = await totalPlaycount;
-            return (await GetTopArtists(period, count)).Select(x => new LfScore<LfArtist>(x, (double)x.Playcount / playcount));
+            return items.Select(x => new LfScore<LfArtist>(x, (double)x.Playcount / playcount));
         }
 
         public async Task<IEnumerable<LfScore<LfAlbum>>> GetAlbumScores(LfStatsPeriod period, int count, Task<int> totalPlaycount)
         {
+            var items = await GetTopAlbums(period, count);
             var playcount = await totalPlaycount;
-            return (await GetTopAlbums(period, count)).Select(x => new LfScore<LfAlbum>(x, (double)x.Playcount / playcount));
+            return items.Select(x => new LfScore<LfAlbum>(x, (double)x.Playcount / playcount));
         }
 
         public async Task<IEnumerable<LfScore<LfTrack>>> GetTrackScores(LfStatsPeriod period, int count, Task<int> totalPlaycount)
         {
+            var items = await GetTopTracks(period, count);
             var playcount = await totalPlaycount;
-            return (await GetTopTracks(period, count)).Select(x => new LfScore<LfTrack>(x, (double)x.Playcount / playcount));
+            return items.Select(x => new LfScore<LfTrack>(x, (double)x.Playcount / playcount));
         }
 
         public static string GetLargestImage(dynamic imageSet) 
