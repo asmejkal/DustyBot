@@ -16,6 +16,7 @@ using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
@@ -32,8 +33,17 @@ namespace DustyBot.Modules
             Settings = settings;
             Logger = logger;
         }
-        
+
+        [Command("autorole", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("autoroles", "help"), Alias("autorole"), Alias("autoroles")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("autorole", "add", "Assign a role automatically upon joining.")]
+        [Alias("autoroles", "add")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
         public async Task AddAutoRole(ICommand command)
@@ -43,6 +53,7 @@ namespace DustyBot.Modules
         }
 
         [Command("autorole", "remove", "Remove an automatically assigned role.")]
+        [Alias("autoroles", "remove")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
         public async Task RemoveAutoRole(ICommand command)
@@ -56,6 +67,7 @@ namespace DustyBot.Modules
         }
 
         [Command("autorole", "list", "Lists all automatically assigned roles.")]
+        [Alias("autoroles", "list")]
         [Permissions(GuildPermission.ManageRoles)]
         public async Task ListAutoRole(ICommand command)
         {
@@ -76,6 +88,7 @@ namespace DustyBot.Modules
         }
 
         [Command("autorole", "apply", "Assigns the current automatic roles to everyone.", CommandFlags.RunAsync)]
+        [Alias("autoroles", "apply")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         [Comment("May take a while to complete.")]
         public async Task ApplyAutoRole(ICommand command)
@@ -109,6 +122,7 @@ namespace DustyBot.Modules
         }
 
         [Command("autorole", "check", "Checks for users who are missing an automatic role.", CommandFlags.RunAsync)]
+        [Alias("autoroles", "check")]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         public async Task CheckAutoRole(ICommand command)
         {

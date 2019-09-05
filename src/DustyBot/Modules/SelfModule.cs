@@ -8,6 +8,7 @@ using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
+using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using System.Reflection;
@@ -42,42 +43,25 @@ namespace DustyBot.Modules
             var config = await Settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
-                var embed = new EmbedBuilder()
-                    .WithDescription($"● For a full list of commands see the [website](http://dustybot.info/reference).\n● Type `{config.CommandPrefix}help command name` to see quick help for a specific command.\n\nIf you need further assistance or have any questions, please join the [support server](https://discord.gg/mKKJFvZ).")
-                    .WithTitle("❔ Help");
-
-                await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
+                await command.Message.Channel.SendMessageAsync(string.Empty, embed: (await HelpBuilder.GetHelpEmbed(Settings)).Build()).ConfigureAwait(false);
             }
             else
             {
                 //Try to find the command
-                CommandRegistration commandRegistration = null;
                 var invoker = new string(command["Command"].AsString.TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
                 if (invoker.StartsWith(config.CommandPrefix))
                     invoker = invoker.Substring(config.CommandPrefix.Length);
 
                 var verbs = command["Command"].AsString.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
-                foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
-                {
-                    foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))
-                    {
-                        if (string.Compare(handledCommand.InvokeString, invoker, true) == 0 && verbs.SequenceEqual(handledCommand.Verbs.Select(x => x.ToLowerInvariant())))
-                        {
-                            commandRegistration = handledCommand;
-                            break;
-                        }
-                    }
-
-                    if (commandRegistration != null)
-                        break;
-                }
-
-                if (commandRegistration == null)
+                var findResult = TryFindRegistration(invoker, verbs);
+                if (findResult == null)
                     throw new Framework.Exceptions.IncorrectParametersCommandException("This is not a recognized command.");
+
+                var (commandRegistration, _) = findResult.Value;
 
                 //Build response
                 var embed = new EmbedBuilder()
-                    .WithTitle($"Command {commandRegistration.InvokeUsage}")
+                    .WithTitle($"Command {commandRegistration.PrimaryUsage.InvokeUsage}")
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
@@ -109,7 +93,7 @@ namespace DustyBot.Modules
                 .AddField("Presence", $"{users.Count} users\n{guilds.Count} servers", true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
-                .AddField("Web", "http://dustybot.info", true)
+                .AddField("Web", HelpBuilder.WebsiteRoot, true)
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
@@ -221,21 +205,25 @@ namespace DustyBot.Modules
         {
             var config = await Settings.ReadGlobal<BotConfig>();
             var result = new StringBuilder();
+            var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 20px\">\n<h3>Quick navigation</h3>\n");
             int counter = 0;
             foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
             {
-                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{module.Name.Replace(' ', '-').ToLowerInvariant()}\"></a><h3>{module.Name}</h3>");
+                var anchor = HelpBuilder.GetModuleWebAnchor(module);
+                preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\">{module.Name}</a> – {module.Description}</p>");
+
+                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3>{module.Name}</h3>");
                 result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
 
                 foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
                 {
                     counter++;
 
-                    if (handledCommand.InvokeUsage == "calendar create")
+                    if (handledCommand.PrimaryUsage.InvokeUsage == "calendar create")
                         result.AppendLine("</br><p class=\"text-muted\">Calendars are automatically updated messages which display parts of the schedule.</p>");
 
                     result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
-                        $"&#9662; <span class=\"paramlistcode\">{handledCommand.InvokeUsage}</span> – {handledCommand.Description} " +
+                        $"&#9662; <span class=\"paramlistcode\">{handledCommand.PrimaryUsage.InvokeUsage}</span> – {handledCommand.Description} " +
                         //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
                         "</p>");
 
@@ -251,7 +239,10 @@ namespace DustyBot.Modules
                 result.AppendLine("<br/></div></div>");
             }
 
-            using (var stream = new MemoryStream(Encoding.Unicode.GetBytes(result.ToString())))
+            preface.AppendLine("</div></div>");
+
+            preface.Append(result);
+            using (var stream = new MemoryStream(Encoding.Unicode.GetBytes(preface.ToString())))
             {
                 await command.Message.Channel.SendFileAsync(stream, "output.html");
             }
@@ -297,7 +288,7 @@ namespace DustyBot.Modules
 
         static string BuildWebUsageString(CommandRegistration commandRegistration, Framework.Config.IEssentialConfig config)
         {
-            string usage = $"{config.CommandPrefix}{commandRegistration.InvokeUsage}";
+            string usage = $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
             foreach (var param in commandRegistration.Parameters)
             {
                 string tmp = param.Name;
@@ -310,7 +301,7 @@ namespace DustyBot.Modules
                 usage += $" `{tmp}`";
             }
 
-            string paramDescriptions = string.Empty;
+            var paramDescriptions = new StringBuilder();
             foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
@@ -326,18 +317,51 @@ namespace DustyBot.Modules
                 }
 
                 tmp += param.GetDescription(config.CommandPrefix);
-                paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "<br/>" + tmp;
+                paramDescriptions.Append(paramDescriptions.Length <= 0 ? tmp : "<br/>" + tmp);
             }
 
             var examples = commandRegistration.Examples
-                .Select(x => $"{config.CommandPrefix}{commandRegistration.InvokeUsage} {x}")
+                .Select(x => $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "<br/>" + y);
 
-            return $"<span class=\"usagecode\">{Markdown(usage)}</span>" +
-                (string.IsNullOrWhiteSpace(paramDescriptions) ? string.Empty : "<br/><br/>" + Markdown(paramDescriptions)) +
-                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(config.CommandPrefix)) ? string.Empty : "<br/><br/>" + Markdown(commandRegistration.GetComment(config.CommandPrefix))) +
-                (string.IsNullOrWhiteSpace(examples) ? string.Empty : "<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");
+            var result = new StringBuilder($"<span class=\"usagecode\">{Markdown(usage)}</span>");
+            if (paramDescriptions.Length > 0)
+                result.Append("<br/><br/>" + Markdown(paramDescriptions.ToString()));
+
+            if (!string.IsNullOrWhiteSpace(commandRegistration.GetComment(config.CommandPrefix)))
+                result.Append("<br/><br/>" + Markdown(commandRegistration.GetComment(config.CommandPrefix)));
+
+            if (!string.IsNullOrWhiteSpace(examples))
+                result.Append("<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");
+
+            if (commandRegistration.Aliases.Any())
+            {
+                result.Append("<br/><span class=\"aliases\">Also as " 
+                    + commandRegistration.Aliases.Select(x => $"<span class=\"alias\">{x.InvokeUsage}</span>").WordJoin(lastSeparator: " or ") 
+                    + "</span>");
+            }                
+
+            return result.ToString();
+        }
+
+        (CommandRegistration registration, CommandRegistration.Usage usage)? TryFindRegistration(string invoker, ICollection<string> verbs)
+        {
+            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            {
+                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))
+                {
+                    foreach (var usage in handledCommand.EveryUsage)
+                    {
+                        if (string.Compare(usage.InvokeString, invoker, true) == 0 && verbs.SequenceEqual(usage.Verbs.Select(x => x.ToLowerInvariant())))
+                        {
+                            return (handledCommand, usage);
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }

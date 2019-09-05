@@ -64,6 +64,44 @@ namespace DustyBot.Framework.Modules
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = true)]
+    public class AliasAttribute : Attribute
+    {
+        public AliasAttribute(string invokeString)
+            : this(invokeString, new List<string>())
+        {
+        }
+
+        public AliasAttribute(string invokeString, string verb)
+            : this(invokeString, new List<string>() { verb })
+        {
+        }
+
+        public AliasAttribute(string invokeString, string verb1, string verb2)
+            : this(invokeString, new List<string>() { verb1, verb2 })
+        {
+        }
+
+        public AliasAttribute(string invokeString, string verb1, string verb2, string verb3)
+            : this(invokeString, new List<string>() { verb1, verb2, verb3 })
+        {
+        }
+
+        public AliasAttribute(string invokeString, string verb1, string verb2, string verb3, string verb4)
+            : this(invokeString, new List<string>() { verb1, verb2, verb3, verb4 })
+        {
+        }
+
+        public AliasAttribute(string invokeString, IEnumerable<string> verbs)
+        {
+            InvokeString = invokeString;
+            Verbs = new List<string>(verbs);
+        }
+
+        public string InvokeString { get; }
+        public List<string> Verbs { get; } = new List<string>();
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = true)]
     public class ParameterAttribute : Attribute
     {
         #region basic
@@ -134,6 +172,14 @@ namespace DustyBot.Framework.Modules
         }
 
         public ParameterRegistration Registration { get; }
+    }
+
+    [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]
+    public class IgnoreParametersAttribute : Attribute
+    {
+        public IgnoreParametersAttribute()
+        {
+        }
     }
 
     [AttributeUsage(AttributeTargets.All, Inherited = true, AllowMultiple = false)]

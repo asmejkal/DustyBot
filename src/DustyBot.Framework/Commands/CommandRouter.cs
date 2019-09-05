@@ -36,11 +36,13 @@ namespace DustyBot.Framework.Commands
 
             foreach (var command in handler.HandledCommands)
             {
-                List<CommandRegistration> commands;
-                if (!_commandsMapping.TryGetValue(command.InvokeString.ToLowerInvariant(), out commands))
-                    _commandsMapping.Add(command.InvokeString.ToLowerInvariant(), commands = new List<CommandRegistration>());
+                foreach (var usage in command.EveryUsage)
+                {
+                    if (!_commandsMapping.TryGetValue(usage.InvokeString.ToLowerInvariant(), out var commands))
+                        _commandsMapping.Add(usage.InvokeString.ToLowerInvariant(), commands = new List<CommandRegistration>());
 
-                commands.Add(command);
+                    commands.Add(command);
+                }                
             }
         }
 
@@ -58,16 +60,18 @@ namespace DustyBot.Framework.Commands
                     return;
 
                 //Try to find a command registration for this message
-                CommandRegistration commandRegistration;
-                if (!TryGetCommandRegistration(userMessage, out commandRegistration))
+                var findResult = TryGetCommandRegistration(userMessage);
+                if (findResult == null)
                     return;
+
+                var (commandRegistration, commandUsage) = findResult.Value;
 
                 //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
                 var guild = (userMessage.Channel as IGuildChannel)?.Guild;
                 if (guild != null)
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {guild.Name}"));
                 else
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{Config.CommandPrefix}{commandRegistration.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{Config.CommandPrefix}{commandUsage.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))
@@ -108,7 +112,7 @@ namespace DustyBot.Framework.Commands
                 }
 
                 //Create command
-                var parseResult = await SocketCommand.TryCreate(commandRegistration, userMessage, Config);
+                var parseResult = await SocketCommand.TryCreate(commandRegistration, commandUsage, userMessage, Config);
                 if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
                 {
                     string explanation = string.Empty;
@@ -156,6 +160,10 @@ namespace DustyBot.Framework.Commands
                     {
                         await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
                     }
+                    catch (Exceptions.AbortException ex)
+                    {
+                        await Communicator.CommandReply(command.Message.Channel, ex.Message);
+                    }
                     catch (Exceptions.CommandException ex)
                     {
                         await Communicator.CommandReplyError(command.Message.Channel, ex.Message);
@@ -171,13 +179,15 @@ namespace DustyBot.Framework.Commands
                     catch (Exception ex)
                     {
                         await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
-                            $"Exception encountered while processing command {commandRegistration.InvokeUsage} in module {commandRegistration.Handler.Target.GetType()}", ex));
+                            $"Exception encountered while processing command {commandRegistration.PrimaryUsage.InvokeUsage} in module {commandRegistration.Handler.Target.GetType()}", ex));
 
                         await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
                     }
-
-                    if (typingState != null)
-                        typingState.Dispose();
+                    finally
+                    {
+                        if (typingState != null)
+                            typingState.Dispose();
+                    }
                 });
                 
                 if (commandRegistration.Flags.HasFlag(CommandFlags.RunAsync))
@@ -191,26 +201,23 @@ namespace DustyBot.Framework.Commands
             }
         }
 
-        private bool TryGetCommandRegistration(SocketUserMessage userMessage, out CommandRegistration commandRegistration)
+        private (CommandRegistration registration, CommandRegistration.Usage usage)? TryGetCommandRegistration(SocketUserMessage userMessage)
         {
-            commandRegistration = null;
-
             //Check prefix
             if (!userMessage.Content.StartsWith(Config.CommandPrefix))
-                return false;
+                return null;
 
             //Check if the message contains a command invoker
             var invoker = SocketCommand.ParseInvoker(userMessage.Content, Config.CommandPrefix);
             if (string.IsNullOrEmpty(invoker))
-                return false;
+                return null;
 
             //Try to find command registrations for this invoker
             List<CommandRegistration> commandRegistrations;
             if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
-                return false;
+                return null;
 
-            commandRegistration = SocketCommand.FindLongestMatch(userMessage.Content, commandRegistrations);
-            return commandRegistration != null;
+            return SocketCommand.FindLongestMatch(userMessage.Content, Config.CommandPrefix, commandRegistrations);
         }
 
         private bool IsValidCommandSource(IMessageChannel channel, CommandRegistration cr)

@@ -35,6 +35,14 @@ namespace DustyBot.Modules
             Settings = settings;
         }
 
+        [Command("cafe", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("cafe")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("cafe", "add", "Adds a Daum Cafe board feed.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("BoardSectionLink", ParameterType.Uri, "link to a Daum Cafe board section (either a comment board or a forum board), ex. http://cafe.daum.net/mamamoo/2b6v")]

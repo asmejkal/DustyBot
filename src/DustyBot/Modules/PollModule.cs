@@ -38,19 +38,15 @@ namespace DustyBot.Modules
             Config = config;
         }
 
-        [Command("poll", "start", "Starts a poll.", CommandFlags.Hidden)]
-        [Permissions(GuildPermission.ManageMessages)]
-        [Parameter("anonymous", "^anonymous$", ParameterFlags.Optional, "hide the answers")]
-        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll will take place, uses this channel by default")]
-        [Parameter("Question", ParameterType.String, "poll question")]
-        [Parameter("Answer1", ParameterType.String, "first answer")]
-        [Parameter("Answer2", ParameterType.String, "second answer")]
-        [Parameter("MoreAnswers", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Repeatable, "more answers")]
-        [Example("#main-chat \"Is hotdog a sandwich?\" Yes No")]
-        [Example("anonymous \"Favourite era?\" Hello \"Piano man\" \"Pink Funky\" Melting")]
-        public async Task StartPollLegacy(ICommand command) => await StartPoll(command);
+        [Command("poll", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
 
         [Command("poll", "Starts a poll.")]
+        [Alias("poll", "start")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("anonymous", "^anonymous$", ParameterFlags.Optional, "hide the answers")]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll will take place, uses this channel by default")]
@@ -85,6 +81,12 @@ namespace DustyBot.Modules
 
             description += $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
 
+            if (description.Length > EmbedBuilder.MaxDescriptionLength)
+            {
+                await command.ReplyError(Communicator, "This poll is too long (there are too many answers are they are too long to display).");
+                return;
+            }
+
             var embed = new EmbedBuilder()
                 .WithTitle(poll.Question)
                 .WithDescription(description)
@@ -107,6 +109,7 @@ namespace DustyBot.Modules
         }
 
         [Command("poll", "end", "Ends a poll and announces results.")]
+        [Alias("poll", "stop")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll is taking place, uses current channel if omitted")]
         public async Task EndPoll(ICommand command)
@@ -122,6 +125,7 @@ namespace DustyBot.Modules
         }
 
         [Command("poll", "results", "Checks results of a running poll.")]
+        [Alias("poll", "result")]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional, "channel where the poll is taking place, uses current channel if omitted")]
         public async Task ResultsPoll(ICommand command)
         {
@@ -201,27 +205,7 @@ namespace DustyBot.Modules
             if (poll.Anonymous && !user.GuildPermissions.ManageMessages)
                 throw new MissingPermissionsException("Results of anonymous polls can only be viewed by moderators.", GuildPermission.ManageMessages);
 
-            var description = poll.Question + "\n\n";
-                        
-            var emotes = new Dictionary<int, string>()
-            {
-                { 1, ":first_place:" },
-                { 2, ":second_place:" },
-                { 3, ":third_place:" }
-            };
-
-            int i = 0, prevScore = int.MaxValue, currentPlace = 0;
-            foreach (var result in poll.Results.OrderByDescending(x => x.Value))
-            {
-                ++i;
-                currentPlace = prevScore == result.Value ? currentPlace : i; //Place vote ties in the same placemenet
-                prevScore = result.Value;
-
-                description += $"{(emotes.ContainsKey(currentPlace) && result.Value > 0 ? emotes[currentPlace] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
-            }
-
-            if (!closed)
-                description += $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
+            var description = BuildResultDescription(poll, closed);
 
             var total = poll.Results.Sum(x => x.Value);
             var embed = new EmbedBuilder()
@@ -231,6 +215,43 @@ namespace DustyBot.Modules
             
             await resultsChannel.SendMessageAsync(string.Empty, false, embed.Build());
             return true;
+        }
+
+        private string BuildResultDescription(Poll poll, bool closed)
+        {
+            var description = new StringBuilder(poll.Question + "\n\n");
+
+            var emotes = new Dictionary<int, string>()
+            {
+                { 1, ":first_place:" },
+                { 2, ":second_place:" },
+                { 3, ":third_place:" }
+            };
+
+            var suffix = closed ? "" : $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
+            var ellipsis = "<:blank:517470655004803072> ...";
+            int i = 0, prevScore = int.MaxValue, currentPlace = 0;
+            foreach (var result in poll.Results.OrderByDescending(x => x.Value))
+            {
+                ++i;
+                currentPlace = prevScore == result.Value ? currentPlace : i; //Place vote ties in the same placemenet
+                prevScore = result.Value;
+
+                var line = $"{(emotes.ContainsKey(currentPlace) && result.Value > 0 ? emotes[currentPlace] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
+                if (description.Length + suffix.Length + line.Length + ellipsis.Length < EmbedBuilder.MaxDescriptionLength)
+                {
+                    description.Append(line);
+                }
+                else
+                {
+                    description.Append(ellipsis);
+                    break;
+                }
+            }
+
+            description.Append(suffix);
+
+            return description.ToString();
         }
     }
 }

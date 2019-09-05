@@ -315,7 +315,7 @@ namespace DustyBot.Framework.Communication
 
         public static string BuildUsageString(Commands.CommandRegistration commandRegistration, Config.IEssentialConfig config)
         {
-            string usage = $"{config.CommandPrefix}{commandRegistration.InvokeUsage}";
+            string usage = $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
             foreach (var param in commandRegistration.Parameters)
             {
                 string tmp = param.Name;
@@ -348,7 +348,7 @@ namespace DustyBot.Framework.Communication
             }
 
             var examples = commandRegistration.Examples
-                .Select(x => $"{config.CommandPrefix}{commandRegistration.InvokeUsage} {x}")
+                .Select(x => $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "\n" + y);
 

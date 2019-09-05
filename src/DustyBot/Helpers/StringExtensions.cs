@@ -82,5 +82,10 @@ namespace DustyBot.Helpers
                 .OfType<Match>()
                 .Select(m => m.Value));
         }
+
+        public static string TransformNonEmpty(this string value, Func<string, string> transform)
+        {
+            return !string.IsNullOrEmpty(value) ? transform(value) : string.Empty;
+        }
     }
 }

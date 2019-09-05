@@ -59,6 +59,9 @@ namespace DustyBot
 
             [Option("shortenerkey", HelpText = "Bit.ly generic access token.")]
             public string ShortenerKey { get; set; }
+
+            [Option("lastfmkey", HelpText = "Last.fm API key.")]
+            public string LastFmKey { get; set; }
         }
 
         [Verb("encrypt", HelpText = "Encrypt the settings database.")]
@@ -145,17 +148,17 @@ namespace DustyBot
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
-                    components.Modules.Add(new Modules.TwitterModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.LastFmModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.CredentialsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.SongRankModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services
@@ -172,7 +175,7 @@ namespace DustyBot
                         framework.Stop();
                     };
 
-                    await framework.Run($"{components.Config.CommandPrefix}help | dustybot.info");
+                    await framework.Run($"{components.Config.CommandPrefix}help | {HelpBuilder.WebsiteShorthand}");
                 }
             }
             catch (Exception ex)
@@ -206,7 +209,8 @@ namespace DustyBot
                             OwnerIDs = new List<ulong>(opts.OwnerIDs),
                             YouTubeKey = opts.YouTubeKey,
                             GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null,
-                            ShortenerKey = opts.ShortenerKey
+                            ShortenerKey = opts.ShortenerKey,
+                            LastFmKey = opts.LastFmKey
                         });
                     }
                 }
@@ -238,6 +242,9 @@ namespace DustyBot
 
                             if (opts.ShortenerKey != null)
                                 s.ShortenerKey = opts.ShortenerKey;
+
+                            if (opts.LastFmKey != null)
+                                s.LastFmKey = opts.LastFmKey;
                         });
                     }
                 }

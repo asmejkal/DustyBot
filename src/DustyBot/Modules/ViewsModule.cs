@@ -32,7 +32,14 @@ namespace DustyBot.Modules
             Communicator = communicator;
             Settings = settings;
         }
-        
+
+        [Command("views", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("views", "Checks how comebacks are doing on YouTube.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
         [Parameter("SongOrCategoryName", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "select songs from a specific category or search for a song from any category")]
         [Comment("Use without parameters to view songs from the default category.")]

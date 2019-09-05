@@ -14,6 +14,8 @@ namespace DustyBot.Framework.Commands
         IUserMessage Message { get; }
         ulong GuildId { get; }
         IGuild Guild { get; }
+        IUser Author { get; }
+        IMessageChannel Channel { get; }
 
         string Invoker { get; }
         IEnumerable<string> Verbs { get; }

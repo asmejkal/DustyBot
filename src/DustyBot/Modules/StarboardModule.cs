@@ -42,6 +42,14 @@ namespace DustyBot.Modules
             Config = config;
         }
 
+        [Command("starboard", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("starboard")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("starboard", "add", "Sets up a new starboard.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Remainder, "a channel that will receive the starred messages")]

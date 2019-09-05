@@ -56,4 +56,10 @@ namespace DustyBot.Framework.Exceptions
 
         public List<Discord.ChannelPermission> Permissions { get; } = new List<Discord.ChannelPermission>();
     }
+
+    public class AbortException : Exception
+    {
+        public AbortException(string message) : base(message) { }
+        public AbortException(string message, Exception inner) : base(message, inner) { }
+    }
 }

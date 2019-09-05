@@ -16,5 +16,6 @@ namespace DustyBot.Settings
         public string YouTubeKey { get; set; }
         public RawServiceAccountCredential GCalendarSAC { get; set; }
         public string ShortenerKey { get; set; }
+        public string LastFmKey { get; set; }
     }
 }

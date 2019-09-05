@@ -16,6 +16,7 @@ using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
@@ -33,7 +34,16 @@ namespace DustyBot.Modules
             Logger = logger;
         }
 
+        [Command("roles", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("role", "help")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("roles", "channel", "Sets or disables a channel for role self-assignment.")]
+        [Alias("role", "channel")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
         [Comment("Use without parameters to disable role self-assignment.")]
@@ -67,6 +77,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "clearing", "Toggles automatic clearing of role channel.")]
+        [Alias("role", "clearing")]
         [Permissions(GuildPermission.ManageMessages)]
         [Comment("Disabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
@@ -87,6 +98,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "add", "Adds a self-assignable role.")]
+        [Alias("role", "add")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder, "A name or ID of the self-assignable role.")]
         [Comment("Any user can then assign this role to themselves by typing its name or alias (without any prefix) in the channel set by the `roles channel` command. The role can be also self-removed by typing `-` followed by its name or alias (eg. `-Solar`).")]
@@ -103,6 +115,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "remove", "Removes a self-assignable role.")]
+        [Alias("role", "remove")]
         [Permissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
         public async Task RemoveRole(ICommand command)
@@ -119,6 +132,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "list", "Lists all self-assignable roles.")]
+        [Alias("role", "list")]
         [Permissions(GuildPermission.ManageRoles)]
         public async Task ListAutoRoles(ICommand command)
         {
@@ -157,6 +171,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "alias", "add", "Adds an alias for a self-assignable role.")]
+        [Alias("role", "alias", "add")]
         [Permissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, "A currently self-assignable role")]
         [Parameter("Alias", ParameterType.String, ParameterFlags.Remainder, "An alias that can be used to assign this role instead")]
@@ -176,6 +191,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "alias", "remove", "Removes an alias.")]
+        [Alias("role", "alias", "remove")]
         [Permissions(GuildPermission.ManageRoles)]
         [Parameter("RoleNameOrID", ParameterType.Role, "A currently self-assignable role")]
         [Parameter("Alias", ParameterType.String, ParameterFlags.Remainder, "The alias to remove")]
@@ -201,6 +217,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "setbias", "Sets a primary-secondary bias role pair.")]
+        [Alias("role", "setbias")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("PrimaryRoleNameOrID", ParameterType.Role)]
         [Parameter("SecondaryRoleNameOrID", ParameterType.Role)]
@@ -229,6 +246,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "persistence", "Restore self-assignable roles upon rejoining the server.")]
+        [Alias("role", "persistence")]
         [Permissions(GuildPermission.Administrator)]
         [Comment("Toggle. All self-assignable roles the user had upon leaving will be reapplied if they rejoin. The feature had to be turned on when the user left for it to function.")]
         public async Task PersistentRoles(ICommand command)
@@ -246,6 +264,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "stats", "Server roles statistics.", CommandFlags.RunAsync)]
+        [Alias("role", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "prints stats for all roles")]
         public async Task RolesStats(ICommand command)
         {

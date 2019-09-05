@@ -17,6 +17,7 @@ using DustyBot.Settings;
 using Discord.WebSocket;
 using System.Text.RegularExpressions;
 using DustyBot.Framework.Logging;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
@@ -32,6 +33,14 @@ namespace DustyBot.Modules
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
+        }
+
+        [Command("log", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("log")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
         }
 
         [Command("log", "names", "Sets or disables a channel for name change logging.")]

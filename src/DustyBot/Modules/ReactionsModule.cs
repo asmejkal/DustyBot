@@ -37,7 +37,16 @@ namespace DustyBot.Modules
             Config = config;
         }
 
+        [Command("reactions", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("reactions"), Alias("reaction"), Alias("reaction", "help")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("reactions", "add", "Adds a reaction.")]
+        [Alias("reaction", "add")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("Trigger", ParameterType.String)]
         [Parameter("Response", ParameterType.String, ParameterFlags.Remainder)]
@@ -55,6 +64,7 @@ namespace DustyBot.Modules
         }
 
         [Command("reactions", "remove", "Removes a reaction.")]
+        [Alias("reaction", "remove")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("ID", ParameterType.Int)]
         [Comment("Use `reactions list` to see all reactions and their IDs.")]
@@ -72,6 +82,7 @@ namespace DustyBot.Modules
         }
 
         [Command("reactions", "clear", "Removes all reactions.")]
+        [Alias("reaction", "clear")]
         [Permissions(GuildPermission.ManageMessages)]
         public async Task ReactionsClear(ICommand command)
         {
@@ -84,6 +95,7 @@ namespace DustyBot.Modules
         }
 
         [Command("reactions", "list", "Lists all reactions.")]
+        [Alias("reaction", "list")]
         public async Task ReactionsList(ICommand command)
         {
             var pages = new PageCollection();

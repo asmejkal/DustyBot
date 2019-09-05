@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using DustyBot.Framework.Commands;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Modules
 {
@@ -14,6 +15,12 @@ namespace DustyBot.Framework.Modules
         public bool Hidden { get; private set; }
 
         public IEnumerable<CommandRegistration> HandledCommands { get; private set; }
+
+        private static readonly ParameterRegistration AllMatchingParameter = new ParameterRegistration()
+        {
+            Type = ParameterType.String,
+            Flags = ParameterFlags.Remainder | ParameterFlags.Optional
+        };
 
         public Module()
         {
@@ -39,15 +46,17 @@ namespace DustyBot.Framework.Modules
                 //Required
                 var command = new CommandRegistration
                 {
-                    InvokeString = commandAttr.InvokeString,
-                    Verbs = commandAttr.Verbs,
+                    PrimaryUsage = new CommandRegistration.Usage(commandAttr.InvokeString, commandAttr.Verbs),
                     Handler = (CommandRegistration.CommandHandler)method.CreateDelegate(typeof(CommandRegistration.CommandHandler), this),
                     Description = commandAttr.Description,
                     Flags = commandAttr.Flags
                 };
 
                 //Optional
-                command.Parameters = method.GetCustomAttributes<ParameterAttribute>().Select(x => x.Registration).ToList();
+                if (method.GetCustomAttribute<IgnoreParametersAttribute>() != null)
+                    command.Parameters = new List<ParameterRegistration>() { AllMatchingParameter };
+                else
+                    command.Parameters = method.GetCustomAttributes<ParameterAttribute>().Select(x => x.Registration).ToList();
 
                 var permissions = method.GetCustomAttribute<PermissionsAttribute>();
                 if (permissions != null)
@@ -59,6 +68,7 @@ namespace DustyBot.Framework.Modules
 
                 command.Examples = method.GetCustomAttributes<ExampleAttribute>().Select(x => x.Example).ToList();
                 command.Comment = method.GetCustomAttribute<CommentAttribute>()?.Comment;
+                command.Aliases = method.GetCustomAttributes<AliasAttribute>().Select(x => new CommandRegistration.Usage(x.InvokeString, x.Verbs)).ToList();
 
                 handledCommandsList.Add(command);
             }

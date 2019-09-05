@@ -104,5 +104,16 @@ namespace DustyBot.Framework.Utility
                 .Replace("@everyone", "@\u200Beveryone")
                 .Replace("@here", "@\u200Bhere");
         }
+
+        public static string BuildMarkdownUri(string text, Uri uri) => BuildMarkdownUri(text, uri.AbsoluteUri);
+
+        public static string BuildMarkdownUri(string text, string uri)
+            => $"[{text.SanitiseMarkdownUriText()}]({uri.SanitiseMarkdownUri()})";
+
+        public static string SanitiseMarkdownUriText(this string text) => text?.Replace("[", "(")?.Replace("]", ")");
+
+        public static string SanitiseMarkdownUri(this string uri) => uri?.Replace(")", "%29");
+
+        public static Uri SanitiseMarkdownUri(this Uri uri) => new Uri(uri.AbsoluteUri.SanitiseMarkdownUri());
     }
 }

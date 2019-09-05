@@ -298,6 +298,15 @@ namespace DustyBot.Settings.LiteDB
                             col.Update(s);
                         }
                     }
+                ),
+
+                new Migration
+                (
+                    version: 8,
+                    up: db =>
+                    {
+                        db.RenameCollection("MiscUserSettings", "LastFmUserSettings");
+                    }
                 )
             };
         }

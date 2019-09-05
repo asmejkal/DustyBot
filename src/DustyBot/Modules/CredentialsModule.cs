@@ -32,8 +32,17 @@ namespace DustyBot.Modules
             Communicator = communicator;
             Settings = settings;
         }
-        
+
+        [Command("credential", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("credential"), Alias("credentials"), Alias("credentials", "help")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
         [Command("credential", "add", "Saves a credential. Direct message only.", CommandFlags.DirectMessageOnly)]
+        [Alias("credentials", "add")]
         [Parameter("Login", ParameterType.String)]
         [Parameter("Password", ParameterType.String)]
         [Parameter("Description", ParameterType.String, "type anything for you to recognize these credentials later")]
@@ -52,6 +61,7 @@ namespace DustyBot.Modules
         }
 
         [Command("credential", "remove", "Removes a saved credential.", CommandFlags.DirectMessageAllow)]
+        [Alias("credentials", "remove")]
         [Parameter("CredentialId", ParameterType.Guid)]
         [Comment("Use `credential list` to view your saved credentials.")]
         [Example("5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
@@ -69,6 +79,7 @@ namespace DustyBot.Modules
         }
 
         [Command("credential", "clear", "Removes all your saved credentials.", CommandFlags.DirectMessageAllow)]
+        [Alias("credentials", "clear")]
         public async Task ClearCredential(ICommand command)
         {
             await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => s.Credentials.Clear());
@@ -77,6 +88,7 @@ namespace DustyBot.Modules
         }
 
         [Command("credential", "list", "Lists all your saved credentials.", CommandFlags.DirectMessageAllow)]
+        [Alias("credentials", "list")]
         public async Task ListCredential(ICommand command)
         {
             var settings = await Settings.ReadUser<UserCredentials>(command.Message.Author.Id);

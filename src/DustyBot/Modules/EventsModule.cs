@@ -17,10 +17,11 @@ using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
 using System.Text.RegularExpressions;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    [Module("Events", "Reactions to server events.")]
+    [Module("Events", "Greet & bye messages.")]
     class EventsModule : Module
     {
         public ICommunicator Communicator { get; private set; }
@@ -40,7 +41,15 @@ namespace DustyBot.Modules
             Logger = logger;
         }
 
-        [Command("greet", "Sets or disables a greeting message.")]
+        [Command("greet", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("greet"), Alias("bye", "help")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
+        [Command("greet", "text", "Sets a text greeting message.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, "a channel that will receive the messages")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders")]
@@ -60,17 +69,20 @@ namespace DustyBot.Modules
         [Command("greet", "embed", "Sets an embed greeting message.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, "a channel that will receive the messages")]
-        [Parameter("Title", ParameterType.String, "title of the message; you can use the placeholders listed below")]
-        [Parameter("Image", ParameterType.Uri, ParameterFlags.Optional, "link to an image/gif to show in the embed")]
-        [Parameter("Body", ParameterType.String, ParameterFlags.Remainder, "body of the greeting message; you can use the placeholders listed below")]
-        [Comment("You can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders.")]
+        [Parameter("Title", ParameterType.String, "title of the message")]
+        [Parameter("Body", ParameterType.String, ParameterFlags.Remainder, "body of the greeting message")]
+        [Comment("You can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders.\nYou can also **attach an image** or gif to display it in the message (don't delete the command after, it also deletes the picture).")]
+        [Example("#general \"Welcome to {server}, {name}!\"\nHello, {mention}.\nDon't forget to check out the #rules!")]
         public async Task GreetEmbed(ICommand command)
         {
             await Settings.Modify(command.GuildId, (EventsSettings s) =>
             {
                 s.ResetGreet();
                 s.GreetChannel = command["Channel"].AsTextChannel.Id;
-                s.GreetEmbed = new GreetEmbed(command["Title"], command["Body"], command["Image"].AsUri);
+                s.GreetEmbed = new GreetEmbed(command["Title"], command["Body"]);
+
+                if (command.Message.Attachments.Any())
+                    s.GreetEmbed.Image = new Uri(command.Message.Attachments.First().Url);
             }).ConfigureAwait(false);
 
             await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
@@ -82,6 +94,20 @@ namespace DustyBot.Modules
         {
             await Settings.Modify(command.GuildId, (EventsSettings s) => s.ResetGreet()).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, "Greeting has been disabled.").ConfigureAwait(false);
+        }
+
+        [Command("greet", "test", "Sends a sample greet message in this channel.")]
+        [Permissions(GuildPermission.Administrator)]
+        public async Task GreetTest(ICommand command)
+        {
+            var settings = await Settings.Read<EventsSettings>(command.GuildId, false);
+            if (settings == null || settings.GreetChannel == default)
+            {
+                await command.ReplyError(Communicator, "No greeting has been set.").ConfigureAwait(false);
+                return;
+            }
+
+            await Greet((ITextChannel)command.Message.Channel, settings, (IGuildUser)command.Message.Author);
         }
 
         [Command("bye", "Sets or disables a goodbye message.")]
@@ -118,13 +144,35 @@ namespace DustyBot.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);
         }
 
-        private string ReplacePlaceholders(string message, SocketGuildUser user)
+        private string ReplacePlaceholders(string message, IGuildUser user)
         {
             return message.Replace(MentionPlaceholder, user.Mention)
                 .Replace(NamePlaceholder, user.Username)
                 .Replace(FullNamePlaceholder, user.Username + "#" + user.Discriminator)
                 .Replace(IdPlaceholder, user.Id.ToString())
                 .Replace(ServerPlaceholder, user.Guild.Name);
+        }
+
+        private async Task Greet(ITextChannel channel, EventsSettings settings, IGuildUser user)
+        {
+            if (settings.GreetMessage != default)
+            {
+                await Communicator.SendMessage(channel, ReplacePlaceholders(settings.GreetMessage, user));
+            }
+            else if (settings.GreetEmbed != default)
+            {
+                var embed = new EmbedBuilder()
+                    .WithTitle(ReplacePlaceholders(settings.GreetEmbed.Title, user))
+                    .WithDescription(ReplacePlaceholders(settings.GreetEmbed.Body, user))
+                    .WithThumbnailUrl(user.GetAvatarUrl(size: 512));
+
+                if (settings.GreetEmbed.Image != default)
+                    embed.WithImageUrl(settings.GreetEmbed.Image.AbsoluteUri);
+
+                await channel.SendMessageAsync(embed: embed.Build());
+            }
+            else
+                throw new InvalidOperationException("Inconsistent settings");
         }
 
         public override Task OnUserJoined(SocketGuildUser guildUser)
@@ -146,24 +194,7 @@ namespace DustyBot.Modules
 
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
 
-                    if (settings.GreetMessage != default)
-                    {
-                        await Communicator.SendMessage(channel, ReplacePlaceholders(settings.GreetMessage, guildUser));
-                    }
-                    else if (settings.GreetEmbed != default)
-                    {
-                        var embed = new EmbedBuilder()
-                            .WithTitle(ReplacePlaceholders(settings.GreetEmbed.Title, guildUser))
-                            .WithDescription(ReplacePlaceholders(settings.GreetEmbed.Body, guildUser))
-                            .WithThumbnailUrl(guildUser.GetAvatarUrl());
-
-                        if (settings.GreetEmbed.Image != default)
-                            embed.WithImageUrl(settings.GreetEmbed.Image.AbsoluteUri);
-
-                        await channel.SendMessageAsync(embed: embed.Build());
-                    }
-                    else
-                        throw new InvalidOperationException("Inconsistent settings");
+                    await Greet(channel, settings, guildUser);
                 }
                 catch (Exception ex)
                 {

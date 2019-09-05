@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
 using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
@@ -17,8 +14,8 @@ using DustyBot.Framework.Logging;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Settings;
 using Discord.WebSocket;
-using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
@@ -92,8 +89,18 @@ namespace DustyBot.Modules
             Logger = logger;
         }
 
-        [Command("notification", "add", "Adds a word to be notified on when mentioned on this server.", CommandFlags.RunAsync)]
-        [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "when this word is mentioned on this server you will receive a notification")]
+        [Command("notification", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("notif", "help"), Alias("noti", "help")]
+        [Alias("notification"), Alias("notif"), Alias("noti")]
+        [IgnoreParameters]
+        public async Task Help(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+        }
+
+        [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.", CommandFlags.RunAsync)]
+        [Alias("notifications", "add"), Alias("notif", "add"), Alias("noti", "add")]
+        [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "when this word is mentioned in this server you will receive a notification")]
         public async Task AddNotification(ICommand command)
         {
             if (command["Word"].AsString.Length < MinNotificationLength)
@@ -140,6 +147,7 @@ namespace DustyBot.Modules
         }
 
         [Command("notification", "remove", "Removes a notified word.")]
+        [Alias("notifications", "remove"), Alias("notif", "remove"), Alias("noti", "remove")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "a word you don't want to be notified on anymore")]
         public async Task RemoveNotification(ICommand command)
         {
@@ -165,6 +173,7 @@ namespace DustyBot.Modules
         }
 
         [Command("notification", "list", "Lists all your notified words on this server.", CommandFlags.RunAsync)]
+        [Alias("notifications", "list"), Alias("notif", "list"), Alias("noti", "list")]
         [Comment("Sends a direct message.")]
         public async Task ListNotifications(ICommand command)
         {

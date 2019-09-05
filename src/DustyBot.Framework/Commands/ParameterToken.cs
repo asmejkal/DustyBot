@@ -119,6 +119,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.Id: result = AsId; break;
                 case ParameterType.TextChannel: result = AsTextChannel; break;
                 case ParameterType.GuildUser: result = AsGuildUser; break;
+                case ParameterType.GuildUserOrName: result = AsGuildUserOrName; break;
                 case ParameterType.Role: result = AsRole; break;
                 case ParameterType.GuildUserMessage: result = await AsGuildUserMessage().ConfigureAwait(false); break;
                 case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage().ConfigureAwait(false); break;
@@ -175,6 +176,21 @@ namespace DustyBot.Framework.Commands
             }
 
             return Guild?.Users.FirstOrDefault(y => y.Id == id);
+        });
+
+        public Tuple<IGuildUser, string> AsGuildUserOrName => TryConvert<Tuple<IGuildUser, string>>(this, ParameterType.GuildUserOrName, x =>
+        {
+            ulong id;
+            if (!ulong.TryParse(x, out id))
+            {
+                var match = UserMentionRegex.Match(x);
+                if (!match.Success)
+                    return Tuple.Create((IGuildUser)null, x);
+
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            return Tuple.Create((IGuildUser)Guild?.Users.FirstOrDefault(y => y.Id == id), (string)null);
         });
 
         private static Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
