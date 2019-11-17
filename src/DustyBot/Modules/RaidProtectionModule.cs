@@ -44,7 +44,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("raid", "protection", "enable", "Protects the server against raids.")]
@@ -54,6 +54,12 @@ namespace DustyBot.Modules
         [Comment("Upon enabling this feature, the bot will automatically delete obviously malicious messages and warn or mute offending users. The default rules are set up to only affect obvious raiders.")]
         public async Task EnableRaidProtection(ICommand command)
         {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["LogChannel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
             await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
                 x.Enabled = true;

@@ -25,12 +25,12 @@ namespace DustyBot.Helpers
         public static string GetModuleWebAnchor(IModule module) => module.Name.Replace(' ', '-').ToLowerInvariant();
         public static string GetModuleWebLink(IModule module) => DiscordHelpers.SanitiseMarkdownUri(ReferenceUrl + "#" + GetModuleWebAnchor(module));
 
-        public static async Task<EmbedBuilder> GetModuleHelpEmbed(IModule module, ISettingsProvider settings)
+        public static async Task<Embed> GetModuleHelpEmbed(IModule module, ISettingsProvider settings)
         {
             var config = await settings.ReadGlobal<BotConfig>();
             return new EmbedBuilder()
                 .WithDescription($"● For a list of commands in this module, please see the [website]({GetModuleWebLink(module)}).\n● Type `{config.CommandPrefix}help command name` to see quick help for a specific command.\n\nIf you need further assistance or have any questions, please join the [support server]({SupportServerInvite}).")
-                .WithTitle($"❔ {module.Name} help");
+                .WithTitle($"❔ {module.Name} help").Build();
         }
 
         public static async Task<EmbedBuilder> GetHelpEmbed(ISettingsProvider settings)

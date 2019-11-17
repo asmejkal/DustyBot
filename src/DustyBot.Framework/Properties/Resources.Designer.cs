@@ -10,7 +10,6 @@
 
 namespace DustyBot.Framework.Properties {
     using System;
-    using System.Reflection;
     
     
     /// <summary>
@@ -40,7 +39,7 @@ namespace DustyBot.Framework.Properties {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("DustyBot.Framework.Properties.Resources", typeof(Resources).GetTypeInfo().Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("DustyBot.Framework.Properties.Resources", typeof(Resources).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;
@@ -98,7 +97,7 @@ namespace DustyBot.Framework.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The bot is missing access..
+        ///   Looks up a localized string similar to The bot is missing access permissions..
         /// </summary>
         internal static string Command_MissingBotAccess {
             get {

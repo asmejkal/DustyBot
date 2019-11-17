@@ -68,7 +68,7 @@ namespace DustyBot.Framework.Modules
 
                 command.Examples = method.GetCustomAttributes<ExampleAttribute>().Select(x => x.Example).ToList();
                 command.Comment = method.GetCustomAttribute<CommentAttribute>()?.Comment;
-                command.Aliases = method.GetCustomAttributes<AliasAttribute>().Select(x => new CommandRegistration.Usage(x.InvokeString, x.Verbs)).ToList();
+                command.Aliases = method.GetCustomAttributes<AliasAttribute>().Select(x => new CommandRegistration.Usage(x.InvokeString, x.Verbs, x.Hidden)).ToList();
 
                 handledCommandsList.Add(command);
             }

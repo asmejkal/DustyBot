@@ -19,15 +19,15 @@ using Discord.Net;
 
 namespace DustyBot.Modules
 {
-    [Module("Self", "Help and bot-related commands.")]
-    class SelfModule : Framework.Modules.Module
+    [Module("Bot", "Help and bot-related commands.")]
+    class BotModule : Framework.Modules.Module
     {
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
         public IModuleCollection ModuleCollection { get; private set; }
         public IDiscordClient Client { get; private set; }
 
-        public SelfModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, IDiscordClient client)
+        public BotModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, IDiscordClient client)
         {
             Communicator = communicator;
             Settings = settings;
@@ -99,7 +99,23 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("servers", "Lists all servers the bot is on.")]
+        [Command("feedback", "Suggest a modification or report an issue.")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder)]
+        public async Task Feedback(ICommand command)
+        {
+            var config = await Settings.ReadGlobal<BotConfig>();
+
+            foreach (var owner in config.OwnerIDs)
+            {
+                var user = await Client.GetUserAsync(owner);
+                var author = command.Message.Author;
+                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
+            }
+
+            await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
+        }
+
+        [Command("servers", "Lists all servers the bot is on.", CommandFlags.OwnerOnly)]
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();
@@ -142,22 +158,6 @@ namespace DustyBot.Modules
                 .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString("dd.MM.yyyy H:mm:ss UTC")));
 
             await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
-        }
-
-        [Command("feedback", "Suggest a modification or report an issue.")]
-        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder)]
-        public async Task Feedback(ICommand command)
-        {
-            var config = await Settings.ReadGlobal<BotConfig>();
-
-            foreach (var owner in config.OwnerIDs)
-            {
-                var user = await Client.GetUserAsync(owner);
-                var author = command.Message.Author;
-                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
-            }
-
-            await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
         }
 
         [Command("setavatar", "Changes the bot's avatar.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
@@ -335,10 +335,10 @@ namespace DustyBot.Modules
             if (!string.IsNullOrWhiteSpace(examples))
                 result.Append("<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");
 
-            if (commandRegistration.Aliases.Any())
+            if (commandRegistration.Aliases.Any(x => !x.Hidden))
             {
                 result.Append("<br/><span class=\"aliases\">Also as " 
-                    + commandRegistration.Aliases.Select(x => $"<span class=\"alias\">{x.InvokeUsage}</span>").WordJoin(lastSeparator: " or ") 
+                    + commandRegistration.Aliases.Where(x => !x.Hidden).Select(x => $"<span class=\"alias\">{x.InvokeUsage}</span>").WordJoin(lastSeparator: " or ") 
                     + "</span>");
             }                
 

@@ -307,6 +307,22 @@ namespace DustyBot.Settings.LiteDB
                     {
                         db.RenameCollection("MiscUserSettings", "LastFmUserSettings");
                     }
+                ),
+
+                new Migration
+                (
+                    version: 9,
+                    up: db =>
+                    {
+                        var col = db.GetCollection("ScheduleSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            if (TimeSpan.FromTicks(s["TimezoneOffset"].AsInt64) == TimeSpan.FromHours(9))
+                                s["TimezoneName"] = "KST";
+
+                            col.Update(s);
+                        }
+                    }
                 )
             };
         }

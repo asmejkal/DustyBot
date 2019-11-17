@@ -87,5 +87,19 @@ namespace DustyBot.Helpers
         {
             return !string.IsNullOrEmpty(value) ? transform(value) : string.Empty;
         }
+
+        public static bool TryAppendLimited(this StringBuilder o, string value, int maxLength)
+        {
+            if (o.Length + value.Length <= maxLength)
+            {
+                o.Append(value);
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TryAppendLineLimited(this StringBuilder o, string value, int maxLength) 
+            => o.TryAppendLimited(value + Environment.NewLine, maxLength);
     }
 }

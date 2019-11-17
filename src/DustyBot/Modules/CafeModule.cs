@@ -40,7 +40,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("cafe", "add", "Adds a Daum Cafe board feed.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
@@ -55,7 +55,13 @@ namespace DustyBot.Modules
         {
             if ((await Settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= ServerFeedLimit)
             {
-                await command.ReplyError(Communicator, "You've reached a feed limit for Daum Cafe on this server.");
+                await command.ReplyError(Communicator, "You've reached the maximum amount of Daum Cafe feeds on this server.");
+                return;
+            }
+
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 

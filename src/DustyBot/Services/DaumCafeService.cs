@@ -4,17 +4,16 @@ using DustyBot.Settings;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
-using DustyBot.Settings.LiteDB;
 using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Utility;
 using Discord;
+using DustyBot.Framework.Services;
 
 namespace DustyBot.Services
 {
-    class DaumCafeService : IDisposable, Framework.Services.IService
+    class DaumCafeService : IDisposable, IService
     {
         public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(1);
 

@@ -14,11 +14,13 @@ namespace DustyBot.Framework.Commands
             public List<string> Verbs { get; set; }
             public bool HasVerbs => Verbs.Count > 0;
             public string InvokeUsage => InvokeString + (HasVerbs ? " " + string.Join(" ", Verbs) : string.Empty);
+            public bool Hidden { get; set; }
 
-            public Usage(string invokeString, List<string> verbs)
+            public Usage(string invokeString, List<string> verbs, bool hidden = false)
             {
                 InvokeString = invokeString;
                 Verbs = verbs;
+                Hidden = hidden;
             }
         }
 

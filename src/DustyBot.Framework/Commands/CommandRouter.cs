@@ -69,7 +69,7 @@ namespace DustyBot.Framework.Commands
                 //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
                 var guild = (userMessage.Channel as IGuildChannel)?.Guild;
                 if (guild != null)
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {guild.Name}"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) in #{message.Channel.Name} on {guild.Name} ({guild.Id})"));
                 else
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{Config.CommandPrefix}{commandUsage.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
 
@@ -191,7 +191,7 @@ namespace DustyBot.Framework.Commands
                 });
                 
                 if (commandRegistration.Flags.HasFlag(CommandFlags.RunAsync))
-                    TaskHelper.FireForget(executor);
+                    TaskHelper.FireForget(executor, x => Logger.Log(new LogMessage(LogSeverity.Error, "Internal", "Failure while handling command.", x)));
                 else
                     await executor();
             }

@@ -196,7 +196,11 @@ namespace DustyBot.Framework.Commands
         private static Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
         public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>
         {
-            var role = Guild?.Roles.FirstOrDefault(r => string.Equals(r.Name, x, StringComparison.CurrentCultureIgnoreCase));
+            var role = Guild?.Roles.FirstOrDefault(r => string.Compare(r.Name, x) == 0);
+            if (role != null)
+                return role;
+
+            role = Guild?.Roles.FirstOrDefault(r => string.Compare(r.Name, x, true) == 0);
             if (role != null)
                 return role;
 

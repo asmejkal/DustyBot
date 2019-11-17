@@ -144,6 +144,46 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
+        public async Task Modify<T>(ulong serverId, Func<T, Task> action)
+            where T : IServerSettings, new()
+        {
+            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                var settings = await GetDocument(x => x.ServerId == serverId, () => Create<T>(serverId));
+                await action(settings);
+                _dbObject.GetCollection<T>().Update(settings);
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
+        public async Task<U> Modify<T, U>(ulong serverId, Func<T, Task<U>> action)
+            where T : IServerSettings, new()
+        {
+            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                var settings = await GetDocument(x => x.ServerId == serverId, () => Create<T>(serverId));
+                var result = await action(settings);
+                _dbObject.GetCollection<T>().Update(settings);
+
+                return result;
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
         public Task<string> DumpSettings(ulong serverId, string module)
         {
             var col = _dbObject.GetCollection(module);

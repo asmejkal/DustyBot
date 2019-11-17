@@ -13,10 +13,12 @@ using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
+using System.IO;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
-    [Module("Last.fm (beta)", "Show others what you're listening to.")]
+    [Module("Last.fm", "Show others what you're listening to.")]
     class LastFmModule : Module
     {
         class LfMatch<T>
@@ -69,7 +71,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("lf", "np", "Shows what song you or someone else is currently playing on Last.fm.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
@@ -173,8 +175,38 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach Last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
+        }
+
+        [Command("lf", "np", "spotify", "Searches and posts a Spotify link to what you're currently listening.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Alias("np", "spotify")]
+        [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional | ParameterFlags.Remainder, "the user (mention, ID or Last.fm username); uses your Last.fm if omitted")]
+        public async Task NowPlayingSpotify(ICommand command)
+        {
+            var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
+            var config = await Settings.ReadGlobal<BotConfig>();
+
+            var lfm = new LastFmClient(settings.LastFmUsername, config.LastFmKey);
+            var nowPlayingTask = lfm.GetRecentTracks(count: 1);
+
+            var spotify = await SpotifyClient.Create(config.SpotifyId, config.SpotifyKey);
+
+            var nowPlaying = (await nowPlayingTask).tracks.FirstOrDefault();
+            if (nowPlaying == null)
+            {
+                await command.Reply(Communicator, $"Looks like this user doesn't have any scrobbles yet...").ConfigureAwait(false);
+                return;
+            }
+
+            var url = await spotify.SearchTrackUrl($"{nowPlaying.name} artist:{nowPlaying.artist.name}");
+            if (string.IsNullOrEmpty(url))
+            {
+                await command.Reply(Communicator, $"Can't find this track on Spotify...").ConfigureAwait(false);
+                return;
+            }
+
+            await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url).ConfigureAwait(false);
         }
 
         [Command("lf", "compare", "Checks how compatible your music taste is with someone else.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
@@ -304,7 +336,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
         }
 
@@ -341,7 +373,7 @@ namespace DustyBot.Modules
                         when = ts.SimpleFormat();
                     }
 
-                    description.AppendLine($"`{place++}>` **{FormatDynamicLink(track, true)}** by **{FormatDynamicLink(track.artist, true)}**" + (when != null ? $"_ – {when}_" : string.Empty));
+                    description.TryAppendLineLimited($"`{place++}>` **{FormatDynamicLink(track, true)}** by **{FormatDynamicLink(track.artist, true)}**" + (when != null ? $"_ – {when}_" : string.Empty), EmbedBuilder.MaxDescriptionLength);
                 }
             
                 var author = new EmbedAuthorBuilder()
@@ -369,7 +401,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
         }
 
@@ -394,7 +426,7 @@ namespace DustyBot.Modules
                 var description = new StringBuilder();
                 var place = 1;
                 foreach (var entry in results.Take(NumDisplayed))
-                    description.AppendLine($"`#{place++}` **{FormatArtistLink(entry.Entity, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_");
+                    description.TryAppendLineLimited($"`#{place++}` **{FormatArtistLink(entry.Entity, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_", EmbedBuilder.MaxDescriptionLength);
 
                 var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
@@ -418,7 +450,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
         }
 
@@ -443,7 +475,7 @@ namespace DustyBot.Modules
                 var description = new StringBuilder();
                 var place = 1;
                 foreach (var entry in results.Take(NumDisplayed))
-                    description.AppendLine($"`#{place++}` **{FormatAlbumLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_");
+                    description.TryAppendLineLimited($"`#{place++}` **{FormatAlbumLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_", EmbedBuilder.MaxDescriptionLength);
 
                 var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
@@ -467,12 +499,12 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
         }
 
         [Command("lf", "top", "tracks", "Shows user's top tracks.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
-        [Alias("lf", "tt"), Alias("lf", "top", "track"), Alias("lf", "tracks")]
+        [Alias("lf", "tt"), Alias("lf", "top", "track"), Alias("lf", "tracks"), Alias("lf", "ts")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
         public async Task LastFmTracks(ICommand command)
@@ -492,7 +524,7 @@ namespace DustyBot.Modules
                 var description = new StringBuilder();
                 var place = 1;
                 foreach (var entry in results.Take(NumDisplayed))
-                    description.AppendLine($"`#{place++}` **{FormatTrackLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_");
+                    description.TryAppendLineLimited($"`#{place++}` **{FormatTrackLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_", EmbedBuilder.MaxDescriptionLength);
 
                 var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
@@ -516,7 +548,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
         }
 
@@ -568,13 +600,7 @@ namespace DustyBot.Modules
                     var topList = new StringBuilder();
                     var place = 1;
                     foreach (var entry in info.TopAlbums.Take(NumDisplayed))
-                    {
-                        var line = $"`#{place++}` **{FormatAlbumLink(entry, true)}**_ – ({entry.Playcount} plays)_\n";
-                        if (topList.Length + line.Length > 1024) // Max field length
-                            break;
-
-                        topList.Append(line);
-                    }
+                        topList.TryAppendLineLimited($"`#{place++}` **{FormatAlbumLink(entry, true)}**_ – {entry.Playcount} plays_", DiscordHelpers.MaxEmbedFieldLength);
                     
                     embed.AddField("Top albums", topList.ToString());
                 }
@@ -584,13 +610,7 @@ namespace DustyBot.Modules
                     var topList = new StringBuilder();
                     var place = 1;
                     foreach (var entry in info.TopTracks.Take(NumDisplayed))
-                    {
-                        var line = $"`#{place++}` **{FormatTrackLink(entry, true)}**_ – ({entry.Playcount} plays)_\n";
-                        if (topList.Length + line.Length > 1024) // Max field length
-                            break;
-
-                        topList.Append(line);
-                    }
+                        topList.TryAppendLineLimited($"`#{place++}` **{FormatTrackLink(entry, true)}**_ – {entry.Playcount} plays_", DiscordHelpers.MaxEmbedFieldLength);
 
                     embed.AddField("Top tracks", topList.ToString());
                 }
@@ -604,7 +624,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Server error ({(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a second.");
+                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
             }
         }
 
@@ -670,7 +690,7 @@ namespace DustyBot.Modules
             => FormatLink(track.Name ?? "Unknown", track.Url, trim);
 
         string FormatLink(string text, string url, bool trim = false)
-            => DiscordHelpers.BuildMarkdownUri(text.Truncate(trim ? 20 : int.MaxValue), url);
+            => DiscordHelpers.BuildMarkdownUri(text.Truncate(trim ? 22 : int.MaxValue), url);
 
         static string FormatPercent(double value)
         {

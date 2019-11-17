@@ -91,15 +91,15 @@ namespace DustyBot.Modules
 
         [Command("notification", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [Alias("notif", "help"), Alias("noti", "help")]
-        [Alias("notification"), Alias("notif"), Alias("noti")]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.", CommandFlags.RunAsync)]
-        [Alias("notifications", "add"), Alias("notif", "add"), Alias("noti", "add")]
+        [Alias("notifications", "add", true), Alias("notif", "add"), Alias("noti", "add")]
+        [Alias("notifications", true), Alias("notification"), Alias("notif"), Alias("noti")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "when this word is mentioned in this server you will receive a notification")]
         public async Task AddNotification(ICommand command)
         {
@@ -147,7 +147,7 @@ namespace DustyBot.Modules
         }
 
         [Command("notification", "remove", "Removes a notified word.")]
-        [Alias("notifications", "remove"), Alias("notif", "remove"), Alias("noti", "remove")]
+        [Alias("notifications", "remove", true), Alias("notif", "remove"), Alias("noti", "remove")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "a word you don't want to be notified on anymore")]
         public async Task RemoveNotification(ICommand command)
         {
@@ -173,7 +173,7 @@ namespace DustyBot.Modules
         }
 
         [Command("notification", "list", "Lists all your notified words on this server.", CommandFlags.RunAsync)]
-        [Alias("notifications", "list"), Alias("notif", "list"), Alias("noti", "list")]
+        [Alias("notifications", "list", true), Alias("notif", "list"), Alias("noti", "list")]
         [Comment("Sends a direct message.")]
         public async Task ListNotifications(ICommand command)
         {

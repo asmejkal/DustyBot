@@ -130,7 +130,7 @@
     <value>Parameter {0} is invalid.</value>
   </data>
   <data name="Command_MissingBotAccess" xml:space="preserve">
-    <value>The bot is missing access.</value>
+    <value>The bot is missing access permissions.</value>
   </data>
   <data name="Command_MissingBotPermissions" xml:space="preserve">
     <value>The bot needs the {0} permission to perform this command.</value>

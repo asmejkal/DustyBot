@@ -62,6 +62,12 @@ namespace DustyBot
 
             [Option("lastfmkey", HelpText = "Last.fm API key.")]
             public string LastFmKey { get; set; }
+
+            [Option("spotifyid", HelpText = "Spotify App client id.")]
+            public string SpotifyId { get; set; }
+
+            [Option("spotifykey", HelpText = "Spotify App client secret.")]
+            public string SpotifyKey { get; set; }
         }
 
         [Verb("encrypt", HelpText = "Encrypt the settings database.")]
@@ -143,7 +149,7 @@ namespace DustyBot
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
 
                     //Choose modules
-                    components.Modules.Add(new Modules.SelfModule(components.Communicator, components.Settings, this, components.Client));
+                    components.Modules.Add(new Modules.BotModule(components.Communicator, components.Settings, this, components.Client));
                     components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Logger, client));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
@@ -210,7 +216,9 @@ namespace DustyBot
                             YouTubeKey = opts.YouTubeKey,
                             GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null,
                             ShortenerKey = opts.ShortenerKey,
-                            LastFmKey = opts.LastFmKey
+                            LastFmKey = opts.LastFmKey,
+                            SpotifyId = opts.SpotifyId,
+                            SpotifyKey = opts.SpotifyKey
                         });
                     }
                 }
@@ -245,6 +253,12 @@ namespace DustyBot
 
                             if (opts.LastFmKey != null)
                                 s.LastFmKey = opts.LastFmKey;
+
+                            if (opts.SpotifyId != null)
+                                s.SpotifyId = opts.SpotifyId;
+
+                            if (opts.SpotifyKey != null)
+                                s.SpotifyKey = opts.SpotifyKey;
                         });
                     }
                 }

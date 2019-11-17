@@ -73,7 +73,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("schedule", "Shows upcoming events.")]
@@ -144,7 +144,7 @@ namespace DustyBot.Modules
             var embed = new EmbedBuilder()
                 .WithTitle("Upcoming events")
                 .WithDescription(result.ToString())
-                .WithFooter($"{BuildUTCOffsetString(settings.TimezoneOffset)}" + (truncateWarning ? $" • Shows first {displayed} events" : string.Empty))
+                .WithFooter($"{BuildUTCOffsetString(settings)}" + (truncateWarning ? $" • Shows first {displayed} events" : string.Empty))
                 .WithColor(0xbe, 0xe7, 0xb6);
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
@@ -180,7 +180,8 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
-        [Parameter("Offset", @"^(?:UTC)?\+?(-)?([0-9]{1,2}):?([0-9]{1,2})?$", ParameterType.Regex, ParameterFlags.Remainder, "the timezone's offset from UTC (eg. `UTC-5` or `UTC+12:30`)")]
+        [Parameter("Offset", @"^(?:UTC)?\+?(-)?([0-9]{1,2}):?([0-9]{1,2})?$", ParameterType.Regex, "the timezone's offset from UTC (eg. `UTC-5` or `UTC+12:30`)")]
+        [Parameter("Name", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "you can specify a custom name for the timezone (e.g. to show `KST` instead of `UTC+9`)")]
         [Comment("The default timezone is KST (UTC+9). The times of existing events will stay correct (recalculated to the new timezone).")]
         [Example("UTC-5")]
         [Example("UTC+12:30")]
@@ -198,23 +199,26 @@ namespace DustyBot.Modules
             if (offset < TimeSpan.FromHours(-12) || offset > TimeSpan.FromHours(14))
                 throw new IncorrectParametersCommandException("Unknown timezone.", false);
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            var settings = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
                 var difference = offset - s.TimezoneOffset;
                 var newEvents = new SortedList<ScheduleEvent>();
                 foreach (var e in s.Events)
                 {
-                    if (e.HasTime) //Keep whole-day events on the same date
+                    if (e.HasTime) // Keep whole-day events on the same date
                         e.Date = e.Date.Add(difference);
 
                     newEvents.Add(e);
                 }
 
-                s.Events = newEvents; //We need to do it like this because the sort order can change (because of whole day events)
+                s.Events = newEvents; // We need to do it like this because the sort order can change (because of whole day events)
                 s.TimezoneOffset = offset;
-            }).ConfigureAwait(false);
+                s.TimezoneName = command["Name"].HasValue ? command["Name"].AsString : default;
+                return s;
+            });
+
             var result = await RefreshCalendars(command.Guild);
-            await command.ReplySuccess(Communicator, $"The schedule's timezone has been set to `{BuildUTCOffsetString(offset)}`. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"The schedule's timezone has been set to `{BuildUTCOffsetString(settings)}`. {result}").ConfigureAwait(false);
         }
 
         [Command("schedule", "set", "length", "Sets the number of events displayed by the schedule command.")]
@@ -529,85 +533,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages);
         }
 
-        //[Command("schedule", "link", "Link schedule with Google Calendar.")]
-        //[Parameter("MessageId", ParameterType.Id, "ID of a schedule message previously created with `schedule create`")]
-        //[Parameter("CalendarId", @".+@.+", ParameterType.String)]
-        //[Parameter("FromDate", DateRegex, ParameterType.Regex, "import events from this date onward; date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        //[Parameter("ToDate", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "import events before this date")]
-        //public async Task LinkSchedule(ICommand command)
-        //{
-        //    await AssertPrivileges(command.Message.Author, command.GuildId);
-        //    var config = await Settings.ReadGlobal<BotConfig>();
-        //    if (config.GCalendarSAC == null)
-        //    {
-        //        await command.ReplyError(Communicator, "Google Calendar API credentials are not set up. Contact the bot owner.");
-        //        return;
-        //    }
-
-        //    var fromDate = DateTime.ParseExact(command["FromDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None);
-        //    var toDate = command["ToDate"].HasValue ? DateTime.ParseExact(command["ToDate"], new string[] { "yyyy/MM/dd", "MM/dd" }, CultureInfo.InvariantCulture, DateTimeStyles.None) : DateTime.MaxValue;
-
-        //    var message = await GetScheduleMessage(command.Guild, (ulong?)command["MessageId"]);
-
-        //    var sac = new ServiceAccountCredential(new ServiceAccountCredential.Initializer(config.GCalendarSAC.Id).FromPrivateKey(config.GCalendarSAC.Key));
-        //    var credential = GoogleCredential.FromServiceAccountCredential(sac).CreateScoped(new string[] { CalendarService.Scope.Calendar });
-        //    var service = new CalendarService(new BaseClientService.Initializer() { HttpClientInitializer = credential, ApplicationName = "Dusty Bot" });
-
-        //    string name;
-        //    try
-        //    {
-        //        var calendar = await service.CalendarList.Insert(new CalendarListEntry() { Id = command["CalendarId"] }).ExecuteAsync();
-        //        name = calendar.Summary;
-
-        //        var tz = TimeZoneInfo.FindSystemTimeZoneById("Korea Standard Time");
-        //        var events = await service.Events.List(command["CalendarId"]).ExecuteAsync();
-        //        foreach (var e in events.Items)
-        //        {
-        //            DateTime start;
-        //            if (e.Start.DateTime.HasValue)
-        //                start = TimeZoneInfo.ConvertTime(e.Start.DateTime.Value, tz);
-        //            else if (!string.IsNullOrEmpty(e.Start.Date))
-        //            {
-        //                if (!DateTime.TryParseExact(e.Start.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out start))
-        //                    continue;
-        //            }
-        //            else
-        //                continue;
-
-        //            if (start < fromDate || start >= toDate)
-        //                continue;
-
-        //            var scheduleEvent = new ScheduleEvent()
-        //            {
-        //                Date = start,
-        //                HasTime = e.Start.DateTime.HasValue,
-        //                Description = string.IsNullOrWhiteSpace(e.Summary) ? "Unnamed event" : e.Summary
-        //            };
-
-        //            message.Add(scheduleEvent);
-        //        }
-
-        //        await Settings.Modify(command.GuildId, (ScheduleSettings x) => x.ScheduleData.First(y => y.MessageId == message.Message.Id).GCalendarId = calendar.Id);
-        //    }
-        //    catch (Exception)
-        //    {
-        //        await command.ReplyError(Communicator, "Failed to add the calendar.");
-        //        return;
-        //    }
-
-        //    try
-        //    {
-        //        await message.CommitChanges();
-        //    }
-        //    catch (ArgumentOutOfRangeException)
-        //    {
-        //        await command.ReplyError(Communicator, "The specified schedule message cannot contain all of the imported events, try narrowing the date range.").ConfigureAwait(false);
-        //        return;
-        //    }
-
-        //    var dateExplanation = command["ToDate"].HasValue ? $"between `{fromDate.ToString(@"yyyy\/MM\/dd HH:mm")}` and `{toDate.ToString(@"yyyy\/MM\/dd HH:mm")}`" : $"older than `{fromDate.ToString(@"yyyy\/MM\/dd HH:mm")}`";
-        //    await command.ReplySuccess(Communicator, $"Events from calendar `{name}` {dateExplanation} have been linked to message `{command["MessageId"].AsId}`.").ConfigureAwait(false);
-        //}
+        
 
         [Command("calendar", "create", "Creates a permanent message to display events.")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
@@ -915,8 +841,12 @@ namespace DustyBot.Modules
                 return;
             }
 
+            var calendars = settings.Calendars
+                .Where(x => !(x is RangeScheduleCalendar))
+                .Concat(settings.Calendars.OfType<RangeScheduleCalendar>().OrderBy(x => x.BeginDate));
+
             var result = new StringBuilder();
-            foreach (var calendar in settings.Calendars)
+            foreach (var calendar in calendars)
             {
                 result.Append($"Id: `{calendar.MessageId}` Channel: <#{calendar.ChannelId}> Title: `{BuildCalendarTitle(calendar)}`");
                 if (calendar is RangeScheduleCalendar rangeCalendar)
@@ -924,7 +854,7 @@ namespace DustyBot.Modules
                     if (rangeCalendar.IsMonthCalendar)
                         result.Append($" Month: `{rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)}`");
                     else
-                        result.Append($" Begin: `{rangeCalendar.BeginDate.ToString(@"MM\/dd", GlobalDefinitions.Culture)}`" + (rangeCalendar.HasEndDate ? $" End: `{rangeCalendar.EndDate.AddDays(-1).ToString(@"MM\/dd", GlobalDefinitions.Culture)}` (inclusive)" : string.Empty));
+                        result.Append($" Begin: `{rangeCalendar.BeginDate.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (rangeCalendar.HasEndDate ? $" End: `{rangeCalendar.EndDate.AddDays(-1).ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}` (inclusive)" : string.Empty));
                 }
                 else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
                 {
@@ -1279,9 +1209,9 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(footer))
             {
                 if (calendar.IsMonthCalendar && !string.IsNullOrEmpty(calendar.Title))
-                    footer = $"{calendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)} schedule • {BuildUTCOffsetString(settings.TimezoneOffset)}";
+                    footer = $"{calendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)} schedule • {BuildUTCOffsetString(settings)}";
                 else
-                    footer = $"All times in {BuildUTCOffsetString(settings.TimezoneOffset)}";
+                    footer = $"All times in {BuildUTCOffsetString(settings)}";
             }
 
             var embed = new EmbedBuilder()
@@ -1317,7 +1247,7 @@ namespace DustyBot.Modules
             string footer = calendar.Footer;
             if (string.IsNullOrEmpty(footer))
             {
-                footer = $"{BuildUTCOffsetString(settings.TimezoneOffset)}";
+                footer = $"{BuildUTCOffsetString(settings)}";
                 if (events.Count == displayed)
                     footer += calendar.DaysSpan > 0 ? $" • Shows the next {calendar.DaysSpan} days of events" : $" • All upcoming events";
                 else
@@ -1343,7 +1273,7 @@ namespace DustyBot.Modules
 
             string footer = calendar.Footer;
             if (string.IsNullOrEmpty(footer))
-                footer = $"All times in {BuildUTCOffsetString(settings.TimezoneOffset)}";
+                footer = $"All times in {BuildUTCOffsetString(settings)}";
 
             var embed = new EmbedBuilder().WithTitle(BuildCalendarTitle(calendar)).WithFooter(footer);
             var today = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
@@ -1404,7 +1334,7 @@ namespace DustyBot.Modules
             var embedBuilder = new Func<string, EmbedBuilder>((d) => new EmbedBuilder()
                 .WithTitle(header)
                 .WithDescription(d)
-                .WithFooter(footer ?? BuildUTCOffsetString(settings.TimezoneOffset)));
+                .WithFooter(footer ?? BuildUTCOffsetString(settings)));
 
             foreach (var e in events)
             {
@@ -1424,14 +1354,17 @@ namespace DustyBot.Modules
             return pages;
         }
 
-        static string BuildUTCOffsetString(TimeSpan offset)
+        static string BuildUTCOffsetString(ScheduleSettings settings)
         {
+            if (!string.IsNullOrEmpty(settings.TimezoneName))
+                return settings.TimezoneName;
+
             var result = new StringBuilder("UTC");
-            if (offset != TimeSpan.Zero)
+            if (settings.TimezoneOffset != TimeSpan.Zero)
             {
-                result.Append($"{Math.Truncate(offset.TotalHours):+#0;-#0}");
-                if (offset.Minutes != 0)
-                    result.Append($":{Math.Abs(offset.Minutes):00}");
+                result.Append($"{Math.Truncate(settings.TimezoneOffset.TotalHours):+#0;-#0}");
+                if (settings.TimezoneOffset.Minutes != 0)
+                    result.Append($":{Math.Abs(settings.TimezoneOffset.Minutes):00}");
             }
 
             return result.ToString();

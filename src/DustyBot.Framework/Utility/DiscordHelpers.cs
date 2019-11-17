@@ -5,11 +5,14 @@ using System.Threading.Tasks;
 using Discord;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Discord.WebSocket;
 
 namespace DustyBot.Framework.Utility
 {
     public static class DiscordHelpers
     {
+        public const int MaxEmbedFieldLength = 1024;
+
         public static async Task EnsureBotPermissions(IGuild guild, params GuildPermission[] perms)
         {
             var user = await guild.GetCurrentUserAsync();
@@ -108,9 +111,7 @@ namespace DustyBot.Framework.Utility
         public static string BuildMarkdownUri(string text, Uri uri) => BuildMarkdownUri(text, uri.AbsoluteUri);
 
         public static string BuildMarkdownUri(string text, string uri)
-            => $"[{text.SanitiseMarkdownUriText()}]({uri.SanitiseMarkdownUri()})";
-
-        public static string SanitiseMarkdownUriText(this string text) => text?.Replace("[", "(")?.Replace("]", ")");
+            => $"[{text}]({uri.SanitiseMarkdownUri()})";
 
         public static string SanitiseMarkdownUri(this string uri) => uri?.Replace(")", "%29");
 

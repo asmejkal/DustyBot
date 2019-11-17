@@ -93,6 +93,8 @@ namespace DustyBot.Settings
 
         [BsonIgnore]
         public bool IsMonthCalendar => EndDate - BeginDate == TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month)) && BeginDate.Day == 1;
+
+        public bool FitsDate(DateTime date) => date >= BeginDate && date < EndDate;
     }
 
     public abstract class UpcomingScheduleCalendar : ScheduleCalendar
@@ -126,6 +128,7 @@ namespace DustyBot.Settings
         public ulong ScheduleRole { get; set; }
         public EventFormat EventFormat { get; set; } = EventFormat.Default;
         public TimeSpan TimezoneOffset { get; set; } = TimeSpan.FromHours(9);
+        public string TimezoneName { get; set; }
         public int UpcomingEventsDisplayLimit { get; set; } = DefaultUpcomingEventsDisplayLimit;
         public DateTime LastUpcomingCalendarsUpdate { get; set; } = DateTime.MinValue.Date;
 

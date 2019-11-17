@@ -40,7 +40,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("log", "names", "Sets or disables a channel for name change logging.")]
@@ -49,6 +49,12 @@ namespace DustyBot.Modules
         [Comment("Use without parameters to disable name change logging.")]
         public async Task LogNameChanges(ICommand command)
         {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
             await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command[0].HasValue ? command[0].AsTextChannel.Id : 0).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, $"Name change logging channel has been {(command[0].HasValue ? "set" : "disabled")}.").ConfigureAwait(false);
         }
@@ -59,6 +65,12 @@ namespace DustyBot.Modules
         [Comment("Use without parameters to disable message logging.")]
         public async Task LogMessages(ICommand command)
         {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
             await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = command[0].HasValue ? command[0].AsTextChannel.Id : 0).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, $"A log channel for deleted messages has been {(command[0].HasValue ? "set" : "disabled")}.").ConfigureAwait(false);
         }

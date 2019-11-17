@@ -407,7 +407,7 @@ namespace DustyBot.Helpers
                             var itemUrl = "https://www.last.fm" + itemNameLink.GetAttributeValue("href", null);
 
                             var scrobbleText = item.Descendants("span").First(x => x.HasClass("chartlist-count-bar-value")).InnerText;
-                            var scrobbleCount = int.Parse(Regex.Match(scrobbleText, @"[\d,.\s]+").Value, System.Globalization.NumberStyles.Any);
+                            var scrobbleCount = int.Parse(Regex.Match(scrobbleText, @"[\d,.\s]+").Value, System.Globalization.NumberStyles.Any, new System.Globalization.CultureInfo("en-US"));
                             yield return (WebUtility.HtmlDecode(itemNameLink.InnerText), itemUrl, scrobbleCount);
                         }
                     }
@@ -428,7 +428,7 @@ namespace DustyBot.Helpers
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
                 return null;
-            }    
+            }
         }
 
         public async Task<IEnumerable<LfScore<LfArtist>>> GetArtistScores(LfStatsPeriod period, int count, Task<int> totalPlaycount)

@@ -17,5 +17,7 @@ namespace DustyBot.Settings
         public RawServiceAccountCredential GCalendarSAC { get; set; }
         public string ShortenerKey { get; set; }
         public string LastFmKey { get; set; }
+        public string SpotifyId { get; set; }
+        public string SpotifyKey { get; set; }
     }
 }

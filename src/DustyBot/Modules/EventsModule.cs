@@ -46,7 +46,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("greet", "text", "Sets a text greeting message.")]
@@ -56,6 +56,12 @@ namespace DustyBot.Modules
         [Comment("Use without parameters to disable the greeting message.")]
         public async Task Greet(ICommand command)
         {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
             await Settings.Modify(command.GuildId, (EventsSettings s) =>
             {
                 s.ResetGreet();
@@ -75,6 +81,12 @@ namespace DustyBot.Modules
         [Example("#general \"Welcome to {server}, {name}!\"\nHello, {mention}.\nDon't forget to check out the #rules!")]
         public async Task GreetEmbed(ICommand command)
         {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
             await Settings.Modify(command.GuildId, (EventsSettings s) =>
             {
                 s.ResetGreet();
@@ -131,6 +143,12 @@ namespace DustyBot.Modules
             {
                 if (!await command["Channel"].IsType(ParameterType.TextChannel))
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Expected a text channel as first paramter.");
+
+                if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+                {
+                    await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                    return;
+                }
 
                 await Settings.Modify(command.GuildId, (EventsSettings s) =>
                 {

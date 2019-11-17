@@ -47,7 +47,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: (await HelpBuilder.GetModuleHelpEmbed(this, Settings)).Build());
+            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
         [Command("starboard", "add", "Sets up a new starboard.")]
@@ -56,6 +56,12 @@ namespace DustyBot.Modules
         [Comment("The bot will repost messages that were reacted to with a chosen emoji (:star: by default) to this channel. You can modify the minimum number of required reactions. You can have multiple starboards with different emojis or scoped to different channels.")]
         public async Task AddStarboard(ICommand command)
         {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
             var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 s.Starboards.Add(new Starboard() { Id = s.NextId, Channel = command["Channel"].AsTextChannel.Id });
