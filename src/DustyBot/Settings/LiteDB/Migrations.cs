@@ -323,6 +323,58 @@ namespace DustyBot.Settings.LiteDB
                             col.Update(s);
                         }
                     }
+                ),
+
+                new Migration
+                (
+                    version: 10,
+                    up: db =>
+                    {
+                        var col = db.GetCollection("ScheduleSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            if (s["Events"].AsArray != null)
+                            {
+                                foreach (var e in s["Events"].AsArray)
+                                {
+                                    var description = e.AsDocument?["Description"]?.AsString;
+                                    if (string.IsNullOrEmpty(description))
+                                        continue;
+
+                                    var link = DiscordHelpers.TryParseMarkdownUri(description);
+                                    if (link.HasValue)
+                                    {
+                                        e.AsDocument["Description"] = link.Value.Text;
+                                        e.AsDocument["Link"] = link.Value.Uri.AbsoluteUri;
+                                    }
+                                }
+                            }
+
+                            col.Update(s);
+                        }
+                    }
+                ),
+
+                new Migration
+                (
+                    version: 11,
+                    up: db =>
+                    {
+                        var col = db.GetCollection("RolesSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            if (s["RoleChannel"].AsUInt64() == default &&
+                                s["ClearRoleChannel"].AsBoolean == default &&
+                                (s["AssignableRoles"].AsArray?.Count ?? 0) == 0 &&
+                                (s["AutoAssignRoles"].AsArray?.Count ?? 0) == 0 &&
+                                s["PersistentAssignableRoles"].AsBoolean == default &&
+                                (s["AdditionalPersistentRoles"].AsArray?.Count ?? 0) == 0 &&
+                                (s["PersistentRolesData"].AsArray?.Count ?? 0) == 0)
+                            {
+                                col.Delete(s["_id"]);
+                            }
+                        }
+                    }
                 )
             };
         }

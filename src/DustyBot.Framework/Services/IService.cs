@@ -7,7 +7,7 @@ namespace DustyBot.Framework.Services
 {
     public interface IService
     {
-        void Start();
+        Task Start();
         void Stop();
     }
 }

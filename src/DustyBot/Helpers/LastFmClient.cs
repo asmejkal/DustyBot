@@ -400,8 +400,7 @@ namespace DustyBot.Helpers
                     // Get top albums and tracks
                     IEnumerable<(string name, string url, int playcount)> GetTopListItems(HtmlNode topList)
                     {
-                        var iii = topList.Descendants("tr").Where(x => x.HasClass("chartlist-row") || x.HasClass("chartlist-row\n"));
-                        foreach (var item in iii)
+                        foreach (var item in topList.Descendants("tr").Where(x => x.HasClass("chartlist-row") || x.HasClass("chartlist-row\n")))
                         {
                             var itemNameLink = item.Descendants("td").First(x => x.HasClass("chartlist-name")).Descendants("a").First();
                             var itemUrl = "https://www.last.fm" + itemNameLink.GetAttributeValue("href", null);

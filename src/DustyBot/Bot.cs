@@ -149,8 +149,9 @@ namespace DustyBot
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
 
                     //Choose modules
+                    var scheduleService = new Services.ScheduleService(components.Client, components.Settings, components.Logger);
                     components.Modules.Add(new Modules.BotModule(components.Communicator, components.Settings, this, components.Client));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Logger, client));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Logger, client, scheduleService));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (Settings.BotConfig)components.Config));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
@@ -169,7 +170,7 @@ namespace DustyBot
 
                     //Choose services
                     components.Services.Add(new Services.DaumCafeService(components.Client, components.Settings, components.Logger));
-                    components.Services.Add(new Services.ScheduleService(components.Client, components.Settings, components.Logger));
+                    components.Services.Add(scheduleService);
                     _services = components.Services;
 
                     //Init framework

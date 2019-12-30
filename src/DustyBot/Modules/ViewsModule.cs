@@ -143,7 +143,7 @@ namespace DustyBot.Modules
         [Command("views", "remove", "Removes a song.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("CategoryName", ParameterType.String, ParameterFlags.Optional, "specify to remove comeback in a category, omit to delete from the default category")]
-        [Parameter("SongName", ParameterType.String)]
+        [Parameter("SongName", ParameterType.String, ParameterFlags.Remainder)]
         public async Task RemoveComeback(ICommand command)
         {
             string name, category = null;

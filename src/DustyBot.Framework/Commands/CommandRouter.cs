@@ -162,7 +162,10 @@ namespace DustyBot.Framework.Commands
                     }
                     catch (Exceptions.AbortException ex)
                     {
-                        await Communicator.CommandReply(command.Message.Channel, ex.Message);
+                        if (ex.Pages != null)
+                            await Communicator.CommandReply(command.Message.Channel, ex.Pages);
+                        else
+                            await Communicator.CommandReply(command.Message.Channel, ex.Message);
                     }
                     catch (Exceptions.CommandException ex)
                     {

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DustyBot.Framework.Communication;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -61,5 +62,12 @@ namespace DustyBot.Framework.Exceptions
     {
         public AbortException(string message) : base(message) { }
         public AbortException(string message, Exception inner) : base(message, inner) { }
+
+        public AbortException(PageCollection pages) : base()
+        {
+            Pages = pages;
+        }
+
+        public PageCollection Pages { get; }
     }
 }

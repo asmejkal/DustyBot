@@ -87,7 +87,7 @@ namespace DustyBot.Framework
             await s.WaitAsync();
 
             foreach (var service in _services)
-                service.Start();
+                await service.Start();
 
             await Client.SetGameAsync(status);
 

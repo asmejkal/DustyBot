@@ -22,8 +22,8 @@ namespace DustyBot.Framework.Commands
         string Body { get; }
         string Prefix { get; }
 
-        Task<IUserMessage> ReplySuccess(ICommunicator communicator, string message, Embed embed = null);
-        Task<IUserMessage> ReplyError(ICommunicator communicator, string message);
+        Task<ICollection<IUserMessage>> ReplySuccess(ICommunicator communicator, string message, Embed embed = null);
+        Task<ICollection<IUserMessage>> ReplyError(ICommunicator communicator, string message);
         Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message);
         Task<ICollection<IUserMessage>> Reply(ICommunicator communicator, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
         Task Reply(ICommunicator communicator, PageCollection pages, bool controlledByInvoker = false, bool resend = false);

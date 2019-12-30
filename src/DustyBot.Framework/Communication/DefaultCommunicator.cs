@@ -66,55 +66,63 @@ namespace DustyBot.Framework.Communication
             Logger = logger;
         }
 
-        public async Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null) => await channel.SendMessageAsync(":white_check_mark: " + message.Sanitise(), embed: embed);
-        public async Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message) => await channel.SendMessageAsync(":no_entry: " + message.Sanitise());
+        public async Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null) 
+            => await SendMessage(channel, ":white_check_mark: " + message.Sanitise(), embed: embed);
 
-        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) => await SendMessage(channel, message);
-        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) => await SendMessage(channel, message, chunkDecorator, maxDecoratorOverhead);
-        public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false) => await SendMessage(channel, pages, messageOwner, resend);
+        public async Task<ICollection<IUserMessage>> CommandReplyError(IMessageChannel channel, string message) 
+            => await SendMessage(channel, ":no_entry: " + message.Sanitise());
 
-        public async Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null) =>
-            await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)) + " " + message ?? "");
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) 
+            => await SendMessage(channel, message);
 
-        public async Task<IUserMessage> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command) =>
-            await CommandReplyError(channel, Properties.Resources.Command_MissingBotAccess);
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) 
+            => await SendMessage(channel, message, chunkDecorator, maxDecoratorOverhead);
 
-        public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command) =>
-            await CommandReplyError(channel, Properties.Resources.Command_MissingBotPermissionsUnknown);
+        public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
+            => await SendMessage(channel, pages, messageOwner, resend);
 
-        public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) =>
-            await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null) 
+            => await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)) + " " + message ?? "");
 
-        public async Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions) =>
-            await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command) 
+            => await CommandReplyError(channel, Properties.Resources.Command_MissingBotAccess);
 
-        public async Task<IUserMessage> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command) =>
-            await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command) 
+            => await CommandReplyError(channel, Properties.Resources.Command_MissingBotPermissionsUnknown);
 
-        public async Task<IUserMessage> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) 
+            => await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
+
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions) 
+            => await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
+
+        public async Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command) 
+            => await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
+
+        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
                     .WithDescription(BuildUsageString(command, Config))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
-            return await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, showUsage ? embed.Build() : null);
+            return new[] { await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<IUserMessage> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
                     .WithDescription(BuildUsageString(command, Config))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
-            return await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null);
+            return new[] { await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<IUserMessage> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command) =>
+        public async Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_DirectMessageOnly);
 
-        public async Task<IUserMessage> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command) =>
+        public async Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_GenericFailure);
         
         public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
@@ -275,11 +283,15 @@ namespace DustyBot.Framework.Communication
             }
         }
 
-        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text)
+        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Embed embed = null)
         {
             var result = new List<IUserMessage>();
-            foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize))
-                result.Add(await channel.SendMessageAsync(chunk.ToString().Sanitise(), false, null));
+            var chunks = text.ChunkifyByLines(DiscordConfig.MaxMessageSize).ToList();
+            foreach (var chunk in chunks.SkipLast())
+                result.Add(await channel.SendMessageAsync(chunk.ToString().Sanitise()));
+
+            if (chunks.Any())
+                result.Add(await channel.SendMessageAsync(chunks.Last().ToString().Sanitise(), embed: embed));
 
             return result;
         }

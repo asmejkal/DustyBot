@@ -183,7 +183,7 @@ namespace DustyBot.Modules
                 if (poll.Anonymous)
                 {
                     await command.Message.DeleteAsync();
-                    confMessage.DeleteAfter(2);
+                    confMessage.First().DeleteAfter(2);
                 }
             }
         }

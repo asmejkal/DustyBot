@@ -111,8 +111,8 @@ namespace DustyBot.Helpers
                 var doc = new HtmlDocument();
                 doc.LoadHtml(content);
                 
-                result.Text = doc.DocumentNode.Descendants("span").FirstOrDefault(x => x.GetAttributeValue("class", "") == "txt_detail")?.ToPlainText().Trim();
-                result.ImageUrl = doc.DocumentNode.Descendants("img").FirstOrDefault(x => x.Attributes.Contains("src"))?.GetAttributeValue("src", "").Trim().Replace("C120x120", "R640x0");
+                result.Text = doc.DocumentNode.Descendants("span").FirstOrDefault(x => x.HasClass("txt_detail"))?.ToPlainText().Trim();
+                result.ImageUrl = doc.DocumentNode.Descendants("img").FirstOrDefault(x => x.HasClass("thumb_info"))?.GetAttributeValue("src", null)?.Trim().Replace("C120x120", "R640x0");
 
                 //Discord stopped embedding the scaled down links (eg. https://img1.daumcdn.net/thumb/R640x0/?fname=http://cfile277.uf.daum.net/image/99D447415BA4896424BC9D)
                 var i = result.ImageUrl?.LastIndexOf("fname=") ?? -1;

@@ -25,6 +25,7 @@ using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
 using DustyBot.Helpers;
 using DustyBot.Definitions;
+using DustyBot.Services;
 
 namespace DustyBot.Modules
 {
@@ -33,30 +34,32 @@ namespace DustyBot.Modules
     class ScheduleModule : Module
     {
         public static readonly Embed Guide = new EmbedBuilder()
-                    .WithTitle("Guide")
-                    .WithDescription("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role.")
-                    .AddField(x => x.WithName(":one: You may create more than one message").WithValue("Servers usually create one message for each month of schedule or one for every two-weeks etc. You can even maintain multiple different schedules."))
-                    .AddField(x => x.WithName(":two: Where to place the schedule").WithValue("Usually, servers place their schedule messages in a #schedule channel or pin them in main chat or #updates."))
-                    .AddField(x => x.WithName(":three: The \"schedule\" command").WithValue("The `schedule` command is for convenience. Users can use it to see events happening in the next two weeks across all schedules, with countdowns."))
-                    .AddField(x => x.WithName(":four: Adding events").WithValue("Use the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter."))
-                    .Build();
+            .WithTitle("Guide")
+            .WithDescription("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role.")
+            .AddField(x => x.WithName(":one: You may create more than one message").WithValue("Servers usually create one message for each month of schedule or one for every two-weeks etc. You can even maintain multiple different schedules."))
+            .AddField(x => x.WithName(":two: Where to place the schedule").WithValue("Usually, servers place their schedule messages in a #schedule channel or pin them in main chat or #updates."))
+            .AddField(x => x.WithName(":three: The \"schedule\" command").WithValue("The `schedule` command is for convenience. Users can use it to see events happening in the next two weeks across all schedules, with countdowns."))
+            .AddField(x => x.WithName(":four: Adding events").WithValue("Use the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter."))
+            .Build();
 
         const string DateRegex = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
         const string TimeRegex = @"^(?:([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?)$";
         static readonly string[] MonthFormats = new string[] { "MMMM", "MMM", "%M" };
         static readonly string[] DateFormats = new string[] { "yyyy/M/d", "M/d" };
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
-        public IDiscordClient Client { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
+        public IDiscordClient Client { get; }
+        public IScheduleService Service { get; }
 
-        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IDiscordClient client)
+        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IDiscordClient client, IScheduleService service)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             Client = client;
+            Service = service;
         }
 
         [Command("schedule", "help", "Shows a usage guide.", CommandFlags.Hidden)]
@@ -77,7 +80,7 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "Shows upcoming events.")]
-        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "use to display only events with this tag; displays all events if omitted")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "use to display events with this tag; type `all` to view all events")]
         public async Task Schedule(ICommand command)
         {
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
@@ -88,20 +91,20 @@ namespace DustyBot.Modules
             }
 
             var currentTime = DateTime.UtcNow.Add(settings.TimezoneOffset);
-
-            var events = settings.Events
-                .Where(x => command["Tag"].HasValue ? string.Compare(x.Tag, command["Tag"], true) == 0 : true)
-                .SkipWhile(x => x.Date < currentTime.AddHours(-2))
+            var tag = command["Tag"].HasValue ? command["Tag"].AsString : null;
+            var all = settings.Events.SkipWhile(x => x.Date < currentTime.AddHours(-2));
+            var events = all
+                .Where(x => x.FitsTag(tag))
                 .Take(settings.UpcomingEventsDisplayLimit + 1)
                 .ToList();
 
-            bool truncateWarning = events.Count > settings.UpcomingEventsDisplayLimit;
+            bool truncateWarning = events.Count() > settings.UpcomingEventsDisplayLimit;
             if (truncateWarning)
                 events = events.SkipLast().ToList();
 
-            if (events.Count <= 0)
+            if (events.Count() <= 0)
             {
-                await command.Reply(Communicator, command["Tag"].HasValue ? $"No upcoming events with tag `{command["Tag"]}`." : "No upcoming events.").ConfigureAwait(false);
+                await command.Reply(Communicator, $"No upcoming events{(tag != null ? $" with tag `{tag}`" : "")}.{(all.Any() ? " There are upcoming events with other tags; `schedule all` will display all events regardless of tags." : "")}").ConfigureAwait(false);
                 return;
             }
 
@@ -154,7 +157,7 @@ namespace DustyBot.Modules
         [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
         [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the [support server](" + HelpBuilder.SupportServerInvite + ") or contact the bot owner.")]
         [Example("KoreanDate")]
-        public async Task ScheduleSetStyle(ICommand command)
+        public async Task SetScheduleStyle(ICommand command)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
@@ -166,17 +169,72 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Schedule display style has been set to `{format}`. {result}").ConfigureAwait(false);
         }
 
-        [Command("schedule", "set", "role", "Sets an optional role that allows users to edit the schedule.")]
+        [Command("schedule", "set", "manager", "Sets an optional role that allows users to edit the schedule.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Optional | ParameterFlags.Remainder)]
         [Comment("Users with this role will be able to edit the schedule, in addition to users with the Manage Messages privilege.\n\nUse without parameters to disable.")]
-        public async Task ScheduleRole(ICommand command)
+        public async Task SetScheduleRole(ICommand command)
         {
-            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default(ulong)).ConfigureAwait(false);
+            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default).ConfigureAwait(false);
             if (r == default)
                 await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.").ConfigureAwait(false);
             else
                 await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "set", "notifications", "Sets a channel for event notifications.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to setup notifications for tagged events; use `all` to notify for all events, regardless of tags")]
+        [Parameter("Channel", ParameterType.TextChannel, "a channel the notifications will be posted to")]
+        [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Optional | ParameterFlags.Remainder, "use to ping a specific role with the notifications")]
+        [Comment("Only one notification setting can be active per tag.")]
+        public async Task SetScheduleNotifications(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
+            if ((!command["RoleNameOrID"].AsRole?.IsMentionable) ?? false)
+            {
+                await command.ReplyError(Communicator, $"This role can't be pinged. Please adjust the role permissions in your server and try again.");
+                return;
+            }
+
+            var tag = command["Tag"].HasValue ? command["Tag"].AsString : null;
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => 
+            {
+                s.Notifications.RemoveAll(x => ScheduleSettings.CompareTag(x.Tag, tag, ignoreAllTag: true));
+                s.Notifications.Add(new NotificationSetting()
+                {
+                    Tag = tag,
+                    Channel = command["Channel"].AsTextChannel.Id,
+                    Role = command["RoleNameOrID"].AsRole?.Id ?? default
+                });
+            }).ConfigureAwait(false);
+
+            await command.ReplySuccess(Communicator, $"Notified events {BuildTagString(tag)} will now be posted in {command["Channel"].AsTextChannel.Mention}{(command["RoleNameOrId"].HasValue ? $" and ping the {command["RoleNameOrId"].AsRole.Name} role" : "")}.").ConfigureAwait(false);
+        }
+
+        [Command("schedule", "reset", "notifications", "Resets event notifications.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "reset notifications for events with this tag; omit to reset notifications for untagged events")]
+        public async Task ResetScheduleNotifications(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var tag = command["Tag"].HasValue ? command["Tag"].AsString : null;
+            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>s.Notifications.RemoveAll(x => ScheduleSettings.CompareTag(x.Tag, tag, ignoreAllTag: true))).ConfigureAwait(false);
+            if (r <= 0)
+            {
+                await command.ReplyError(Communicator, $"There's no notification settings for this tag.").ConfigureAwait(false);
+                return;
+            }
+
+            await command.ReplySuccess(Communicator, $"Events {BuildTagString(tag)} will no longer be notified.").ConfigureAwait(false);
         }
 
         [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
@@ -240,38 +298,72 @@ namespace DustyBot.Modules
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
         [Comment("The default timezone is KST (can be changed with `schedule set timezone`).")]
         [Example("07/23 08:45 Concert")]
         [Example("07/23 Fansign")]
         [Example("2019/01/23 Festival")]
+        [Example("03/22 https://channels.vlive.tv/fcd4b V Live broadcast")]
         [Example("birthday 02/21 00:00 Solar's birthday")]
         public async Task AddEvent(ICommand command)
         {
+            var (e, message) = await AddEventInner(command);
+
+            var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
+            await command.ReplySuccess(Communicator, message + $" {result}");
+        }
+
+        [Command("event", "notify", "Adds a notified event to schedule.")]
+        [Alias("events", "notify")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
+        [Parameter("Date", DateRegex, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
+        [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
+        [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable")]
+        [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
+        [Comment("Events added with this command are the same as with `event add`, but will get announced when they begin in the channel set by `schedule set notifications`. \nThe default timezone is KST (can be changed with `schedule set timezone`).")]
+        [Example("07/23 08:45 Concert")]
+        [Example("07/23 Fansign")]
+        [Example("2019/01/23 Festival")]
+        [Example("03/22 https://channels.vlive.tv/fcd4b V Live broadcast")]
+        [Example("birthday 02/21 00:00 Solar's birthday")]
+        public async Task AddNotificationEvent(ICommand command)
+        {
+            var (e, message) = await AddEventInner(command, true);
+
+            var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
+            await command.ReplySuccess(Communicator, message + $" {result}");
+        }
+
+        private async Task<(ScheduleEvent Event, string Message)> AddEventInner(ICommand command, bool notify = false)
+        {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            if (command["Tag"] == ScheduleCalendar.AllTag)
-            {
-                await command.ReplyError(Communicator, "This tag is reserved, please pick a different one.");
-                return;
-            }
+            if (command["Tag"].HasValue && (string.Compare(command["Tag"], ScheduleSettings.AllTag) == 0 || string.Compare(command["Tag"], "notify") == 0))
+                throw new CommandException("This tag is reserved, please pick a different one.");
 
             ScheduleEvent e;
             try
             {
-                //Parse datetime
+                // Parse datetime
                 var dateTime = DateTime.ParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None);
                 bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
                 if (hasTime)
                     dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
 
-                //Create event
+                if (notify && !hasTime)
+                    throw new CommandException("Notified events must have time specififed. Use `event add` to add events with unknown time.");
+
+                // Create event
+                var link = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
                 e = new ScheduleEvent
                 {
                     Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
                     Date = dateTime,
                     HasTime = hasTime,
-                    Description = command["Description"]
+                    Description = link.HasValue ? link.Value.Text : command["Description"],
+                    Link = command["Link"].HasValue ? command["Link"].AsString : link?.Uri.AbsoluteUri,
+                    Notify = notify
                 };
             }
             catch (FormatException)
@@ -282,14 +374,20 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(e.Description))
                 throw new IncorrectParametersCommandException("Description is required.");
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            var settings = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
+                if (e.Notify && !s.Notifications.Any(x => e.FitsTag(x.Tag)))
+                    throw new AbortException("Please first set up a channel which will receive the notifications for this tag with `schedule set notifications`.");
+
                 e.Id = s.NextEventId++;
                 s.Events.Add(e);
+                return s;
             });
 
-            var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
-            await command.ReplySuccess(Communicator, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $" has been added with ID `{e.Id}`" + (e.HasTag ? $" and tag `{e.Tag}`" : string.Empty) + $". {result}").ConfigureAwait(false);
+            if (e.Notify)
+                await Service.RefreshNotifications(command.GuildId, settings);
+
+            return (e, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $" has been added with ID `{e.Id}`" + (e.HasTag ? $" and tag `{e.Tag}`" : string.Empty) + ".");
         }
 
         [Command("event", "remove", "Removes an event from schedule, by ID or search.")]
@@ -299,28 +397,37 @@ namespace DustyBot.Modules
         [Example("Osaka concert")]
         public async Task RemoveEvent(ICommand command)
         {
+            var (e, message) = await RemoveEventInner(command);
+
+            var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
+            await command.ReplySuccess(Communicator, message + $" {result}");
+        }
+
+        private async Task<(ScheduleEvent Event, string Message)> RemoveEventInner(ICommand command)
+        {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
             if (command["IdOrSearchString"].AsInt.HasValue)
             {
-                var e = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+                var (e, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
                 {
-                    var i = s.Events.FindIndex(x => x.Id == (int)command["IdOrSearchString"]);
+                    var id = command["IdOrSearchString"].AsInt;
+                    var i = s.Events.FindIndex(x => x.Id == id);
                     if (i < 0)
-                        return null;
+                        throw new CommandException($"Cannot find an event with ID `{id}`.");
 
                     var removed = s.Events[i];
                     s.Events.RemoveAt(i);
-                    return removed;
+                    return (removed, s);
                 });
 
-                if (e != null)
-                {
-                    var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
-                    await command.ReplySuccess(Communicator, $"Event `{e.Description}` has been removed. {result}").ConfigureAwait(false);
-                }
-                else
-                    await command.ReplyError(Communicator, $"Cannot find an event with ID `{command["IdOrSearchString"].AsInt}`.").ConfigureAwait(false);
+                if (e == null)
+                    throw new CommandException($"Can't find an event with ID `{command["IdOrSearchString"].AsInt}`.");
+
+                if (e.Notify)
+                    await Service.RefreshNotifications(command.GuildId, settings);
+
+                return (e, $"Event `{e.Description}` has been removed.");    
             }
             else
             {
@@ -331,37 +438,38 @@ namespace DustyBot.Modules
                 {
                     //Multiple results
                     var pages = BuildEventList(settings, "Multiple matches", events, footer: "Please pick one event and run the command again with its ID number.");
-                    await command.Reply(Communicator, pages);
+                    throw new AbortException(pages);
                 }
                 else if (events.Count() == 1)
                 {
-                    var e = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+                    var e = events.First();
+                    await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
                     {
-                        var i = s.Events.FindIndex(x => x.Id == events.First().Id);
-                        if (i < 0)
-                            return null;
-
-                        var removed = s.Events[i];
-                        s.Events.RemoveAt(i);
-                        return removed;
+                        var i = s.Events.FindIndex(x => x.Id == e.Id);
+                        if (i >= 0)
+                        {
+                            var removed = s.Events[i];
+                            s.Events.RemoveAt(i);
+                        }
                     });
 
-                    if (e != null)
-                    {
-                        var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
-                        await command.ReplySuccess(Communicator, $"Event `{e.Description}` with ID `{e.Id}` has been removed. {result}").ConfigureAwait(false);
-                    }
+                    if (e.Notify)
+                        await Service.RefreshNotifications(command.GuildId, settings);
+
+                    return (events.First(), $"Event `{e.Description}` with ID `{e.Id}` has been removed.");
                 }
                 else
-                    await command.Reply(Communicator, $"No events found containing `{searchString}` in their description.");
+                    throw new AbortException($"No events found containing `{searchString}` in their description.");
             }
         }
 
         [Command("event", "edit", "Edits an event in schedule.")]
         [Alias("events", "edit")]
         [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it shows when an event is added or with `event search`")]
+        [Parameter("Notification", @"^(?:notify|silence)$", ParameterFlags.Optional, "enter `notify` to make this a notified event or `silence` to make it a regular event")]
         [Parameter("Date", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
+        [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
         [Comment("All parameters are optional – you can specify just the parts you wish to be edited (date, time, and/or description). The parts you leave out will stay the same.")]
         [Example("5 08:45")]
@@ -369,12 +477,22 @@ namespace DustyBot.Modules
         [Example("25 22:00 Festival")]
         public async Task EditEvent(ICommand command)
         {
+            var (origDate, e, message) = await EditEventInner(command);
+
+            var result = await RefreshCalendars(command.Guild, new[] { origDate, e.Date }, e.Tag);
+            await command.ReplySuccess(Communicator, message + $" {result}");
+        }
+
+        private async Task<(DateTime OrigDate, ScheduleEvent Event, string Message)> EditEventInner(ICommand command)
+        {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
             DateTime? date = null;
             TimeSpan? time = null;
             bool? hasTime = null;
             string description = null;
+            string link = null;
+            bool? notify = null;
             try
             {
                 if (command["Date"].HasValue)
@@ -383,22 +501,32 @@ namespace DustyBot.Modules
                 if (command["Time"].HasValue)
                 {
                     hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-                    if ((bool)hasTime)
+                    if (hasTime.Value)
                         time = new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0);
                 }
-
-                if (command["Description"].HasValue)
-                    description = command["Description"];
             }
             catch (FormatException)
             {
                 throw new IncorrectParametersCommandException("Invalid date.", false);
             }
 
+            if (command["Description"].HasValue)
+            {
+                var markdownLink = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
+                description = markdownLink.HasValue ? markdownLink.Value.Text : command["Description"];
+                link = markdownLink?.Uri.AbsoluteUri;
+            }
+
+            if (command["Link"].HasValue)
+                link = command["Link"];
+
             if (description != null && string.IsNullOrWhiteSpace(description))
                 throw new IncorrectParametersCommandException("Description cannot be empty.");
 
-            var (edited, origDate, newDate) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            if (command["Notification"].HasValue)
+                notify = string.Compare(command["Notification"], "notify", true, GlobalDefinitions.Culture) == 0;
+
+            var (settings, edited, originalDate, wasNotify) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
                 var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
                 if (i < 0)
@@ -407,7 +535,7 @@ namespace DustyBot.Modules
                 var e = s.Events[i];
                 s.Events.RemoveAt(i);
 
-                var orig = e.Date;
+                var backup = (originalDate: e.Date, wasNotify: e.Notify);
                 if (date.HasValue)
                     e.Date = date.Value.Date + e.Date.TimeOfDay;
 
@@ -420,12 +548,26 @@ namespace DustyBot.Modules
                 if (!string.IsNullOrWhiteSpace(description))
                     e.Description = description;
 
+                if (!string.IsNullOrWhiteSpace(link))
+                    e.Link = link;
+
+                if (notify.HasValue)
+                    e.Notify = notify.Value;
+
+                if (!e.HasTime && e.Notify)
+                    throw new CommandException("Notified events must have time specififed.");
+
+                if (e.Notify && !s.Notifications.Any(x => e.FitsTag(x.Tag)))
+                    throw new AbortException("Please first set up a channel which will receive the notifications for this tag with `schedule set notifications`.");
+
                 s.Events.Add(e); //Have to remove and re-add to sort properly
-                return (e, orig, e.Date);
+                return (s, e, backup.originalDate, backup.wasNotify);
             });
 
-            var result = await RefreshCalendars(command.Guild, new[] { origDate, newDate }, edited.Tag);
-            await command.ReplySuccess(Communicator, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $". {result}").ConfigureAwait(false);
+            if (edited.Notify || wasNotify)
+                await Service.RefreshNotifications(command.GuildId, settings);
+
+            return (originalDate, edited, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $".");
         }
 
         [Command("event", "batch", "Perform multiple event add/remove/edit operations at once.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
@@ -435,13 +577,13 @@ namespace DustyBot.Modules
         [Example("\nadd 07/23 08:45 Concert\nremove 4th anniversary celebration\nedit 4 8:15\nadd birthday 02/21 00:00 Solar's birthday")]
         public async Task BatchEvent(ICommand command)
         {
-            //TODO: hacky and inefficient
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
             var config = await Settings.ReadGlobal<BotConfig>();
             var allowedCommands = new List<CommandRegistration>()
             {
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add"),
+                HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event notify"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event remove"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event edit")
             };
@@ -449,6 +591,8 @@ namespace DustyBot.Modules
             using (var reader = new StringReader(command["Batch"]))
             {
                 var lineNum = 0;
+                var message = new StringBuilder();
+                var updates = new Dictionary<NullObject<string>, HashSet<DateTime>>();
                 try
                 {
                     string line;
@@ -474,18 +618,66 @@ namespace DustyBot.Modules
                             throw new IncorrectParametersCommandException();
 
                         var partialCommand = parseResult.Item2;
+                        IEnumerable<DateTime> updateDates;
+                        string updateTag;
+                        var verbs = partialCommandRegistration.PrimaryUsage.Verbs;
+                        if (verbs.First() == "add")
+                        {
+                            var (e, partialMessage) = await AddEventInner(partialCommand, false);
+                            message.AppendLine(partialMessage);
+                            updateDates = new[] { e.Date };
+                            updateTag = e.Tag;
+                        }
+                        else if (verbs.First() == "notify")
+                        {
+                            var (e, partialMessage) = await AddEventInner(partialCommand, true);
+                            message.AppendLine(partialMessage);
+                            updateDates = new[] { e.Date };
+                            updateTag = e.Tag;
+                        }
+                        else if (verbs.First() == "remove")
+                        {
+                            var (e, partialMessage) = await RemoveEventInner(partialCommand);
+                            message.AppendLine(partialMessage);
+                            updateDates = new[] { e.Date };
+                            updateTag = e.Tag;
+                        }
+                        else if (verbs.First() == "edit")
+                        {
+                            var (origDate, e, partialMessage) = await EditEventInner(partialCommand);
+                            message.AppendLine(partialMessage);
+                            updateDates = new[] { origDate, e.Date };
+                            updateTag = e.Tag;
+                        }
+                        else
+                            throw new InvalidOperationException($"Unexpected command verb '{partialCommandRegistration.PrimaryUsage.Verbs.First()}'");
 
-                        await partialCommandRegistration.Handler(partialCommand);
+                        if (!updates.TryGetValue(updateTag, out var dates))
+                            updates.Add(updateTag, dates = new HashSet<DateTime>());
+
+                        dates.UnionWith(updateDates);
                     }
                 }
                 catch (Exception)
                 {
-                    await command.Reply(Communicator, $"An error encountered on line {lineNum}:");
+                    // Update calendars for the operations that went through and report the error
+                    var partialResult = new RefreshResult();
+                    foreach (var (tag, dates) in updates)
+                        partialResult.Merge(await RefreshCalendars(command.Guild, dates, tag.Item));
+
+                    message.AppendLine(partialResult.ToString());
+                    message.AppendLine($"An error encountered on line {lineNum}:");
+                    await command.ReplyError(Communicator, "Batch finished with errors:\n" + message.ToString());
                     throw;
                 }
-            }
 
-            await command.ReplySuccess(Communicator, $"Batch finished!").ConfigureAwait(false);
+                var result = new RefreshResult();
+                foreach (var (tag, dates) in updates)
+                    result.Merge(await RefreshCalendars(command.Guild, dates, tag.Item));
+
+                message.AppendLine(result.ToString());
+                await command.ReplySuccess(Communicator, "Batch finished:\n" + message.ToString());
+            }
         }
 
         [Command("event", "search", "Searches for events and shows their IDs.", CommandFlags.RunAsync)]
@@ -515,8 +707,7 @@ namespace DustyBot.Modules
         [Example("Mar 2019")]
         public async Task ListEvents(ICommand command)
         {
-            DateTime month;
-            if (!DateTime.TryParseExact(command["Month"], MonthFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out month))
+            if (!DateTime.TryParseExact(command["Month"], MonthFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out var month))
                 throw new IncorrectParametersCommandException("Unrecognizable month name.");
 
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
@@ -532,8 +723,6 @@ namespace DustyBot.Modules
 
             await command.Reply(Communicator, pages);
         }
-
-        
 
         [Command("calendar", "create", "Creates a permanent message to display events.")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
@@ -597,8 +786,7 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            DateTime month;
-            if (!DateTime.TryParseExact(command["Month"], MonthFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out month))
+            if (!DateTime.TryParseExact(command["Month"], MonthFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out var month))
                 throw new IncorrectParametersCommandException("Unrecognizable month name.");
 
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId);
@@ -744,8 +932,7 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            DateTime month;
-            if (!DateTime.TryParseExact(command["Month"], MonthFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out month))
+            if (!DateTime.TryParseExact(command["Month"], MonthFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out var month))
                 throw new IncorrectParametersCommandException("Unrecognizable month name.");
 
             var (calendar, settings) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
@@ -1167,13 +1354,13 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(calendar.Title))
             {
                 if (calendar is RangeScheduleCalendar rangeCalendar && rangeCalendar.IsMonthCalendar)
-                    return $"📅 {rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)} schedule";
+                    return $"{rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)} schedule";
                 else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
-                    return "📅 Upcoming events";
+                    return "Upcoming events";
                 else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)
-                    return "📅 This week's schedule";
+                    return "This week's schedule";
                 else
-                    return "📅 Schedule";
+                    return "Schedule";
             }
             else
                 return calendar.Title;
@@ -1338,7 +1525,7 @@ namespace DustyBot.Modules
 
             foreach (var e in events)
             {
-                var line = FormatEvent(e, settings.EventFormat, showId: true, showTag: true);
+                var line = FormatEvent(e, settings.EventFormat, showId: true, showTag: true, showNotify: true);
                 if (result.Length + line.Length + Environment.NewLine.Length > EmbedBuilder.MaxDescriptionLength)
                 {
                     pages.Add(embedBuilder(result.ToString()));
@@ -1372,7 +1559,7 @@ namespace DustyBot.Modules
 
         static string BuildCalendarSpanString(RangeScheduleCalendar calendar)
             => $"from `{calendar.BeginDate.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`{(calendar.HasEndDate ? $" to `{calendar.EndDate.AddDays(-1).ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" : string.Empty)} (inclusive)";
-        
+
         private string BuildCalendarTagString(ScheduleCalendar calendar, string prefix = "")
         {
             if (!string.IsNullOrEmpty(prefix))
@@ -1386,7 +1573,17 @@ namespace DustyBot.Modules
                 return string.Empty;
         }
 
-        public static string FormatEvent(ScheduleEvent e, EventFormat format, bool showId = false, bool showTag = false)
+        private string BuildTagString(string tag)
+        {
+            if (ScheduleSettings.IsAllTag(tag))
+                return $"with any tag";
+            else if (!ScheduleSettings.IsDefaultTag(tag))
+                return $"marked with tag `{tag}`";
+            else
+                return "without tags";
+        }
+
+        public static string FormatEvent(ScheduleEvent e, EventFormat format, bool showId = false, bool showTag = false, bool showNotify = false)
         {
             var result = new StringBuilder();
             if (showId)
@@ -1402,7 +1599,11 @@ namespace DustyBot.Modules
             if (showTag && e.HasTag)
                 result.Append($"`{e.Tag}` ");
 
-            result.Append(e.Description);
+            result.Append(e.HasLink ? DiscordHelpers.BuildMarkdownUri(e.Description, e.Link) : e.Description);
+
+            if (showNotify && e.Notify)
+                result.Append(" 🔔");
+
             return result.ToString();
         }
 
@@ -1410,7 +1611,7 @@ namespace DustyBot.Modules
         {
             var result = new StringBuilder();
             result.Append(e.HasTime ? e.Date.ToString(@"`HH:mm` ", GlobalDefinitions.Culture) : @"`??:??` ");
-            result.Append(e.Description);
+            result.Append(e.HasLink ? DiscordHelpers.BuildMarkdownUri(e.Description, e.Link) : e.Description);
             return result.ToString();
         }
 

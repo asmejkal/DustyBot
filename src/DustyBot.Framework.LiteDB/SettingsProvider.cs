@@ -24,7 +24,7 @@ namespace DustyBot.Framework.LiteDB
 
         public SettingsProvider(string dbPath, Migrator migrator, string password = null)
         {
-            _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password};Utc=True"));
+            _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password}"));
             migrator.MigrateCurrent(_dbObject);
         }
 
@@ -92,10 +92,10 @@ namespace DustyBot.Framework.LiteDB
             return Task.FromResult(s);
         }
 
-        public async Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
+        public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
             where T : IServerSettings, new()
         {
-            return await SafeGetDocument(x => x.ServerId == serverId, _serverSettingsLocks, Tuple.Create(typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
+            return SafeGetDocument(x => x.ServerId == serverId, _serverSettingsLocks, Tuple.Create(typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
         }
 
         public Task<IEnumerable<T>> Read<T>() 

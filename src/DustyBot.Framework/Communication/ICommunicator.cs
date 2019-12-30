@@ -23,26 +23,26 @@ namespace DustyBot.Framework.Communication
 
     public interface ICommunicator
     {
-        Task<IUserMessage> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null);
-        Task<IUserMessage> CommandReplyError(IMessageChannel channel, string message);
+        Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null);
+        Task<ICollection<IUserMessage>> CommandReplyError(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
         Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false);
 
         Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false);
-        Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text);
+        Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Embed embed = null);
         Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
         //Reactions to framework events
-        Task<IUserMessage> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null);
-        Task<IUserMessage> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions);
-        Task<IUserMessage> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions);
-        Task<IUserMessage> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<IUserMessage> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true);
-        Task<IUserMessage> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true);
-        Task<IUserMessage> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<IUserMessage> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions);
+        Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true);
+        Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true);
+        Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command);
     }
 }

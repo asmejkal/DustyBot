@@ -317,12 +317,15 @@ namespace DustyBot.Modules
                     second = (await artists.second)
                 };
 
-                var onlyFirst = artistsResults.first.Where(x => !artistsResults.second.Any(y => x.Id.Equals(y.Id) && y.Score > 0.005) && x.Score > 0.01).Take(3).ToList();
+                bool TheyListenTo(LfScore<LfArtist> x) => x.Score > 0.005 || x.Playcount > 20;
+                bool YouListenTo(LfScore<LfArtist> x) => x.Score > 0.01 || x.Playcount > 20;
+
+                var onlyFirst = artistsResults.first.Where(x => !artistsResults.second.Any(y => x.Id.Equals(y.Id) && TheyListenTo(y)) && YouListenTo(x)).Take(3).ToList();
                 embed.AddField(x => x
                     .WithName($"Only you listen to these artists:")
                     .WithValue(onlyFirst.Any() ? onlyFirst.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin() : noData));
 
-                var onlySecond = artistsResults.second.Where(x => !artistsResults.first.Any(y => x.Id.Equals(y.Id) && y.Score > 0.005) && x.Score > 0.01).Take(3).ToList();
+                var onlySecond = artistsResults.second.Where(x => !artistsResults.first.Any(y => x.Id.Equals(y.Id) && TheyListenTo(y)) && YouListenTo(x)).Take(3).ToList();
                 embed.AddField(x => x
                     .WithName($"And only they listen to these:")
                     .WithValue(onlySecond.Any() ? onlySecond.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin() : noData));

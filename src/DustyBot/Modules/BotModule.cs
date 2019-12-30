@@ -88,7 +88,7 @@ namespace DustyBot.Modules
 
             var embed = new EmbedBuilder()
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
-                .AddField("Author", "Yebafan#3517", true)
+                .AddField("Author", "Yeba#3517", true)
                 .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
                 .AddField("Presence", $"{users.Count} users\n{guilds.Count} servers", true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)

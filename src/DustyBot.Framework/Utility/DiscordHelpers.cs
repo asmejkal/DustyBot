@@ -13,6 +13,10 @@ namespace DustyBot.Framework.Utility
     {
         public const int MaxEmbedFieldLength = 1024;
 
+        private static readonly Regex MarkdownUriRegex = new Regex(@"^\[(.+)\]\((.+)\)$", RegexOptions.Compiled);
+        private static readonly Regex MarkdownQuoteRegex = new Regex(@"^> ", RegexOptions.Multiline | RegexOptions.Compiled);
+        private static readonly IEnumerable<char> MarkdownCharacters = new[] { '*', '_', '~', '`', '[', ']', '(', ')' };
+
         public static async Task EnsureBotPermissions(IGuild guild, params GuildPermission[] perms)
         {
             var user = await guild.GetCurrentUserAsync();
@@ -116,5 +120,30 @@ namespace DustyBot.Framework.Utility
         public static string SanitiseMarkdownUri(this string uri) => uri?.Replace(")", "%29");
 
         public static Uri SanitiseMarkdownUri(this Uri uri) => new Uri(uri.AbsoluteUri.SanitiseMarkdownUri());
+
+        public static string EscapeMarkdown(this string text)
+        {
+            var result = new StringBuilder(text);
+            foreach (var c in text)
+            {
+                if (MarkdownCharacters.Contains(c))
+                    result.Append('\\');
+
+                result.Append(c);
+            }
+
+            return MarkdownQuoteRegex.Replace(result.ToString(), @"\> ");
+        }
+
+        public static (string Text, Uri Uri)? TryParseMarkdownUri(string text)
+        {
+            var match = MarkdownUriRegex.Match(text);
+            if (match.Success && Uri.TryCreate(match.Groups[2].Value, UriKind.Absolute, out var uri))
+                return (match.Groups[1].Value, uri);
+
+            return null;
+        }
+
+        public static string TrimLinkBraces(string link) => link.Trim('<', '>');
     }
 }

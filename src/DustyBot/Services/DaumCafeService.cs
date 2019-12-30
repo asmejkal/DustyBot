@@ -17,14 +17,15 @@ namespace DustyBot.Services
     {
         public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(1);
 
-        System.Threading.Timer _timer;
+        private System.Threading.Timer _timer;
 
         public ISettingsProvider Settings { get; private set; }
         public DiscordSocketClient Client { get; private set; }
         public ILogger Logger { get; private set; }
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(5);
-        bool _updating = false;
+        private bool Updating { get; set; }
+        private object UpdatingLock = new object();
 
         Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
 
@@ -35,9 +36,10 @@ namespace DustyBot.Services
             Logger = logger;
         }
 
-        public void Start()
+        public Task Start()
         {
-            _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
+            _timer = new System.Threading.Timer(OnUpdate, null, 2000, (int)UpdateFrequency.TotalMilliseconds);
+            return Task.CompletedTask;
         }
 
         public void Stop()
@@ -50,10 +52,13 @@ namespace DustyBot.Services
         {
             TaskHelper.FireForget(async () =>
             {
-                if (_updating)
-                    return; //Skip if the previous update is still running
+                lock (UpdatingLock)
+                {
+                    if (Updating)
+                        return; // Skip if the previous update is still running
 
-                _updating = true;
+                    Updating = true;
+                }
 
                 try
                 {
@@ -81,7 +86,7 @@ namespace DustyBot.Services
                 }
                 finally
                 {
-                    _updating = false;
+                    Updating = false;
                 }
             });            
         }

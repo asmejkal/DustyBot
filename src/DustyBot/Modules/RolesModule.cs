@@ -454,8 +454,8 @@ namespace DustyBot.Modules
                 if (user.IsBot)
                     return;
 
-                var settings = await Settings.Read<RolesSettings>(channel.GuildId).ConfigureAwait(false);
-                if (channel.Id != settings.RoleChannel)
+                var settings = await Settings.Read<RolesSettings>(channel.GuildId, false).ConfigureAwait(false);
+                if (settings == null || settings.RoleChannel != channel.Id)
                     return;
 
                 try
@@ -502,7 +502,7 @@ namespace DustyBot.Modules
                     {
                         var response = await Communicator.CommandReplyError(message.Channel, "This is not a self-assignable role.").ConfigureAwait(false);
                         if (settings.ClearRoleChannel)
-                            response.DeleteAfter(3);
+                            response.First().DeleteAfter(3);
 
                         return;
                     }

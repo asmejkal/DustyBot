@@ -140,7 +140,7 @@ namespace DustyBot.Framework.Commands
         public decimal? AsDecimal => TryConvert<decimal>(this, ParameterType.Decimal, decimal.TryParse);
         public bool? AsBool => TryConvert<bool>(this, ParameterType.Bool, bool.TryParse);
         public string AsString => Raw;
-        public Uri AsUri => TryConvert<Uri>(this, ParameterType.Uri, x => new Uri(x));
+        public Uri AsUri => TryConvert<Uri>(this, ParameterType.Uri, x => new Uri(DiscordHelpers.TrimLinkBraces(x)));
         public Guid? AsGuid => TryConvert<Guid>(this, ParameterType.Guid, Guid.TryParse);
         public Match AsRegex => TryConvert<Match>(this, ParameterType.Regex, x => Regex?.Match(x));
         public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
