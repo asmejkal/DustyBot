@@ -49,10 +49,10 @@ namespace DustyBot.Modules
             var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
             var avatar = user.GetAvatarUrl(size: 2048) ?? user.GetDefaultAvatarUrl();
             var embed = new EmbedBuilder()
-                .WithTitle($"{user.Nickname} – {user.Username}#{user.Discriminator}")
+                .WithTitle((string.IsNullOrEmpty(user.Nickname) ? "" : $"{user.Nickname} – ") + $"{user.Username}#{user.Discriminator}")
                 .WithUrl(avatar)
                 .WithThumbnailUrl(avatar)
-                .WithDescription(user.Status + (user.Activity != null ? $", {user.Activity}" : ""))
+                .WithDescription(user.Status.ToString())
                 .WithFooter($"#{user.Id} • times in UTC");
 
             if (user.JoinedAt.HasValue)
