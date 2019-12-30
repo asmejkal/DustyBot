@@ -62,8 +62,23 @@ namespace DustyBot.Modules
                 throw new IncorrectParametersCommandException(string.Empty);
 
             var channelId = command["Channel"].AsTextChannel?.Id ?? command.Message.Channel.Id;
+            var anonymous = command["anonymous"].HasValue;
+            var channel = await command.Guild.GetTextChannelAsync(channelId);
 
-            var poll = new Poll { Channel = channelId, Anonymous = command["anonymous"].HasValue, Question = command["Question"] };
+            var permissions = (await command.Guild.GetCurrentUserAsync()).GetPermissions(channel);
+            if (!permissions.SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
+            if (anonymous && !permissions.ManageMessages)
+            {
+                await command.ReplyError(Communicator, $"The poll is anonymous but the bot can't delete messages in this channel. Please set the correct guild or channel permissions (Manage Messages).");
+                return;
+            }
+
+            var poll = new Poll { Channel = channelId, Anonymous = anonymous, Question = command["Question"] };
             poll.Answers.Add(command["Answer1"]);
             poll.Answers.Add(command["Answer2"]);
             poll.Answers.AddRange(command["MoreAnswers"].Repeats.Select(x => x.AsString));
@@ -91,8 +106,8 @@ namespace DustyBot.Modules
                 .WithTitle(poll.Question)
                 .WithDescription(description)
                 .WithFooter("You may vote again to change your answer");
-            
-            await (await command.Guild.GetTextChannelAsync(channelId)).SendMessageAsync(string.Empty, false, embed.Build());
+
+            await channel.SendMessageAsync(string.Empty, false, embed.Build());
 
             //Add to settings
             bool added = await Settings.Modify(command.GuildId, (PollSettings s) =>
