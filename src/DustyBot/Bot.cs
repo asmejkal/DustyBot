@@ -166,6 +166,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.InfoModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services

@@ -132,7 +132,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
         }
 
-        [Command("server", "Shows information about a server.", CommandFlags.OwnerOnly)]
+        [Command("server", "global", "Shows information about a server.", CommandFlags.OwnerOnly)]
         [Parameter("ServerNameOrId", ParameterType.String, ParameterFlags.Remainder, "Id or name of a server")]
         public async Task ServerInfo(ICommand command)
         {
