@@ -317,8 +317,8 @@ namespace DustyBot.Modules
                     second = (await artists.second)
                 };
 
-                bool TheyListenTo(LfScore<LfArtist> x) => x.Score > 0.005 || x.Playcount > 20;
-                bool YouListenTo(LfScore<LfArtist> x) => x.Score > 0.01 || x.Playcount > 20;
+                bool TheyListenTo(LfScore<LfArtist> x) => x.Score > 0.005 || x.Playcount > 10;
+                bool YouListenTo(LfScore<LfArtist> x) => x.Score > 0.01 || x.Playcount > 10;
 
                 var onlyFirst = artistsResults.first.Where(x => !artistsResults.second.Any(y => x.Id.Equals(y.Id) && TheyListenTo(y)) && YouListenTo(x)).Take(3).ToList();
                 embed.AddField(x => x
