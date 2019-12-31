@@ -211,7 +211,7 @@ namespace DustyBot.Services
                         }
 
                         var dueTime = context.UtcDueTime.Value.Add(settings.TimezoneOffset);
-                        var events = settings.Events.Where(x => x.Date == dueTime && x.Notify);
+                        var events = settings.Events.Where(x => x.Date == dueTime && x.HasTime && x.Notify);
                         foreach (var e in events)
                         {
                             foreach (var s in settings.Notifications.Where(x => e.FitsTag(x.Tag)))
@@ -228,7 +228,7 @@ namespace DustyBot.Services
                                         .WithDescription($"{(e.HasLink ? DiscordHelpers.BuildMarkdownUri(e.Description, e.Link) : e.Description)} is now on!");
 
                                     await channel.SendMessageAsync(role != null ? $"{role.Mention} " : "", embed: embed.Build());
-                                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Notified event {e.Description} ({e.Id}) on {guild.Name} ({guild.Id})."));
+                                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Notified event {e.Description} ({e.Date}, TZ: {settings.TimezoneOffset}, ID: {e.Id}) on {guild.Name} ({guild.Id})."));
                                 }
                                 catch (Exception ex)
                                 {
