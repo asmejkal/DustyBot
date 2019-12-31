@@ -228,6 +228,7 @@ namespace DustyBot.Services
                                         .WithDescription($"{(e.HasLink ? DiscordHelpers.BuildMarkdownUri(e.Description, e.Link) : e.Description)} is now on!");
 
                                     await channel.SendMessageAsync(role != null ? $"{role.Mention} " : "", embed: embed.Build());
+                                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Notified event {e.Description} ({e.Id}) on {guild.Name} ({guild.Id})."));
                                 }
                                 catch (Exception ex)
                                 {
