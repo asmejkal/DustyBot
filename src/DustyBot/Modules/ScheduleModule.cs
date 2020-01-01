@@ -183,6 +183,7 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "set", "notifications", "Sets a channel for event notifications.")]
+        [Alias("schedule", "set", "notification")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to setup notifications for tagged events; use `all` to notify for all events, regardless of tags")]
         [Parameter("Channel", ParameterType.TextChannel, "a channel the notifications will be posted to")]
@@ -220,6 +221,7 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "reset", "notifications", "Resets event notifications.")]
+        [Alias("schedule", "reset", "notification")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "reset notifications for events with this tag; omit to reset notifications for untagged events")]
         public async Task ResetScheduleNotifications(ICommand command)
