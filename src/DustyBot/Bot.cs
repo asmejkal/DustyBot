@@ -207,6 +207,9 @@ namespace DustyBot
                     if (opts.OwnerIDs == null || !opts.OwnerIDs.Any() || string.IsNullOrWhiteSpace(opts.Token))
                         throw new ArgumentException("Owner IDs and bot token must be specified to create an instance.");
 
+                    if (!Directory.Exists(Definitions.GlobalDefinitions.DataFolder))
+                        Directory.CreateDirectory(Definitions.GlobalDefinitions.DataFolder);
+
                     using (var db = DatabaseHelpers.CreateOrOpen(instancePath, opts.Password))
                     {
                         db.Engine.UserVersion = Definitions.GlobalDefinitions.SettingsVersion;
