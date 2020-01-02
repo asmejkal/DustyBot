@@ -1,0 +1,14 @@
+name: Build Check
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: "3.1.100"
+      - name: Building DustyBot
+        run: dotnet build DustyBot.sln
