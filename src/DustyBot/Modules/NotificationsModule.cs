@@ -19,7 +19,7 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    using ActiveMessageMap = Dictionary<(ulong userId, ulong channelId), ulong>;
+    using ActiveMessageMap = Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>;
     [Module("Notifications", "Notifies you when someone mentions a specific word.")]
     class NotificationsModule : Module
     {
@@ -201,41 +201,48 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Please check your direct messages.").ConfigureAwait(false);
         }
 
-        private bool IsNotificationActive((ulong, ulong) key)
+        [Command("notification", "ignore", "active", "channel", "Don't notify for messages in a channel you're currently being active in (beta).", CommandFlags.RunAsync)]
+        [Alias("notifications", "ignore", "active", "channel", true), Alias("notif", "ignore", "active", "channel"), Alias("noti", "ignore", "active", "channel")]
+        [Comment("All notifications will be delayed by a small amount. If you start typing or send a message in the channel where the notification came from, the notification will be skipped.\n\nUse this command again to disable.")]
+        public async Task ToggleIgnoreActiveChannel(ICommand command)
+        {
+            var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
+
+            await command.ReplySuccess(Communicator, enabled ? "Notifications from the channel you're active in at the moment will be ignored. This causes a small delay for all notifications." : "You will now be notified for every message instantly.").ConfigureAwait(false);
+        }
+
+        private void RegisterPendingNotification((ulong, ulong) key, ulong message)
         {
             lock (ActiveMessages)
             {
-                return ActiveMessages.TryGetValue(key, out _);
+                if (!ActiveMessages.TryGetValue(key, out var messages))
+                    ActiveMessages.Add(key, messages = new HashSet<ulong>());
+
+                messages.Add(message);
             }
         }
 
-        private void IncrementNotificationCounter((ulong, ulong) key)
+        private bool TryClaimPendingNotification((ulong, ulong) key, ulong message)
         {
             lock (ActiveMessages)
             {
-                try
-                {
-                    ActiveMessages[key] += 1;
-                }
-                catch (KeyNotFoundException)
-                {
-                    ActiveMessages[key] = 1;
-                }
-            }
-        }
+                if (!ActiveMessages.TryGetValue(key, out var messages))
+                    return false;
 
-        private void DecrementNotificationCounter((ulong, ulong) key)
-        {
-            lock (ActiveMessages)
-            {
-                if (ActiveMessages[key] == 1)
-                {
+                messages.Remove(message);
+
+                if (!messages.Any())
                     ActiveMessages.Remove(key);
-                }
-                else
-                {
-                    ActiveMessages[key] -= 1;
-                }
+
+                return true;
+            }
+        }
+
+        private void ResetPendingNotifications(ulong user, ulong channel)
+        {
+            lock (ActiveMessages)
+            {
+                ActiveMessages.Remove((user, channel));
             }
         }
 
@@ -243,14 +250,11 @@ namespace DustyBot.Modules
         {
             try
             {
-                lock (ActiveMessages)
-                {
-                    ActiveMessages.Remove((user.Id, channel.Id));
-                }
+                ResetPendingNotifications(user.Id, channel.Id);
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process message", ex));
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process typing event", ex));
             }
         }
 
@@ -273,62 +277,69 @@ namespace DustyBot.Modules
                     if (settings == null || settings.Notifications.Count <= 0)
                         return;
 
+                    ResetPendingNotifications(user.Id, channel.Id);
+
                     var tree = KeywordTrees.GetOrAdd(channel.GuildId, x => new KeywordTree(settings.Notifications));
                     var notifiedUsers = new HashSet<ulong>();
                     foreach (var (p, n) in tree.Match(message.Content))
                     {
                         if (notifiedUsers.Contains(n.User))
-                            continue; //raise only one notification per message
+                            continue; // Raise only one notification per message
 
                         if (p > 0 && char.IsLetter(message.Content[p - 1]))
-                            continue; //inside a word (prefixed) - skip
+                            continue; // Inside a word (prefixed) - skip
 
                         if (p + n.LoweredWord.Length < message.Content.Length && char.IsLetter(message.Content[p + n.LoweredWord.Length]))
-                            continue; //inside a word (suffixed) - skip
+                            continue; // Inside a word (suffixed) - skip
 
                         if (message.Author.Id == n.User)
-                            continue; //don't notify on self-sent messages
+                            continue; // Don't notify on self-sent messages
 
                         var targetUser = await channel.GetUserAsync(n.User);
                         if (targetUser == null)
-                            continue; //user can't see this channel
+                            continue; // User can't see this channel
 
-                        var messageKey = (targetUser.Id, channel.Id);
-                        IncrementNotificationCounter(messageKey);
-
-                        await Task.Delay(NotificationTimeoutDelay);
-
-                        if (!IsNotificationActive(messageKey))
-                        {
-                            continue;
-                        }
-
-                        await Settings.Modify(channel.GuildId, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
                         notifiedUsers.Add(n.User);
 
-                        try
+                        TaskHelper.FireForget(async () =>
                         {
-                            var dm = await targetUser.GetOrCreateDMChannelAsync();
-                            var footer = $"\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}";
-                            
-                            var embed = new EmbedBuilder()
-                                .WithAuthor(x => x.WithName(message.Author.Username).WithIconUrl(message.Author.GetAvatarUrl()))
-                                .WithDescription(message.Content.Truncate(EmbedBuilder.MaxDescriptionLength - footer.Length) + footer);
-
-                            await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
                             try
                             {
-                                DecrementNotificationCounter(messageKey);
+                                await Settings.Modify(channel.GuildId, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
+
+                                var targetUserSettings = await Settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
+                                if (targetUserSettings?.IgnoreActiveChannel ?? false)
+                                {
+                                    var messageKey = (targetUser.Id, channel.Id);
+                                    RegisterPendingNotification(messageKey, message.Id);
+
+                                    await Task.Delay(NotificationTimeoutDelay);
+
+                                    if (!TryClaimPendingNotification(messageKey, message.Id))
+                                    {
+                                        await Logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Notification canceled for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) and message {message.Id} on {channel.Guild.Name} ({channel.Guild.Id}) in #{channel.Name} ({channel.Id})"));
+                                        return;
+                                    }
+                                }                                
+
+                                var dm = await targetUser.GetOrCreateDMChannelAsync();
+                                var footer = $"\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}";
+
+                                var embed = new EmbedBuilder()
+                                    .WithAuthor(x => x.WithName(message.Author.Username).WithIconUrl(message.Author.GetAvatarUrl()))
+                                    .WithDescription(message.Content.Truncate(EmbedBuilder.MaxDescriptionLength - footer.Length) + footer);
+
+                                await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
                             }
-                            catch (KeyNotFoundException)
+                            catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50007)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Value for {messageKey} not found in dictionary, this should never happen..."));
+                                await Logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Blocked DMs from {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Failed to send notification to user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id})", ex));
-                        }
+                            catch (Exception ex)
+                            {
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Failed to process notification for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})", ex));
+                            }
+                        });
                     }
                 }
                 catch (Exception ex)
