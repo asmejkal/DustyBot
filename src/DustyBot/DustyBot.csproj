@@ -14,9 +14,9 @@
     <Authors>Yebafan</Authors>
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
-    <AssemblyVersion>2.8.6.0</AssemblyVersion>
-    <FileVersion>2.8.6.0</FileVersion>
-    <Version>2.8.6</Version>
+    <AssemblyVersion>2.8.7.0</AssemblyVersion>
+    <FileVersion>2.8.7.0</FileVersion>
+    <Version>2.8.7</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
