@@ -38,7 +38,7 @@ namespace DustyBot.Services
 
         public Task Start()
         {
-            _timer = new System.Threading.Timer(OnUpdate, null, 2000, (int)UpdateFrequency.TotalMilliseconds);
+            _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
             return Task.CompletedTask;
         }
 

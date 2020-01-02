@@ -183,7 +183,7 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "set", "notifications", "Sets a channel for event notifications.")]
-        [Alias("schedule", "set", "notification")]
+        [Alias("schedule", "set", "notification", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to setup notifications for tagged events; use `all` to notify for all events, regardless of tags")]
         [Parameter("Channel", ParameterType.TextChannel, "a channel the notifications will be posted to")]
