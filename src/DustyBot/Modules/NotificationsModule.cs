@@ -19,7 +19,6 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    using NotificationKey = Tuple<ulong, ulong>;
     using ActiveMessageMap = Dictionary<(ulong userId, ulong channelId), ulong>;
     [Module("Notifications", "Notifies you when someone mentions a specific word.")]
     class NotificationsModule : Module
