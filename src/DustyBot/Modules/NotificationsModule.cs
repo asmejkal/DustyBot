@@ -19,6 +19,7 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
+    using ActiveMessageMap = Dictionary<(ulong userId, ulong channelId), ulong>;
     [Module("Notifications", "Notifies you when someone mentions a specific word.")]
     class NotificationsModule : Module
     {
@@ -79,6 +80,9 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
         public ILogger Logger { get; private set; }
+
+        private const int NotificationTimeoutDelay = 5000;
+        private ActiveMessageMap ActiveMessages { get; } = new ActiveMessageMap();
 
         private ConcurrentDictionary<ulong, KeywordTree> KeywordTrees { get; } = new ConcurrentDictionary<ulong, KeywordTree>();
 
@@ -197,18 +201,69 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Please check your direct messages.").ConfigureAwait(false);
         }
 
+        private bool IsNotificationActive((ulong, ulong) key)
+        {
+            lock (ActiveMessages)
+            {
+                return ActiveMessages.TryGetValue(key, out _);
+            }
+        }
+
+        private void IncrementNotificationCounter((ulong, ulong) key)
+        {
+            lock (ActiveMessages)
+            {
+                try
+                {
+                    ActiveMessages[key] += 1;
+                }
+                catch (KeyNotFoundException)
+                {
+                    ActiveMessages[key] = 1;
+                }
+            }
+        }
+
+        private void DecrementNotificationCounter((ulong, ulong) key)
+        {
+            lock (ActiveMessages)
+            {
+                if (ActiveMessages[key] == 1)
+                {
+                    ActiveMessages.Remove(key);
+                }
+                else
+                {
+                    ActiveMessages[key] -= 1;
+                }
+            }
+        }
+
+        public override async Task OnUserIsTyping(SocketUser user, ISocketMessageChannel channel)
+        {
+            try
+            {
+                lock (ActiveMessages)
+                {
+                    ActiveMessages.Remove((user.Id, channel.Id));
+                }
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process message", ex));
+            }
+        }
+
         public override Task OnMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
-                    var channel = message.Channel as ITextChannel;
-                    if (channel == null)
+                    if (!(message.Channel is ITextChannel channel))
                         return;
 
-                    var user = message.Author as IGuildUser;
-                    if (user == null)
+                    if (!(message.Author is IGuildUser user))
                         return;
 
                     if (user.IsBot)
@@ -238,6 +293,16 @@ namespace DustyBot.Modules
                         if (targetUser == null)
                             continue; //user can't see this channel
 
+                        var messageKey = (targetUser.Id, channel.Id);
+                        IncrementNotificationCounter(messageKey);
+
+                        await Task.Delay(NotificationTimeoutDelay);
+
+                        if (!IsNotificationActive(messageKey))
+                        {
+                            continue;
+                        }
+
                         await Settings.Modify(channel.GuildId, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
                         notifiedUsers.Add(n.User);
 
@@ -251,6 +316,14 @@ namespace DustyBot.Modules
                                 .WithDescription(message.Content.Truncate(EmbedBuilder.MaxDescriptionLength - footer.Length) + footer);
 
                             await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
+                            try
+                            {
+                                DecrementNotificationCounter(messageKey);
+                            }
+                            catch (KeyNotFoundException)
+                            {
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Value for {messageKey} not found in dictionary, this should never happen..."));
+                            }
                         }
                         catch (Exception ex)
                         {
