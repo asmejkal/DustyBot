@@ -208,7 +208,7 @@ namespace DustyBot.Modules
         {
             var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
 
-            await command.ReplySuccess(Communicator, enabled ? "Notifications from the channel you're active in at the moment will be ignored. This causes a small delay for all notifications." : "You will now be notified for every message instantly.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.").ConfigureAwait(false);
         }
 
         private void RegisterPendingNotification((ulong, ulong) key, ulong message)
