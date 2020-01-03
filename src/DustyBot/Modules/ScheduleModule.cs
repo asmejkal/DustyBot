@@ -240,6 +240,7 @@ namespace DustyBot.Modules
         }
 
         [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Alias("schedule", "set", "time", "zone")]
         [Parameter("Offset", @"^(?:UTC)?\+?(-)?([0-9]{1,2}):?([0-9]{1,2})?$", ParameterType.Regex, "the timezone's offset from UTC (eg. `UTC-5` or `UTC+12:30`)")]
         [Parameter("Name", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "you can specify a custom name for the timezone (e.g. to show `KST` instead of `UTC+9`)")]
         [Comment("The default timezone is KST (UTC+9). The times of existing events will stay correct (recalculated to the new timezone).")]
