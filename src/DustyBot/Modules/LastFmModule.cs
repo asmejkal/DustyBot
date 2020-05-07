@@ -74,7 +74,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("lf", "np", "Shows what song you or someone else is currently playing on Last.fm.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "np", "Shows what song you or someone else is currently playing on Last.fm.", CommandFlags.TypingIndicator)]
         [Alias("np")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional | ParameterFlags.Remainder, "the user (mention, ID or Last.fm username); uses your Last.fm if omitted")]
         [Comment("Also shows the song's position among user's top 100 listened tracks.")]
@@ -153,7 +153,12 @@ namespace DustyBot.Modules
 
                         if (string.Compare(track.Url, (string)(current?.url ?? tracks[0].url), true) == 0)
                         {
-                            embed.Footer.Text += placement == 1 ? " • Most played track this month" : $" • {placement.ToEnglishOrdinal()} most played this month";
+                            var footer = placement == 1 ? "Most played track this month" : $"{placement.ToEnglishOrdinal()} most played this month";
+                            if (embed.Footer != null)
+                                embed.Footer.Text += " • " + footer;
+                            else
+                                embed.WithFooter(footer);
+
                             break;
                         }
                     }
@@ -179,7 +184,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("lf", "np", "spotify", "Searches and posts a Spotify link to what you're currently listening.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "np", "spotify", "Searches and posts a Spotify link to what you're currently listening.", CommandFlags.TypingIndicator)]
         [Alias("np", "spotify")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional | ParameterFlags.Remainder, "the user (mention, ID or Last.fm username); uses your Last.fm if omitted")]
         public async Task NowPlayingSpotify(ICommand command)
@@ -209,7 +214,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url).ConfigureAwait(false);
         }
 
-        [Command("lf", "compare", "Checks how compatible your music taste is with someone else.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "compare", "Checks how compatible your music taste is with someone else.", CommandFlags.TypingIndicator)]
         [Alias("lf", "cmp"), Alias("lf", "compatibility")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year` (default) and `all`")]
         [Parameter("User", ParameterType.GuildUserOrName, "the other user (mention, ID or Last.fm username)")]
@@ -227,6 +232,18 @@ namespace DustyBot.Modules
                     second = (await GetLastFmSettings(command["User"])).settings,
                 };
 
+                if (settings.first.LastFmUsername == settings.second.LastFmUsername)
+                {
+                    var sameEmbed = new EmbedBuilder()
+                        .WithAuthor(x => x.WithName($"Your music taste is {FormatPercent(1)} compatible!")
+                        .WithIconUrl(HelpBuilder.LfIconUrl))
+                        .WithDescription("What did you expect?")
+                        .WithFooter($"Based on {FormatStatsDataPeriod(period)}");
+
+                    await command.Channel.SendMessageAsync(embed: sameEmbed.Build());
+                    return;
+                }
+
                 // Prepare data
                 var clients = new
                 {
@@ -242,20 +259,20 @@ namespace DustyBot.Modules
 
                 var artists = new
                 {
-                    first = clients.first.GetArtistScores(period, 300, playcounts.first),
-                    second = clients.second.GetArtistScores(period, 300, playcounts.second)
+                    first = clients.first.GetArtistScores(period, 999, playcounts.first),
+                    second = clients.second.GetArtistScores(period, 999, playcounts.second)
                 };
 
                 var albums = new
                 {
-                    first = clients.first.GetAlbumScores(period, 600, playcounts.first),
-                    second = clients.second.GetAlbumScores(period, 600, playcounts.second)
+                    first = clients.first.GetAlbumScores(period, 999, playcounts.first),
+                    second = clients.second.GetAlbumScores(period, 999, playcounts.second)
                 };
 
                 var tracks = new
                 {
-                    first = clients.first.GetTrackScores(period, 900, playcounts.first),
-                    second = clients.second.GetTrackScores(period, 900, playcounts.second)
+                    first = clients.first.GetTrackScores(period, 999, playcounts.first),
+                    second = clients.second.GetTrackScores(period, 999, playcounts.second)
                 };
 
                 var artistMatches = GetMatches((await artists.first), (await artists.second)).ToList();
@@ -273,7 +290,8 @@ namespace DustyBot.Modules
                 var compatibility = Math.Pow(artistScore * 0.5 + albumScore * 0.25 + trackScore * 0.25, 0.4);
 
                 var embed = new EmbedBuilder()
-                    .WithAuthor(x => x.WithName($"Your music taste is {FormatPercent(compatibility)} compatible!").WithIconUrl(HelpBuilder.LfIconUrl))
+                    .WithAuthor(x => x.WithName($"Your music taste is {FormatPercent(compatibility)} compatible!")
+                    .WithIconUrl(HelpBuilder.LfIconUrl))
                     .WithDescription("Based on how many times you've listened to the same music.")
                     .WithFooter($"Based on {FormatStatsDataPeriod(period)}")
                     .WithColor(0xd9, 0x23, 0x23);
@@ -343,7 +361,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("lf", "recent", "Shows user's recently played songs.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "recent", "Shows user's recently played songs.", CommandFlags.TypingIndicator)]
         [Alias("lf", "rc")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
         public async Task LastFmRecent(ICommand command)
@@ -353,14 +371,14 @@ namespace DustyBot.Modules
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
                 var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
 
-                const int NumDisplayed = 10;
+                const int NumDisplayed = 100;
                 var userInfoTask = client.GetUserInfo();
                 var (results, nowPlaying) = await client.GetRecentTracks(count: NumDisplayed);
 
                 if (!results.Any())
                     throw new AbortException("This user hasn't scrobbled anything recently.");
 
-                var description = new StringBuilder();
+                var pages = new PageCollectionBuilder();
                 var place = 1;
                 foreach (var track in results.Take(NumDisplayed))
                 {
@@ -376,26 +394,30 @@ namespace DustyBot.Modules
                         when = ts.SimpleFormat();
                     }
 
-                    description.TryAppendLineLimited($"`{place++}>` **{FormatDynamicLink(track, true)}** by **{FormatDynamicLink(track.artist, true)}**" + (when != null ? $"_ – {when}_" : string.Empty), EmbedBuilder.MaxDescriptionLength);
+                    pages.AppendLine($"`{place++}>` **{FormatDynamicLink(track, true)}** by **{FormatDynamicLink(track.artist, true)}**" + (when != null ? $"_ – {when}_" : string.Empty));
                 }
-            
-                var author = new EmbedAuthorBuilder()
+
+                var userInfo = await userInfoTask;
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
                     .WithName($"{user} last listened to...");
 
-                if (!settings.Anonymous)
-                    author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
+                    if (!settings.Anonymous)
+                        author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
 
-                var embed = new EmbedBuilder()
-                    .WithDescription(description.ToString())
-                    .WithColor(0xd9, 0x23, 0x23)
-                    .WithAuthor(author);
+                    var embed = new EmbedBuilder()
+                        .WithColor(0xd9, 0x23, 0x23)
+                        .WithAuthor(author);
 
-                var userInfo = await userInfoTask;
-                if (userInfo?.playcount != null)
-                    embed.WithFooter($"{userInfo.playcount} plays in total");
+                    if (userInfo?.playcount != null)
+                        embed.WithFooter($"{userInfo.playcount} plays in total");
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                    return embed;
+                });
+
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -408,7 +430,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("lf", "top", "artists", "Shows user's top artists.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "top", "artists", "Shows user's top artists.", CommandFlags.TypingIndicator)]
         [Alias("lf", "ta"), Alias("lf", "top", "artist"), Alias("lf", "artists")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
@@ -420,31 +442,34 @@ namespace DustyBot.Modules
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LfStatsPeriod.Overall;
                 var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
 
-                const int NumDisplayed = 10;
+                const int NumDisplayed = 100;
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetArtistScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
                     throw new AbortException("Looks like the user doesn't have any scrobbles in this time range...");
 
-                var description = new StringBuilder();
+                var pages = new PageCollectionBuilder();
                 var place = 1;
                 foreach (var entry in results.Take(NumDisplayed))
-                    description.TryAppendLineLimited($"`#{place++}` **{FormatArtistLink(entry.Entity, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_", EmbedBuilder.MaxDescriptionLength);
+                    pages.AppendLine($"`#{place++}` **{FormatArtistLink(entry.Entity, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_");
 
-                var author = new EmbedAuthorBuilder()
+                var playsTotal = await playcountTask;
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
                     .WithName($"{user}'s top artists {FormatStatsPeriod(period)}");
 
-                if (!settings.Anonymous)
-                    author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
+                    if (!settings.Anonymous)
+                        author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
 
-                var embed = new EmbedBuilder()
-                    .WithDescription(description.ToString())
-                    .WithColor(0xd9, 0x23, 0x23)
-                    .WithAuthor(author)
-                    .WithFooter($"{await playcountTask} plays in total");
+                    return new EmbedBuilder()
+                        .WithColor(0xd9, 0x23, 0x23)
+                        .WithAuthor(author)
+                        .WithFooter($"{playsTotal} plays in total");
+                });
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -457,7 +482,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("lf", "top", "albums", "Shows user's top albums.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "top", "albums", "Shows user's top albums.", CommandFlags.TypingIndicator)]
         [Alias("lf", "tal"), Alias("lf", "top", "album"), Alias("albums")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
@@ -469,31 +494,34 @@ namespace DustyBot.Modules
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LfStatsPeriod.Overall;
                 var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
 
-                const int NumDisplayed = 10;
+                const int NumDisplayed = 100;
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetAlbumScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
                     throw new AbortException("Looks like the user doesn't have any scrobbles in this time range...");
 
-                var description = new StringBuilder();
+                var pages = new PageCollectionBuilder();
                 var place = 1;
                 foreach (var entry in results.Take(NumDisplayed))
-                    description.TryAppendLineLimited($"`#{place++}` **{FormatAlbumLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_", EmbedBuilder.MaxDescriptionLength);
+                    pages.AppendLine($"`#{place++}` **{FormatAlbumLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_");
 
-                var author = new EmbedAuthorBuilder()
+                var playsTotal = await playcountTask;
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
                     .WithName($"{user}'s top albums {FormatStatsPeriod(period)}");
 
-                if (!settings.Anonymous)
-                    author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
+                    if (!settings.Anonymous)
+                        author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
 
-                var embed = new EmbedBuilder()
-                    .WithDescription(description.ToString())
-                    .WithColor(0xd9, 0x23, 0x23)
-                    .WithAuthor(author)
-                    .WithFooter($"{await playcountTask} plays in total");
+                    return new EmbedBuilder()
+                        .WithColor(0xd9, 0x23, 0x23)
+                        .WithAuthor(author)
+                        .WithFooter($"{playsTotal} plays in total");
+                });
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -506,7 +534,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("lf", "top", "tracks", "Shows user's top tracks.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "top", "tracks", "Shows user's top tracks.", CommandFlags.TypingIndicator)]
         [Alias("lf", "tt"), Alias("lf", "top", "track"), Alias("lf", "tracks"), Alias("lf", "ts")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
@@ -518,31 +546,34 @@ namespace DustyBot.Modules
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LfStatsPeriod.Overall;
                 var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
 
-                const int NumDisplayed = 10;
+                const int NumDisplayed = 100;
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetTrackScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
                     throw new AbortException("Looks like the user doesn't have any scrobbles in this time range...");
 
-                var description = new StringBuilder();
+                var pages = new PageCollectionBuilder();
                 var place = 1;
                 foreach (var entry in results.Take(NumDisplayed))
-                    description.TryAppendLineLimited($"`#{place++}` **{FormatTrackLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_", EmbedBuilder.MaxDescriptionLength);
+                    pages.AppendLine($"`#{place++}` **{FormatTrackLink(entry.Entity, true)}** by **{FormatArtistLink(entry.Entity.Artist, true)}**_ – {FormatPercent(entry.Score)} ({entry.Playcount} plays)_");
 
-                var author = new EmbedAuthorBuilder()
+                var playsTotal = await playcountTask;
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
                     .WithIconUrl(HelpBuilder.LfIconUrl)
                     .WithName($"{user}'s top tracks {FormatStatsPeriod(period)}");
 
-                if (!settings.Anonymous)
-                    author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
+                    if (!settings.Anonymous)
+                        author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
 
-                var embed = new EmbedBuilder()
-                    .WithDescription(description.ToString())
-                    .WithColor(0xd9, 0x23, 0x23)
-                    .WithAuthor(author)
-                    .WithFooter($"{await playcountTask} plays in total");
+                    return new EmbedBuilder()
+                        .WithColor(0xd9, 0x23, 0x23)
+                        .WithAuthor(author)
+                        .WithFooter($"{playsTotal} plays in total");
+                });
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -555,15 +586,16 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("lf", "artist", "Shows your favorite tracks and albums from a specific artist.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("lf", "artist", "Shows your favorite tracks and albums from a specific artist.", CommandFlags.TypingIndicator)]
         [Alias("lf", "ar")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
+        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "user (mention or ID); shows your own stats if omitted")]
         [Parameter("Artist", ParameterType.String, ParameterFlags.Remainder, "the artist's name on Last.fm (make sure you have the correct spelling)")]
         public async Task LastFmArtist(ICommand command)
         {
             try
             {
-                var (settings, user) = await GetLastFmSettings((IGuildUser)command.Author, false);
+                var (settings, user) = await GetLastFmSettings(command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author, command["User"].HasValue);
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LfStatsPeriod.Overall;
                 if (period == LfStatsPeriod.Day)
                     throw new IncorrectParametersCommandException("The `day` value can't be used with this command.", false);
@@ -641,6 +673,7 @@ namespace DustyBot.Modules
                 x.LastFmUsername = command["Username"];
                 x.Anonymous = false;
             });
+
             await command.ReplySuccess(Communicator, $"Your Last.fm username has been set to `{command["Username"]}`.");
         }
 

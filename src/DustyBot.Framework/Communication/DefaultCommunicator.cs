@@ -51,9 +51,9 @@ namespace DustyBot.Framework.Communication
 
         public static readonly Color ColorSuccess = Color.Green;
         public static readonly Color ColorError = Color.Red;
-        public static readonly IEmote ArrowLeft = new Emoji("⬅");
-        public static readonly IEmote ArrowRight = new Emoji("➡");
-        public static readonly TimeSpan PaginatedMessageLife = TimeSpan.FromHours(10);
+        public static readonly IEmote ArrowLeft = new Emoji("⬅️");
+        public static readonly IEmote ArrowRight = new Emoji("➡️");
+        public static readonly TimeSpan PaginatedMessageLife = TimeSpan.FromHours(48);
 
         Dictionary<ulong, PaginatedMessageContext> _paginatedMessages = new Dictionary<ulong, PaginatedMessageContext>();
 

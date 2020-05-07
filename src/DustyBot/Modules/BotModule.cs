@@ -71,7 +71,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("about", "Bot and version information.", CommandFlags.RunAsync)]
+        [Command("about", "Bot and version information.")]
         public async Task About(ICommand command)
         {
             var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
@@ -119,14 +119,14 @@ namespace DustyBot.Modules
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();
-            foreach (var guild in (await Client.GetGuildsAsync().ConfigureAwait(false)).Select(x => x as SocketGuild).OrderByDescending(x => x.MemberCount))
+            foreach (var guild in (await Client.GetGuildsAsync(CacheMode.AllowDownload)).Select(x => x as SocketGuild).OrderByDescending(x => x.MemberCount))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 10 == 0)
                     pages.Add(new EmbedBuilder());
 
                 pages.Last.Embed.AddField(x => x
-                    .WithName(guild.Name)
-                    .WithValue($"{guild.Id}\n{guild.MemberCount} members\nOwned by {guild.Owner.Username}#{guild.Owner.Discriminator} ({guild.OwnerId})"));
+                    .WithName(guild?.Name ?? "Unknown")
+                    .WithValue($"{guild?.Id}\n{guild?.MemberCount} members\nOwned by {guild?.Owner?.Username}#{guild?.Owner?.Discriminator} ({guild?.OwnerId})"));
             }
 
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
@@ -160,7 +160,7 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("setavatar", "Changes the bot's avatar.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Command("setavatar", "Changes the bot's avatar.", CommandFlags.OwnerOnly)]
         [Parameter("Url", ParameterType.String, ParameterFlags.Optional)]
         [Comment("Attach your new image to the message or provide a link.")]
         public async Task SetAvatar(ICommand command)
@@ -192,7 +192,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Avatar was changed!").ConfigureAwait(false);
         }
 
-        [Command("setname", "Changes the bot's username.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Command("setname", "Changes the bot's username.", CommandFlags.OwnerOnly)]
         [Parameter("NewName", ParameterType.String, ParameterFlags.Remainder)]
         public async Task SetName(ICommand command)
         {
@@ -200,7 +200,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
-        [Command("help", "dump", "Generates a list of all commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Command("help", "dump", "Generates a list of all commands.", CommandFlags.OwnerOnly)]
         public async Task DumpHelp(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -248,7 +248,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("cleanup", "commands", "Cleans output of the bot's commands.", CommandFlags.RunAsync | CommandFlags.OwnerOnly)]
+        [Command("cleanup", "commands", "Cleans output of the bot's commands.", CommandFlags.OwnerOnly)]
         [Parameter("Count", ParameterType.Int, ParameterFlags.Remainder, "number of commands to cleanup")]
         public async Task CleanupCommands(ICommand command)
         {

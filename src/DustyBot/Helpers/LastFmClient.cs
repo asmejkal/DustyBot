@@ -375,6 +375,9 @@ namespace DustyBot.Helpers
 
                     // Get artist info
                     var info = await infoTask;
+                    if (info == null)
+                        return null;
+
                     var name = (string)info.name;
                     var url = (string)info.url;
 

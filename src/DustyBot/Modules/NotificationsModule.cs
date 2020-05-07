@@ -19,7 +19,6 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    using ActiveMessageMap = Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>;
     [Module("Notifications", "Notifies you when someone mentions a specific word.")]
     class NotificationsModule : Module
     {
@@ -81,8 +80,8 @@ namespace DustyBot.Modules
         public ISettingsProvider Settings { get; private set; }
         public ILogger Logger { get; private set; }
 
-        private const int NotificationTimeoutDelay = 5000;
-        private ActiveMessageMap ActiveMessages { get; } = new ActiveMessageMap();
+        private static readonly TimeSpan NotificationTimeoutDelay = TimeSpan.FromSeconds(8);
+        private Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> ActiveMessages { get; } = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();
 
         private ConcurrentDictionary<ulong, KeywordTree> KeywordTrees { get; } = new ConcurrentDictionary<ulong, KeywordTree>();
 
@@ -101,7 +100,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.", CommandFlags.RunAsync)]
+        [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.")]
         [Alias("notifications", "add", true), Alias("notif", "add"), Alias("noti", "add")]
         [Alias("notifications", true), Alias("notification"), Alias("notif"), Alias("noti")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "when this word is mentioned in this server you will receive a notification")]
@@ -176,7 +175,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "You will no longer be notified when this word is mentioned.").ConfigureAwait(false);
         }
 
-        [Command("notification", "list", "Lists all your notified words on this server.", CommandFlags.RunAsync)]
+        [Command("notification", "list", "Lists all your notified words on this server.")]
         [Alias("notifications", "list", true), Alias("notif", "list"), Alias("noti", "list")]
         [Comment("Sends a direct message.")]
         public async Task ListNotifications(ICommand command)
@@ -201,7 +200,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Please check your direct messages.").ConfigureAwait(false);
         }
 
-        [Command("notification", "ignore", "active", "channel", "Don't notify for messages in a channel you're currently being active in (beta).", CommandFlags.RunAsync)]
+        [Command("notification", "ignore", "active", "channel", "Don't notify for messages in a channel you're currently being active in (beta).")]
         [Alias("notifications", "ignore", "active", "channel", true), Alias("notif", "ignore", "active", "channel"), Alias("noti", "ignore", "active", "channel")]
         [Comment("All notifications will be delayed by a small amount. If you start typing or send a message in the channel where the notification came from, the notification will be skipped.\n\nUse this command again to disable.")]
         public async Task ToggleIgnoreActiveChannel(ICommand command)

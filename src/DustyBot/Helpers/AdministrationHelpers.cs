@@ -2,9 +2,7 @@
 using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
@@ -30,7 +28,8 @@ namespace DustyBot.Helpers
                     await channel.AddPermissionOverwriteAsync(muteRole, new OverwritePermissions(sendMessages: PermValue.Deny, connect: PermValue.Deny, addReactions: PermValue.Deny));
             }
 
-            if ((await settings.Read<RolesSettings>(user.GuildId, false)).AdditionalPersistentRoles.Contains(muteRole.Id) == false)
+            var rolesSettings = await settings.Read<RolesSettings>(user.GuildId, false);
+            if (rolesSettings == null || !rolesSettings.AdditionalPersistentRoles.Contains(muteRole.Id))
                 await settings.Modify(user.GuildId, (RolesSettings x) => x.AdditionalPersistentRoles.Add(muteRole.Id));
 
             await user.AddRoleAsync(muteRole, new RequestOptions() { AuditLogReason = reason });

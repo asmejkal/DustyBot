@@ -7,6 +7,6 @@ namespace DustyBot.Framework.LiteDB
 {
     public interface IMigrations
     {
-        Migration GetMigration(ushort version);
+        Migration GetMigration(int version);
     }
 }

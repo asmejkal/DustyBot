@@ -70,24 +70,24 @@ namespace DustyBot
             public string SpotifyKey { get; set; }
         }
 
-        [Verb("encrypt", HelpText = "Encrypt the settings database.")]
+        [Verb("encrypt", HelpText = "Encrypt an instance.")]
         public class EncryptOptions
         {
-            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database encryption.")]
-            public string Password { get; set; }
+            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
+            public string Instance { get; set; }
 
-            [Value(1, MetaName = "Path", Required = true, HelpText = "Path to the database file.")]
-            public string Path { get; set; }
+            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database encryption.")]
+            public string Password { get; set; }
         }
 
-        [Verb("decrypt", HelpText = "Decrypt the settings database.")]
+        [Verb("decrypt", HelpText = "Decrypt an instance.")]
         public class DecryptOptions
         {
-            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
+            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
+            public string Instance { get; set; }
 
-            [Value(1, MetaName = "Path", Required = true, HelpText = "Path to the database file.")]
-            public string Path { get; set; }
+            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
+            public string Password { get; set; }
         }
 
         [Verb("fix-sequence", HelpText = "Fixes broken sequence numbers in collections.")]
@@ -212,7 +212,7 @@ namespace DustyBot
 
                     using (var db = DatabaseHelpers.CreateOrOpen(instancePath, opts.Password))
                     {
-                        db.Engine.UserVersion = Definitions.GlobalDefinitions.SettingsVersion;
+                        db.UserVersion = Definitions.GlobalDefinitions.SettingsVersion;
                         db.GetCollection<Settings.BotConfig>().Insert(new Settings.BotConfig
                         {
                             BotToken = opts.Token,
@@ -293,7 +293,11 @@ namespace DustyBot
         {
             try
             {
-                DatabaseHelpers.Encrypt(opts.Path, opts.Password);
+                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                if (!File.Exists(instancePath))
+                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
+
+                DatabaseHelpers.Encrypt(instancePath, opts.Password);
             }
             catch (Exception ex)
             {
@@ -307,7 +311,11 @@ namespace DustyBot
         {
             try
             {
-                DatabaseHelpers.Decrypt(opts.Path, opts.Password);
+                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                if (!File.Exists(instancePath))
+                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
+
+                DatabaseHelpers.Decrypt(instancePath, opts.Password);
             }
             catch (Exception ex)
             {

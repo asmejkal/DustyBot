@@ -58,7 +58,7 @@ namespace DustyBot.Helpers
 
         public async Task<List<int>> GetPostIds(string cafeId, string boardId)
         {
-            var content = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}").ConfigureAwait(false);
+            var content = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}").ConfigureAwait(false);
             var result = new List<int>();
 
             await Task.Run(() =>
@@ -253,7 +253,7 @@ namespace DustyBot.Helpers
                 using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
                 {
                     //Expire old cookies
-                    foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("http://daum.net")))
+                    foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("https://daum.net")))
                         cookie.Expired = true;
 
                     if (response.ResponseUri.ToString().Contains("releasecountryrestrict"))
@@ -264,7 +264,7 @@ namespace DustyBot.Helpers
 
                     //Add new cookies
                     foreach (Cookie cookie in response.Cookies)
-                        _handler.CookieContainer.Add(new Uri($"http://{cookie.Domain}{cookie.Path}"), cookie);
+                        _handler.CookieContainer.Add(new Uri($"https://{cookie.Domain}{cookie.Path}"), cookie);
                 }
             }
         }
@@ -287,7 +287,7 @@ namespace DustyBot.Helpers
             {
                 try
                 {
-                    var _ = await _client.GetStringAsync($"http://m.cafe.daum.net/{cafeId}/{boardId}/{postId}").ConfigureAwait(false);
+                    var _ = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}/{postId}").ConfigureAwait(false);
                     return true;
                 }
                 catch (HttpRequestException)

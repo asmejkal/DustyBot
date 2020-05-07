@@ -75,10 +75,11 @@ namespace DustyBot.Modules
         [Command("greet", "embed", "Sets an embed greeting message.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, "a channel that will receive the messages")]
+        [Parameter("Color", ParameterType.ColorCode, ParameterFlags.Optional, "hex code of a color (e.g. `#09A5BC`)")]
         [Parameter("Title", ParameterType.String, "title of the message")]
         [Parameter("Body", ParameterType.String, ParameterFlags.Remainder, "body of the greeting message")]
         [Comment("You can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders.\nYou can also **attach an image** or gif to display it in the message (don't delete the command after, it also deletes the picture).")]
-        [Example("#general \"Welcome to {server}, {name}!\"\nHello, {mention}.\nDon't forget to check out the #rules!")]
+        [Example("#general #09A5BC \"Welcome to {server}, {name}!\"\nHello, {mention}.\nDon't forget to check out the #rules!")]
         public async Task GreetEmbed(ICommand command)
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
@@ -92,6 +93,9 @@ namespace DustyBot.Modules
                 s.ResetGreet();
                 s.GreetChannel = command["Channel"].AsTextChannel.Id;
                 s.GreetEmbed = new GreetEmbed(command["Title"], command["Body"]);
+                
+                if (command["Color"].AsColorCode.HasValue)
+                    s.GreetEmbed.Color = command["Color"].AsColorCode;
 
                 if (command.Message.Attachments.Any())
                     s.GreetEmbed.Image = new Uri(command.Message.Attachments.First().Url);
@@ -183,6 +187,9 @@ namespace DustyBot.Modules
                     .WithTitle(ReplacePlaceholders(settings.GreetEmbed.Title, user))
                     .WithDescription(ReplacePlaceholders(settings.GreetEmbed.Body, user))
                     .WithThumbnailUrl(user.GetAvatarUrl(size: 512));
+
+                if (settings.GreetEmbed.Color.HasValue)
+                    embed.WithColor(settings.GreetEmbed.Color.Value);
 
                 if (settings.GreetEmbed.Image != default)
                     embed.WithImageUrl(settings.GreetEmbed.Image.AbsoluteUri);

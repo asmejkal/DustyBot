@@ -10,6 +10,7 @@ using DustyBot.Framework.Logging;
 using DustyBot.Framework.Utility;
 using Discord;
 using DustyBot.Framework.Services;
+using System.Diagnostics;
 
 namespace DustyBot.Services
 {
@@ -23,7 +24,7 @@ namespace DustyBot.Services
         public DiscordSocketClient Client { get; private set; }
         public ILogger Logger { get; private set; }
 
-        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(5);
+        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15);
         private bool Updating { get; set; }
         private object UpdatingLock = new object();
 
@@ -52,13 +53,23 @@ namespace DustyBot.Services
         {
             TaskHelper.FireForget(async () =>
             {
+                bool skip = false;
                 lock (UpdatingLock)
                 {
                     if (Updating)
-                        return; // Skip if the previous update is still running
-
-                    Updating = true;
+                        skip = true; // Skip if the previous update is still running
+                    else
+                        Updating = true;
                 }
+
+                if (skip)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Service", "Skipping Daum Cafe feeds update (already running)..."));
+                    return;
+                }
+
+                var stopwatch = Stopwatch.StartNew();
+                await Logger.Log(new LogMessage(LogSeverity.Debug, "Service", "Updating Daum Cafe feeds."));
 
                 try
                 {
@@ -88,6 +99,8 @@ namespace DustyBot.Services
                 {
                     Updating = false;
                 }
+
+                await Logger.Log(new LogMessage(LogSeverity.Debug, "Service", $"Finished updating Daum Cafe feeds in {stopwatch.Elapsed}."));
             });            
         }
 

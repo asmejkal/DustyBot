@@ -7,6 +7,7 @@ using Discord.WebSocket;
 using Discord;
 using DustyBot.Framework.Utility;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace DustyBot.Framework.Commands
 {
@@ -20,6 +21,8 @@ namespace DustyBot.Framework.Commands
         public Communication.ICommunicator Communicator { get; set; }
         public Logging.ILogger Logger { get; set; }
         public Config.IEssentialConfig Config { get; set; }
+
+        private int CommandCounter { get; set; } = 0;
 
         public CommandRouter(IEnumerable<ICommandHandler> handlers, Communication.ICommunicator communicator, Logging.ILogger logger, Config.IEssentialConfig config)
         {
@@ -66,12 +69,15 @@ namespace DustyBot.Framework.Commands
 
                 var (commandRegistration, commandUsage) = findResult.Value;
 
+                var stopwatch = Stopwatch.StartNew();
+
                 //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
+                var id = ++CommandCounter;
                 var guild = (userMessage.Channel as IGuildChannel)?.Guild;
                 if (guild != null)
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) in #{message.Channel.Name} on {guild.Name} ({guild.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" (id: {id}) by {message.Author.Username} ({message.Author.Id}) in #{message.Channel.Name} on {guild.Name} ({guild.Id})"));
                 else
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{Config.CommandPrefix}{commandUsage.InvokeUsage}\" by {message.Author.Username} ({message.Author.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{Config.CommandPrefix}{commandUsage.InvokeUsage}\" (id: {id}) by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))
@@ -79,6 +85,7 @@ namespace DustyBot.Framework.Commands
                     if (message.Channel is ITextChannel && commandRegistration.Flags.HasFlag(CommandFlags.DirectMessageOnly))
                         await Communicator.CommandReplyDirectMessageOnly(message.Channel, commandRegistration);
 
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to invalid channel type"));
                     return;
                 }
 
@@ -86,6 +93,7 @@ namespace DustyBot.Framework.Commands
                 if (commandRegistration.Flags.HasFlag(CommandFlags.OwnerOnly) && !Config.OwnerIDs.Contains(message.Author.Id))
                 {
                     await Communicator.CommandReplyNotOwner(message.Channel, commandRegistration);
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to the user not being an owner"));
                     return;
                 }
 
@@ -98,6 +106,7 @@ namespace DustyBot.Framework.Commands
                     if (missingPermissions.Any())
                     {
                         await Communicator.CommandReplyMissingPermissions(message.Channel, commandRegistration, missingPermissions);
+                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to missign user permissions"));
                         return;
                     }
 
@@ -107,9 +116,12 @@ namespace DustyBot.Framework.Commands
                     if (missingBotPermissions.Any())
                     {
                         await Communicator.CommandReplyMissingBotPermissions(message.Channel, commandRegistration, missingBotPermissions);
+                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to missing bot permissions"));
                         return;
                     }
                 }
+
+                var verificationElapsed = stopwatch.Elapsed;
 
                 //Create command
                 var parseResult = await SocketCommand.TryCreate(commandRegistration, commandUsage, userMessage, Config);
@@ -124,10 +136,13 @@ namespace DustyBot.Framework.Commands
                     }
 
                     await Communicator.CommandReplyIncorrectParameters(message.Channel, commandRegistration, explanation);
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to incorrect parameters"));
                     return;
                 }
 
                 var command = parseResult.Item2;
+
+                var parsingElapsed = stopwatch.Elapsed;
 
                 //Execute
                 var executor = new Func<Task>(async () =>
@@ -191,12 +206,15 @@ namespace DustyBot.Framework.Commands
                         if (typingState != null)
                             typingState.Dispose();
                     }
+
+                    var totalElapsed = stopwatch.Elapsed;
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} finished in {totalElapsed.TotalSeconds:F3}s (v: {verificationElapsed.TotalSeconds:F3}s, p: {(parsingElapsed - verificationElapsed).TotalSeconds:F3}s, e: {(totalElapsed - parsingElapsed).TotalSeconds:F3}s)"));
                 });
                 
-                if (commandRegistration.Flags.HasFlag(CommandFlags.RunAsync))
-                    TaskHelper.FireForget(executor, x => Logger.Log(new LogMessage(LogSeverity.Error, "Internal", "Failure while handling command.", x)));
-                else
+                if (commandRegistration.Flags.HasFlag(CommandFlags.Synchronous))
                     await executor();
+                else
+                    TaskHelper.FireForget(executor, x => Logger.Log(new LogMessage(LogSeverity.Error, "Internal", "Failure while handling command.", x)));
             }
             catch (Exception ex)
             {

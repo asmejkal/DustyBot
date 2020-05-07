@@ -45,7 +45,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("poll", "Starts a poll.")]
+        [Command("poll", "Starts a poll.", CommandFlags.Synchronous)]
         [Alias("poll", "start")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("anonymous", "^anonymous$", ParameterFlags.Optional, "hide the answers")]

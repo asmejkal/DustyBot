@@ -43,7 +43,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("cafe", "add", "Adds a Daum Cafe board feed.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("cafe", "add", "Adds a Daum Cafe board feed.", CommandFlags.TypingIndicator)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("BoardSectionLink", ParameterType.Uri, "link to a Daum Cafe board section (either a comment board or a forum board), ex. http://cafe.daum.net/mamamoo/2b6v")]
         [Parameter("Channel", ParameterType.TextChannel, "channel that will receive the updates")]

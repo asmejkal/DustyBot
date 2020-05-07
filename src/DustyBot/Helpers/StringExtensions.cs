@@ -10,11 +10,6 @@ namespace DustyBot.Helpers
 {
     public static class StringExtensions
     {
-        public static string Truncate(this string value, int maxChars, string ellipsis = "...")
-        {
-            return value.Length <= maxChars ? value : value.Substring(0, maxChars) + ellipsis;
-        }
-
         public static string TruncateLines(this string value, int maxLines, string ellipsis = "...", bool trim = false)
         {
             var count = 0;
@@ -87,19 +82,5 @@ namespace DustyBot.Helpers
         {
             return !string.IsNullOrEmpty(value) ? transform(value) : string.Empty;
         }
-
-        public static bool TryAppendLimited(this StringBuilder o, string value, int maxLength)
-        {
-            if (o.Length + value.Length <= maxLength)
-            {
-                o.Append(value);
-                return true;
-            }
-
-            return false;
-        }
-
-        public static bool TryAppendLineLimited(this StringBuilder o, string value, int maxLength) 
-            => o.TryAppendLimited(value + Environment.NewLine, maxLength);
     }
 }

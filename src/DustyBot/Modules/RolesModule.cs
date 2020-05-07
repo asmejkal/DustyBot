@@ -18,6 +18,8 @@ using DustyBot.Settings;
 using Discord.WebSocket;
 using DustyBot.Helpers;
 using DustyBot.Definitions;
+using DustyBot.Framework.Exceptions;
+using System.Threading;
 
 namespace DustyBot.Modules
 {
@@ -27,6 +29,8 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
         public ILogger Logger { get; private set; }
+
+        private SemaphoreSlim RoleAssignmentLock { get; } = new SemaphoreSlim(1, 1);
 
         public RolesModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {
@@ -43,7 +47,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("roles", "channel", "Sets or disables a channel for role self-assignment.")]
+        [Command("roles", "channel", "Sets or disables a channel for role self-assignment.", CommandFlags.Synchronous)]
         [Alias("role", "channel")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
@@ -68,14 +72,11 @@ namespace DustyBot.Modules
                     return;
                 }
 
-                if ((await Settings.Read<RolesSettings>(command.GuildId)).ClearRoleChannel && !permissions.ManageMessages)
-                {
-                    await command.ReplyError(Communicator, $"Automatic message clearing is enabled, but the bot does not have the ManageMessages permission for this channel.");
-                    return;
-                }
-
                 await Settings.Modify(command.GuildId, (RolesSettings s) =>
                 {
+                    if (s.ClearRoleChannel && !permissions.ManageMessages)
+                        throw new CommandException("Automatic message clearing is enabled, but the bot does not have the ManageMessages permission for this channel.");
+
                     s.RoleChannel = command["Channel"].AsTextChannel.Id;
                 }).ConfigureAwait(false);
                 
@@ -83,14 +84,14 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("roles", "clearing", "Toggles automatic clearing of role channel.")]
+        [Command("roles", "clearing", "Toggles automatic clearing of role channel.", CommandFlags.Synchronous)]
         [Alias("role", "clearing")]
         [Permissions(GuildPermission.ManageMessages)]
         [Comment("Disabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
         {
             var settings = await Settings.Read<RolesSettings>(command.GuildId);
-            if (!settings.ClearRoleChannel == true && settings.RoleChannel != 0)
+            if (!settings.ClearRoleChannel && settings.RoleChannel != 0)
             {
                 var channel = await command.Guild.GetChannelAsync(settings.RoleChannel);
                 if (channel != null && (await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages == false)
@@ -113,7 +114,7 @@ namespace DustyBot.Modules
         public async Task CreateRole(ICommand command)
         {
             var role = await command.Guild.CreateRoleAsync(command["Name"], new GuildPermissions());
-            await AddRole(command.GuildId, role, command.Channel);
+            await AddRole(command.GuildId, role);
 
             await command.ReplySuccess(Communicator, $"A self-assignable role `{command["Name"]}` has been created. You can set a color or reorder it in the server's settings.");
         }
@@ -133,7 +134,7 @@ namespace DustyBot.Modules
                 return;
             }
             
-            await AddRole(command.GuildId, command["RoleNameOrID"].AsRole, command.Channel);
+            await AddRole(command.GuildId, command["RoleNameOrID"].AsRole);
 
             await command.ReplySuccess(Communicator, "Self-assignable role added.");
         }
@@ -193,7 +194,7 @@ namespace DustyBot.Modules
             {
                 var role = s.AssignableRoles.FirstOrDefault(x => x.RoleId == command["RoleNameOrId"].AsRole.Id);
                 if (role == null)
-                    throw new Framework.Exceptions.IncorrectParametersCommandException($"Role `{command["RoleNameOrId"].AsRole.Id}` is not self-assignable.");
+                    throw new IncorrectParametersCommandException($"Role `{command["RoleNameOrId"].AsRole.Id}` is not self-assignable.");
 
                 var roleNames = s.AssignableRoles
                     .Select(x => command.Guild.GetRole(x.RoleId)?.Name)
@@ -201,12 +202,12 @@ namespace DustyBot.Modules
                     .Concat(s.AssignableRoles.SelectMany(x => x.Names));
 
                 if (roleNames.Contains(command["Alias"]))
-                    throw new Framework.Exceptions.CommandException("A self-assignable role with this name or alias already exists");
+                    throw new CommandException("A self-assignable role with this name or alias already exists");
 
                 role.Names.Add(command["Alias"]);
             });
 
-            await command.ReplySuccess(Communicator, $"Alias `{command["Alias"]}` added.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Added alias `{command["Alias"]}` to role `{command["RoleNameOrID"].AsRole.Name}`.").ConfigureAwait(false);
         }
 
         [Command("roles", "alias", "remove", "Removes an alias.")]
@@ -221,7 +222,7 @@ namespace DustyBot.Modules
             {
                 var role = s.AssignableRoles.FirstOrDefault(x => x.RoleId == command["RoleNameOrId"].AsRole.Id);
                 if (role == null)
-                    throw new Framework.Exceptions.IncorrectParametersCommandException($"Role `{command["RoleNameOrId"].AsRole.Id}` is not self-assignable.");
+                    throw new IncorrectParametersCommandException($"Role `{command["RoleNameOrId"].AsRole.Id}` is not self-assignable.");
 
                 return role.Names.RemoveAll(x => x == command["Alias"]);
             }).ConfigureAwait(false);
@@ -272,7 +273,7 @@ namespace DustyBot.Modules
             var newVal = await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
                 if (!s.PersistentAssignableRoles && selfUser.GuildPermissions.ManageRoles == false)
-                    throw new Framework.Exceptions.MissingBotPermissionsException(GuildPermission.ManageRoles);
+                    throw new MissingBotPermissionsException(GuildPermission.ManageRoles);
 
                 return s.PersistentAssignableRoles = !s.PersistentAssignableRoles;
             }).ConfigureAwait(false);
@@ -280,7 +281,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.").ConfigureAwait(false);
         }
 
-        [Command("roles", "stats", "Server roles statistics.", CommandFlags.RunAsync)]
+        [Command("roles", "stats", "Server roles statistics.")]
         [Alias("role", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "prints stats for all roles")]
         public async Task RolesStats(ICommand command)
@@ -347,7 +348,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages).ConfigureAwait(false);
         }
 
-        private async Task AddRole(ulong guildId, IRole role, IMessageChannel replyChannel)
+        private async Task AddRole(ulong guildId, IRole role)
         {
             var newRole = new AssignableRole();
             newRole.RoleId = role.Id;
@@ -355,7 +356,7 @@ namespace DustyBot.Modules
             await Settings.Modify(guildId, (RolesSettings s) =>
             {
                 if (s.AssignableRoles.Any(x => x.RoleId == role.Id))
-                    throw new Framework.Exceptions.CommandException("This role is already self-assignable.");
+                    throw new CommandException("This role is already self-assignable.");
 
                 s.AssignableRoles.Add(newRole);
             });
@@ -439,143 +440,151 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        public override async Task OnMessageReceived(SocketMessage message)
+        public override Task OnMessageReceived(SocketMessage message)
         {
-            try
+            TaskHelper.FireForget(async () =>
             {
-                var channel = message.Channel as ITextChannel;
-                if (channel == null)
-                    return;
-
-                var user = message.Author as IGuildUser;
-                if (user == null)
-                    return;
-
-                if (user.IsBot)
-                    return;
-
-                var settings = await Settings.Read<RolesSettings>(channel.GuildId, false).ConfigureAwait(false);
-                if (settings == null || settings.RoleChannel != channel.Id)
-                    return;
-
                 try
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
-
-                    string msgContent = message.Content.Trim();
-                    bool remove = false;
-                    if (msgContent.StartsWith("-"))
+                    using (await RoleAssignmentLock.ClaimAsync()) // To prevent race-conditions when spamming roles (would be nicer with per-guild locks)
                     {
-                        msgContent = msgContent.Substring(1);
-                        remove = true;
-                    }
+                        var channel = message.Channel as ITextChannel;
+                        if (channel == null)
+                            return;
 
-                    msgContent = msgContent.TrimStart('-', '+');
-                    msgContent = msgContent.Trim();
+                        var user = message.Author as IGuildUser;
+                        if (user == null)
+                            return;
 
-                    // First try to match an alias case sensitive
-                    var roleAar = settings.AssignableRoles.FirstOrDefault(x => x.Names.Any(y => string.Compare(y, msgContent) == 0));
-                    
-                    // Then try current role names case sensitive
-                    if (roleAar == null)
-                    {
-                        roleAar = settings.AssignableRoles
-                            .Select(x => (Aar: x, Role: channel.Guild.GetRole(x.RoleId)))
-                            .FirstOrDefault(x => x.Role != null && string.Compare(x.Role.Name, msgContent) == 0)
-                            .Aar;
-                    }
+                        if (user.IsBot)
+                            return;
 
-                    // Then alias case insensitive
-                    if (roleAar == null)
-                        roleAar = settings.AssignableRoles.FirstOrDefault(x => x.Names.Any(y => string.Compare(y, msgContent, true, GlobalDefinitions.Culture) == 0));
+                        var settings = await Settings.Read<RolesSettings>(channel.GuildId, false).ConfigureAwait(false);
+                        if (settings == null || settings.RoleChannel != channel.Id)
+                            return;
 
-                    // And current role names case insensitive
-                    if (roleAar == null)
-                    {
-                        roleAar = settings.AssignableRoles
-                            .Select(x => (Aar: x, Role: channel.Guild.GetRole(x.RoleId)))
-                            .FirstOrDefault(x => x.Role != null && string.Compare(x.Role.Name, msgContent, true, GlobalDefinitions.Culture) == 0)
-                            .Aar;
-                    }
-
-                    if (roleAar == null)
-                    {
-                        var response = await Communicator.CommandReplyError(message.Channel, "This is not a self-assignable role.").ConfigureAwait(false);
-                        if (settings.ClearRoleChannel)
-                            response.First().DeleteAfter(3);
-
-                        return;
-                    }
-
-                    var addRoles = new List<ulong>();
-                    var removeRoles = new List<ulong>();
-                    if (roleAar.SecondaryId != 0)
-                    {
-                        //Bias role (more complex logic)
-                        if (remove)
+                        try
                         {
-                            //Remove also secondary
-                            removeRoles.Add(roleAar.RoleId);
-                            removeRoles.Add(roleAar.SecondaryId);
-                        }
-                        else
-                        {
-                            var primaryRoles = settings.AssignableRoles.Where(x => x.SecondaryId != 0);
+                            await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
 
-                            //If the user doesn't have the primary already
-                            if (!user.RoleIds.Any(x => x == roleAar.RoleId))
+                            string msgContent = message.Content.Trim();
+                            bool remove = false;
+                            if (msgContent.StartsWith("-"))
                             {
-                                //Check if user has any primary role
-                                if (user.RoleIds.Any(x => primaryRoles.Any(y => y.RoleId == x)))
+                                msgContent = msgContent.Substring(1);
+                                remove = true;
+                            }
+
+                            msgContent = msgContent.TrimStart('-', '+');
+                            msgContent = msgContent.Trim();
+
+                            // First try to match an alias case sensitive
+                            var roleAar = settings.AssignableRoles.FirstOrDefault(x => x.Names.Any(y => string.Compare(y, msgContent) == 0) && channel.Guild.GetRole(x.RoleId) != null);
+
+                            // Then try current role names case sensitive
+                            if (roleAar == null)
+                            {
+                                roleAar = settings.AssignableRoles
+                                    .Select(x => (Aar: x, Role: channel.Guild.GetRole(x.RoleId)))
+                                    .FirstOrDefault(x => x.Role != null && string.Compare(x.Role.Name, msgContent) == 0)
+                                    .Aar;
+                            }
+
+                            // Then alias case insensitive
+                            if (roleAar == null)
+                                roleAar = settings.AssignableRoles.FirstOrDefault(x => x.Names.Any(y => string.Compare(y, msgContent, true, GlobalDefinitions.Culture) == 0) && channel.Guild.GetRole(x.RoleId) != null);
+
+                            // And current role names case insensitive
+                            if (roleAar == null)
+                            {
+                                roleAar = settings.AssignableRoles
+                                    .Select(x => (Aar: x, Role: channel.Guild.GetRole(x.RoleId)))
+                                    .FirstOrDefault(x => x.Role != null && string.Compare(x.Role.Name, msgContent, true, GlobalDefinitions.Culture) == 0)
+                                    .Aar;
+                            }
+
+                            if (roleAar == null)
+                            {
+                                var response = await Communicator.CommandReplyError(message.Channel, "This is not a self-assignable role.").ConfigureAwait(false);
+                                if (settings.ClearRoleChannel)
+                                    response.First().DeleteAfter(3);
+
+                                return;
+                            }
+
+                            var addRoles = new List<ulong>();
+                            var removeRoles = new List<ulong>();
+                            if (roleAar.SecondaryId != 0)
+                            {
+                                //Bias role (more complex logic)
+                                if (remove)
                                 {
-                                    //Assign secondary
-                                    addRoles.Add(roleAar.SecondaryId);
+                                    //Remove also secondary
+                                    removeRoles.Add(roleAar.RoleId);
+                                    removeRoles.Add(roleAar.SecondaryId);
                                 }
                                 else
                                 {
-                                    //Assign primary and delete secondary
-                                    addRoles.Add(roleAar.RoleId);
-                                    removeRoles.Add(roleAar.SecondaryId);
+                                    var primaryRoles = settings.AssignableRoles.Where(x => x.SecondaryId != 0);
+
+                                    //If the user doesn't have the primary already
+                                    if (!user.RoleIds.Any(x => x == roleAar.RoleId))
+                                    {
+                                        //Check if user has any primary role
+                                        if (user.RoleIds.Any(x => primaryRoles.Any(y => y.RoleId == x)))
+                                        {
+                                            //Assign secondary
+                                            addRoles.Add(roleAar.SecondaryId);
+                                        }
+                                        else
+                                        {
+                                            //Assign primary and delete secondary
+                                            addRoles.Add(roleAar.RoleId);
+                                            removeRoles.Add(roleAar.SecondaryId);
+                                        }
+                                    }
+                                    else
+                                        removeRoles.Add(roleAar.SecondaryId); //Try to remove secondary just in case (cleanup)
                                 }
                             }
                             else
-                                removeRoles.Add(roleAar.SecondaryId); //Try to remove secondary just in case (cleanup)
+                            {
+                                //Regular role
+                                if (remove)
+                                    removeRoles.Add(roleAar.RoleId);
+                                else
+                                    addRoles.Add(roleAar.RoleId);
+                            }
+
+
+                            if (addRoles.Count > 0)
+                                await user.AddRolesAsync(addRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
+
+                            if (removeRoles.Count > 0)
+                                await user.RemoveRolesAsync(removeRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
+
+                            var guildRole = channel.Guild.GetRole(roleAar.RoleId);
+                            if (guildRole != null)
+                            {
+                                var response = await Communicator.SendMessage(message.Channel, string.Format(remove ? "You no longer have the **{0}** role." : "You now have the **{0}** role.", guildRole.Name)).ConfigureAwait(false);
+                                if (settings.ClearRoleChannel)
+                                    response.First().DeleteAfter(3);
+                            }
+                        }
+                        finally
+                        {
+                            if (settings.ClearRoleChannel)
+                                message.DeleteAfter(3);
                         }
                     }
-                    else
-                    {
-                        //Regular role
-                        if (remove)
-                            removeRoles.Add(roleAar.RoleId);
-                        else
-                            addRoles.Add(roleAar.RoleId);
-                    }
-
-
-                    if (addRoles.Count > 0)
-                        await user.AddRolesAsync(addRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
-
-                    if (removeRoles.Count > 0)
-                        await user.RemoveRolesAsync(removeRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
-
-                    var guildRole = channel.Guild.GetRole(roleAar.RoleId);
-                    if (guildRole != null)
-                    {
-                        var response = await Communicator.SendMessage(message.Channel, string.Format(remove ? "You no longer have the **{0}** role." : "You now have the **{0}** role.", guildRole.Name)).ConfigureAwait(false);
-                        if (settings.ClearRoleChannel)
-                            response.First().DeleteAfter(3);
-                    }
                 }
-                finally
+                catch (Exception ex)
                 {
-                    if (settings.ClearRoleChannel)
-                        message.DeleteAfter(3);
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Roles", "Failed to process message", ex));
                 }
-            }
-            catch (Exception ex)
-            {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Roles", "Failed to process message", ex));
-            }
+            });
+
+            return Task.CompletedTask;
         }
     }
 }

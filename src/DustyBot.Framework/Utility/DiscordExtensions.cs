@@ -56,5 +56,8 @@ namespace DustyBot.Framework.Utility
 
             return $"https://discordapp.com/channels/{channel.GuildId}/{channel.Id}/{message.Id}";
         }
+
+        public static string GetAnimatedIconUrl(this IGuild guild) => 
+            guild.IconId.StartsWith("a_") ? System.IO.Path.ChangeExtension(guild.IconUrl, "gif") : null;
     }
 }

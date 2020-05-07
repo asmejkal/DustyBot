@@ -112,7 +112,7 @@ namespace DustyBot.Modules
             var displayed = 0;
             foreach (var item in events)
             {
-                string line = FormatEvent(item, settings.EventFormat);
+                string line = FormatEvent(item, settings.EventFormat, showTag: string.Compare(tag, ScheduleSettings.AllTag, true) == 0);
 
                 if (!item.HasTime)
                 {
@@ -153,7 +153,7 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("schedule", "set", "style", "Switches between display styles.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("schedule", "set", "style", "Switches between display styles.", CommandFlags.TypingIndicator)]
         [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
         [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the [support server](" + HelpBuilder.SupportServerInvite + ") or contact the bot owner.")]
         [Example("KoreanDate")]
@@ -217,7 +217,7 @@ namespace DustyBot.Modules
                 });
             }).ConfigureAwait(false);
 
-            await command.ReplySuccess(Communicator, $"Notified events {BuildTagString(tag)} will now be posted in {command["Channel"].AsTextChannel.Mention}{(command["RoleNameOrId"].HasValue ? $" and ping the {command["RoleNameOrId"].AsRole.Name} role" : "")}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Notified events {BuildTagString(tag)} will now be posted in {command["Channel"].AsTextChannel.Mention}{(command["RoleNameOrId"].HasValue ? $" and ping the `{command["RoleNameOrId"].AsRole.Name}` role" : "")}.").ConfigureAwait(false);
         }
 
         [Command("schedule", "reset", "notifications", "Resets event notifications.")]
@@ -239,7 +239,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Events {BuildTagString(tag)} will no longer be notified.").ConfigureAwait(false);
         }
 
-        [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.TypingIndicator)]
         [Alias("schedule", "set", "time", "zone")]
         [Parameter("Offset", @"^(?:UTC)?\+?(-)?([0-9]{1,2}):?([0-9]{1,2})?$", ParameterType.Regex, "the timezone's offset from UTC (eg. `UTC-5` or `UTC+12:30`)")]
         [Parameter("Name", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "you can specify a custom name for the timezone (e.g. to show `KST` instead of `UTC+9`)")]
@@ -296,7 +296,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"The `schedule` command will now display up to {(int)command["MaxEvents"]} events.").ConfigureAwait(false);
         }
 
-        [Command("event", "add", "Adds an event to schedule.")]
+        [Command("event", "add", "Adds an event to schedule.", CommandFlags.Synchronous)]
         [Alias("events", "add")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
@@ -317,7 +317,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, message + $" {result}");
         }
 
-        [Command("event", "notify", "Adds a notified event to schedule.")]
+        [Command("event", "notify", "Adds a notified event to schedule.", CommandFlags.Synchronous)]
         [Alias("events", "notify")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
@@ -393,7 +393,7 @@ namespace DustyBot.Modules
             return (e, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $" has been added with ID `{e.Id}`" + (e.HasTag ? $" and tag `{e.Tag}`" : string.Empty) + ".");
         }
 
-        [Command("event", "remove", "Removes an event from schedule, by ID or search.")]
+        [Command("event", "remove", "Removes an event from schedule, by ID or search.", CommandFlags.Synchronous)]
         [Alias("events", "remove")]
         [Parameter("IdOrSearchString", ParameterType.String, ParameterFlags.Remainder, "the event's ID or a part of description (you will be asked to choose one if multiple events match the description)")]
         [Example("13")]
@@ -466,13 +466,14 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("event", "edit", "Edits an event in schedule.")]
+        [Command("event", "edit", "Edits an event in schedule.", CommandFlags.Synchronous)]
         [Alias("events", "edit")]
         [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it shows when an event is added or with `event search`")]
         [Parameter("Notification", @"^(?:notify|silence)$", ParameterFlags.Optional, "enter `notify` to make this a notified event or `silence` to make it a regular event")]
         [Parameter("Date", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
-        [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable")]
+        [Parameter("Nolink", @"^nolink$", ParameterFlags.Optional)]
+        [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable; put `nolink` to remove a link")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
         [Comment("All parameters are optional – you can specify just the parts you wish to be edited (date, time, and/or description). The parts you leave out will stay the same.")]
         [Example("5 08:45")]
@@ -494,7 +495,7 @@ namespace DustyBot.Modules
             TimeSpan? time = null;
             bool? hasTime = null;
             string description = null;
-            string link = null;
+            var link = new Optional<string>();
             bool? notify = null;
             try
             {
@@ -517,11 +518,16 @@ namespace DustyBot.Modules
             {
                 var markdownLink = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
                 description = markdownLink.HasValue ? markdownLink.Value.Text : command["Description"];
-                link = markdownLink?.Uri.AbsoluteUri;
+
+                if (markdownLink.HasValue)
+                    link = markdownLink.Value.Uri.AbsoluteUri;
             }
 
             if (command["Link"].HasValue)
-                link = command["Link"];
+                link = (string)command["Link"];
+
+            if (command["Nolink"].HasValue)
+                link = null;
 
             if (description != null && string.IsNullOrWhiteSpace(description))
                 throw new IncorrectParametersCommandException("Description cannot be empty.");
@@ -551,8 +557,8 @@ namespace DustyBot.Modules
                 if (!string.IsNullOrWhiteSpace(description))
                     e.Description = description;
 
-                if (!string.IsNullOrWhiteSpace(link))
-                    e.Link = link;
+                if (link.IsSpecified)
+                    e.Link = link.Value;
 
                 if (notify.HasValue)
                     e.Notify = notify.Value;
@@ -573,7 +579,7 @@ namespace DustyBot.Modules
             return (originalDate, edited, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $".");
         }
 
-        [Command("event", "batch", "Perform multiple event add/remove/edit operations at once.", CommandFlags.RunAsync | CommandFlags.TypingIndicator)]
+        [Command("event", "batch", "Perform multiple event add/remove/edit operations at once.", CommandFlags.TypingIndicator)]
         [Alias("events", "batch")]
         [Parameter("Batch", ParameterType.String, ParameterFlags.Remainder, "a batch of `add/remove/edit` commands to be executed in order; please see the example")]
         [Comment("To see the syntax for the individual commands, please see their respective help sections (`event add`, `event remove` and `event edit`).")]
@@ -683,7 +689,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("event", "search", "Searches for events and shows their IDs.", CommandFlags.RunAsync)]
+        [Command("event", "search", "Searches for events and shows their IDs.")]
         [Alias("events", "search")]
         [Parameter("SearchString", ParameterType.String, ParameterFlags.Remainder, "a part of event's description; finds all events containing this string")]
         [Example("Osaka")]
@@ -701,7 +707,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages);
         }
 
-        [Command("event", "list", "Lists all events in a specified month.", CommandFlags.RunAsync)]
+        [Command("event", "list", "Lists all events in a specified month.")]
         [Alias("events", "list")]
         [Parameter("Month", ParameterType.String, "list events from this month (use english month name or number)")]
         [Parameter("Year", ParameterType.UInt, ParameterFlags.Optional, "the month's year, uses current year by default")]
@@ -727,7 +733,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages);
         }
 
-        [Command("calendar", "create", "Creates a permanent message to display events.")]
+        [Command("calendar", "create", "Creates a permanent message to display events.", CommandFlags.Synchronous)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
         [Parameter("Channel", ParameterType.TextChannel, "target channel")]
         [Parameter("FromDate", DateRegex, ParameterType.Regex, "display events from this date onward (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
@@ -777,7 +783,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("calendar", "create", "month", "Creates a permanent message to display events in a specific month.")]
+        [Command("calendar", "create", "month", "Creates a permanent message to display events in a specific month.", CommandFlags.Synchronous)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
         [Parameter("Channel", ParameterType.TextChannel, "target channel")]
         [Parameter("Month", ParameterType.String, "display only events taking place in this month (eg. `January`)")]
@@ -818,7 +824,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A calendar has been created to display the `{calendar.BeginDate.ToString(@"MMMM", GlobalDefinitions.Culture)}` schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
         }
 
-        [Command("calendar", "create", "upcoming", "Creates a permanent message to display only upcoming events.")]
+        [Command("calendar", "create", "upcoming", "Creates a permanent message to display only upcoming events.", CommandFlags.Synchronous)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
         [Parameter("Channel", ParameterType.TextChannel, "target channel")]
         [Parameter("Days", ParameterType.UInt, ParameterFlags.Optional, "display events up to this many days in the future; if ommited, displays as many as possible")]
@@ -847,7 +853,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A calendar has been created to display upcoming{(calendar.DaysSpan > 0 ? $" {calendar.DaysSpan} days of" : string.Empty)} schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
         }
 
-        [Command("calendar", "create", "upcoming", "week", "Creates a permanent message to display events in the next 7 days.")]
+        [Command("calendar", "create", "upcoming", "week", "Creates a permanent message to display events in the next 7 days.", CommandFlags.Synchronous)]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
         [Parameter("Channel", ParameterType.TextChannel, "target channel")]
         [Comment("This calendar gets automatically updated every day at 0:00 (in your schedule's timezone).")]
@@ -873,7 +879,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"A calendar has been created to display the upcoming week of schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
         }
 
-        [Command("calendar", "set", "begin", "Moves the begin date of a calendar.")]
+        [Command("calendar", "set", "begin", "Moves the begin date of a calendar.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "display events from this date onward (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Example("462366629247057930 12/01")]
@@ -898,7 +904,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}").ConfigureAwait(false);
         }
 
-        [Command("calendar", "set", "end", "Moves the end date of a calendar.")]
+        [Command("calendar", "set", "end", "Moves the end date of a calendar.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "display only events up to this this date (inclusive); date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Example("462366629247057930 03/31")]
@@ -925,7 +931,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}").ConfigureAwait(false);
         }
 
-        [Command("calendar", "set", "month", "Sets an existing calendar to display a different month.")]
+        [Command("calendar", "set", "month", "Sets an existing calendar to display a different month.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Month", ParameterType.String, "display only events taking place in this month (eg. `January`)")]
         [Parameter("Year", ParameterType.UInt, ParameterFlags.Optional, "the month's year, uses current year by default")]
@@ -952,7 +958,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display the `{calendar.BeginDate.ToString(@"MMMM", GlobalDefinitions.Culture)}` schedule. {result}").ConfigureAwait(false);
         }
         
-        [Command("calendar", "set", "title", "Sets a custom title for a calendar.")]
+        [Command("calendar", "set", "title", "Sets a custom title for a calendar.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Title", ParameterType.String, ParameterFlags.Remainder, "new header")]
         [Example("462366629247057930 A special calendar")]
@@ -971,7 +977,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"New title has been set.").ConfigureAwait(false);
         }
 
-        [Command("calendar", "set", "footer", "Sets a custom footer for a calendar.")]
+        [Command("calendar", "set", "footer", "Sets a custom footer for a calendar.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Footer", ParameterType.String, ParameterFlags.Remainder, "new footer")]
         [Comment("Not recommended for calendars created with `calendar create upcoming`, as they have footers with useful dynamic information.")]
@@ -991,7 +997,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"New footer has been set.").ConfigureAwait(false);
         }
 
-        [Command("calendar", "set", "tag", "Makes a calendar display only events with a specific tag.")]
+        [Command("calendar", "set", "tag", "Makes a calendar display only events with a specific tag.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "display only events marked with this tag; if omitted, displays only untagged events; specify `all` to display all events, regardless of tags")]
         [Example("462366629247057930 birthday")]
@@ -1066,7 +1072,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result.ToString()).ConfigureAwait(false);
         }
 
-        [Command("calendar", "split", "Splits a calendar in two by a given date.", CommandFlags.RunAsync)]
+        [Command("calendar", "split", "Splits a calendar in two by a given date.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "a date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Comment("The calendar will be split in two. All events *before* the provided date will stay in the old calendar. All events from the provided date onwards (inclusive) will be displayed in a new calendar which will be created.")]
@@ -1126,7 +1132,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"The original calendar will now display events {BuildCalendarSpanString(origCalendar)}. A new calendar has been created to display events {BuildCalendarSpanString(newCalendar)}.\n**Tip:** You can reorder calendars in your schedule channel with the `calendar swap` or `calendar set begin/end` commands. {result.ToString(false)}").ConfigureAwait(false);
         }
 
-        [Command("calendar", "swap", "Swaps two calendars.", CommandFlags.RunAsync)]
+        [Command("calendar", "swap", "Swaps two calendars.", CommandFlags.Synchronous)]
         [Alias("calendars", "swap")]
         [Parameter("FirstMessageId", ParameterType.Id, "message ID of the first calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("SecondMessageId", ParameterType.Id, "message ID of the second calendar")]
@@ -1156,7 +1162,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Calendars have been swapped. {result}").ConfigureAwait(false);
         }
 
-        [Command("calendar", "delete", "Deletes a calendar.")]
+        [Command("calendar", "delete", "Deletes a calendar.", CommandFlags.Synchronous)]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to display all active calendars and their message IDs")]
         [Comment("Deleting a calendar doesn't delete any events.")]
         public async Task DeleteCalendar(ICommand command)

@@ -177,7 +177,7 @@ namespace DustyBot.Modules
                 throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
         }
 
-        [Command("starboard", "ranking", "Shows which users have received the most stars.", CommandFlags.RunAsync)]
+        [Command("starboard", "ranking", "Shows which users have received the most stars.")]
         public async Task StarboardRanking(ICommand command)
         {
             var settings = await Settings.Read<StarboardSettings>(command.GuildId);
@@ -221,7 +221,7 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build());
         }
 
-        [Command("starboard", "top", "Shows the top ranked messages.", CommandFlags.RunAsync)]
+        [Command("starboard", "top", "Shows the top ranked messages.")]
         public async Task StarboardTop(ICommand command)
         {
             var settings = await Settings.Read<StarboardSettings>(command.GuildId);

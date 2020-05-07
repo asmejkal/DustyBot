@@ -8,7 +8,7 @@ namespace DustyBot.Framework.Commands
     public enum CommandFlags
     {
         None = 0,
-        RunAsync = 1 << 0,
+        Synchronous = 1 << 0,
         OwnerOnly = 1 << 1,
         Hidden = 1 << 2,
         DirectMessageAllow = 1 << 3,

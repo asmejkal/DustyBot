@@ -9,6 +9,7 @@ using Discord.WebSocket;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Communication;
 using System.Text.RegularExpressions;
+using System.Globalization;
 
 namespace DustyBot.Framework.Commands
 {
@@ -92,7 +93,7 @@ namespace DustyBot.Framework.Commands
             var invoker = ParseInvoker(message, prefix);
             foreach (var (usage, registration) in usageToRegistration.OrderByDescending(x => x.usage.Verbs.Count))
             {
-                if (string.Compare(invoker, usage.InvokeString) != 0)
+                if (string.Compare(invoker, usage.InvokeString, true, CultureInfo.InvariantCulture) != 0)
                     continue;
 
                 if (!usage.HasVerbs)
@@ -104,7 +105,7 @@ namespace DustyBot.Framework.Commands
                 bool match = true;
                 for (int i = 0; i < usage.Verbs.Count; ++i)
                 {
-                    if (string.Compare(split[i + 1], usage.Verbs[i], true) != 0)
+                    if (string.Compare(split[i + 1], usage.Verbs[i], true, CultureInfo.InvariantCulture) != 0)
                     {
                         match = false;
                         break;

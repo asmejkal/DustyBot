@@ -22,6 +22,7 @@ namespace DustyBot.Framework.Commands
         Uri,
         Guid,
         Regex,
+        ColorCode,
 
         Id,
         TextChannel,

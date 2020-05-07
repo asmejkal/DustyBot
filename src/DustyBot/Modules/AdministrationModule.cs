@@ -45,7 +45,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("say", "Sends a specified message.", CommandFlags.RunAsync)]
+        [Command("say", "Sends a specified message.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("TargetChannel", ParameterType.TextChannel, "a channel that will receive the message")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "the message to be sent (you may also include one attachment)")]
@@ -77,7 +77,7 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, "Message sent.").ConfigureAwait(false);
         }
 
-        [Command("edit", "Edits a message sent by the say command.", CommandFlags.RunAsync)]
+        [Command("edit", "Edits a message sent by the say command.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.GuildSelfMessage, "a message previously sent by the `say` command")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the message to send")]
@@ -88,9 +88,9 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Message edited.").ConfigureAwait(false);
         }
 
-        [Command("mute", "Mutes a server member.", CommandFlags.RunAsync)]
+        [Command("mute", "Mutes a server member.")]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
-        [Parameter("User", ParameterType.GuildUser, "a server member to be muted")]
+        [Parameter("User", ParameterType.GuildUser, "a server member to be muted (mention or ID)")]
         [Parameter("Reason", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "reason")]
         public async Task Mute(ICommand command)
         {
@@ -100,7 +100,7 @@ namespace DustyBot.Modules
 
         [Command("unmute", "Unmutes a server member.")]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
-        [Parameter("User", ParameterType.GuildUser, "a server member to be unmuted")]
+        [Parameter("User", ParameterType.GuildUser, "a server member to be unmuted (mention or ID)")]
         public async Task Unmute(ICommand command)
         {
             await AdministrationHelpers.Unmute(command["User"].AsGuildUser); 
@@ -159,7 +159,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.RunAsync | CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
         [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
         [Parameter("Module", ParameterType.String, "LiteDB collection name")]
         public async Task GetSettings(ICommand command)

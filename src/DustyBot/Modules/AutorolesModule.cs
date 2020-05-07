@@ -87,7 +87,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result);
         }
 
-        [Command("autorole", "apply", "Assigns the current automatic roles to everyone.", CommandFlags.RunAsync)]
+        [Command("autorole", "apply", "Assigns the current automatic roles to everyone.")]
         [Alias("autoroles", "apply")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         [Comment("May take a while to complete.")]
@@ -121,7 +121,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : ".")).ConfigureAwait(false);
         }
 
-        [Command("autorole", "check", "Checks for users who are missing an automatic role.", CommandFlags.RunAsync)]
+        [Command("autorole", "check", "Checks for users who are missing an automatic role.")]
         [Alias("autoroles", "check")]
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         public async Task CheckAutoRole(ICommand command)

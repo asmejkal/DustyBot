@@ -379,7 +379,7 @@ namespace DustyBot.Settings.LiteDB
             };
         }
 
-        public Migration GetMigration(ushort version)
+        public Migration GetMigration(int version)
         {
             var result = _migrations.ElementAtOrDefault(version);
             if (result == null)

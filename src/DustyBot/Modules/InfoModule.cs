@@ -9,6 +9,7 @@ using DustyBot.Definitions;
 using System.Linq;
 using System;
 using Discord.WebSocket;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Modules
 {
@@ -58,8 +59,13 @@ namespace DustyBot.Modules
             if (user.JoinedAt.HasValue)
                 embed.AddField(x => x.WithName("Joined the server on").WithValue($"{user.JoinedAt?.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.JoinedAt.Value).TotalDays)} days ago)"));
 
+            // User RoleIds aren't ordered properly, so we have to go through guild roles
+            var roles = command.Guild.Roles.Where(x => x.Id != command.Guild.EveryoneRole.Id && user.RoleIds.Contains(x.Id))
+                .OrderByDescending(x => x.Position)
+                .Select(y => $"<@&{y.Id}>");
+
             embed.AddField(x => x.WithName("Account created on").WithValue($"{user.CreatedAt.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.CreatedAt).TotalDays)} days ago)"));
-            embed.AddField(x => x.WithName("Roles").WithValue(string.Join(", ", user.RoleIds.Select(y => command.Guild.GetRole(y)?.Name).Where(y => y != null))));
+            embed.AddField(x => x.WithName("Roles").WithValue(string.Join(" ", roles)));
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }
@@ -71,8 +77,8 @@ namespace DustyBot.Modules
             var guild = (SocketGuild)command.Guild;
             var embed = new EmbedBuilder()
                 .WithTitle(guild.Name)
-                .WithUrl(guild.IconUrl)
-                .WithThumbnailUrl(guild.IconUrl)
+                .WithUrl(guild.GetAnimatedIconUrl() ?? guild.IconUrl)
+                .WithThumbnailUrl(guild.GetAnimatedIconUrl() ?? guild.IconUrl)
                 .WithFooter($"#{guild.Id} • times in UTC");
             
             embed.AddField(x => x.WithName("Created on").WithValue($"{guild.CreatedAt.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - guild.CreatedAt).TotalDays)} days ago)"));

@@ -1,9 +1,6 @@
 ﻿using LiteDB;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
+using LiteDB.Engine;
 
 namespace DustyBot.Framework.LiteDB
 {
@@ -13,40 +10,18 @@ namespace DustyBot.Framework.LiteDB
 
         public static void Encrypt(string dbPath, string password)
         {
-            CopyReplace(dbPath, password);
+            using (var source = new LiteDatabase($"Filename={dbPath};Upgrade=true;Collation=en-US/IgnoreCase"))
+            {
+                source.Rebuild(new RebuildOptions() { Collation = new Collation("en-US/IgnoreCase"), Password = password });
+            }
         }
 
         public static void Decrypt(string dbPath, string password)
         {
-            CopyReplace($"Filename={dbPath};Password={password}");
-        }
-
-        public static void CopyReplace(string sourceConnString, string destPassword = null)
-        {
-            var sourceConn = new ConnectionString(sourceConnString);
-
-            var tmpPath = sourceConn.Filename + "_tmp";
-            if (File.Exists(tmpPath))
-                File.Delete(tmpPath);
-
-            using (var source = new LiteDatabase(sourceConnString))
+            using (var source = new LiteDatabase($"Filename={dbPath};Upgrade=true;Collation=en-US/IgnoreCase;Password={password}"))
             {
-                string destConnString = $"Filename={tmpPath}" + (destPassword == null ? "" : $";Password={destPassword}");
-                using (var destination = new LiteDatabase(destConnString))
-                {
-                    foreach (var name in source.GetCollectionNames())
-                    {
-                        var oldCol = source.GetCollection(name);
-                        var newCol = destination.GetCollection(name);
-                        newCol.InsertBulk(oldCol.FindAll(), Math.Max(oldCol.Count(), 100));
-                    }
-
-                    destination.Engine.UserVersion = source.Engine.UserVersion;
-                }
+                source.Rebuild(new RebuildOptions() { Collation = new Collation("en-US/IgnoreCase")});
             }
-
-            File.Delete(sourceConn.Filename);
-            File.Move(tmpPath, sourceConn.Filename);
         }
 
         public static void FixSequence(string dbPath, string password)
@@ -76,8 +51,8 @@ namespace DustyBot.Framework.LiteDB
                         }
                     }
 
-                    destination.Engine.UserVersion = source.Engine.UserVersion;
-                    destination.Engine.Shrink(password);
+                    destination.UserVersion = source.UserVersion;
+                    destination.Rebuild();
                 }
             }
 

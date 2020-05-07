@@ -7,10 +7,9 @@ namespace DustyBot.Framework.Utility
 {
     public static class StringExtensions
     {
-        public static string Truncate(this string value, int maxChars)
+        public static string Truncate(this string value, int maxChars, string ellipsis = "...")
         {
-            const string ellipses = "...";
-            return value.Length <= maxChars ? value : value.Substring(0, maxChars - ellipses.Length) + ellipses;
+            return value.Length <= maxChars ? value : value.Substring(0, maxChars - ellipsis.Length) + ellipsis;
         }
 
         public static IEnumerable<string> Chunkify(this string str, int maxChunkSize)
@@ -111,5 +110,19 @@ namespace DustyBot.Framework.Utility
             if (token.Length > 0)
                 yield return new Token { Begin = begin, End = value.Length, Value = token.ToString() };
         }
+
+        public static bool TryAppendLimited(this StringBuilder o, string value, int maxLength)
+        {
+            if (o.Length + value.Length <= maxLength)
+            {
+                o.Append(value);
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TryAppendLineLimited(this StringBuilder o, string value, int maxLength)
+            => o.TryAppendLimited(value + Environment.NewLine, maxLength);
     }
 }

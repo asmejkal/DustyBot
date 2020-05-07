@@ -24,7 +24,8 @@ namespace DustyBot.Framework.LiteDB
 
         public SettingsProvider(string dbPath, Migrator migrator, string password = null)
         {
-            _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password}"));
+            _dbObject = new LiteDatabase($"Filename={dbPath}" + (string.IsNullOrEmpty(password) ? "" : $";Password={password}") + ";Upgrade=true;Collation=en-US/IgnoreCase");
+
             migrator.MigrateCurrent(_dbObject);
         }
 
@@ -101,7 +102,10 @@ namespace DustyBot.Framework.LiteDB
         public Task<IEnumerable<T>> Read<T>() 
             where T : IServerSettings
         {
-            return Task.FromResult(_dbObject.GetCollection<T>().FindAll());
+            // We have to enumerate here to avoid lock issues in LiteDB... 
+            // https://github.com/mbdavid/LiteDB/issues/1377
+            // https://github.com/mbdavid/LiteDB/issues/1637
+            return Task.FromResult<IEnumerable<T>>(_dbObject.GetCollection<T>().FindAll().ToList()); 
         }
         
         public async Task Modify<T>(ulong serverId, Action<T> action)
@@ -224,7 +228,7 @@ namespace DustyBot.Framework.LiteDB
                 foreach (var colName in _dbObject.GetCollectionNames())
                 {
                     var col = _dbObject.GetCollection(colName);
-                    col.Delete(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId);
+                    col.DeleteMany(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId);
                 }
             });
         }
@@ -271,7 +275,10 @@ namespace DustyBot.Framework.LiteDB
         public Task<IEnumerable<T>> ReadUser<T>() 
             where T : IUserSettings
         {
-            return Task.FromResult(_dbObject.GetCollection<T>().FindAll());
+            // We have to enumerate here to avoid lock issues in LiteDB... 
+            // https://github.com/mbdavid/LiteDB/issues/1377
+            // https://github.com/mbdavid/LiteDB/issues/1637
+            return Task.FromResult<IEnumerable<T>>(_dbObject.GetCollection<T>().FindAll().ToList());
         }
 
         public async Task ModifyUser<T>(ulong userId, Action<T> action) 

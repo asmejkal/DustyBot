@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DustyBot.Framework.Utility;
+using System.Globalization;
 
 namespace DustyBot.Framework.Commands
 {
@@ -116,6 +117,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.Uri: result = AsUri; break;
                 case ParameterType.Guid: result = AsGuid; break;
                 case ParameterType.Regex: result = AsRegex; break;
+                case ParameterType.ColorCode: result = AsColorCode; break;
                 case ParameterType.Id: result = AsId; break;
                 case ParameterType.TextChannel: result = AsTextChannel; break;
                 case ParameterType.GuildUser: result = AsGuildUser; break;
@@ -144,6 +146,22 @@ namespace DustyBot.Framework.Commands
         public Guid? AsGuid => TryConvert<Guid>(this, ParameterType.Guid, Guid.TryParse);
         public Match AsRegex => TryConvert<Match>(this, ParameterType.Regex, x => Regex?.Match(x));
         public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
+
+        private static Regex ColorCodeRegex = new Regex("^#?([a-fA-F0-9]+)$", RegexOptions.Compiled);
+        private static bool TryParseColorCode(string value, out uint result)
+        {
+            var match = ColorCodeRegex.Match(value);
+            if (match.Success)
+            {
+                var number = match.Groups[1].Value;
+                return uint.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
+            }
+
+            result = 0;
+            return false;
+        }
+
+        public uint? AsColorCode => TryConvert<uint>(this, ParameterType.ColorCode, TryParseColorCode);
 
         private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
         public ITextChannel AsTextChannel => TryConvert<ITextChannel>(this, ParameterType.TextChannel, x =>
@@ -189,6 +207,10 @@ namespace DustyBot.Framework.Commands
 
                 id = ulong.Parse(match.Groups[1].Value);
             }
+
+            var user = (IGuildUser)Guild?.Users.FirstOrDefault(y => y.Id == id);
+            if (user == null)
+                return null;
 
             return Tuple.Create((IGuildUser)Guild?.Users.FirstOrDefault(y => y.Id == id), (string)null);
         });

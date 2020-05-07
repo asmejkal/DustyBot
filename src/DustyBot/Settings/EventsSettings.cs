@@ -14,6 +14,7 @@ namespace DustyBot.Settings
         public string Title { get; set; }
         public Uri Image { get; set; }
         public string Body { get; set; }
+        public uint? Color { get; set; }
 
         public GreetEmbed() { }
 

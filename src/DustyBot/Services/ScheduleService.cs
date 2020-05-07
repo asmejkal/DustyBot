@@ -106,7 +106,7 @@ namespace DustyBot.Services
                 if (context.UtcDueTime.HasValue && (next == null || context.UtcDueTime <= next.Date.Subtract(settings.TimezoneOffset)))
                     return;
 
-                if (next == null)
+                if (next == null || (next.Date - now).TotalMilliseconds >= Int32.MaxValue)
                 {
                     context.Disable();
                     return;

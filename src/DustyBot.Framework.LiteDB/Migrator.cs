@@ -16,11 +16,11 @@ namespace DustyBot.Framework.LiteDB
 
     public class Migrator
     {
-        public ushort CurrentVersion { get; set; }
+        public int CurrentVersion { get; set; }
 
         private IMigrations _migrations;
 
-        public Migrator(ushort currentVersion, IMigrations migrations)
+        public Migrator(int currentVersion, IMigrations migrations)
         {
             CurrentVersion = currentVersion;
             _migrations = migrations;
@@ -28,19 +28,25 @@ namespace DustyBot.Framework.LiteDB
 
         public void MigrateCurrent(LiteDatabase db) => Migrate(db, CurrentVersion);
 
-        public void Migrate(LiteDatabase db, ushort version)
+        public void Migrate(LiteDatabase db, int version)
         {
-            var dbVersion = db.Engine.UserVersion;
-            if (dbVersion == CurrentVersion)
+            var dbVersion = db.UserVersion;
+            if (dbVersion == 0)
+            {
+                db.UserVersion = version;
+                return;
+            }
+
+            if (dbVersion == version)
                 return;
 
-            if (dbVersion > CurrentVersion + 1)
+            if (dbVersion > version + 1)
                 throw new MigrationException("The database is more than one version ahead => some downward migration steps are unknown.");
             
-            while (dbVersion < CurrentVersion)
+            while (dbVersion < version)
                 _migrations.GetMigration(++dbVersion).MigrateUp(db);
 
-            while (dbVersion > CurrentVersion)
+            while (dbVersion > version)
                 _migrations.GetMigration(--dbVersion).MigrateDown(db);
         }
     }

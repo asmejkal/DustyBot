@@ -23,20 +23,20 @@ namespace DustyBot.Framework.LiteDB
 
         public void MigrateUp(LiteDatabase db)
         {
-            if (db.Engine.UserVersion != Version - 1)
-                throw new InvalidOperationException($"Cannot migrate up to version {Version} from version {db.Engine.UserVersion}.");
+            if (db.UserVersion != Version - 1)
+                throw new InvalidOperationException($"Cannot migrate up to version {Version} from version {db.UserVersion}.");
 
             _up?.Invoke(db);
-            db.Engine.UserVersion = Version;
+            db.UserVersion = Version;
         }
 
         public void MigrateDown(LiteDatabase db)
         {
-            if (db.Engine.UserVersion != Version + 1)
-                throw new InvalidOperationException($"Cannot migrate down to version {Version} from version {db.Engine.UserVersion}.");
+            if (db.UserVersion != Version + 1)
+                throw new InvalidOperationException($"Cannot migrate down to version {Version} from version {db.UserVersion}.");
 
             _down?.Invoke(db);
-            db.Engine.UserVersion = Version;
+            db.UserVersion = Version;
         }
 
         public int CompareTo(Migration obj) => Version.CompareTo(obj.Version);

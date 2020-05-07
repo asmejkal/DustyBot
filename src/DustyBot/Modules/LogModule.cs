@@ -43,10 +43,9 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("log", "names", "Sets or disables a channel for name change logging.")]
+        [Command("log", "names", "Sets a channel for name change logging.")]
         [Permissions(GuildPermission.Administrator)]
-        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
-        [Comment("Use without parameters to disable name change logging.")]
+        [Parameter("Channel", ParameterType.TextChannel)]
         public async Task LogNameChanges(ICommand command)
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
@@ -55,14 +54,21 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command[0].HasValue ? command[0].AsTextChannel.Id : 0).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Name change logging channel has been {(command[0].HasValue ? "set" : "disabled")}.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command["Channel"].AsTextChannel.Id).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Name changes will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.").ConfigureAwait(false);
         }
 
-        [Command("log", "messages", "Sets or disables a channel for logging of deleted messages.")]
+        [Command("log", "names", "disable", "Disables name change logging.")]
         [Permissions(GuildPermission.Administrator)]
-        [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Optional)]
-        [Comment("Use without parameters to disable message logging.")]
+        public async Task LogNameChangesDisable(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = 0).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Name change logging channel has been disabled.").ConfigureAwait(false);
+        }
+
+        [Command("log", "messages", "Sets a channel for logging of deleted messages.")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Channel", ParameterType.TextChannel)]
         public async Task LogMessages(ICommand command)
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
@@ -71,8 +77,16 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = command[0].HasValue ? command[0].AsTextChannel.Id : 0).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"A log channel for deleted messages has been {(command[0].HasValue ? "set" : "disabled")}.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = command["Channel"].AsTextChannel.Id).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Deleted messages will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.").ConfigureAwait(false);
+        }
+
+        [Command("log", "messages", "disable", "Disables logging of deleted messages.")]
+        [Permissions(GuildPermission.Administrator)]
+        public async Task LogMessagesDisable(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = 0).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Logging of deleted messages has been disabled.").ConfigureAwait(false);
         }
 
         [Command("log", "filter", "messages", "Sets or disables a regex filter for deleted messages.")]
@@ -158,7 +172,9 @@ namespace DustyBot.Modules
                     if (guild == null)
                         return;
 
-                    var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
+                    var settings = await Settings.Read<LogSettings>(guild.Id, false).ConfigureAwait(false);
+                    if (settings == null)
+                        return;
 
                     var eventChannelId = settings.EventMessageDeletedChannel;
                     if (eventChannelId == 0)
@@ -223,13 +239,15 @@ namespace DustyBot.Modules
                     if (!messages.Any())
                         return;
 
-                    var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
+                    var settings = await Settings.Read<LogSettings>(guild.Id, false).ConfigureAwait(false);
+                    if (settings == null)
+                        return;
 
                     var eventChannelId = settings.EventMessageDeletedChannel;
                     if (eventChannelId == 0)
                         return;
 
-                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
+                    var eventChannel = guild.Channels.FirstOrDefault(x => x.Id == eventChannelId) as ISocketMessageChannel;
                     if (eventChannel == null)
                         return;
 
