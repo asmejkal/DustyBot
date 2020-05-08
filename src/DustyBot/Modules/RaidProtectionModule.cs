@@ -23,7 +23,7 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    [Module("Raid protection", "Protects you against raiding.")]
+    [Module("Raid protection", "Protects your server against raiding.")]
     class RaidProtectionModule : Module
     {
         public const string MuteRoleName = "Muted";
