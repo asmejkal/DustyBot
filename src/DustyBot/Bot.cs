@@ -2,9 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Discord;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
 using DustyBot.Framework.LiteDB;
@@ -12,6 +10,8 @@ using DustyBot.Settings.LiteDB;
 using CommandLine;
 using System.IO;
 using DustyBot.Helpers;
+using DustyBot.Settings;
+using DustyBot.Framework.Settings;
 
 namespace DustyBot
 {
@@ -100,6 +100,16 @@ namespace DustyBot
             public string Path { get; set; }
         }
 
+        [Verb("check-integrity", HelpText = "Checks integrity of the settings database.")]
+        public class CheckIngegrityOptions
+        {
+            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
+            public string Instance { get; set; }
+
+            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
+            public string Password { get; set; }
+        }
+
         private ICollection<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
 
@@ -108,13 +118,14 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, FixSequenceOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, FixSequenceOptions, CheckIngegrityOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
                     (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
                     (EncryptOptions opts) => new Bot().RunEncrypt(opts),
                     (DecryptOptions opts) => new Bot().RunDecrypt(opts),
                     (FixSequenceOptions opts) => new Bot().FixSequence(opts),
+                    (CheckIngegrityOptions opts) => new Bot().CheckIntegrityAsync(opts).GetAwaiter().GetResult(),
                     errs => 1);
 
             return result;
@@ -330,6 +341,56 @@ namespace DustyBot
             try
             {
                 DatabaseHelpers.FixSequence(opts.Path, opts.Password);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failure: " + ex.ToString());
+            }
+
+            return 0;
+        }
+
+        public async Task<int> CheckIntegrityAsync(CheckIngegrityOptions opts)
+        {
+            try
+            {
+                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                if (!File.Exists(instancePath))
+                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
+
+                using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                {
+                    async Task TestSettings(Func<Task> checker, Type type)
+                    {
+                        try
+                        {
+                            await checker();
+                            Console.WriteLine($"OK: {type.Name}");
+                        }
+                        catch (Exception)
+                        {
+                            Console.WriteLine($">> NOT OK: {type.Name}");
+                        }
+                    }
+
+                    Task TestServerSettings<T>() where T : IServerSettings => TestSettings(() => settings.Read<T>(), typeof(T));
+
+                    Task TestUserSettings<T>() where T : IUserSettings => TestSettings(() => settings.ReadUser<T>(), typeof(T));
+
+                    await TestServerSettings<EventsSettings>();
+                    await TestUserSettings<LastFmUserSettings>();
+                    await TestServerSettings<LogSettings>();
+                    await TestServerSettings<MediaSettings>();
+                    await TestServerSettings<NotificationSettings>();
+                    await TestServerSettings<PollSettings>();
+                    await TestServerSettings<RaidProtectionSettings>();
+                    await TestServerSettings<ReactionsSettings>();
+                    await TestServerSettings<RolesSettings>();
+                    await TestServerSettings<ScheduleSettings>();
+                    await TestServerSettings<StarboardSettings>();
+                    await TestUserSettings<UserCredentials>();
+                    await TestUserSettings<UserNotificationSettings>();
+                }
             }
             catch (Exception ex)
             {
