@@ -308,7 +308,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a new reaction for message {cachedMessage.Id}", ex));
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a new reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
                 }
             });
 
@@ -426,7 +426,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a removed reaction for message {cachedMessage.Id}", ex));
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a removed reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
                 }
             });
 

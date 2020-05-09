@@ -247,7 +247,7 @@ namespace DustyBot.Modules
                     if (eventChannelId == 0)
                         return;
 
-                    var eventChannel = guild.Channels.FirstOrDefault(x => x.Id == eventChannelId) as ISocketMessageChannel;
+                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
                     if (eventChannel == null)
                         return;
 
@@ -332,7 +332,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process deleted messages", ex));
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", $"Failed to process deleted messages on {(channel as ITextChannel)?.GuildId}", ex));
                 }
             });
 
