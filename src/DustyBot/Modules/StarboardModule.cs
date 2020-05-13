@@ -188,9 +188,9 @@ namespace DustyBot.Modules
                 foreach (var message in board.StarredMessages)
                 {
                     if (data.TryGetValue(message.Value.Author, out var value))
-                        data[message.Value.Author] = value + message.Value.Starrers.Count;
+                        data[message.Value.Author] = value + message.Value.StarCount;
                     else
-                        data[message.Value.Author] = message.Value.Starrers.Count;
+                        data[message.Value.Author] = message.Value.StarCount;
                 }
             }
 
@@ -236,9 +236,9 @@ namespace DustyBot.Modules
 
                     var key = (board.Channel, message.Value.StarboardMessage);
                     if (data.TryGetValue(key, out var value))
-                        data[key] = value + message.Value.Starrers.Count;
+                        data[key] = value + message.Value.StarCount;
                     else
-                        data[key] = message.Value.Starrers.Count;
+                        data[key] = message.Value.StarCount;
                 }
             }
 
@@ -333,6 +333,12 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(message.Content) && message.Attachments.Count <= 0)
                 return;
 
+            var starrers = new HashSet<ulong>();
+            foreach (var emoji in message.Reactions.Where(x => board.Emojis.Contains(x.Key.GetFullName())).Select(x => x.Key))
+                starrers.UnionWith((await message.GetReactionUsersAsync(emoji, int.MaxValue).FlattenAsync()).Select(x => x.Id));
+
+            starrers.Remove(message.Author.Id);
+
             var entry = await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
             {
                 var b = s.Starboards.FirstOrDefault(x => x.Id == board.Id);
@@ -341,7 +347,7 @@ namespace DustyBot.Modules
 
                 var e = b.StarredMessages.GetOrCreate(message.Id);
                 e.Author = message.Author.Id;
-                e.Starrers.Add(reaction.UserId);
+                e.StarCount = starrers.Count;
                 
                 return e;
             });
@@ -349,7 +355,7 @@ namespace DustyBot.Modules
             if (entry == null)
                 return;
 
-            if (entry.Starrers.Count < board.Threshold)
+            if (starrers.Count < board.Threshold)
                 return;
 
             var starChannel = await channel.Guild.GetTextChannelAsync(board.Channel);
@@ -360,7 +366,7 @@ namespace DustyBot.Modules
             {
                 //Post new
                 var attachments = await ProcessAttachments(message.Attachments);
-                var built = await BuildStarMessage(message, channel, entry.Starrers.Count, board.Emojis.First(), false, attachments);
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), false, attachments);
                 var starMessage = await starChannel.SendMessageAsync(built);
 
                 await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
@@ -370,7 +376,7 @@ namespace DustyBot.Modules
                     {
                         e.StarboardMessage = starMessage.Id;
                         e.Attachments = attachments;
-                    }                        
+                    }
                 });
             }
             else
@@ -380,7 +386,7 @@ namespace DustyBot.Modules
                 if (starMessage == null)
                     return; //Probably got deleted from starboard
 
-                var built = await BuildStarMessage(message, channel, entry.Starrers.Count, board.Emojis.First(), true, entry.Attachments);
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), true, entry.Attachments);
                 await starMessage.ModifyAsync(x => x.Content = built);
             }
         }
@@ -448,19 +454,24 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(message.Content) && message.Attachments.Count <= 0)
                 return;
 
+            var starrers = new HashSet<ulong>();
+            foreach (var emoji in message.Reactions.Where(x => board.Emojis.Contains(x.Key.GetFullName())).Select(x => x.Key))
+                starrers.UnionWith((await message.GetReactionUsersAsync(emoji, int.MaxValue).FlattenAsync()).Select(x => x.Id));
+
+            starrers.Remove(message.Author.Id);
+
             var entry = await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
             {
                 var b = s.Starboards.FirstOrDefault(x => x.Id == board.Id);
-                if (b == null)
-                    return null;
-
-                if (b.StarredMessages.TryGetValue(message.Id, out var e))
+                if (b != null && b.StarredMessages.TryGetValue(message.Id, out var e))
                 {
-                    e.Starrers.Remove(reaction.UserId);
+                    e.StarCount = starrers.Count;
                     return e;
                 }
                 else
+                {
                     return null;
+                }
             });
 
             if (entry == null)
@@ -477,7 +488,7 @@ namespace DustyBot.Modules
             if (starMessage == null)
                 return; //Probably got deleted from starboard
 
-            var built = await BuildStarMessage(message, channel, entry.Starrers.Count, board.Emojis.First(), true, entry.Attachments);
+            var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), true, entry.Attachments);
             await starMessage.ModifyAsync(x => x.Content = built);
         }
 

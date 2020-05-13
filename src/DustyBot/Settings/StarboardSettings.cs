@@ -11,7 +11,7 @@ namespace DustyBot.Settings
 {
     public class StarredMessage
     {
-        public HashSet<ulong> Starrers { get; set; } = new HashSet<ulong>();
+        public int StarCount { get; set; }
         public ulong Author { get; set; }
         public ulong StarboardMessage { get; set; }
 

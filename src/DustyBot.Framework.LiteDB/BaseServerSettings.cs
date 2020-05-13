@@ -7,8 +7,9 @@ using LiteDB;
 
 namespace DustyBot.Framework.LiteDB
 {
-    public abstract class BaseServerSettings : BaseSettings, IServerSettings
+    public abstract class BaseServerSettings : IServerSettings
     {
+        [BsonId]
         public ulong ServerId { get; set; }
     }
 }

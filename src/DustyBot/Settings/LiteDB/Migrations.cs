@@ -375,6 +375,29 @@ namespace DustyBot.Settings.LiteDB
                             }
                         }
                     }
+                ),
+
+                new Migration
+                (
+                    version: 12,
+                    up: db =>
+                    {
+                        var col = db.GetCollection("StarboardSettings");
+                        foreach (var s in col.FindAll())
+                        {
+                            foreach (var starboard in s["Starboards"].AsArray)
+                            {
+                                foreach (var message in starboard["StarredMessages"].AsDocument)
+                                {
+                                    var starCount = message.Value["Starrers"].AsArray.Count;
+                                    message.Value.AsDocument.Remove("Starrers");
+                                    message.Value.AsDocument.Add("StarCount", starCount);
+                                }
+                            }
+
+                            col.Update(s);
+                        }
+                    }
                 )
             };
         }

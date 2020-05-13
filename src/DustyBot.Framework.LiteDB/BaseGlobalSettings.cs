@@ -6,9 +6,9 @@ using LiteDB;
 
 namespace DustyBot.Framework.LiteDB
 {
-    public abstract class BaseUserSettings : IUserSettings
+    public abstract class BaseGlobalSettings
     {
         [BsonId]
-        public ulong UserId { get; set; }
+        public ulong Id { get; set; } = Definitions.GlobalSettingsId;
     }
 }

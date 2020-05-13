@@ -1,12 +1,15 @@
 ﻿using LiteDB;
 using System.IO;
 using LiteDB.Engine;
+using DustyBot.Framework.LiteDB.Utility;
+using System;
+using System.Linq;
 
 namespace DustyBot.Framework.LiteDB
 {
     public static class DatabaseHelpers
     {
-        public static LiteDatabase CreateOrOpen(string dbPath, string password) => new LiteDatabase($"Filename={dbPath};Password={password}");
+        public static LiteDatabase CreateOrOpen(string dbPath, string password) => new LiteDatabase($"Filename={dbPath};Password={password};Upgrade=true;Collation=en-US/IgnoreCase");
 
         public static void Encrypt(string dbPath, string password)
         {
@@ -24,9 +27,9 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
-        public static void FixSequence(string dbPath, string password)
+        public static void Upgrade(string dbPath, string password)
         {
-            var sourceConn = new ConnectionString($"Filename={dbPath};Password={password}");
+            var sourceConn = new ConnectionString($"Filename={dbPath};Password={password};Upgrade=true;Collation=en-US/IgnoreCase");
 
             var tmpPath = sourceConn.Filename + "_tmp";
             if (File.Exists(tmpPath))
@@ -34,7 +37,7 @@ namespace DustyBot.Framework.LiteDB
 
             using (var source = new LiteDatabase(sourceConn))
             {
-                string destConnString = $"Filename={tmpPath};Password={password}";
+                string destConnString = $"Filename={tmpPath};Password={password};Collation=en-US/IgnoreCase";
                 using (var destination = new LiteDatabase(destConnString))
                 {
                     foreach (var name in source.GetCollectionNames())
@@ -43,16 +46,34 @@ namespace DustyBot.Framework.LiteDB
                         var newCol = destination.GetCollection(name);
                         
                         var items = oldCol.FindAll();
-                        var id = 1;
                         foreach (var item in items)
                         {
-                            item["_id"] = id++;
+                            if (item.ContainsKey("ServerId"))
+                            {
+                                var id = item["ServerId"].AsUInt64();
+                                item["_id"] = unchecked((long)id);
+                                item.Remove("ServerId");
+                            }
+                            else if (item.ContainsKey("UserId"))
+                            {
+                                var id = item["UserId"].AsUInt64();
+                                item["_id"] = unchecked((long)id);
+                                item.Remove("UserId");
+                            }
+                            else
+                            {
+                                if (item["_id"].AsInt32 != 1)
+                                    throw new InvalidDataException("Encountered global settings with an ID larger than 1.");
+                            }
+
                             newCol.Insert(item);
                         }
                     }
 
                     destination.UserVersion = source.UserVersion;
+                    destination.Checkpoint();
                     destination.Rebuild();
+                    destination.Checkpoint();
                 }
             }
 

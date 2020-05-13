@@ -90,14 +90,14 @@ namespace DustyBot
             public string Password { get; set; }
         }
 
-        [Verb("fix-sequence", HelpText = "Fixes broken sequence numbers in collections.")]
-        public class FixSequenceOptions
+        [Verb("upgrade", HelpText = "Upgrades to new database format.")]
+        public class UpgradeOptions
         {
-            [Value(0, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
+            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
+            public string Instance { get; set; }
 
-            [Value(1, MetaName = "Path", Required = true, HelpText = "Path to the database file.")]
-            public string Path { get; set; }
+            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
+            public string Password { get; set; }
         }
 
         [Verb("check-integrity", HelpText = "Checks integrity of the settings database.")]
@@ -118,13 +118,13 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, FixSequenceOptions, CheckIngegrityOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, UpgradeOptions, CheckIngegrityOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
                     (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
                     (EncryptOptions opts) => new Bot().RunEncrypt(opts),
                     (DecryptOptions opts) => new Bot().RunDecrypt(opts),
-                    (FixSequenceOptions opts) => new Bot().FixSequence(opts),
+                    (UpgradeOptions opts) => new Bot().Upgrade(opts),
                     (CheckIngegrityOptions opts) => new Bot().CheckIntegrityAsync(opts).GetAwaiter().GetResult(),
                     errs => 1);
 
@@ -336,11 +336,15 @@ namespace DustyBot
             return 0;
         }
 
-        public int FixSequence(FixSequenceOptions opts)
+        public int Upgrade(UpgradeOptions opts)
         {
             try
             {
-                DatabaseHelpers.FixSequence(opts.Path, opts.Password);
+                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                if (!File.Exists(instancePath))
+                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
+
+                DatabaseHelpers.Upgrade(instancePath, opts.Password);
             }
             catch (Exception ex)
             {

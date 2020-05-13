@@ -4,11 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DustyBot.Framework.LiteDB;
+using LiteDB;
 using static DustyBot.Helpers.GoogleHelpers;
 
 namespace DustyBot.Settings
 {
-    public class BotConfig : BaseSettings, Framework.Config.IEssentialConfig
+    public class BotConfig : BaseGlobalSettings, Framework.Config.IEssentialConfig
     {
         public string CommandPrefix { get; set; }
         public string BotToken { get; set; }
