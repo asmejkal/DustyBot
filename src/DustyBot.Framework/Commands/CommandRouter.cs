@@ -199,7 +199,7 @@ namespace DustyBot.Framework.Commands
                         await Logger.Log(new LogMessage(LogSeverity.Error, "Internal",
                             $"Exception encountered while processing command {commandRegistration.PrimaryUsage.InvokeUsage} in module {commandRegistration.Handler.Target.GetType()}", ex));
 
-                        await Communicator.CommandReplyGenericFailure(command.Message.Channel, commandRegistration);
+                        await Communicator.CommandReplyGenericFailure(command.Message.Channel);
                     }
                     finally
                     {

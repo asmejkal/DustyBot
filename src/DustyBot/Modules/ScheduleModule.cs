@@ -317,8 +317,8 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, message + $" {result}");
         }
 
-        [Command("event", "notify", "Adds a notified event to schedule.", CommandFlags.Synchronous)]
-        [Alias("events", "notify")]
+        [Command("event", "add", "notify", "Adds a notified event to schedule.", CommandFlags.Synchronous)]
+        [Alias("event", "notify"), Alias("events", "add", "notify"), Alias("events", "notify")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]

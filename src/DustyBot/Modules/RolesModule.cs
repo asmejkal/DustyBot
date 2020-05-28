@@ -556,20 +556,30 @@ namespace DustyBot.Modules
                                     addRoles.Add(roleAar.RoleId);
                             }
 
-
-                            if (addRoles.Count > 0)
-                                await user.AddRolesAsync(addRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
-
-                            if (removeRoles.Count > 0)
-                                await user.RemoveRolesAsync(removeRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
-
-                            var guildRole = channel.Guild.GetRole(roleAar.RoleId);
-                            if (guildRole != null)
+                            try
                             {
-                                var response = await Communicator.SendMessage(message.Channel, string.Format(remove ? "You no longer have the **{0}** role." : "You now have the **{0}** role.", guildRole.Name)).ConfigureAwait(false);
-                                if (settings.ClearRoleChannel)
-                                    response.First().DeleteAfter(3);
+                                if (addRoles.Count > 0)
+                                    await user.AddRolesAsync(addRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
+
+                                if (removeRoles.Count > 0)
+                                    await user.RemoveRolesAsync(removeRoles.Select(x => channel.Guild.GetRole(x)).Where(x => x != null));
+
+                                var guildRole = channel.Guild.GetRole(roleAar.RoleId);
+                                if (guildRole != null)
+                                {
+                                    var response = await Communicator.SendMessage(message.Channel, string.Format(remove ? "You no longer have the **{0}** role." : "You now have the **{0}** role.", guildRole.Name)).ConfigureAwait(false);
+                                    if (settings.ClearRoleChannel)
+                                        response.First().DeleteAfter(3);
+                                }
                             }
+                            catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized)
+                            {
+                                await Communicator.CommandReplyError(message.Channel, "The bot doesn't have the necessary permissions. If you're the admin, please make sure the bot can Manage Roles all the assignable roles are placed below the bot's highest role.").ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            await Communicator.CommandReplyGenericFailure(message.Channel);
                         }
                         finally
                         {

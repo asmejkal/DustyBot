@@ -200,9 +200,9 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Please check your direct messages.").ConfigureAwait(false);
         }
 
-        [Command("notification", "ignore", "active", "channel", "Don't notify for messages in a channel you're currently being active in (beta).")]
+        [Command("notification", "ignore", "active", "channel", "Skip notifications from the channel you're currently active in.")]
         [Alias("notifications", "ignore", "active", "channel", true), Alias("notif", "ignore", "active", "channel"), Alias("noti", "ignore", "active", "channel")]
-        [Comment("All notifications will be delayed by a small amount. If you start typing or send a message in the channel where the notification came from, the notification will be skipped.\n\nUse this command again to disable.")]
+        [Comment("All notifications will be delayed by a small amount. If you start typing in the channel where someone triggered a notification, you won't be notified.\n\nUse this command again to disable.")]
         public async Task ToggleIgnoreActiveChannel(ICommand command)
         {
             var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);

@@ -43,6 +43,6 @@ namespace DustyBot.Framework.Communication
         Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true);
         Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true);
         Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel);
     }
 }

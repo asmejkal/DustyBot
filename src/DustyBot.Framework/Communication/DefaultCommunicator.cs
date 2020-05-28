@@ -122,7 +122,7 @@ namespace DustyBot.Framework.Communication
         public async Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_DirectMessageOnly);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel, Commands.CommandRegistration command) =>
+        public async Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel) =>
             await CommandReplyError(channel, Properties.Resources.Command_GenericFailure);
         
         public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)

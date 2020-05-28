@@ -178,6 +178,10 @@ namespace DustyBot.Modules
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach Last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -189,29 +193,40 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional | ParameterFlags.Remainder, "the user (mention, ID or Last.fm username); uses your Last.fm if omitted")]
         public async Task NowPlayingSpotify(ICommand command)
         {
-            var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
-            var config = await Settings.ReadGlobal<BotConfig>();
-
-            var lfm = new LastFmClient(settings.LastFmUsername, config.LastFmKey);
-            var nowPlayingTask = lfm.GetRecentTracks(count: 1);
-
-            var spotify = await SpotifyClient.Create(config.SpotifyId, config.SpotifyKey);
-
-            var nowPlaying = (await nowPlayingTask).tracks.FirstOrDefault();
-            if (nowPlaying == null)
+            try
             {
-                await command.Reply(Communicator, $"Looks like this user doesn't have any scrobbles yet...").ConfigureAwait(false);
-                return;
-            }
+                var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
+                var config = await Settings.ReadGlobal<BotConfig>();
 
-            var url = await spotify.SearchTrackUrl($"{nowPlaying.name} artist:{nowPlaying.artist.name}");
-            if (string.IsNullOrEmpty(url))
+                var lfm = new LastFmClient(settings.LastFmUsername, config.LastFmKey);
+                var nowPlayingTask = lfm.GetRecentTracks(count: 1);
+
+                var spotify = await SpotifyClient.Create(config.SpotifyId, config.SpotifyKey);
+
+                var nowPlaying = (await nowPlayingTask).tracks.FirstOrDefault();
+                if (nowPlaying == null)
+                {
+                    await command.Reply(Communicator, $"Looks like this user doesn't have any scrobbles yet...").ConfigureAwait(false);
+                    return;
+                }
+
+                var url = await spotify.SearchTrackUrl($"{nowPlaying.name} artist:{nowPlaying.artist.name}");
+                if (string.IsNullOrEmpty(url))
+                {
+                    await command.Reply(Communicator, $"Can't find this track on Spotify...").ConfigureAwait(false);
+                    return;
+                }
+
+                await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url).ConfigureAwait(false);
+            }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
-                await command.Reply(Communicator, $"Can't find this track on Spotify...").ConfigureAwait(false);
-                return;
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
-
-            await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url).ConfigureAwait(false);
+            catch (WebException e)
+            {
+                await command.Reply(Communicator, $"Couldn't reach Last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+            }
         }
 
         [Command("lf", "compare", "Checks how compatible your music taste is with someone else.", CommandFlags.TypingIndicator)]
@@ -355,6 +370,10 @@ namespace DustyBot.Modules
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -424,6 +443,10 @@ namespace DustyBot.Modules
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -475,6 +498,10 @@ namespace DustyBot.Modules
             {
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+            }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
             catch (WebException e)
             {
@@ -528,6 +555,10 @@ namespace DustyBot.Modules
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -579,6 +610,10 @@ namespace DustyBot.Modules
             {
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+            }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
             catch (WebException e)
             {
@@ -656,6 +691,10 @@ namespace DustyBot.Modules
             {
                 var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
                 throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+            }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
             catch (WebException e)
             {
