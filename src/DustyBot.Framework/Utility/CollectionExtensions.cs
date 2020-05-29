@@ -43,7 +43,7 @@ namespace DustyBot.Framework.Utility
             }
         }
 
-        public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = " and ")
+        public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = ", and ")
         {
             var it = values.GetEnumerator();
             bool isFirst = true;
@@ -77,7 +77,7 @@ namespace DustyBot.Framework.Utility
             return result;
         }
 
-        public static string WordJoinQuoted<T>(this IEnumerable<T> values, string quote = "`", string separator = ", ", string lastSeparator = " and ")
+        public static string WordJoinQuoted<T>(this IEnumerable<T> values, string quote = "`", string separator = ", ", string lastSeparator = ", and ")
         {
             var result = new StringBuilder(values.WordJoin(quote + separator + quote, quote + lastSeparator + quote));
             return result.Length > 0 ? (quote + result + quote) : string.Empty;

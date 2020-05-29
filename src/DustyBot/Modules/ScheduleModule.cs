@@ -68,7 +68,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task ScheduleHelp(ICommand command)
         {
-            await command.Reply(Communicator, $"Check out the quickstart guide at <{HelpBuilder.ScheduleGuideUrl}>!");
+            await command.Reply(Communicator, $"Check out the quickstart guide at <{WebConstants.ScheduleGuideUrl}>!");
         }
 
         [Command("event", "Shows help for this module.", CommandFlags.Hidden)]
@@ -86,7 +86,7 @@ namespace DustyBot.Modules
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
             if (settings == null || settings.Events.Count <= 0)
             {
-                await command.ReplyError(Communicator, $"No events to display on this server. To set up a schedule check out the guide at <{HelpBuilder.ScheduleGuideUrl}>.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"No events to display on this server. To set up a schedule check out the guide at <{WebConstants.ScheduleGuideUrl}>.").ConfigureAwait(false);
                 return;
             }
 
@@ -155,7 +155,7 @@ namespace DustyBot.Modules
 
         [Command("schedule", "set", "style", "Switches between display styles.", CommandFlags.TypingIndicator)]
         [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
-        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the [support server](" + HelpBuilder.SupportServerInvite + ") or contact the bot owner.")]
+        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the [support server](" + WebConstants.SupportServerInvite + ") or contact the bot owner.")]
         [Example("KoreanDate")]
         public async Task SetScheduleStyle(ICommand command)
         {

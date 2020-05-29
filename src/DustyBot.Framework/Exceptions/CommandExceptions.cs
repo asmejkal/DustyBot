@@ -60,6 +60,7 @@ namespace DustyBot.Framework.Exceptions
 
     public class AbortException : Exception
     {
+        public AbortException() : base("") { }
         public AbortException(string message) : base(message) { }
         public AbortException(string message, Exception inner) : base(message, inner) { }
 

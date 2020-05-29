@@ -20,5 +20,6 @@ namespace DustyBot.Settings
         public string LastFmKey { get; set; }
         public string SpotifyId { get; set; }
         public string SpotifyKey { get; set; }
+        public string TableStorageConnectionString { get; set; }
     }
 }

@@ -15,6 +15,7 @@ using DustyBot.Settings;
 using DustyBot.Helpers;
 using System.IO;
 using Newtonsoft.Json.Linq;
+using DustyBot.Definitions;
 
 namespace DustyBot.Modules
 {
@@ -67,7 +68,7 @@ namespace DustyBot.Modules
         }
 
         [Command("lf", "help", "Shows help for this module.", CommandFlags.Hidden)]
-        [Alias("lf"), Alias("lastfm"), Alias("lastfm", "help")]
+        [Alias("lastfm"), Alias("lastfm", "help")]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
@@ -75,7 +76,7 @@ namespace DustyBot.Modules
         }
 
         [Command("lf", "np", "Shows what song you or someone else is currently playing on Last.fm.", CommandFlags.TypingIndicator)]
-        [Alias("np")]
+        [Alias("lf"), Alias("np")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional | ParameterFlags.Remainder, "the user (mention, ID or Last.fm username); uses your Last.fm if omitted")]
         [Comment("Also shows the song's position among user's top 100 listened tracks.")]
         public async Task NowPlaying(ICommand command)
@@ -119,7 +120,7 @@ namespace DustyBot.Modules
                     embed.WithThumbnailUrl(image);
 
                 // Title
-                var author = new EmbedAuthorBuilder().WithIconUrl(HelpBuilder.LfIconUrl);
+                var author = new EmbedAuthorBuilder().WithIconUrl(WebConstants.LfIconUrl);
                 if (!settings.Anonymous)
                     author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
 
@@ -251,7 +252,7 @@ namespace DustyBot.Modules
                 {
                     var sameEmbed = new EmbedBuilder()
                         .WithAuthor(x => x.WithName($"Your music taste is {FormatPercent(1)} compatible!")
-                        .WithIconUrl(HelpBuilder.LfIconUrl))
+                        .WithIconUrl(WebConstants.LfIconUrl))
                         .WithDescription("What did you expect?")
                         .WithFooter($"Based on {FormatStatsDataPeriod(period)}");
 
@@ -306,7 +307,7 @@ namespace DustyBot.Modules
 
                 var embed = new EmbedBuilder()
                     .WithAuthor(x => x.WithName($"Your music taste is {FormatPercent(compatibility)} compatible!")
-                    .WithIconUrl(HelpBuilder.LfIconUrl))
+                    .WithIconUrl(WebConstants.LfIconUrl))
                     .WithDescription("Based on how many times you've listened to the same music.")
                     .WithFooter($"Based on {FormatStatsDataPeriod(period)}")
                     .WithColor(0xd9, 0x23, 0x23);
@@ -316,8 +317,7 @@ namespace DustyBot.Modules
                     where T : ILfEntity
                 {
                     if (data.Any())
-                        return "Top matches are " 
-                            + data.Take(3).Select(y => $"{formatter(y.First, true)} ({FormatPercent(y.Score)})").WordJoin() 
+                        return data.Take(3).Select(y => $"{formatter(y.First, true)} ({FormatPercent(y.Score)})").WordJoin(lastSeparator: " and ") 
                             + ".";
                     else
                         return noData;
@@ -332,7 +332,7 @@ namespace DustyBot.Modules
                 {
                     var albumMatchRatio = (1 / artistScore) * albumScore;
                     embed.AddField(x => x
-                        .WithName($"When you both like an artist, there's a {FormatPercent(albumMatchRatio)} chance you'll also like the same albums.")
+                        .WithName($"When you both like an artist, there's a {FormatPercent(albumMatchRatio)} chance you'll like the same albums.")
                         .WithValue(ListFormat(albumMatches, FormatAlbumLink)));
 
                     if (albumScore != 0 && albumMatches.Count > 1 && GetCommonPlays(albumMatches) > 20)
@@ -356,12 +356,12 @@ namespace DustyBot.Modules
                 var onlyFirst = artistsResults.first.Where(x => !artistsResults.second.Any(y => x.Id.Equals(y.Id) && TheyListenTo(y)) && YouListenTo(x)).Take(3).ToList();
                 embed.AddField(x => x
                     .WithName($"Only you listen to these artists:")
-                    .WithValue(onlyFirst.Any() ? onlyFirst.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin() : noData));
+                    .WithValue(onlyFirst.Any() ? onlyFirst.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin(lastSeparator: " and ") : noData));
 
                 var onlySecond = artistsResults.second.Where(x => !artistsResults.first.Any(y => x.Id.Equals(y.Id) && TheyListenTo(y)) && YouListenTo(x)).Take(3).ToList();
                 embed.AddField(x => x
                     .WithName($"And only they listen to these:")
-                    .WithValue(onlySecond.Any() ? onlySecond.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin() : noData));
+                    .WithValue(onlySecond.Any() ? onlySecond.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin(lastSeparator: " and ") : noData));
 
                 await command.Message.Channel.SendMessageAsync(embed: embed.Build());
             }
@@ -420,8 +420,8 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(HelpBuilder.LfIconUrl)
-                    .WithName($"{user} last listened to...");
+                        .WithIconUrl(WebConstants.LfIconUrl)
+                        .WithName($"{user} last listened to...");
 
                     if (!settings.Anonymous)
                         author.WithUrl($"https://www.last.fm/user/{settings.LastFmUsername}");
@@ -480,7 +480,7 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(HelpBuilder.LfIconUrl)
+                    .WithIconUrl(WebConstants.LfIconUrl)
                     .WithName($"{user}'s top artists {FormatStatsPeriod(period)}");
 
                     if (!settings.Anonymous)
@@ -536,7 +536,7 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(HelpBuilder.LfIconUrl)
+                    .WithIconUrl(WebConstants.LfIconUrl)
                     .WithName($"{user}'s top albums {FormatStatsPeriod(period)}");
 
                     if (!settings.Anonymous)
@@ -592,7 +592,7 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(HelpBuilder.LfIconUrl)
+                    .WithIconUrl(WebConstants.LfIconUrl)
                     .WithName($"{user}'s top tracks {FormatStatsPeriod(period)}");
 
                     if (!settings.Anonymous)
@@ -646,7 +646,7 @@ namespace DustyBot.Modules
                 }
 
                 var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(HelpBuilder.LfIconUrl)
+                    .WithIconUrl(WebConstants.LfIconUrl)
                     .WithName($"{user}'s stats for {info.Name}");
 
                 if (!settings.Anonymous)

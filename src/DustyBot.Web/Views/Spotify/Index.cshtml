@@ -1,0 +1,9 @@
+﻿
+@{
+    ViewData["Title"] = "Index";
+    Layout = "~/Views/Shared/_ConnectLayout.cshtml";
+}
+
+<img src="~/img/spotify-logo.png" style="width: 200px; height: 200px" />
+<p>You're logged in as <span class="username">@ViewData["UserName"]</span>.</p>
+<a href="@Url.Action("ConnectBegin", "Spotify")" class="button">Connect</a>

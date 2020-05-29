@@ -179,7 +179,7 @@ namespace DustyBot.Framework.Commands
                     {
                         if (ex.Pages != null)
                             await Communicator.CommandReply(command.Message.Channel, ex.Pages);
-                        else
+                        else if (!string.IsNullOrEmpty(ex.Message))
                             await Communicator.CommandReply(command.Message.Channel, ex.Message);
                     }
                     catch (Exceptions.CommandException ex)

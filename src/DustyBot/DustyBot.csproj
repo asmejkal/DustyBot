@@ -32,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DustyBot.Entities\DustyBot.Entities.csproj" />
     <ProjectReference Include="..\DustyBot.Framework\DustyBot.Framework.csproj" />
     <ProjectReference Include="..\DustyBot.Framework.LiteDB\DustyBot.Framework.LiteDB.csproj" />
   </ItemGroup>
@@ -43,6 +44,7 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
     <PackageReference Include="Microsoft.Experimental.Collections" Version="1.0.6-e190117-3" />
     <PackageReference Include="Nito.Collections.Deque" Version="1.0.4" />
+    <PackageReference Include="SpotifyAPI.Web" Version="5.1.1" />
     <PackageReference Include="System.Security.SecureString" Version="4.3.0" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>

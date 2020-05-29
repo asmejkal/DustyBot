@@ -12,6 +12,7 @@ using System.IO;
 using DustyBot.Helpers;
 using DustyBot.Settings;
 using DustyBot.Framework.Settings;
+using DustyBot.Definitions;
 
 namespace DustyBot
 {
@@ -68,6 +69,9 @@ namespace DustyBot
 
             [Option("spotifykey", HelpText = "Spotify App client secret.")]
             public string SpotifyKey { get; set; }
+
+            [Option("tablestoragecs", HelpText = "Azure Table Storage connection string.")]
+            public string TableStorageConnectionString { get; set; }
         }
 
         [Verb("encrypt", HelpText = "Encrypt an instance.")]
@@ -168,6 +172,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.LastFmModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.SpotifyModule(components.Communicator, components.Settings, (Settings.BotConfig)components.Config));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, components.Settings, components.Logger));
@@ -194,7 +199,7 @@ namespace DustyBot
                         framework.Stop();
                     };
 
-                    await framework.Run($"{components.Config.CommandPrefix}help | {HelpBuilder.WebsiteShorthand}");
+                    await framework.Run($"{components.Config.CommandPrefix}help | {WebConstants.WebsiteShorthand}");
                 }
             }
             catch (Exception ex)
@@ -234,7 +239,8 @@ namespace DustyBot
                             ShortenerKey = opts.ShortenerKey,
                             LastFmKey = opts.LastFmKey,
                             SpotifyId = opts.SpotifyId,
-                            SpotifyKey = opts.SpotifyKey
+                            SpotifyKey = opts.SpotifyKey,
+                            TableStorageConnectionString = opts.TableStorageConnectionString
                         });
                     }
                 }
@@ -275,6 +281,9 @@ namespace DustyBot
 
                             if (opts.SpotifyKey != null)
                                 s.SpotifyKey = opts.SpotifyKey;
+
+                            if (opts.TableStorageConnectionString != null)
+                                s.TableStorageConnectionString = opts.TableStorageConnectionString;
                         });
                     }
                 }

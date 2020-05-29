@@ -1,0 +1,10 @@
+﻿@{
+    Layout = "~/Views/Shared/_ConnectLayout.cshtml";
+    ViewData["Title"] = "DustyBot";
+    ViewData["ReferencePageUrl"] = Environment.GetEnvironmentVariable("MainSiteReferenceUrl");
+}
+
+<img src="~/img/spotify-logo.png" style="width: 200px; height: 200px"/>
+<h1>Spotify connected!</h1>
+Now you can use all of the <a href="@ViewData["ReferencePageUrl"]">Spotify commands</a>.
+

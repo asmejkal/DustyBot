@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26430.14
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29806.167
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}"
 EndProject
@@ -12,6 +12,10 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework.LiteDB", "src\DustyBot.Framework.LiteDB\DustyBot.Framework.LiteDB.csproj", "{FFD8422C-C724-49AB-A460-72692FD52FB0}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot", "src\DustyBot\DustyBot.csproj", "{C9C7846F-9BBF-4461-AE7A-A36052EDE81E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Web", "src\DustyBot.Web\DustyBot.Web.csproj", "{03048919-3F99-45FC-AA32-10D7BC1C10BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Entities", "src\DustyBot.Entities\DustyBot.Entities.csproj", "{26D5B351-683F-4880-9089-87A3AB944628}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +35,14 @@ Global
 		{C9C7846F-9BBF-4461-AE7A-A36052EDE81E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C9C7846F-9BBF-4461-AE7A-A36052EDE81E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C9C7846F-9BBF-4461-AE7A-A36052EDE81E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03048919-3F99-45FC-AA32-10D7BC1C10BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03048919-3F99-45FC-AA32-10D7BC1C10BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03048919-3F99-45FC-AA32-10D7BC1C10BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03048919-3F99-45FC-AA32-10D7BC1C10BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{26D5B351-683F-4880-9089-87A3AB944628}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26D5B351-683F-4880-9089-87A3AB944628}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26D5B351-683F-4880-9089-87A3AB944628}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26D5B351-683F-4880-9089-87A3AB944628}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,5 +51,10 @@ Global
 		{576561A9-4012-412C-95B5-C72EAEB78FF6} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
 		{FFD8422C-C724-49AB-A460-72692FD52FB0} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
 		{C9C7846F-9BBF-4461-AE7A-A36052EDE81E} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
+		{03048919-3F99-45FC-AA32-10D7BC1C10BE} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
+		{26D5B351-683F-4880-9089-87A3AB944628} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2E56349C-26F6-4600-B6BD-65628186ECF4}
 	EndGlobalSection
 EndGlobal

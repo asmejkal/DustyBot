@@ -30,22 +30,8 @@ namespace DustyBot.Helpers
 
         private async Task Authorize()
         {
-            var request = WebRequest.CreateHttp("https://accounts.spotify.com/api/token");
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            request.Headers.Add("Authorization", "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ClientId}:{ClientSecret}")));
-
-            using (var writer = new StreamWriter(await request.GetRequestStreamAsync(), Encoding.ASCII))
-                await writer.WriteAsync("grant_type=client_credentials").ConfigureAwait(false);
-
-            var now = DateTimeOffset.UtcNow;
-            using (var response = (HttpWebResponse)await request.GetResponseAsync())
-            using (var reader = new StreamReader(response.GetResponseStream()))
-            {
-                var text = await reader.ReadToEndAsync();
-                dynamic root = JObject.Parse(text);
-                Authorization = ((string)root.access_token, now.AddSeconds((int)root.expires_in));
-            }
+            var result = await SpotifyHelpers.GetClientToken(ClientId, ClientSecret);
+            Authorization = (result.Token, DateTimeOffset.UtcNow.AddSeconds(result.ExpiresIn));
         }
 
         private async Task<string> GetToken()

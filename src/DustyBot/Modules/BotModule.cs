@@ -16,6 +16,7 @@ using Discord.WebSocket;
 using System.Net;
 using System.IO;
 using Discord.Net;
+using DustyBot.Definitions;
 
 namespace DustyBot.Modules
 {
@@ -93,7 +94,7 @@ namespace DustyBot.Modules
                 .AddField("Presence", $"{users.Count} users\n{guilds.Count} servers", true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
-                .AddField("Web", HelpBuilder.WebsiteRoot, true)
+                .AddField("Web", WebConstants.WebsiteRoot, true)
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
@@ -209,7 +210,7 @@ namespace DustyBot.Modules
             int counter = 0;
             foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
             {
-                var anchor = HelpBuilder.GetModuleWebAnchor(module);
+                var anchor = WebConstants.GetModuleWebAnchor(module.Name);
                 preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\">{module.Name}</a> – {module.Description}</p>");
 
                 result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3>{module.Name}</h3>");
