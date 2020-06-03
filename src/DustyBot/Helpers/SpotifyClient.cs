@@ -56,5 +56,20 @@ namespace DustyBot.Helpers
                 return (string)item?.external_urls?.spotify;
             }
         }
+
+        public async Task<string> SearchTrackId(string query)
+        {
+            var request = WebRequest.CreateHttp($"https://api.spotify.com/v1/search?q={Uri.EscapeDataString(query)}&type=track&limit=1");
+            request.Headers.Add("Authorization", $"Bearer {await GetToken()}");
+
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
+            using (var reader = new StreamReader(response.GetResponseStream()))
+            {
+                var text = await reader.ReadToEndAsync();
+                dynamic root = JObject.Parse(text);
+                dynamic item = (root.tracks?.items as JArray)?.FirstOrDefault();
+                return (string)item?.id;
+            }
+        }
     }
 }

@@ -22,13 +22,14 @@ using DustyBot.Definitions;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
 using SpotifyAPI.Web.Enums;
+using System.Text.RegularExpressions;
 
 namespace DustyBot.Modules
 {
     [Module("Spotify (beta)", "Show others what you're listening to on Spotify.")]
     class SpotifyModule : Module
     {
-        private static readonly Dictionary<string, TimeRangeType> InputStatsPeriodMapping =
+        private static readonly IReadOnlyDictionary<string, TimeRangeType> InputStatsPeriodMapping =
             new Dictionary<string, TimeRangeType>(StringComparer.InvariantCultureIgnoreCase)
         {
             { "month", TimeRangeType.ShortTerm },
@@ -38,6 +39,10 @@ namespace DustyBot.Modules
             { "6mo", TimeRangeType.MediumTerm },
             { "all", TimeRangeType.LongTerm }
         };
+
+        private static readonly Regex SpotifyTrackIdRegex = new Regex(@"(?:https:\/\/open.spotify.com\/track\/([^?#\s]+))|(?:spotify:track:([^\s]+))");
+
+        private static readonly IList<string> PitchClasses = new[] { "C", "C#" , "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
         private const string StatsPeriodRegex = "^(?:month|mo|6months|6month|6mo|all)$";
 
@@ -68,8 +73,43 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
+        [Command("sf", "track", "Shows track info and analysis.", CommandFlags.TypingIndicator)]
+        [Parameter("Track", ParameterType.String, ParameterFlags.Remainder, "name or Spotify URI/Link of the track")]
+        [Example("Laboum Between Us")]
+        [Example("spotify:track:5crqbWLP7Jb0s86hnm0XDA")]
+        [Example("https://open.spotify.com/track/5crqbWLP7Jb0s86hnm0XDA")]
+        public async Task Track(ICommand command)
+        {
+            var client = await GetClient();
+            var trackIdMatch = SpotifyTrackIdRegex.Match(command["Track"]);
+            FullTrack track;
+            if (!trackIdMatch.Success)
+            {
+                var sclient = await SpotifyClient.Create(Config.SpotifyId, Config.SpotifyKey);
+
+                var trackId = await sclient.SearchTrackId(command["Track"]);
+                //var searchResult = await client.SearchItemsAsync($"q={command["Track"]}", SearchType.Track, 1);
+                //if (!searchResult.Tracks.Items.Any())
+                if (trackId == null)
+                    throw new AbortException($"Search for track `{command["Track"]}` returned no results. Consider passing a Spotify link instead.");
+
+                //track = searchResult.Tracks.Items.First();
+                track = await client.GetTrackAsync(trackId);
+            }
+            else
+            {
+                var trackId = trackIdMatch.Groups.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
+                track = await client.GetTrackAsync(trackId);
+                if (track.HasError())
+                    throw new AbortException($"Search for track with ID `{trackId}` returned no results. Are you sure the ID is correct?");
+            }
+
+            var embed = await PrepareTrackEmbed(client, track, "Track analysis", true);
+
+            await command.Channel.SendMessageAsync(embed: embed.Build());
+        }
+
         [Command("sf", "stats", "Shows user's listening stats and habits.", CommandFlags.TypingIndicator)]
-        [Alias("spotify", "stats")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `month`, `6months`, `all` (default)")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Stats(ICommand command)
@@ -80,7 +120,7 @@ namespace DustyBot.Modules
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
             
             var results = await client.GetUsersTopTracksAsync(period, 50);
-            if (!results.Items.Any())
+            if (!results?.Items.Any() ?? true)
                 throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
             
             var features = await client.GetSeveralAudioFeaturesAsync(results.Items.Select(x => x.Id).ToList());
@@ -91,6 +131,7 @@ namespace DustyBot.Modules
             var topGenres = artists.Artists.SelectMany(x => x.Genres).GroupBy(x => x).OrderByDescending(x => x.Count()).Select(x => x.Key);
             var topDecades = albums.Select(x => int.Parse(x.ReleaseDate.Split('-').First()))
                 .GroupBy(x => x / 10)
+                .Where(x => x.Count() >= 5)
                 .OrderByDescending(x => x.Count())
                 .Select(x => $"{x.Key * 10}'s");
 
@@ -120,27 +161,39 @@ namespace DustyBot.Modules
                 lineLength = newLine ? genre.Length : (lineLength + genre.Length);
             }
 
-            embed.AddField(x => x.WithIsInline(false).WithName("Top genres").WithValue(genresBuilder.ToString()));
-            embed.AddField(x => x.WithIsInline(false).WithName("Top decades").WithValue(topDecades.Take(3).WordJoinQuoted("`", " ", " ")));
+            embed.AddField(x => x.WithIsInline(true).WithName("Top genres").WithValue(genresBuilder.Length > 0 ? genresBuilder.ToString() : "`unknown`"));
+            embed.AddField(x => x.WithIsInline(true).WithName("Top decades").WithValue(topDecades.Take(3).WordJoinQuoted("`", " ", " ")));
+            embed.AddField(x => x.WithIsInline(true).WithName($"Average tempo").WithValue($"{avgTempo} BPM ({ApproximateClassicalTempo((int)avgTempo)})"));
 
-            void AddPercentageField(string name, double value)
-                => embed.AddField(x => x.WithIsInline(false).WithName($"{name} [{FormatPercent(value)}]").WithValue(BuildProgressBar(value)));
-
-            AddPercentageField("Popularity", popularity);
-            AddPercentageField("Danceability", danceability);
-            AddPercentageField("Acousticness", acousticness);
-            AddPercentageField("Energy", energy);
-            AddPercentageField("Positivity", positivity);
-
-            embed.AddField(x => x.WithIsInline(false).WithName($"Average tempo").WithValue($"{avgTempo} BPM ({ApproximateClassicalTempo((int)avgTempo)})"));
+            AddPercentageField(embed, "Popularity", popularity);
+            AddPercentageField(embed, "Instrumental", instrumentalness);
+            AddPercentageField(embed, "Acoustic", acousticness);
+            AddPercentageField(embed, "Danceability", danceability);
+            AddPercentageField(embed, "Energy", energy);
+            AddPercentageField(embed, "Positivity", positivity);
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }
 
         [Command("sf", "np", "Shows a user's currently playing song.", CommandFlags.TypingIndicator)]
-        [Alias("sf"), Alias("spotify", "np", true), Alias("spotify", true)]
+        [Alias("sf")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
-        public async Task NowPlaying(ICommand command)
+        [Comment("Use `sf np detail` to see an analysis of this track.")]
+        public Task NowPlaying(ICommand command)
+        {
+            return NowPlayingInner(command, false);
+        }
+
+        [Command("sf", "np", "detail", "Shows a user's currently playing song with an analysis.", CommandFlags.TypingIndicator)]
+        [Alias("sf", "detail"), Alias("sf", "np", "details", true), Alias("sf", "details", true)]
+        [Alias("sf", "np", "stats", true)]
+        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
+        public Task NowPlayingAnalyse(ICommand command)
+        {
+            return NowPlayingInner(command, true);
+        }
+
+        public async Task NowPlayingInner(ICommand command, bool analyse)
         {
             var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
@@ -163,29 +216,14 @@ namespace DustyBot.Modules
                 track = await client.GetTrackAsync(item.Track.Id);
             }
 
-            var description = new StringBuilder();
-            description.AppendLine($"**{FormatLink(track.Name, track.ExternUrls)}** by {BuildArtistsString(track.Artists)}");
-            description.AppendLine($"On {FormatLink(track.Album.Name, track.Album.ExternalUrls)}");
-
-            var author = new EmbedAuthorBuilder().WithIconUrl(WebConstants.SpotifyIconUrl);
-            if (nowPlaying)
-                author.WithName($"{user.Nickname ?? user.Username} is now listening to...");
-            else
-                author.WithName($"{user.Nickname ?? user.Username} last listened to...");
-
-            var embed = new EmbedBuilder()
-                .WithAuthor(author)
-                .WithDescription(description.ToString())
-                .WithColor(0x31, 0xd9, 0x64);
-
-            if (track.Album.Images.Any())
-                embed.WithThumbnailUrl(track.Album.Images.First().Url);
+            var title = (user.Nickname ?? user.Username) + (nowPlaying ? " is now listening to..." : " last listened to...");
+            var embed = await PrepareTrackEmbed(client, track, title, analyse);
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }
 
         [Command("sf", "recent", "Shows user's recently played songs.", CommandFlags.TypingIndicator)]
-        [Alias("sf", "rc"), Alias("spotify", "recent", true), Alias("spotify", "rc", true)]
+        [Alias("sf", "rc")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Recent(ICommand command)
         {
@@ -195,7 +233,7 @@ namespace DustyBot.Modules
             const int NumDisplayed = 100;
 
             var results = await client.GetUsersRecentlyPlayedTracksAsync(50);
-            if (!results.Items.Any())
+            if (!results?.Items.Any() ?? true)
                 throw new AbortException("Looks like this user hasn't listened to anything recently.");
 
             var pages = new PageCollectionBuilder();
@@ -227,7 +265,6 @@ namespace DustyBot.Modules
 
         [Command("sf", "top", "artists", "Shows user's top artists.", CommandFlags.TypingIndicator)]
         [Alias("sf", "ta"), Alias("sf", "top", "artist", true), Alias("sf", "artists")]
-        [Alias("spotify", "top", "artists", true), Alias("spotify", "ta", true), Alias("spotify", "top", "artist", true), Alias("spotify", "artists", true)]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `month`, `6months`, `all` (default)")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Artists(ICommand command)
@@ -240,7 +277,7 @@ namespace DustyBot.Modules
             const int NumDisplayed = 100;
             
             var results = await client.GetUsersTopArtistsAsync(period, 50);
-            if (!results.Items.Any())
+            if (!results?.Items.Any() ?? true)
                 throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
             var pages = new PageCollectionBuilder();
@@ -269,8 +306,6 @@ namespace DustyBot.Modules
 
         [Command("sf", "top", "tracks", "Shows user's top tracks.", CommandFlags.TypingIndicator)]
         [Alias("sf", "tt"), Alias("sf", "top", "track", true), Alias("sf", "tracks"), Alias("sf", "ts")]
-        [Alias("spotify", "top", "tracks", true), Alias("spotify", "tt", true), Alias("spotify", "top", "track", true)]
-        [Alias("spotify", "artists", true), Alias("spotify", "ts", true)]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `month`, `6months`, `all` (default)")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Tracks(ICommand command)
@@ -283,7 +318,7 @@ namespace DustyBot.Modules
             const int NumDisplayed = 100;
 
             var results = await client.GetUsersTopTracksAsync(period, 50);
-            if (!results.Items.Any())
+            if (!results?.Items.Any() ?? true)
                 throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
             var pages = new PageCollectionBuilder();
@@ -310,7 +345,7 @@ namespace DustyBot.Modules
         }
 
         [Command("sf", "reset", "Disconnect your Spotify account.", CommandFlags.DirectMessageAllow)]
-        [Alias("spotify", "reset")]
+        [Alias("sf", "disconnect")]
         public async Task Reset(ICommand command)
         {
             try
@@ -360,6 +395,16 @@ namespace DustyBot.Modules
 
             await responseChannel.SendMessageAsync(embed: embed.Build());
             throw new AbortException();
+        }
+
+        private async Task<SpotifyWebAPI> GetClient()
+        {
+            var token = await SpotifyHelpers.GetClientToken(Config.SpotifyId, Config.SpotifyKey);
+            return new SpotifyWebAPI()
+            {
+                AccessToken = token.Token,
+                TokenType = "Bearer"
+            };
         }
 
         private async Task<SpotifyAccount> GetUserAccount(ulong id)
@@ -439,6 +484,79 @@ namespace DustyBot.Modules
                 return "Presto";
             else
                 return "Prestissimo";
+        }
+
+        string PrintKey(int pitchClass, int mode) => $"{PitchClasses[pitchClass]} " + (mode == 1 ? "major" : "minor");
+
+        void AddPercentageField(EmbedBuilder embed, string name, double value)
+                => embed.AddField(x => x.WithIsInline(true).WithName($"{name} [{FormatPercent(value)}]").WithValue(BuildProgressBar(value)));
+
+        private async Task<EmbedBuilder> PrepareTrackEmbed(SpotifyWebAPI client, FullTrack track, string title, bool analyse)
+        {
+            var description = new StringBuilder();
+            description.AppendLine($"**{FormatLink(track.Name, track.ExternUrls, false)}** by {BuildArtistsString(track.Artists)}");
+            description.AppendLine($"On {FormatLink(track.Album.Name, track.Album.ExternalUrls, false)}");
+
+            var author = new EmbedAuthorBuilder()
+                .WithIconUrl(WebConstants.SpotifyIconUrl)
+                .WithName(title);
+
+            var embed = new EmbedBuilder()
+                .WithAuthor(author)
+                .WithColor(0x31, 0xd9, 0x64)
+                .WithDescription(description.ToString());
+
+            if (track.Album.Images.Any())
+                embed.WithThumbnailUrl(track.Album.Images.First().Url);
+
+            if (analyse)
+            {
+                embed.WithFooter($"Calculated by Spotify");
+
+                var analysis = await client.GetAudioFeaturesAsync(track.Id);
+                if (analysis.HasError())
+                    throw new AbortException("Couldn't find an analysis for this track.");
+
+                var album = await client.GetAlbumAsync(track.Album.Id);
+                if (album.HasError())
+                    throw new AbortException("Failed to find this track's album.");
+
+                var genres = (IEnumerable<string>)album.Genres;
+                if (!genres.Any())
+                {
+                    var artists = await client.GetSeveralArtistsAsync(track.Artists.Select(x => x.Id).ToList());
+                    genres = artists.Artists.SelectMany(x => x.Genres).Distinct();
+                }
+
+                var genresBuilder = new StringBuilder();
+                int lineLength = 0;
+                foreach (var genre in genres.Take(8))
+                {
+                    var newLine = genre.Length + lineLength > 24;
+                    genresBuilder.Append((newLine ? "\n" : "") + $"`{genre}` ");
+                    lineLength = newLine ? genre.Length : (lineLength + genre.Length);
+                }
+
+                var genresString = genresBuilder.Length > 0 ? genresBuilder.ToString() : "`unknown`";
+                var tempo = (int)Math.Round(analysis.Tempo);
+                var duration = TimeSpan.FromMilliseconds(track.DurationMs);
+
+                embed.AddField(x => x.WithIsInline(true).WithName("Genres").WithValue(genresString));
+                embed.AddField(x => x.WithIsInline(true).WithName("Label").WithValue(album.Label ?? "Unknown"));
+                embed.AddField(x => x.WithIsInline(true).WithName("Release date").WithValue(album.ReleaseDate));
+                embed.AddField(x => x.WithIsInline(true).WithName("Duration").WithValue($"{duration.ToString(@"mm\:ss", GlobalDefinitions.Culture)}"));
+                embed.AddField(x => x.WithIsInline(true).WithName("Tempo").WithValue($"{tempo} BPM ({ApproximateClassicalTempo(tempo)})"));
+                embed.AddField(x => x.WithIsInline(true).WithName("Key (estimated)").WithValue(PrintKey(analysis.Key, analysis.Mode)));
+                
+                AddPercentageField(embed, "Popularity", track.Popularity / 100d);
+                AddPercentageField(embed, "Instrumental", analysis.Instrumentalness);
+                AddPercentageField(embed, "Acoustic", analysis.Acousticness);
+                AddPercentageField(embed, "Danceability", analysis.Danceability);
+                AddPercentageField(embed, "Energy", analysis.Energy);
+                AddPercentageField(embed, "Positivity", analysis.Valence);
+            }           
+
+            return embed;
         }
     }
 }

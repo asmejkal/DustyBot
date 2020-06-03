@@ -592,7 +592,7 @@ namespace DustyBot.Modules
             var allowedCommands = new List<CommandRegistration>()
             {
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add"),
-                HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event notify"),
+                HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add notify"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event remove"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event edit")
             };

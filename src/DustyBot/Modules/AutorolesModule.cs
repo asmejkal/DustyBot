@@ -48,6 +48,13 @@ namespace DustyBot.Modules
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
         public async Task AddAutoRole(ICommand command)
         {
+            var botMaxPosition = (await command.Guild.GetCurrentUserAsync()).RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
+            if (command["RoleNameOrID"].AsRole.Position >= botMaxPosition)
+            {
+                await command.ReplyError(Communicator, $"The bot doesn't have permission to assign this role to users. Please make sure the role is below the bot's highest role in the server's role list.");
+                return;
+            }
+
             await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Add(command[0].AsRole.Id)).ConfigureAwait(false);
             await command.ReplySuccess(Communicator, $"Will now assign role {command[0].AsRole.Name} ({command[0].AsRole.Id}) to users upon joining.");
         }

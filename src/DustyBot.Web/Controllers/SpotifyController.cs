@@ -51,6 +51,13 @@ namespace DustyBot.Web.Controllers
         }
 
         [Authorize]
+        public IActionResult Logout()
+        {
+            HttpContext.SignOutAsync();
+            return RedirectToAction("Index", "Spotify");
+        }
+
+        [Authorize]
         public IActionResult ConnectBegin()
         {
             var userIdClaim = User.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
@@ -98,6 +105,7 @@ namespace DustyBot.Web.Controllers
                 return BadRequest("Invalid state");
 
             var userIdClaim = User.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            var userNameClaim = User.FindFirst(c => c.Type == ClaimTypes.Name)?.Value;
             var id = DecodeState(state);
             if (id != ulong.Parse(userIdClaim))
                 return BadRequest("Invalid user");
@@ -158,6 +166,7 @@ namespace DustyBot.Web.Controllers
             await table.CreateIfNotExistsAsync();
             await table.ExecuteAsync(TableOperation.InsertOrReplace(entity.ToTableEntity()));
 
+            ViewData["UserName"] = userNameClaim;
             return View();
         }
 
