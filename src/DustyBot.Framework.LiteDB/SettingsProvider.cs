@@ -188,18 +188,21 @@ namespace DustyBot.Framework.LiteDB
             }
         }
 
-        public Task<string> DumpSettings(ulong serverId, string module)
+        public Task<string> DumpSettings(ulong serverId, string module, bool raw)
         {
             var col = _dbObject.GetCollection(module);
-                
-            var settings = col.FindOne(x => x.ContainsKey("ServerId") && x["ServerId"].AsUInt64() == serverId );
-            if (settings == null)
-                return null;
 
-            return Task.FromResult(JsonConvert.SerializeObject(JsonConvert.DeserializeObject(settings.ToString()), Formatting.Indented) + "\n\n");
+            var settings = col.FindById(unchecked((long)serverId));
+            if (settings == null)
+                return Task.FromResult<string>(null);
+
+            if (raw)
+                return Task.FromResult(settings.ToString());
+            else
+                return Task.FromResult(JsonConvert.SerializeObject(JsonConvert.DeserializeObject(settings.ToString()), Formatting.Indented) + "\n\n");
         }
 
-        public Task SetSettings(ulong serverId, string module, string json)
+        public Task SetSettings(string module, string json)
         {
             var col = _dbObject.GetCollection(module);
 

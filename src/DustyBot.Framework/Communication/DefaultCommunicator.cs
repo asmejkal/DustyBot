@@ -344,16 +344,8 @@ namespace DustyBot.Framework.Communication
             foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
-                if (param.Flags.HasFlag(Commands.ParameterFlags.Optional) || param.Flags.HasFlag(Commands.ParameterFlags.Remainder))
-                {
-                    if (param.Flags.HasFlag(Commands.ParameterFlags.Optional))
-                        tmp += "optional";
-
-                    if (param.Flags.HasFlag(Commands.ParameterFlags.Remainder))
-                        tmp += param.Flags.HasFlag(Commands.ParameterFlags.Optional) ? " remainder" : "remainder";
-
-                    tmp += "; ";
-                }
+                if (param.Flags.HasFlag(Commands.ParameterFlags.Optional))
+                    tmp += "optional; ";
 
                 tmp += param.GetDescription(config.CommandPrefix);
                 paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "\n" + tmp;

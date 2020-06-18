@@ -38,7 +38,7 @@ namespace DustyBot.Modules
 
         [Command("help", "Prints usage info.")]
         [Parameter("Command", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "show usage of a specific command")]
-        [Comment("Use without parameters to see a list of modules and commands.")]
+        [Example("event add")]
         public async Task Help(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -267,6 +267,44 @@ namespace DustyBot.Modules
             await Task.WhenAll(tasks);
         }
 
+        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
+        [Parameter("Module", ParameterType.String, "LiteDB collection name")]
+        [Parameter("Raw", @"^raw$", ParameterType.String, ParameterFlags.Optional, "get unformatted output")]
+        public async Task GetSettings(ICommand command)
+        {
+            var serverId = command[0].AsId ?? command.GuildId;
+            var result = await Settings.DumpSettings(serverId, command["Module"], command["Raw"].HasValue);
+            
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream, Encoding.UTF8))
+            {
+                await writer.WriteAsync(result);
+                await writer.FlushAsync();
+                stream.Position = 0;
+
+                await command.Channel.SendFileAsync(stream, $"{command["Module"]}-{serverId}.json");
+            }
+        }
+
+        [Command("server", "settings", "set", "Sets settings for a server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Parameter("Module", ParameterType.String, "LiteDB collection name")]
+        public async Task SetSettings(ICommand command)
+        {
+            if (command.Message.Attachments.Count <= 0)
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Missing attachment.");
+
+            var request = WebRequest.CreateHttp(command.Message.Attachments.First().Url);
+            using (var response = await request.GetResponseAsync())
+            using (var reader = new StreamReader(response.GetResponseStream()))
+            {
+                var json = await reader.ReadToEndAsync();
+                await Settings.SetSettings(command["Module"], json);
+            }
+
+            await command.ReplySuccess(Communicator, "Done!").ConfigureAwait(false);
+        }
+
         static string Markdown(string input)
         {
             bool inside = false;
@@ -306,16 +344,8 @@ namespace DustyBot.Modules
             foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
-                if (param.Flags.HasFlag(ParameterFlags.Optional) || param.Flags.HasFlag(ParameterFlags.Remainder))
-                {
-                    if (param.Flags.HasFlag(ParameterFlags.Optional))
-                        tmp += "optional";
-
-                    if (param.Flags.HasFlag(ParameterFlags.Remainder))
-                        tmp += param.Flags.HasFlag(ParameterFlags.Optional) ? " remainder" : "remainder";
-
-                    tmp += "; ";
-                }
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                    tmp += "optional; ";
 
                 tmp += param.GetDescription(config.CommandPrefix);
                 paramDescriptions.Append(paramDescriptions.Length <= 0 ? tmp : "<br/>" + tmp);

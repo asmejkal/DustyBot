@@ -73,7 +73,6 @@ namespace DustyBot.Framework
                 EventRouter.Register(defaultCommunicator);
             
             EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config));
-            EventRouter.Register(new Settings.SettingsCleaner(components.Settings, components.Logger));
         }
 
         public async Task Run(string status = "")

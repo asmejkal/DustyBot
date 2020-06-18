@@ -16,6 +16,7 @@ using DustyBot.Helpers;
 using System.IO;
 using Newtonsoft.Json.Linq;
 using DustyBot.Definitions;
+using Newtonsoft.Json;
 
 namespace DustyBot.Modules
 {
@@ -93,7 +94,7 @@ namespace DustyBot.Modules
                 var nowPlaying = result.nowPlaying;
                 if (!tracks.Any())
                 {
-                    await command.Reply(Communicator, $"Looks like this user doesn't have any scrobbles yet...").ConfigureAwait(false);
+                    await command.Reply(Communicator, GetNoScrobblesMessage(command["User"]?.AsGuildUserOrName?.Item2));
                     return;
                 }
 
@@ -183,6 +184,10 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach Last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -207,7 +212,7 @@ namespace DustyBot.Modules
                 var nowPlaying = (await nowPlayingTask).tracks.FirstOrDefault();
                 if (nowPlaying == null)
                 {
-                    await command.Reply(Communicator, $"Looks like this user doesn't have any scrobbles yet...").ConfigureAwait(false);
+                    await command.Reply(Communicator, GetNoScrobblesMessage(command["User"]?.AsGuildUserOrName?.Item2));
                     return;
                 }
 
@@ -223,6 +228,10 @@ namespace DustyBot.Modules
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
+            }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
             }
             catch (WebException e)
             {
@@ -374,6 +383,10 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -447,6 +460,10 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -469,7 +486,7 @@ namespace DustyBot.Modules
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetArtistScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
-                    throw new AbortException("Looks like the user doesn't have any scrobbles in this time range...");
+                    throw new AbortException(GetNoScrobblesTimePeriodMessage(command["User"]?.AsGuildUserOrName?.Item2));
 
                 var pages = new PageCollectionBuilder();
                 var place = 1;
@@ -503,6 +520,10 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -525,7 +546,7 @@ namespace DustyBot.Modules
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetAlbumScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
-                    throw new AbortException("Looks like the user doesn't have any scrobbles in this time range...");
+                    throw new AbortException(GetNoScrobblesTimePeriodMessage(command["User"]?.AsGuildUserOrName?.Item2));
 
                 var pages = new PageCollectionBuilder();
                 var place = 1;
@@ -559,6 +580,10 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -581,7 +606,7 @@ namespace DustyBot.Modules
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetTrackScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
-                    throw new AbortException("Looks like the user doesn't have any scrobbles in this time range...");
+                    throw new AbortException(GetNoScrobblesTimePeriodMessage(command["User"]?.AsGuildUserOrName?.Item2));
 
                 var pages = new PageCollectionBuilder();
                 var place = 1;
@@ -614,6 +639,10 @@ namespace DustyBot.Modules
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
+            }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
             }
             catch (WebException e)
             {
@@ -696,6 +725,10 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
+            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
+            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
@@ -739,13 +772,58 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Your Last.fm username has been set.");
         }
 
-        [Command("lf", "unset", "Deletes your saved Last.fm username.", CommandFlags.DirectMessageAllow)]
+        [Command("lf", "reset", "Deletes your saved Last.fm username.", CommandFlags.DirectMessageAllow)]
+        [Alias("lf", "unset", true)]
         [Comment("Can be used in a direct message.")]
         public async Task LastFmUnset(ICommand command)
         {
             await Settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) => x.LastFmUsername = null);
             await command.ReplySuccess(Communicator, $"Your Last.fm username has been deleted.");
         }
+
+        //[Command("lf", "test", "Deletes your saved Last.fm username.", CommandFlags.DirectMessageAllow)]
+        //[Comment("Can be used in a direct message.")]
+        //public async Task Test(ICommand command)
+        //{
+        //    var settings = await Settings.ReadUser<LastFmUserSettings>();
+        //    var key = (await Settings.ReadGlobal<BotConfig>()).LastFmKey;
+        //    var tasks = new List<Task<int>>();
+        //    var semaphore = new System.Threading.SemaphoreSlim(1000, 1000);
+        //    ServicePointManager.DefaultConnectionLimit = 1000;
+        //    ServicePointManager.FindServicePoint(new Uri("http://ws.audioscrobbler.com")).ConnectionLimit = 1000;
+        //    for (int i = 0; ; i++)
+        //    {
+        //        var batch = settings.Skip(i * 7).Take(7);
+        //        if (!batch.Any())
+        //            break;
+
+        //        tasks.Add(Task.Run(async () =>
+        //        {
+        //            var req = WebRequest.CreateHttp($"https://dustybotfunctionsjobs.azurewebsites.net/api/Function1");
+        //            req.Method = "POST";
+        //            req.ContentType = "application/json";
+        //            req.Timeout = System.Threading.Timeout.Infinite;
+        //            req.UserAgent = "User-Agent: PostmanRuntime/7.22.0";
+        //            req.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+
+        //            var body = JsonConvert.SerializeObject(new { accounts = batch.Select(x => x.LastFmUsername).ToList() });
+        //            using (var writer = new StreamWriter(await req.GetRequestStreamAsync(), Encoding.UTF8))
+        //                await writer.WriteAsync(body).ConfigureAwait(false);
+
+        //            using (var res = await req.GetResponseAsync())
+        //            using (var stream = new StreamReader(res.GetResponseStream()))
+        //            {
+        //                var result = await stream.ReadToEndAsync();
+        //                Console.WriteLine($"Batch {i}: {result}");
+        //                return int.Parse(result);
+        //            }
+        //        }));
+
+        //        await Task.Delay(200);
+        //    }
+
+        //    var results = (await Task.WhenAll(tasks)).Sum();
+        //}
 
         string FormatDynamicLink(dynamic entity, bool trim = false)
             => FormatLink((string)entity?.name ?? "Unknown", (string)entity?.url, trim);
@@ -808,6 +886,12 @@ namespace DustyBot.Modules
             var user = param.HasValue ? param.AsGuildUserOrName.Item1 : fallback;
             return await GetLastFmSettings(user, param.HasValue);
         }
+
+        static string GetNoScrobblesMessage(string offDiscordUser) =>
+            $"Looks like {(offDiscordUser != null ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles yet...";
+
+        static string GetNoScrobblesTimePeriodMessage(string offDiscordUser) =>
+            $"Looks like {(offDiscordUser != null ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles in this time period...";
 
         LfStatsPeriod ParseStatsPeriod(string input) 
             => InputStatsPeriodMapping.TryGetValue(input, out var result) ? result : throw new IncorrectParametersCommandException("Invalid time period.");

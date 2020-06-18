@@ -53,7 +53,7 @@ namespace DustyBot.Modules
         [Command("starboard", "add", "Sets up a new starboard.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Remainder, "a channel that will receive the starred messages")]
-        [Comment("The bot will repost messages that were reacted to with a chosen emoji (:star: by default) to this channel. You can modify the minimum number of required reactions. You can have multiple starboards with different emojis or scoped to different channels.")]
+        [Comment("The bot will repost messages that were reacted to with a chosen emoji (:star: by default) to this channel. A user can't star their own message.\n\nYou can modify the minimum number of required reactions. You can have multiple starboards with different emojis or scoped to different channels.")]
         public async Task AddStarboard(ICommand command)
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
