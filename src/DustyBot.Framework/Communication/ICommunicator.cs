@@ -23,6 +23,9 @@ namespace DustyBot.Framework.Communication
 
     public interface ICommunicator
     {
+        string SuccessMarker { get; }
+        string FailureMarker { get; }
+
         Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null);
         Task<ICollection<IUserMessage>> CommandReplyError(IMessageChannel channel, string message);
         Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message);

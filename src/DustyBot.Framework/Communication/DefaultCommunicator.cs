@@ -60,6 +60,9 @@ namespace DustyBot.Framework.Communication
         public Config.IEssentialConfig Config { get; set; }
         public Logging.ILogger Logger { get; set; }
 
+        public string SuccessMarker => ":white_check_mark:";
+        public string FailureMarker => ":no_entry:";
+
         public DefaultCommunicator(Config.IEssentialConfig config, Logging.ILogger logger)
         {
             Config = config;
@@ -67,10 +70,10 @@ namespace DustyBot.Framework.Communication
         }
 
         public async Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null) 
-            => await SendMessage(channel, ":white_check_mark: " + message.Sanitise(), embed: embed);
+            => await SendMessage(channel, SuccessMarker + " " + message.Sanitise(), embed: embed);
 
         public async Task<ICollection<IUserMessage>> CommandReplyError(IMessageChannel channel, string message) 
-            => await SendMessage(channel, ":no_entry: " + message.Sanitise());
+            => await SendMessage(channel, FailureMarker + " " + message.Sanitise());
 
         public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) 
             => await SendMessage(channel, message);

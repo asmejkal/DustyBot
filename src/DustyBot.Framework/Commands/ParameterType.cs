@@ -25,6 +25,7 @@ namespace DustyBot.Framework.Commands
         ColorCode,
 
         Id,
+        MentionOrId,
         TextChannel,
         GuildUser,
         GuildUserOrName,

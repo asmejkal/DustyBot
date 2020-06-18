@@ -59,5 +59,7 @@ namespace DustyBot.Framework.Utility
 
         public static string GetAnimatedIconUrl(this IGuild guild) => 
             guild.IconId.StartsWith("a_") ? System.IO.Path.ChangeExtension(guild.IconUrl, "gif") : null;
+
+        public static string GetFullName(this IUser user) => $"{user.Username}#{user.Discriminator}";
     }
 }

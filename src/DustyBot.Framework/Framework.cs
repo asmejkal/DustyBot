@@ -41,7 +41,7 @@ namespace DustyBot.Framework
 
         private SemaphoreSlim _awaiter = new SemaphoreSlim(0);
 
-        private HashSet<Modules.IModule> _modules;
+        private HashSet<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
 
         private List<IService> _services;
@@ -56,7 +56,7 @@ namespace DustyBot.Framework
             if (!components.IsComplete())
                 throw new ArgumentException("Incomplete components.");
 
-            _modules = new HashSet<Modules.IModule>(components.Modules);
+            _modules = new HashSet<IModule>(components.Modules);
             _services = new List<IService>(components.Services);
             Client = components.Client;
             Config = components.Config;

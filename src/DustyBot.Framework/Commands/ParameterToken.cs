@@ -119,6 +119,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.Regex: result = AsRegex; break;
                 case ParameterType.ColorCode: result = AsColorCode; break;
                 case ParameterType.Id: result = AsId; break;
+                case ParameterType.MentionOrId: result = AsMentionOrId; break;
                 case ParameterType.TextChannel: result = AsTextChannel; break;
                 case ParameterType.GuildUser: result = AsGuildUser; break;
                 case ParameterType.GuildUserOrName: result = AsGuildUserOrName; break;
@@ -146,6 +147,22 @@ namespace DustyBot.Framework.Commands
         public Guid? AsGuid => TryConvert<Guid>(this, ParameterType.Guid, Guid.TryParse);
         public Match AsRegex => TryConvert<Match>(this, ParameterType.Regex, x => Regex?.Match(x));
         public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
+
+        private static bool TryParseMentionOrId(string value, out ulong id)
+        {
+            if (!ulong.TryParse(value, out id))
+            {
+                var match = UserMentionRegex.Match(value);
+                if (!match.Success)
+                    return false;
+
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            return true;
+        }
+
+        public ulong? AsMentionOrId => TryConvert<ulong>(this, ParameterType.MentionOrId, TryParseMentionOrId);
 
         private static Regex ColorCodeRegex = new Regex("^#?([a-fA-F0-9]+)$", RegexOptions.Compiled);
         private static bool TryParseColorCode(string value, out uint result)

@@ -1,40 +1,37 @@
 ﻿using Discord;
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using System.IO;
-using System.Globalization;
 using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
-using DustyBot.Settings;
-using Discord.WebSocket;
-using System.Threading;
 using DustyBot.Framework.Logging;
-using System.Collections;
 using Newtonsoft.Json;
 using DustyBot.Helpers;
+using System;
+using System.Collections.Generic;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Modules
 {
     [Module("Administration", "Helps with server admin tasks.")]
     class AdministrationModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        private ICommunicator Communicator { get; }
+        private ISettingsProvider Settings { get; }
+        private ILogger Logger { get; }
+        private IDiscordClient Client { get; }
 
-        public AdministrationModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public AdministrationModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IDiscordClient client)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
+            Client = client;
         }
 
         [Command("administration", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -107,6 +104,69 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been unmuted.").ConfigureAwait(false);
         }
 
+        [Command("ban", "Bans a user.")]
+        [Permissions(GuildPermission.BanMembers), BotPermissions(GuildPermission.BanMembers)]
+        [Parameter("Reason", ParameterType.String, ParameterFlags.Optional, "reason for the ban")]
+        [Parameter("DeleteDays", ParameterType.UInt, ParameterFlags.Optional, "number of days of messages to delete (max 7)")]
+        [Parameter("Users", ParameterType.MentionOrId, ParameterFlags.Repeatable, "up to 10 user mentions or IDs")]
+        public async Task Ban(ICommand command)
+        {
+            if (command["Users"].Repeats.Count > 10)
+                throw new Framework.Exceptions.IncorrectParametersCommandException("The maximum number of bans per command is 10.", false);
+
+            var userMaxRole = ((IGuildUser)command.Author).RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
+            var result = new StringBuilder();
+            var bans = new Dictionary<ulong, (Task Task, string User)>();
+            foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
+            {
+                string userName;
+                var guildUser = await command.Guild.GetUserAsync(id);
+                if (guildUser != null)
+                {
+                    userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
+                    if (userMaxRole <= guildUser.RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0))
+                    {
+                        result.AppendLine($"{Communicator.FailureMarker} You can't ban user `{userName}` on this server.");
+                        continue;
+                    }
+                }
+                else
+                {
+                    var user = await Client.GetUserAsync(id);
+                    userName = user != null ? $"{user.GetFullName()} ({user.Id})" : id.ToString();
+                }
+
+                bans[id] = (command.Guild.AddBanAsync(id, Math.Min(command["DeleteDays"].AsInt ?? 0, 7), command["Reason"].HasValue ? command["Reason"].AsString : null), userName);
+            }
+
+            try
+            {
+                await Task.WhenAll(bans.Select(x => x.Value.Task));
+            }
+            catch (Exception)
+            {
+            }
+
+            foreach (var ban in bans.Values)
+            {
+                if (ban.Task.Exception != null && ban.Task.Exception.InnerException is Discord.Net.HttpException ex && ex.HttpCode == HttpStatusCode.Forbidden)
+                {
+                    result.AppendLine($"{Communicator.FailureMarker} Missing permissions to ban user `{ban.User}`.");
+                }
+                else if (ban.Task.Exception != null)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Failed to ban user {ban.User}, ex: {ban.Task.Exception}"));
+                    result.AppendLine($"{Communicator.FailureMarker} Failed to ban user `{ban.User}`.");
+                }
+                else
+                {
+                    result.AppendLine($"{Communicator.SuccessMarker} User `{ban.User}` has been banned.");
+                }
+            }
+
+            await command.Reply(Communicator, result.ToString());
+        }
+
         [Command("roles", "Lists all roles on the server with ther IDs.")]
         public async Task Roles(ICommand command)
         {
@@ -157,16 +217,6 @@ namespace DustyBot.Modules
             {
                 await command.Message.Channel.SendFileAsync(stream, $"output.{extension}");
             }
-        }
-
-        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
-        [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
-        [Parameter("Module", ParameterType.String, "LiteDB collection name")]
-        public async Task GetSettings(ICommand command)
-        {
-            var channel = await command.Message.Author.GetOrCreateDMChannelAsync();
-            var result = await Settings.DumpSettings(command[0].AsId ?? command.GuildId, command["Module"]);
-            await Communicator.CommandReply(channel, result, x => $"```{x}```", 6).ConfigureAwait(false);
         }
 
         [Command("moddm", "Send an anonymous direct message from a moderator to a server member.", CommandFlags.Hidden)]
