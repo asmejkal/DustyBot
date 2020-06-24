@@ -331,7 +331,6 @@ namespace DustyBot.Framework.LiteDB
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -340,6 +339,8 @@ namespace DustyBot.Framework.LiteDB
             {
                 if (disposing)
                 {
+                    _dbObject.Checkpoint();
+
                     _dbObject?.Dispose();
                     _dbObject = null;
 
