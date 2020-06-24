@@ -106,7 +106,7 @@ namespace DustyBot.Framework.Commands
                     if (missingPermissions.Any())
                     {
                         await Communicator.CommandReplyMissingPermissions(message.Channel, commandRegistration, missingPermissions);
-                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to missign user permissions"));
+                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to missing user permissions"));
                         return;
                     }
 

@@ -147,18 +147,18 @@ namespace DustyBot
                 };
 
                 //Check if this instance exists
-                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
                 
                 using (var client = new DiscordSocketClient(clientConfig))
-                using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
-                using (var logger = new Framework.Logging.ConsoleLogger(client, Definitions.GlobalDefinitions.GetLogFile(opts.Instance)))
+                using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(opts.Instance)))
                 {
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
                     
                     //Get config
-                    components.Config = await components.Settings.ReadGlobal<Settings.BotConfig>();
+                    components.Config = await components.Settings.ReadGlobal<BotConfig>();
 
                     //Choose communicator
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
@@ -214,7 +214,7 @@ namespace DustyBot
         {
             try
             {
-                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
                 if (string.Compare(opts.Task, "create", true) == 0)
                 {
                     if (File.Exists(instancePath))
@@ -223,16 +223,16 @@ namespace DustyBot
                     if (opts.OwnerIDs == null || !opts.OwnerIDs.Any() || string.IsNullOrWhiteSpace(opts.Token))
                         throw new ArgumentException("Owner IDs and bot token must be specified to create an instance.");
 
-                    if (!Directory.Exists(Definitions.GlobalDefinitions.DataFolder))
-                        Directory.CreateDirectory(Definitions.GlobalDefinitions.DataFolder);
+                    if (!Directory.Exists(GlobalDefinitions.DataFolder))
+                        Directory.CreateDirectory(GlobalDefinitions.DataFolder);
 
                     using (var db = DatabaseHelpers.CreateOrOpen(instancePath, opts.Password))
                     {
-                        db.UserVersion = Definitions.GlobalDefinitions.SettingsVersion;
-                        db.GetCollection<Settings.BotConfig>().Insert(new Settings.BotConfig
+                        db.UserVersion = GlobalDefinitions.SettingsVersion;
+                        db.GetCollection<BotConfig>().Insert(new BotConfig
                         {
                             BotToken = opts.Token,
-                            CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? Definitions.GlobalDefinitions.DefaultPrefix : opts.Prefix,
+                            CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? GlobalDefinitions.DefaultPrefix : opts.Prefix,
                             OwnerIDs = new List<ulong>(opts.OwnerIDs),
                             YouTubeKey = opts.YouTubeKey,
                             GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null,
@@ -251,9 +251,9 @@ namespace DustyBot
 
                     var GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
 
-                    using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                    using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
                     {
-                        await settings.ModifyGlobal((Settings.BotConfig s) =>
+                        await settings.ModifyGlobal((BotConfig s) =>
                         {
                             if (opts.Token != null)
                                 s.BotToken = opts.Token;
@@ -313,7 +313,7 @@ namespace DustyBot
         {
             try
             {
-                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
 
@@ -331,7 +331,7 @@ namespace DustyBot
         {
             try
             {
-                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
 
@@ -349,7 +349,7 @@ namespace DustyBot
         {
             try
             {
-                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
 
@@ -367,11 +367,11 @@ namespace DustyBot
         {
             try
             {
-                var instancePath = Definitions.GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
 
-                using (var settings = new SettingsProvider(instancePath, new Migrator(Definitions.GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
                 {
                     async Task TestSettings(Func<Task> checker, Type type)
                     {

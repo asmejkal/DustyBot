@@ -491,6 +491,9 @@ namespace DustyBot.Modules
         void AddPercentageField(EmbedBuilder embed, string name, double value)
                 => embed.AddField(x => x.WithIsInline(true).WithName($"{name} [{FormatPercent(value)}]").WithValue(BuildProgressBar(value)));
 
+        void AddBarField(EmbedBuilder embed, string title, double value)
+                => embed.AddField(x => x.WithIsInline(true).WithName($"{title}").WithValue(BuildProgressBar(value)));
+
         private async Task<EmbedBuilder> PrepareTrackEmbed(SpotifyWebAPI client, FullTrack track, string title, bool analyse)
         {
             var description = new StringBuilder();
@@ -549,8 +552,8 @@ namespace DustyBot.Modules
                 embed.AddField(x => x.WithIsInline(true).WithName("Key (estimated)").WithValue(PrintKey(analysis.Key, analysis.Mode)));
                 
                 AddPercentageField(embed, "Popularity", track.Popularity / 100d);
-                AddPercentageField(embed, "Instrumental", analysis.Instrumentalness);
-                AddPercentageField(embed, "Acoustic", analysis.Acousticness);
+                AddBarField(embed, $"Instrumental [{(analysis.Instrumentalness > 0.5 ? "Yes" : "No")}]", analysis.Instrumentalness);
+                AddBarField(embed, $"Acoustic [{(analysis.Acousticness > 0.5 ? "Yes" : "No")}]", analysis.Acousticness);
                 AddPercentageField(embed, "Danceability", analysis.Danceability);
                 AddPercentageField(embed, "Energy", analysis.Energy);
                 AddPercentageField(embed, "Positivity", analysis.Valence);

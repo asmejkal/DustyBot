@@ -41,6 +41,7 @@ namespace DustyBot.Helpers
             {
                 return -1;
             }
+
             if (m_comparer.Compare(item, m_innerList[insertIndex]) == 0)
             {
                 int index = insertIndex;
@@ -48,8 +49,10 @@ namespace DustyBot.Helpers
                 {
                     index--;
                 }
+
                 return index;
             }
+
             return -1;
         }
 

@@ -104,11 +104,14 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been unmuted.").ConfigureAwait(false);
         }
 
-        [Command("ban", "Bans a user.")]
+        [Command("ban", "Bans one or more users.")]
         [Permissions(GuildPermission.BanMembers), BotPermissions(GuildPermission.BanMembers)]
         [Parameter("Reason", ParameterType.String, ParameterFlags.Optional, "reason for the ban")]
         [Parameter("DeleteDays", ParameterType.UInt, ParameterFlags.Optional, "number of days of messages to delete (max 7)")]
         [Parameter("Users", ParameterType.MentionOrId, ParameterFlags.Repeatable, "up to 10 user mentions or IDs")]
+        [Example("raiders 318911554194243585 318903497502228482")]
+        [Example("troll 7 @Troll")]
+        [Example("\"picture spam\" @Spammer")]
         public async Task Ban(ICommand command)
         {
             if (command["Users"].Repeats.Count > 10)
@@ -167,7 +170,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result.ToString());
         }
 
-        [Command("roles", "Lists all roles on the server with ther IDs.")]
+        [Command("roles", "Lists all roles on the server with their IDs.")]
         public async Task Roles(ICommand command)
         {
             var result = new StringBuilder();
