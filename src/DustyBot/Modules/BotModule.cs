@@ -36,7 +36,7 @@ namespace DustyBot.Modules
             Client = client;
         }
 
-        [Command("help", "Prints usage info.")]
+        [Command("help", "Prints usage info.", CommandFlags.DirectMessageAllow)]
         [Parameter("Command", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "show usage of a specific command")]
         [Example("event add")]
         public async Task Help(ICommand command)
@@ -72,7 +72,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("about", "Bot and version information.")]
+        [Command("about", "Bot and version information.", CommandFlags.DirectMessageAllow)]
         public async Task About(ICommand command)
         {
             var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
@@ -100,7 +100,7 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("feedback", "Suggest a modification or report an issue.")]
+        [Command("feedback", "Suggest a modification or report an issue.", CommandFlags.DirectMessageAllow)]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder)]
         public async Task Feedback(ICommand command)
         {
@@ -116,7 +116,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
         }
 
-        [Command("servers", "Lists all servers the bot is on.", CommandFlags.OwnerOnly)]
+        [Command("servers", "Lists all servers the bot is on.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();
@@ -133,7 +133,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages, true).ConfigureAwait(false);
         }
 
-        [Command("server", "global", "Shows information about a server.", CommandFlags.OwnerOnly)]
+        [Command("server", "global", "Shows information about a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("ServerNameOrId", ParameterType.String, ParameterFlags.Remainder, "Id or name of a server")]
         public async Task ServerInfo(ICommand command)
         {
@@ -161,7 +161,7 @@ namespace DustyBot.Modules
             await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
         }
 
-        [Command("setavatar", "Changes the bot's avatar.", CommandFlags.OwnerOnly)]
+        [Command("setavatar", "Changes the bot's avatar.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("Url", ParameterType.String, ParameterFlags.Optional)]
         [Comment("Attach your new image to the message or provide a link.")]
         public async Task SetAvatar(ICommand command)
@@ -193,7 +193,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Avatar was changed!").ConfigureAwait(false);
         }
 
-        [Command("setname", "Changes the bot's username.", CommandFlags.OwnerOnly)]
+        [Command("setname", "Changes the bot's username.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("NewName", ParameterType.String, ParameterFlags.Remainder)]
         public async Task SetName(ICommand command)
         {
@@ -201,19 +201,19 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
         }
 
-        [Command("help", "dump", "Generates a list of all commands.", CommandFlags.OwnerOnly)]
+        [Command("help", "dump", "Generates a list of all commands.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         public async Task DumpHelp(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
             var result = new StringBuilder();
-            var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 20px\">\n<h3>Quick navigation</h3>\n");
+            var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 0px\">\n<h3>Quick navigation</h3>\n");
             int counter = 0;
             foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
             {
                 var anchor = WebConstants.GetModuleWebAnchor(module.Name);
-                preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\">{module.Name}</a> – {module.Description}</p>");
+                preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\"><img class=\"feature-icon-small\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</a> – {module.Description}</p>");
 
-                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3>{module.Name}</h3>");
+                result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3><img class=\"feature-icon-big\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</h3>");
                 result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
 
                 foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
@@ -241,7 +241,7 @@ namespace DustyBot.Modules
             }
 
             preface.AppendLine("</div></div>");
-
+            preface.AppendLine("<hr/>");
             preface.Append(result);
             using (var stream = new MemoryStream(Encoding.Unicode.GetBytes(preface.ToString())))
             {
@@ -249,7 +249,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("cleanup", "commands", "Cleans output of the bot's commands.", CommandFlags.OwnerOnly)]
+        [Command("cleanup", "commands", "Cleans output of the bot's commands.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("Count", ParameterType.Int, ParameterFlags.Remainder, "number of commands to cleanup")]
         public async Task CleanupCommands(ICommand command)
         {
@@ -267,7 +267,7 @@ namespace DustyBot.Modules
             await Task.WhenAll(tasks);
         }
 
-        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
         [Parameter("Module", ParameterType.String, "LiteDB collection name")]
         [Parameter("Raw", @"^raw$", ParameterType.String, ParameterFlags.Optional, "get unformatted output")]
@@ -287,7 +287,7 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("server", "settings", "set", "Sets settings for a server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Command("server", "settings", "set", "Sets settings for a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("Module", ParameterType.String, "LiteDB collection name")]
         public async Task SetSettings(ICommand command)
         {
