@@ -56,7 +56,7 @@ namespace DustyBot.Modules
             }
 
             await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Add(command[0].AsRole.Id)).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Will now assign role {command[0].AsRole.Name} ({command[0].AsRole.Id}) to users upon joining.");
+            await command.ReplySuccess(Communicator, $"Will now assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})` to users upon joining.");
         }
 
         [Command("autorole", "remove", "Remove an automatically assigned role.")]
@@ -68,7 +68,7 @@ namespace DustyBot.Modules
             var removed = await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Remove(command[0].AsRole.Id)).ConfigureAwait(false);
 
             if (removed)
-                await command.ReplySuccess(Communicator, $"Will no longer assign role {command[0].AsRole.Name} ({command[0].AsRole.Id}).");
+                await command.ReplySuccess(Communicator, $"Will no longer assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})`.");
             else
                 await command.ReplyError(Communicator, $"This role is not being assigned automatically.");
         }
