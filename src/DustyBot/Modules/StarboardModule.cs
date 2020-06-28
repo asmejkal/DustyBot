@@ -366,7 +366,7 @@ namespace DustyBot.Modules
             {
                 //Post new
                 var attachments = await ProcessAttachments(message.Attachments);
-                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), false, attachments);
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), attachments);
                 var starMessage = await starChannel.SendMessageAsync(built);
 
                 await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
@@ -386,7 +386,7 @@ namespace DustyBot.Modules
                 if (starMessage == null)
                     return; //Probably got deleted from starboard
 
-                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), true, entry.Attachments);
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments);
                 await starMessage.ModifyAsync(x => x.Content = built);
             }
         }
@@ -488,7 +488,7 @@ namespace DustyBot.Modules
             if (starMessage == null)
                 return; //Probably got deleted from starboard
 
-            var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), true, entry.Attachments);
+            var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments);
             await starMessage.ModifyAsync(x => x.Content = built);
         }
 
@@ -515,12 +515,13 @@ namespace DustyBot.Modules
         }
 
         static readonly Regex HttpUrlRegex = new Regex(@"^http[s]?://[^\s]+$", RegexOptions.Compiled);
-        async Task<string> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, bool editing, List<string> attachments)
+        async Task<string> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments)
         {
             var footer = $"\n{emote} {starCount} | `{message.CreatedAt.ToUniversalTime().ToString(@"MMM d yyyy HH:mm", new CultureInfo("en-US"))}` | {channel.Mention}";
             string attachmentsSection = string.Join("\n", attachments);
 
-            string content = $"**@{message.Author.Username}:**\n";
+            var author = (IGuildUser)message.Author;
+            string content = $"**@{author.Username}{(string.IsNullOrEmpty(author.Nickname) ? "" : $" – {author.Nickname}")}:**\n";
 
             if (string.IsNullOrWhiteSpace(message.Content))
             {
@@ -536,9 +537,9 @@ namespace DustyBot.Modules
             }
             else
             {
-                content += message.Content + "\n";
+                content += message.Content.Quote() + "\n";
                 if (attachments.Count > 0)
-                    content += attachmentsSection + "\n";
+                    content += attachmentsSection.Quote();
             }
 
             content = await DiscordHelpers.ReplaceMentions(content, message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
