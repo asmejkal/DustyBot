@@ -18,7 +18,7 @@ using DustyBot.Framework.Utility;
 
 namespace DustyBot.Modules
 {
-    [Module("Administration", "Helps with server admin tasks.")]
+    [Module("Mod", "Helps with server administration.")]
     class AdministrationModule : Module
     {
         private ICommunicator Communicator { get; }
@@ -91,8 +91,13 @@ namespace DustyBot.Modules
         [Parameter("Reason", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "reason")]
         public async Task Mute(ICommand command)
         {
-            await AdministrationHelpers.Mute(command["User"].AsGuildUser, command["Reason"], Settings);
-            await command.ReplySuccess(Communicator, $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been muted.").ConfigureAwait(false);
+            var permissionFails = await AdministrationHelpers.Mute(command["User"].AsGuildUser, command["Reason"], Settings);
+            var reply = $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been muted.";
+            var fails = permissionFails.Count();
+            if (fails > 0)
+                reply += $"\nℹ Couldn't mute in {fails} channel{(fails > 1 ? "s" : "")} because the bot doesn't have permission to access {(fails > 1 ? "them" : "it")}.";
+            
+            await command.ReplySuccess(Communicator, reply);
         }
 
         [Command("unmute", "Unmutes a server member.")]
@@ -101,7 +106,7 @@ namespace DustyBot.Modules
         public async Task Unmute(ICommand command)
         {
             await AdministrationHelpers.Unmute(command["User"].AsGuildUser); 
-            await command.ReplySuccess(Communicator, $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been unmuted.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been unmuted.");
         }
 
         [Command("ban", "Bans one or more users.")]

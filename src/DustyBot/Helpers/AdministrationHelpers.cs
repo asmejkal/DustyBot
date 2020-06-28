@@ -2,6 +2,7 @@
 using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -11,7 +12,11 @@ namespace DustyBot.Helpers
     {
         public const string MuteRoleName = "Muted";
 
-        public static async Task Mute(IGuildUser user, string reason, ISettingsProvider settings)
+        /// <summary>
+        /// Mutes a member.
+        /// </summary>
+        /// <returns>A list of channels that couldn't be muted because of missing permissions.</returns>
+        public static async Task<IEnumerable<IGuildChannel>> Mute(IGuildUser user, string reason, ISettingsProvider settings)
         {
             IRole muteRole = user.Guild.Roles.FirstOrDefault(x => x.Name == MuteRoleName);
             if (muteRole == null)
@@ -21,11 +26,22 @@ namespace DustyBot.Helpers
                     throw new InvalidOperationException("Cannot create mute role.");
             }
 
+            var permissionFails = new List<IGuildChannel>();
             foreach (var channel in await user.Guild.GetChannelsAsync())
             {
-                var overwrite = channel.GetPermissionOverwrite(muteRole);
-                if (overwrite == null || overwrite.Value.SendMessages != PermValue.Deny || overwrite.Value.Connect != PermValue.Deny || overwrite.Value.AddReactions != PermValue.Deny)
-                    await channel.AddPermissionOverwriteAsync(muteRole, new OverwritePermissions(sendMessages: PermValue.Deny, connect: PermValue.Deny, addReactions: PermValue.Deny));
+                if (channel is ITextChannel || channel is IVoiceChannel)
+                {
+                    try
+                    {
+                        var overwrite = channel.GetPermissionOverwrite(muteRole);
+                        if (overwrite == null || overwrite.Value.SendMessages != PermValue.Deny || overwrite.Value.Connect != PermValue.Deny || overwrite.Value.AddReactions != PermValue.Deny)
+                            await channel.AddPermissionOverwriteAsync(muteRole, new OverwritePermissions(sendMessages: PermValue.Deny, connect: PermValue.Deny, addReactions: PermValue.Deny));
+                    }
+                    catch (Exception ex) when (ex is Discord.Net.HttpException dex && dex.HttpCode == System.Net.HttpStatusCode.Forbidden)
+                    {
+                        permissionFails.Add(channel);
+                    }
+                }
             }
 
             var rolesSettings = await settings.Read<RolesSettings>(user.GuildId, false);
@@ -33,6 +49,7 @@ namespace DustyBot.Helpers
                 await settings.Modify(user.GuildId, (RolesSettings x) => x.AdditionalPersistentRoles.Add(muteRole.Id));
 
             await user.AddRoleAsync(muteRole, new RequestOptions() { AuditLogReason = reason });
+            return permissionFails;
         }
 
         public static async Task Unmute(IGuildUser user)
