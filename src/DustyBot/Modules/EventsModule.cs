@@ -21,7 +21,7 @@ using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    [Module("Events", "Greet & bye messages.")]
+    [Module("Greet & bye", "Greet & bye messages.")]
     class EventsModule : Module
     {
         public ICommunicator Communicator { get; private set; }

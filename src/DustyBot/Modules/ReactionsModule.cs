@@ -21,7 +21,7 @@ using Discord.WebSocket;
 
 namespace DustyBot.Modules
 {
-    [Module("Reactions", "Automatic reactions to messages.")]
+    [Module("Reactions", "Automatic reactions to messages and custom commands.")]
     class ReactionsModule : Module
     {
         public ICommunicator Communicator { get; private set; }

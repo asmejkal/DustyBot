@@ -26,7 +26,7 @@ using System.Text.RegularExpressions;
 
 namespace DustyBot.Modules
 {
-    [Module("Spotify (beta)", "Show others what you're listening to on Spotify.")]
+    [Module("Spotify", "Show others what you're listening to on Spotify.")]
     class SpotifyModule : Module
     {
         private static readonly IReadOnlyDictionary<string, TimeRangeType> InputStatsPeriodMapping =
@@ -71,6 +71,53 @@ namespace DustyBot.Modules
         public async Task Help(ICommand command)
         {
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
+        }
+
+        [Command("sf", "np", "Shows a user's currently playing song.", CommandFlags.TypingIndicator)]
+        [Alias("sf")]
+        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
+        [Comment("Use `sf np detail` to see an analysis of this track.")]
+        public Task NowPlaying(ICommand command)
+        {
+            return NowPlayingInner(command, false);
+        }
+
+        [Command("sf", "np", "detail", "Shows a user's currently playing song with an analysis.", CommandFlags.TypingIndicator)]
+        [Alias("sf", "detail"), Alias("sf", "np", "details", true), Alias("sf", "details", true)]
+        [Alias("sf", "np", "stats", true)]
+        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
+        public Task NowPlayingAnalyse(ICommand command)
+        {
+            return NowPlayingInner(command, true);
+        }
+
+        public async Task NowPlayingInner(ICommand command, bool analyse)
+        {
+            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
+            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
+
+            var result = await client.GetPlayingTrackAsync();
+            bool nowPlaying = result != null && result.IsPlaying;
+
+            var track = result.Item;
+            if (track == null)
+            {
+                // Pull from recents
+                var recents = await client.GetUsersRecentlyPlayedTracksAsync(1);
+                if (!recents.Items.Any())
+                {
+                    await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.").ConfigureAwait(false);
+                    return;
+                }
+
+                var item = recents.Items.First();
+                track = await client.GetTrackAsync(item.Track.Id);
+            }
+
+            var title = (user.Nickname ?? user.Username) + (nowPlaying ? " is now listening to..." : " last listened to...");
+            var embed = await PrepareTrackEmbed(client, track, title, analyse);
+
+            await command.Channel.SendMessageAsync(embed: embed.Build());
         }
 
         [Command("sf", "track", "Shows track info and analysis.", CommandFlags.TypingIndicator)]
@@ -118,11 +165,11 @@ namespace DustyBot.Modules
 
             var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
-            
+
             var results = await client.GetUsersTopTracksAsync(period, 50);
             if (!results?.Items.Any() ?? true)
                 throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
-            
+
             var features = await client.GetSeveralAudioFeaturesAsync(results.Items.Select(x => x.Id).ToList());
             var albums = results.Items.Select(x => x.Album);
             var artistIds = results.Items.SelectMany(x => x.Artists).Select(x => x.Id).Distinct();
@@ -171,53 +218,6 @@ namespace DustyBot.Modules
             AddPercentageField(embed, "Danceability", danceability);
             AddPercentageField(embed, "Energy", energy);
             AddPercentageField(embed, "Positivity", positivity);
-
-            await command.Channel.SendMessageAsync(embed: embed.Build());
-        }
-
-        [Command("sf", "np", "Shows a user's currently playing song.", CommandFlags.TypingIndicator)]
-        [Alias("sf")]
-        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
-        [Comment("Use `sf np detail` to see an analysis of this track.")]
-        public Task NowPlaying(ICommand command)
-        {
-            return NowPlayingInner(command, false);
-        }
-
-        [Command("sf", "np", "detail", "Shows a user's currently playing song with an analysis.", CommandFlags.TypingIndicator)]
-        [Alias("sf", "detail"), Alias("sf", "np", "details", true), Alias("sf", "details", true)]
-        [Alias("sf", "np", "stats", true)]
-        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
-        public Task NowPlayingAnalyse(ICommand command)
-        {
-            return NowPlayingInner(command, true);
-        }
-
-        public async Task NowPlayingInner(ICommand command, bool analyse)
-        {
-            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
-            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
-
-            var result = await client.GetPlayingTrackAsync();
-            bool nowPlaying = result != null && result.IsPlaying;
-
-            var track = result.Item;
-            if (track == null)
-            {
-                // Pull from recents
-                var recents = await client.GetUsersRecentlyPlayedTracksAsync(1);
-                if (!recents.Items.Any())
-                {
-                    await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.").ConfigureAwait(false);
-                    return;
-                }
-
-                var item = recents.Items.First();
-                track = await client.GetTrackAsync(item.Track.Id);
-            }
-
-            var title = (user.Nickname ?? user.Username) + (nowPlaying ? " is now listening to..." : " last listened to...");
-            var embed = await PrepareTrackEmbed(client, track, title, analyse);
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }

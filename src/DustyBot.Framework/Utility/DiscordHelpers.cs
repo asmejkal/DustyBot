@@ -145,5 +145,7 @@ namespace DustyBot.Framework.Utility
         }
 
         public static string TrimLinkBraces(string link) => link.Trim('<', '>');
+
+        public static string Quote(this string text) => string.Join("\n", text.Split(new[] { '\n' }).Select(x => $"> {x}"));
     }
 }

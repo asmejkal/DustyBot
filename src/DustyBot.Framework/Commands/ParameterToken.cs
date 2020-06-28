@@ -215,6 +215,9 @@ namespace DustyBot.Framework.Commands
 
         public Tuple<IGuildUser, string> AsGuildUserOrName => TryConvert<Tuple<IGuildUser, string>>(this, ParameterType.GuildUserOrName, x =>
         {
+            if (string.IsNullOrEmpty(x))
+                return null;
+
             ulong id;
             if (!ulong.TryParse(x, out id))
             {

@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using System.IO;
@@ -16,12 +15,10 @@ using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using System.Text.RegularExpressions;
-using Discord.WebSocket;
-using System.Threading;
 
 namespace DustyBot.Modules
 {
-    [Module("Views", "Tracks comeback stats on YouTube.")]
+    [Module("YouTube", "Tracks your artist's comeback stats on YouTube.")]
     class ViewsModule : Module
     {
         public ICommunicator Communicator { get; private set; }
@@ -40,7 +37,7 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("views", "Checks how comebacks are doing on YouTube.", CommandFlags.TypingIndicator)]
+        [Command("views", "Checks how releases are doing on YouTube. The releases need to be added by moderators.", CommandFlags.TypingIndicator)]
         [Parameter("SongOrCategoryName", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "select songs from a specific category or search for a song from any category")]
         [Comment("Use without parameters to view songs from the default category.")]
         public async Task Views(ICommand command)

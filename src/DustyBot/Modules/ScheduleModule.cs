@@ -155,7 +155,7 @@ namespace DustyBot.Modules
 
         [Command("schedule", "set", "style", "Switches between display styles.", CommandFlags.TypingIndicator)]
         [Parameter("EventFormat", ParameterType.String, ParameterFlags.Remainder, "style of event formatting")]
-        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the [support server](" + WebConstants.SupportServerInvite + ") or contact the bot owner.")]
+        [Comment("Changes how your schedule messages and the `schedule` command output look.\n\n**__Event formatting styles:__**\n● **Default** - embed with each event on a new line:\n`[10/06 | 13:00]` Event\n\n● **KoreanDate** - default with korean date formatting:\n`[181006 | 13:00]` Event\n\n● **MonthName** - default with an abbreviated month name:\n`[Oct 06 | 13:00]` Event\n\nIf you have an idea for a style that isn't listed here, please make a suggestion on the support server or use the `feedback` command!")]
         [Example("KoreanDate")]
         public async Task SetScheduleStyle(ICommand command)
         {

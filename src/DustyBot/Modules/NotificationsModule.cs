@@ -23,7 +23,6 @@ namespace DustyBot.Modules
     class NotificationsModule : Module
     {
         //TODO: Look into multi-keyword searching algos
-        //possible improvements: dynamically reduce the tree during search by already found keywords and/or users
         //current profiling results: 16x faster than naive search (700 keywords, 2000 message length)
         public class KeywordTree
         {

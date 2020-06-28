@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace DustyBot.Definitions
+﻿namespace DustyBot.Definitions
 {
     public class WebConstants
     {
@@ -18,6 +14,7 @@ namespace DustyBot.Definitions
         
         public const string LfIconUrl = ImagesFolderUrl + "/lf.png";
         public const string SpotifyIconUrl = ImagesFolderUrl + "/sf.png";
+        public const string InstagramIconUrl = ImagesFolderUrl + "/ig.png";
 
         public const string SupportServerInvite = "https://discord.gg/mKKJFvZ";
 

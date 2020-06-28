@@ -6,6 +6,9 @@ namespace DustyBot.Helpers
 {
     public static class NumericExtensions
     {
+        private static readonly IList<string> Keycaps =
+            new List<string>() { "0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣" };
+
         public static string ToEnglishOrdinal(this int num)
         {
             if (num <= 0) return num.ToString();
@@ -29,6 +32,14 @@ namespace DustyBot.Helpers
                 default:
                     return num + "th";
             }
+        }
+
+        public static string ToKeycapEmoji(this int num)
+        {
+            if (num < 0 || num > 9)
+                throw new ArgumentOutOfRangeException("Only values within 0-9 are allowed.");
+
+            return Keycaps[num];
         }
     }
 }

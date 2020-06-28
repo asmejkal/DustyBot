@@ -9,6 +9,13 @@ using DustyBot.Framework.LiteDB;
 
 namespace DustyBot.Settings
 {
+    public enum InstagramPreviewStyle
+    {
+        None,
+        Embed,
+        Text
+    }
+
     public class ComebackInfo
     {
         public string Name { get; set; }
@@ -33,5 +40,8 @@ namespace DustyBot.Settings
     {
         public List<ComebackInfo> YouTubeComebacks { get; set; } = new List<ComebackInfo>();
         public List<DaumCafeFeed> DaumCafeFeeds { get; set; } = new List<DaumCafeFeed>();
+
+        public InstagramPreviewStyle InstagramPreviewStyle { get; set; }
+        public bool InstagramAutoPreviews { get; set; }
     }
 }

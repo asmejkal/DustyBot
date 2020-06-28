@@ -151,9 +151,20 @@ namespace DustyBot.Framework.Commands
                     if (commandRegistration.Flags.HasFlag(CommandFlags.TypingIndicator))
                         typingState = command.Message.Channel.EnterTypingState();
 
+                    bool succeeded = false;
                     try
                     {
                         await commandRegistration.Handler(command);
+                        succeeded = true;
+                    }
+                    catch (Exceptions.AbortException ex)
+                    {
+                        if (ex.Pages != null)
+                            await Communicator.CommandReply(command.Message.Channel, ex.Pages);
+                        else if (!string.IsNullOrEmpty(ex.Message))
+                            await Communicator.CommandReply(command.Message.Channel, ex.Message);
+
+                        succeeded = true;
                     }
                     catch (Exceptions.IncorrectParametersCommandException ex)
                     {
@@ -174,13 +185,6 @@ namespace DustyBot.Framework.Commands
                     catch (Exceptions.MissingBotChannelPermissionsException ex)
                     {
                         await Communicator.CommandReplyMissingBotPermissions(command.Message.Channel, commandRegistration, ex.Permissions);
-                    }
-                    catch (Exceptions.AbortException ex)
-                    {
-                        if (ex.Pages != null)
-                            await Communicator.CommandReply(command.Message.Channel, ex.Pages);
-                        else if (!string.IsNullOrEmpty(ex.Message))
-                            await Communicator.CommandReply(command.Message.Channel, ex.Message);
                     }
                     catch (Exceptions.CommandException ex)
                     {
@@ -208,7 +212,7 @@ namespace DustyBot.Framework.Commands
                     }
 
                     var totalElapsed = stopwatch.Elapsed;
-                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} finished in {totalElapsed.TotalSeconds:F3}s (v: {verificationElapsed.TotalSeconds:F3}s, p: {(parsingElapsed - verificationElapsed).TotalSeconds:F3}s, e: {(totalElapsed - parsingElapsed).TotalSeconds:F3}s)"));
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} {(succeeded ? "succeeded" : "failed")} in {totalElapsed.TotalSeconds:F3}s (v: {verificationElapsed.TotalSeconds:F3}s, p: {(parsingElapsed - verificationElapsed).TotalSeconds:F3}s, e: {(totalElapsed - parsingElapsed).TotalSeconds:F3}s)"));
                 });
                 
                 if (commandRegistration.Flags.HasFlag(CommandFlags.Synchronous))

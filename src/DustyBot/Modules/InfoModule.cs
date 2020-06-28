@@ -16,9 +16,9 @@ namespace DustyBot.Modules
     [Module("Info", "Shows various info about users and servers.")]
     class InfoModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
 
         public InfoModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {

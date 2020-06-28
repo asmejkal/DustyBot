@@ -120,7 +120,7 @@ namespace DustyBot.Services
             {
                 if (!_sessionCache.TryGetValue(feed.CredentialId, out var dateSession) || DateTime.Now - dateSession.Item1 > SessionLifetime)
                 {
-                    var credential = await Modules.CredentialsModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
+                    var credential = await Modules.CafeModule.GetCredential(Settings, feed.CredentialUser, feed.CredentialId);
                     try
                     {
                         session = await DaumCafeSession.Create(credential.Login, credential.Password);

@@ -888,10 +888,10 @@ namespace DustyBot.Modules
         }
 
         static string GetNoScrobblesMessage(string offDiscordUser) =>
-            $"Looks like {(offDiscordUser != null ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles yet...";
+            $"Looks like {(!string.IsNullOrEmpty(offDiscordUser) ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles yet...";
 
         static string GetNoScrobblesTimePeriodMessage(string offDiscordUser) =>
-            $"Looks like {(offDiscordUser != null ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles in this time period...";
+            $"Looks like {(!string.IsNullOrEmpty(offDiscordUser) ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles in this time period...";
 
         LfStatsPeriod ParseStatsPeriod(string input) 
             => InputStatsPeriodMapping.TryGetValue(input, out var result) ? result : throw new IncorrectParametersCommandException("Invalid time period.");
