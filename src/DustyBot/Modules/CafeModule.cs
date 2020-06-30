@@ -1,27 +1,17 @@
 ﻿using Discord;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
-using System.Text.RegularExpressions;
-using Discord.WebSocket;
-using System.Threading;
 
 namespace DustyBot.Modules
 {
-    [Module("Cafe", "Daum Cafe feeds, including private boards.")]
+    [Module("Daum Cafe", "Daum Cafe feeds, including private boards.")]
     class CafeModule : Module
     {
         public const int ServerFeedLimit = 25;
