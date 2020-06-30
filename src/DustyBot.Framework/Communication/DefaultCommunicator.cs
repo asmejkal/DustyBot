@@ -169,7 +169,7 @@ namespace DustyBot.Framework.Communication
 
         public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
         {
-            Task.Run(async () =>
+            TaskHelper.FireForget(async () =>
             {
                 try
                 {

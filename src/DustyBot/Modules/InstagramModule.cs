@@ -18,6 +18,9 @@ using DustyBot.Helpers;
 using DustyBot.Settings;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Collections.Concurrent;
+using DustyBot.Definitions;
 
 namespace DustyBot.Modules
 {
@@ -27,11 +30,15 @@ namespace DustyBot.Modules
         private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";
         private static readonly Regex PostRegex = new Regex(PostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private const int LinkPerPostLimit = 8;
+        private static readonly TimeSpan PreviewDeleteWindow = TimeSpan.FromSeconds(30);
 
         public ICommunicator Communicator { get; private set; }
         public ISettingsProvider Settings { get; private set; }
         public ILogger Logger { get; private set; }
         public BotConfig Config { get; }
+
+        private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
+            new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
         public InstagramModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, BotConfig config)
         {
@@ -63,13 +70,13 @@ namespace DustyBot.Modules
 
             var matches = PostRegex.Matches(command["Url"]);
             if (!matches.Any())
-                return;
+                throw new IncorrectParametersCommandException("Not a valid post link.");
 
             foreach (var id in matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit))
             {
                 try
                 {
-                    await PostPreview(id, command.Channel, style);
+                    await PostPreview(id, command.Channel, style, command.Author.Id);
                 }
                 catch (Exception ex)
                 {
@@ -180,7 +187,7 @@ namespace DustyBot.Modules
                     {
                         try
                         {
-                            await PostPreview(id, message.Channel, style);
+                            await PostPreview(id, message.Channel, style, user.Id);
                         }
                         catch (Exception ex)
                         {
@@ -197,7 +204,49 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        private async Task PostPreview(string id, IMessageChannel channel, InstagramPreviewStyle style)
+        public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
+        {
+            TaskHelper.FireForget(async () =>
+            {
+                try
+                {
+                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
+                        return;
+
+                    if (reaction.Emote.Name != EmoteConstants.ClickToRemove.Name)
+                        return;
+
+                    if (!Previews.TryGetValue(message.Id, out var context))
+                        return;
+
+                    if (reaction.User.Value.Id != context.AuthorId)
+                        return;
+
+                    try
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting post preview for user {reaction.User.Value.Username} ({reaction.User.Value.Id})."));
+                        foreach (var m in context.Messages)
+                            await m.DeleteAsync();
+                    }
+                    catch (NullReferenceException)
+                    {
+                        return; // Message deleted
+                    }
+                    finally
+                    {
+                        Previews.TryRemove(message.Id, out _);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to process preview delete reaction.", ex));
+                }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        private async Task PostPreview(string id, IMessageChannel channel, InstagramPreviewStyle style, ulong authorId)
         {
             if (style == InstagramPreviewStyle.None)
                 style = InstagramPreviewStyle.Embed;
@@ -231,21 +280,39 @@ namespace DustyBot.Modules
                 var username = (string)mediaRoot["owner"]?["username"];
                 var fullname = (string)mediaRoot["owner"]?["full_name"];
                 var caption = (string)mediaRoot["edge_media_to_caption"]?["edges"]?.FirstOrDefault()?["node"]?["text"];
-                
+
+                var sent = new List<IUserMessage>();
                 if (style == InstagramPreviewStyle.Embed)
                 {
                     var avatar = (string)mediaRoot["owner"]?["profile_pic_url"];
                     var timestamp = DateTimeOffset.FromUnixTimeSeconds((int)mediaRoot["taken_at_timestamp"]);
 
                     var embed = await PrintHelpers.BuildMediaEmbed(fullname, media, postUrl, Config.ShortenerKey, caption, $"@{username}", timestamp, avatar);
-                    await channel.SendMessageAsync(embed: embed.Build());
+                    sent.Add(await channel.SendMessageAsync(embed: embed.Build()));
                 }
                 else
                 {
                     var messages = await PrintHelpers.BuildMediaText($"<:ig:725481240245043220> **{fullname}**", media, Config.ShortenerKey, url: postUrl, caption: caption);
-                    foreach (var message in messages)
-                        await Communicator.SendMessage(channel, message);
+                    foreach (var m in messages)
+                        sent.AddRange(await Communicator.SendMessage(channel, m));
                 }
+
+                Previews.TryAdd(sent.Last().Id, (authorId, sent));
+                await sent.Last().AddReactionAsync(EmoteConstants.ClickToRemove);
+
+                TaskHelper.FireForget(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(PreviewDeleteWindow);
+                        if (Previews.TryRemove(sent.Last().Id, out _))
+                            await sent.Last().RemoveReactionAsync(EmoteConstants.ClickToRemove, sent.Last().Author);
+                    }
+                    catch (Exception ex)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to remove delete reaction from message", ex));
+                    }
+                });
             }
         }
     }

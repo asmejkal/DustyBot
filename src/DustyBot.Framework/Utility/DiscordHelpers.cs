@@ -12,6 +12,7 @@ namespace DustyBot.Framework.Utility
     public static class DiscordHelpers
     {
         public const int MaxEmbedFieldLength = 1024;
+        public const int MaxMessageLength = 2000;
 
         private static readonly Regex MarkdownUriRegex = new Regex(@"^\[(.+)\]\((.+)\)$", RegexOptions.Compiled);
         private static readonly Regex MarkdownQuoteRegex = new Regex(@"^> ", RegexOptions.Multiline | RegexOptions.Compiled);

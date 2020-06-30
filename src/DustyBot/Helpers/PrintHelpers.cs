@@ -57,7 +57,7 @@ namespace DustyBot.Helpers
 
             var description = new StringBuilder();
             if (!string.IsNullOrEmpty(caption))
-                description.Append(caption.Truncate(EmbedBuilder.MaxDescriptionLength - buttons.Length - 2) + "\n\n");
+                description.Append(caption.Truncate(Math.Min(400, EmbedBuilder.MaxDescriptionLength - buttons.Length - 2)).TruncateLines(10, trim: true) + "\n\n");
 
             description.Append(buttons);
 
@@ -81,16 +81,18 @@ namespace DustyBot.Helpers
             if (!string.IsNullOrEmpty(url))
                 result.AppendLine($"<{url}>");
 
-            if (!string.IsNullOrWhiteSpace(caption))
-                result.AppendLine(caption.Quote());
-
             var messages = new List<string>();
             bool first = true;
             do
             {
+                var links = new StringBuilder();
                 foreach (var item in media.Take(batchSize))
-                    result.AppendLine(item.IsVideo ? item.Url : await UrlShortener.ShortenUrl(item.Url, shortenerKey));
+                    links.AppendLine(item.IsVideo ? item.Url : await UrlShortener.ShortenUrl(item.Url, shortenerKey));
 
+                if (first && !string.IsNullOrWhiteSpace(caption))
+                    result.AppendLine(caption.Truncate(DiscordHelpers.MaxMessageLength - links.Length - result.Length - (footer?.Length ?? 0) - 50).Quote());
+
+                result.Append(links);
                 if (first && !string.IsNullOrEmpty(footer))
                     result.AppendLine(footer);
 
