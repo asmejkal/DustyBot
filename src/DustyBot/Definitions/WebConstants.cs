@@ -2,7 +2,7 @@
 {
     public class WebConstants
     {
-        public const string WebsiteRoot = "http://dustybot.info";
+        public const string WebsiteRoot = "https://dustybot.info";
         public const string WebsiteShorthand = "dustybot.info";
         public const string ReferencePath = "/reference";
         public const string ScheduleGuidePath = "/schedule";
@@ -18,7 +18,7 @@
 
         public const string SupportServerInvite = "https://discord.gg/mKKJFvZ";
 
-        public const string SpotifyConnectUrl = "https://dustybot.azurewebsites.net/spotify";
+        public const string SpotifyConnectUrl = "https://connect.dustybot.info/spotify";
 
         public static string GetModuleWebAnchor(string moduleName) => moduleName.Replace(' ', '-').ToLowerInvariant();
     }
