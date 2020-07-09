@@ -23,10 +23,10 @@ namespace DustyBot.Modules
     [Module("Bot", "Help and bot-related commands.")]
     class BotModule : Framework.Modules.Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public IModuleCollection ModuleCollection { get; private set; }
-        public IDiscordClient Client { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public IModuleCollection ModuleCollection { get; }
+        public IDiscordClient Client { get; }
 
         public BotModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, IDiscordClient client)
         {
@@ -114,6 +114,12 @@ namespace DustyBot.Modules
             }
 
             await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
+        }
+
+        [Command("invite", "Shows a link to invite the bot to your server.", CommandFlags.DirectMessageAllow)]
+        public async Task Invite(ICommand command)
+        {
+            await command.Reply(Communicator, $"<https://discordapp.com/oauth2/authorize?client_id={Client.CurrentUser.Id}&scope=bot&permissions=0>");
         }
 
         [Command("servers", "Lists all servers the bot is on.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -253,7 +259,7 @@ namespace DustyBot.Modules
         [Parameter("Count", ParameterType.Int, ParameterFlags.Remainder, "number of commands to cleanup")]
         public async Task CleanupCommands(ICommand command)
         {
-            var messages = await command.Message.Channel.GetMessagesAsync(500).ToList();
+            var messages = await command.Message.Channel.GetMessagesAsync(500).ToListAsync();
             var tasks = new List<Task>();
             var count = 0;
             foreach (var m in messages.SelectMany(x => x).Where(x => x.Author.Id == Client.CurrentUser.Id))

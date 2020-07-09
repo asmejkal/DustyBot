@@ -59,8 +59,8 @@ namespace DustyBot.Modules
 
         private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3months|3month|3mo|6months|6month|6mo|year|y|all)$";
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
 
         public LastFmModule(ICommunicator communicator, ISettingsProvider settings)
         {
@@ -471,7 +471,7 @@ namespace DustyBot.Modules
         }
 
         [Command("lf", "top", "artists", "Shows user's top artists.", CommandFlags.TypingIndicator)]
-        [Alias("lf", "ta"), Alias("lf", "top", "artist"), Alias("lf", "artists")]
+        [Alias("lf", "ta"), Alias("lf", "top", "artist", true), Alias("lf", "topartists", true), Alias("lf", "topartist", true), Alias("lf", "artists")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
         public async Task LastFmArtists(ICommand command)
@@ -531,7 +531,7 @@ namespace DustyBot.Modules
         }
 
         [Command("lf", "top", "albums", "Shows user's top albums.", CommandFlags.TypingIndicator)]
-        [Alias("lf", "tal"), Alias("lf", "top", "album"), Alias("albums")]
+        [Alias("lf", "tal"), Alias("lf", "top", "album", true), Alias("lf", "topalbums", true), Alias("lf", "topalbum", true), Alias("albums")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
         public async Task LastFmAlbums(ICommand command)
@@ -591,7 +591,7 @@ namespace DustyBot.Modules
         }
 
         [Command("lf", "top", "tracks", "Shows user's top tracks.", CommandFlags.TypingIndicator)]
-        [Alias("lf", "tt"), Alias("lf", "top", "track"), Alias("lf", "tracks"), Alias("lf", "ts")]
+        [Alias("lf", "tt"), Alias("lf", "top", "track", true), Alias("lf", "toptracks", true), Alias("lf", "toptrack", true), Alias("lf", "tracks"), Alias("lf", "ts")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `day`, `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUserOrName, ParameterFlags.Optional, "the user (mention, ID or Last.fm username); shows your own stats if omitted")]
         public async Task LastFmTracks(ICommand command)

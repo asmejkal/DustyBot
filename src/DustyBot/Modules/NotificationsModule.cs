@@ -75,9 +75,9 @@ namespace DustyBot.Modules
         public const int MaxNotificationLength = 50;
         public const int MaxNotificationsPerUser = 15;
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
 
         private static readonly TimeSpan NotificationTimeoutDelay = TimeSpan.FromSeconds(8);
         private Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> ActiveMessages { get; } = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();

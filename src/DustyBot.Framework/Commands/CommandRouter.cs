@@ -70,6 +70,7 @@ namespace DustyBot.Framework.Commands
                 var (commandRegistration, commandUsage) = findResult.Value;
 
                 var stopwatch = Stopwatch.StartNew();
+                var gatewayPing = DateTimeOffset.UtcNow - message.Timestamp;
 
                 //Log; don't log command content for non-guild channels, since these commands are usually meant to be private
                 var id = ++CommandCounter;
@@ -85,7 +86,7 @@ namespace DustyBot.Framework.Commands
                     if (message.Channel is ITextChannel && commandRegistration.Flags.HasFlag(CommandFlags.DirectMessageOnly))
                         await Communicator.CommandReplyDirectMessageOnly(message.Channel, commandRegistration);
 
-                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to invalid channel type"));
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s (g: {gatewayPing.TotalSeconds:F3}s) due to invalid channel type"));
                     return;
                 }
 
@@ -93,7 +94,7 @@ namespace DustyBot.Framework.Commands
                 if (commandRegistration.Flags.HasFlag(CommandFlags.OwnerOnly) && !Config.OwnerIDs.Contains(message.Author.Id))
                 {
                     await Communicator.CommandReplyNotOwner(message.Channel, commandRegistration);
-                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to the user not being an owner"));
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s (g: {gatewayPing.TotalSeconds:F3}s) due to the user not being an owner"));
                     return;
                 }
 
@@ -106,7 +107,7 @@ namespace DustyBot.Framework.Commands
                     if (missingPermissions.Any())
                     {
                         await Communicator.CommandReplyMissingPermissions(message.Channel, commandRegistration, missingPermissions);
-                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to missing user permissions"));
+                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s (g: {gatewayPing.TotalSeconds:F3}s) due to missing user permissions"));
                         return;
                     }
 
@@ -116,7 +117,7 @@ namespace DustyBot.Framework.Commands
                     if (missingBotPermissions.Any())
                     {
                         await Communicator.CommandReplyMissingBotPermissions(message.Channel, commandRegistration, missingBotPermissions);
-                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to missing bot permissions"));
+                        await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s (g: {gatewayPing.TotalSeconds:F3}s) due to missing bot permissions"));
                         return;
                     }
                 }
@@ -136,7 +137,7 @@ namespace DustyBot.Framework.Commands
                     }
 
                     await Communicator.CommandReplyIncorrectParameters(message.Channel, commandRegistration, explanation);
-                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s due to incorrect parameters"));
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} rejected in {stopwatch.Elapsed.TotalSeconds:F3}s (g: {gatewayPing.TotalSeconds:F3}s) due to incorrect parameters"));
                     return;
                 }
 
@@ -212,7 +213,7 @@ namespace DustyBot.Framework.Commands
                     }
 
                     var totalElapsed = stopwatch.Elapsed;
-                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} {(succeeded ? "succeeded" : "failed")} in {totalElapsed.TotalSeconds:F3}s (v: {verificationElapsed.TotalSeconds:F3}s, p: {(parsingElapsed - verificationElapsed).TotalSeconds:F3}s, e: {(totalElapsed - parsingElapsed).TotalSeconds:F3}s)"));
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Command", $"Command {id} {(succeeded ? "succeeded" : "failed")} in {totalElapsed.TotalSeconds:F3}s (v: {verificationElapsed.TotalSeconds:F3}s, p: {(parsingElapsed - verificationElapsed).TotalSeconds:F3}s, e: {(totalElapsed - parsingElapsed).TotalSeconds:F3}s, g: {gatewayPing.TotalSeconds:F3}s)"));
                 });
                 
                 if (commandRegistration.Flags.HasFlag(CommandFlags.Synchronous))

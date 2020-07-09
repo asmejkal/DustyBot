@@ -58,6 +58,10 @@ namespace DustyBot.Helpers
 
         public MessageApplication Application => Inner.Application;
 
+        public bool IsSuppressed => Inner.IsSuppressed;
+
+        public MessageReference Reference => Inner.Reference;
+
         public async Task AddReactionAsync(IEmote emote, RequestOptions options = null)
             => await Inner.AddReactionAsync(emote, options);
 
@@ -84,5 +88,11 @@ namespace DustyBot.Helpers
 
         public IAsyncEnumerable<IReadOnlyCollection<IUser>> GetReactionUsersAsync(IEmote emoji, int limit, RequestOptions options = null) 
             => Inner.GetReactionUsersAsync(emoji, limit, options);
+
+        public Task ModifySuppressionAsync(bool suppressEmbeds, RequestOptions options = null)
+            => Inner.ModifySuppressionAsync(suppressEmbeds, options);
+
+        public Task RemoveReactionAsync(IEmote emote, ulong userId, RequestOptions options = null)
+            => Inner.RemoveReactionAsync(emote, userId, options);
     }
 }

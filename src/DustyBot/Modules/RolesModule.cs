@@ -26,9 +26,9 @@ namespace DustyBot.Modules
     [Module("Roles", "Role self-assignment.")]
     class RolesModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
 
         private SemaphoreSlim RoleAssignmentLock { get; } = new SemaphoreSlim(1, 1);
 
@@ -113,7 +113,7 @@ namespace DustyBot.Modules
         [Example("Solar")]
         public async Task CreateRole(ICommand command)
         {
-            var role = await command.Guild.CreateRoleAsync(command["Name"], new GuildPermissions());
+            var role = await command.Guild.CreateRoleAsync(command["Name"], permissions: new GuildPermissions(), isMentionable: false);
             await AddRole(command.GuildId, role);
 
             await command.ReplySuccess(Communicator, $"A self-assignable role `{command["Name"]}` has been created. You can set a color or reorder it in the server's settings.");
@@ -574,7 +574,7 @@ namespace DustyBot.Modules
                             }
                             catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized)
                             {
-                                await Communicator.CommandReplyError(message.Channel, "The bot doesn't have the necessary permissions. If you're the admin, please make sure the bot can Manage Roles all the assignable roles are placed below the bot's highest role.").ConfigureAwait(false);
+                                await Communicator.CommandReplyError(message.Channel, "The bot doesn't have the necessary permissions. If you're the admin, please make sure the bot can Manage Roles and all the assignable roles are placed below the bot's highest role.").ConfigureAwait(false);
                             }
                         }
                         catch (Exception)

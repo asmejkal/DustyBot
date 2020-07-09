@@ -10,25 +10,41 @@ namespace DustyBot.Helpers
 {
     static class PrintHelpers
     {
-        public class Media
+        public class Thumbnail
         {
-            public bool IsVideo { get; }
-            public string Url { get; }
-            public string ThumbnailUrl { get; }
+            public string Url { get; set; }
+            public bool IsVideo { get; set; }
+            public string VideoUrl { get; set; }
 
-            public Media(bool isVideo, string url, string thumbnailUrl)
+            public Thumbnail(string url, bool isVideo = false, string videoUrl = null)
             {
-                IsVideo = isVideo;
                 Url = url;
-                ThumbnailUrl = thumbnailUrl;
+                IsVideo = isVideo;
+                VideoUrl = videoUrl;
             }
         }
 
-        public static async Task<EmbedBuilder> BuildMediaEmbed(string title, IEnumerable<Media> media, string url, string shortenerKey, string caption = null, string footer = null, DateTimeOffset? timestamp = null, string iconUrl = null)
+        public const int MediaPerTextMessage = 5;
+        public const int EmbedMediaCutoff = 9;
+
+        public static EmbedBuilder BuildMediaEmbed(
+            string title, 
+            IEnumerable<string> media, 
+            string url = null, 
+            string caption = null,
+            Thumbnail thumbnail = null,
+            string footer = null, 
+            string captionFooter = null,
+            DateTimeOffset? timestamp = null, 
+            string iconUrl = null,
+            int maxCaptionLength = 400,
+            int maxCaptionLines = 10)
         {
             var author = new EmbedAuthorBuilder()
-                .WithName(title)
-                .WithUrl(url);
+                .WithName(title);
+
+            if (!string.IsNullOrEmpty(url))
+                author.WithUrl(url);
 
             if (!string.IsNullOrEmpty(iconUrl))
                 author.WithIconUrl(iconUrl);
@@ -40,42 +56,50 @@ namespace DustyBot.Helpers
             if (timestamp != null)
                 embed.WithTimestamp(timestamp.Value);
 
-            string BuildButtons(IEnumerable<string> urls) =>
-                string.Join(" ", urls.Take(9).Select((x, i) => $"[{(i + 1).ToKeycapEmoji()}]({x})"));
-
             var buttons = "";
+            const int minCaptionSpace = 100;
+            var maxButtonsLength = EmbedBuilder.MaxDescriptionLength - minCaptionSpace - (captionFooter?.Length ?? 0);
             if (media.Skip(1).Any())
             {
-                buttons = BuildButtons(media.Select(x => x.Url));
-                if (buttons.Length > EmbedBuilder.MaxDescriptionLength)
-                    buttons = BuildButtons(await Task.WhenAll(media.Select(x => UrlShortener.ShortenUrl(x.Url, shortenerKey))));
+                // Add only as many buttons as will fit
+                var builder = new StringBuilder();
+                foreach (var button in media.Take(Math.Min(EmbedMediaCutoff, 9)).Select((y, i) => $"[{(i + 1).ToKeycapEmoji()}]({y})"))
+                {
+                    var item = button + " ";
+                    if (builder.Length + item.Length > maxButtonsLength)
+                        break;
+
+                    builder.Append(item);
+                }
+
+                buttons = builder.ToString();
             }
-            else if (media.Any(x => x.IsVideo))
+            else if (thumbnail?.IsVideo ?? false)
             {
-                buttons = $"[⏯ Play]({media.First().Url})";
+                buttons = $"[▶️ Play]({thumbnail.VideoUrl})";
             }
 
             var description = new StringBuilder();
+            const int lineBreaksBuffer = 5;
+            var captionSpace = EmbedBuilder.MaxDescriptionLength - buttons.Length - (captionFooter?.Length ?? 0) - lineBreaksBuffer;
             if (!string.IsNullOrEmpty(caption))
-                description.Append(caption.Truncate(Math.Min(400, EmbedBuilder.MaxDescriptionLength - buttons.Length - 2)).TruncateLines(10, trim: true) + "\n\n");
+                description.Append(caption.Truncate(Math.Min(maxCaptionLength, captionSpace)).TruncateLines(maxCaptionLines, trim: true) + "\n\n");
+
+            if (!string.IsNullOrEmpty(captionFooter))
+                description.AppendLine(captionFooter);
 
             description.Append(buttons);
 
             embed.WithDescription(description.ToString());
 
-            if (media.Any())
-            {
-                var thumbnail = media.First();
-                embed.WithImageUrl(thumbnail.IsVideo ? thumbnail.ThumbnailUrl : thumbnail.Url);
-            }
+            if (thumbnail != null)
+                embed.WithImageUrl(thumbnail.Url);
 
             return embed;
         }
 
-        public static async Task<IEnumerable<string>> BuildMediaText(string title, IEnumerable<Media> media, string shortenerKey, string url = null, string caption = null, string footer = null)
+        public static IEnumerable<string> BuildMediaText(string title, IEnumerable<string> media, string url = null, string caption = null, string footer = null)
         {
-            const int batchSize = 5;
-
             var result = new StringBuilder();
             result.AppendLine(title);
             if (!string.IsNullOrEmpty(url))
@@ -86,8 +110,8 @@ namespace DustyBot.Helpers
             do
             {
                 var links = new StringBuilder();
-                foreach (var item in media.Take(batchSize))
-                    links.AppendLine(item.IsVideo ? item.Url : await UrlShortener.ShortenUrl(item.Url, shortenerKey));
+                foreach (var item in media.Take(MediaPerTextMessage))
+                    links.AppendLine(item);
 
                 if (first && !string.IsNullOrWhiteSpace(caption))
                     result.AppendLine(caption.Truncate(DiscordHelpers.MaxMessageLength - links.Length - result.Length - (footer?.Length ?? 0) - 50).Quote());
@@ -99,7 +123,7 @@ namespace DustyBot.Helpers
                 first = false;
                 messages.Add(result.ToString());
                 result.Clear();
-                media = media.Skip(batchSize);
+                media = media.Skip(MediaPerTextMessage);
             } while (media.Any());
 
             return messages;

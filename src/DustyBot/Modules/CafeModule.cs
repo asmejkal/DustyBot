@@ -16,8 +16,8 @@ namespace DustyBot.Modules
     {
         public const int ServerFeedLimit = 25;
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
 
         public CafeModule(ICommunicator communicator, ISettingsProvider settings)
         {

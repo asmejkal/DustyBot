@@ -21,7 +21,7 @@ namespace DustyBot.Helpers
             IRole muteRole = user.Guild.Roles.FirstOrDefault(x => x.Name == MuteRoleName);
             if (muteRole == null)
             {
-                muteRole = await user.Guild.CreateRoleAsync(MuteRoleName, GuildPermissions.None);
+                muteRole = await user.Guild.CreateRoleAsync(MuteRoleName, permissions: GuildPermissions.None, isMentionable: false);
                 if (muteRole == null)
                     throw new InvalidOperationException("Cannot create mute role.");
             }
@@ -37,7 +37,7 @@ namespace DustyBot.Helpers
                         if (overwrite == null || overwrite.Value.SendMessages != PermValue.Deny || overwrite.Value.Connect != PermValue.Deny || overwrite.Value.AddReactions != PermValue.Deny)
                             await channel.AddPermissionOverwriteAsync(muteRole, new OverwritePermissions(sendMessages: PermValue.Deny, connect: PermValue.Deny, addReactions: PermValue.Deny));
                     }
-                    catch (Exception ex) when (ex is Discord.Net.HttpException dex && dex.HttpCode == System.Net.HttpStatusCode.Forbidden)
+                    catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.Forbidden)
                     {
                         permissionFails.Add(channel);
                     }

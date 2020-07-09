@@ -23,9 +23,9 @@ namespace DustyBot.Modules
     [Module("Autoroles", "Give roles to all members automatically.")]
     class AutorolesModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
 
         public AutorolesModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {

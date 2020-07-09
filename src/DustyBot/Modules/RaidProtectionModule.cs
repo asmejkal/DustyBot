@@ -28,9 +28,9 @@ namespace DustyBot.Modules
     {
         public const string MuteRoleName = "Muted";
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
 
         public RaidProtectionModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {

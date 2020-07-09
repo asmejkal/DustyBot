@@ -60,9 +60,9 @@ namespace DustyBot.Services
             }
         }
 
-        public ISettingsProvider Settings { get; private set; }
-        public DiscordSocketClient Client { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ISettingsProvider Settings { get; }
+        public DiscordSocketClient Client { get; }
+        public ILogger Logger { get; }
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15); //Some timezones have quarter-hour fractions
 

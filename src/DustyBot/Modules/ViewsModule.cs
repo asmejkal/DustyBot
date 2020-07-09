@@ -21,8 +21,8 @@ namespace DustyBot.Modules
     [Module("YouTube", "Tracks your artist's comeback stats on YouTube.")]
     class ViewsModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
 
         public ViewsModule(ICommunicator communicator, ISettingsProvider settings)
         {

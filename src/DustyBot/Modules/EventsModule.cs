@@ -24,9 +24,9 @@ namespace DustyBot.Modules
     [Module("Greet & bye", "Greet & bye messages.")]
     class EventsModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
 
         public const string MentionPlaceholder = "{mention}";
         public const string NamePlaceholder = "{name}";

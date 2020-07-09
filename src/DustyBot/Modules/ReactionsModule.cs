@@ -24,10 +24,10 @@ namespace DustyBot.Modules
     [Module("Reactions", "Automatic reactions to messages and custom commands.")]
     class ReactionsModule : Module
     {
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
-        public ILogger Logger { get; private set; }
-        public IEssentialConfig Config { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
+        public ILogger Logger { get; }
+        public IEssentialConfig Config { get; }
 
         public ReactionsModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IEssentialConfig config)
         {

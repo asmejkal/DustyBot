@@ -46,8 +46,8 @@ namespace DustyBot.Modules
 
         private const string StatsPeriodRegex = "^(?:month|mo|6months|6month|6mo|all)$";
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
+        public ICommunicator Communicator { get; }
+        public ISettingsProvider Settings { get; }
         private BotConfig Config { get; }
         private CloudTable SpotifyAccountsTable { get; }
 
@@ -264,7 +264,7 @@ namespace DustyBot.Modules
         }
 
         [Command("sf", "top", "artists", "Shows user's top artists.", CommandFlags.TypingIndicator)]
-        [Alias("sf", "ta"), Alias("sf", "top", "artist", true), Alias("sf", "artists")]
+        [Alias("sf", "ta"), Alias("sf", "top", "artist", true), Alias("sf", "topartists", true), Alias("sf", "topartist", true), Alias("sf", "artists")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `month`, `6months`, `all` (default)")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Artists(ICommand command)
@@ -305,7 +305,7 @@ namespace DustyBot.Modules
         }
 
         [Command("sf", "top", "tracks", "Shows user's top tracks.", CommandFlags.TypingIndicator)]
-        [Alias("sf", "tt"), Alias("sf", "top", "track", true), Alias("sf", "tracks"), Alias("sf", "ts")]
+        [Alias("sf", "tt"), Alias("sf", "top", "track", true), Alias("sf", "toptracks", true), Alias("sf", "toptrack", true), Alias("sf", "tracks"), Alias("sf", "ts")]
         [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `month`, `6months`, `all` (default)")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Tracks(ICommand command)

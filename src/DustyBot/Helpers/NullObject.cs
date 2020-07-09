@@ -25,7 +25,7 @@ namespace DustyBot.Helpers
             return new NullObject<T>();
         }
 
-        public T Item { get; private set; }
+        public T Item { get; }
 
         public bool IsNull()
         {
