@@ -18,13 +18,12 @@ using DustyBot.Helpers;
 using DustyBot.Settings;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Collections.Concurrent;
 using DustyBot.Definitions;
 
 namespace DustyBot.Modules
 {
-    [Module("Instagram (beta)", "Helps with Instagram post previews.")]
+    [Module("Instagram", "Helps with Instagram post previews.")]
     class InstagramModule : Module
     {
         private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";

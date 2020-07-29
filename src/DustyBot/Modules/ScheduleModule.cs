@@ -47,6 +47,9 @@ namespace DustyBot.Modules
         static readonly string[] MonthFormats = new string[] { "MMMM", "MMM", "%M" };
         static readonly string[] DateFormats = new string[] { "yyyy/M/d", "M/d" };
 
+        const string NoneTag = "none";
+        static readonly IReadOnlyCollection<string> ReservedTags = new[] { ScheduleSettings.AllTag, NoneTag, "notify" };
+
         public ICommunicator Communicator { get; }
         public ISettingsProvider Settings { get; }
         public ILogger Logger { get; }
@@ -342,7 +345,7 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            if (command["Tag"].HasValue && (string.Compare(command["Tag"], ScheduleSettings.AllTag) == 0 || string.Compare(command["Tag"], "notify") == 0))
+            if (command["Tag"].HasValue && ReservedTags.Any(x => ScheduleSettings.CompareTag(command["Tag"], x, true)))
                 throw new CommandException("This tag is reserved, please pick a different one.");
 
             ScheduleEvent e;
@@ -355,7 +358,7 @@ namespace DustyBot.Modules
                     dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
 
                 if (notify && !hasTime)
-                    throw new CommandException("Notified events must have time specififed. Use `event add` to add events with unknown time.");
+                    throw new CommandException("Notified events must have time specififed. Use `event add` to add events with an unknown time.");
 
                 // Create event
                 var link = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
@@ -468,14 +471,14 @@ namespace DustyBot.Modules
 
         [Command("event", "edit", "Edits an event in schedule.", CommandFlags.Synchronous)]
         [Alias("events", "edit")]
-        [Parameter("EventId", ParameterType.Int, "ID of the event to edit; it shows when an event is added or with `event search`")]
+        [Parameter("EventId", ParameterType.Int, "ID of the event to edit (shown when an event is added or in `event search` and `event list`)")]
         [Parameter("Notification", @"^(?:notify|silence)$", ParameterFlags.Optional, "enter `notify` to make this a notified event or `silence` to make it a regular event")]
         [Parameter("Date", DateRegex, ParameterType.Regex, ParameterFlags.Optional, "new date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "new time in `HH:mm` format (eg. `08:45`); use `??:??` to specify an unknown time")]
-        [Parameter("Nolink", @"^nolink$", ParameterFlags.Optional)]
+        [Parameter("Nolink", @"^nolink$", ParameterFlags.Optional | ParameterFlags.Hidden)]
         [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable; put `nolink` to remove a link")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "new event description")]
-        [Comment("All parameters are optional – you can specify just the parts you wish to be edited (date, time, and/or description). The parts you leave out will stay the same.")]
+        [Comment("All parameters are optional – you can specify just the parts you wish to be edited (date, time, link, and/or description). The parts you leave out will stay the same.")]
         [Example("5 08:45")]
         [Example("13 07/23 18:00 Fansign")]
         [Example("25 22:00 Festival")]
@@ -579,10 +582,53 @@ namespace DustyBot.Modules
             return (originalDate, edited, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $".");
         }
 
-        [Command("event", "batch", "Perform multiple event add/remove/edit operations at once.", CommandFlags.TypingIndicator)]
+        [Command("event", "tag", "Tags an event.", CommandFlags.Synchronous)]
+        [Alias("events", "tag")]
+        [Parameter("EventId", ParameterType.Int, "ID of the event to tag (shown when an event is added or in `event search` and `event list`)")]
+        [Parameter("Tag", ParameterType.String, ParameterFlags.Remainder, "the tag; use `" + NoneTag + "` to remove a tag")]
+        [Comment("Tagged events only appear in calendars that were created for that tag. \nWith the `schedule` command, tagged events appear only if the tag is specified (e.g. with `schedule <tag>`) or with `schedule all`.")]
+        [Example("5 birthday")]
+        [Example("31 none")]
+        public async Task TagEvent(ICommand command)
+        {
+            var (originalTag, e, message) = await TagEventInner(command);
+
+            var result = await RefreshCalendars(command.Guild, new[] { e.Date }, new[] { e.Tag, originalTag });
+            await command.ReplySuccess(Communicator, message + $" {result}");
+        }
+
+        private async Task<(string OriginalTag, ScheduleEvent Event, string Message)> TagEventInner(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var tag = command["Tag"].AsString;
+            var remove = ScheduleSettings.CompareTag(tag, NoneTag, true);
+            if (!remove && ReservedTags.Any(x => ScheduleSettings.CompareTag(tag, x, true)))
+                throw new CommandException("This tag is reserved, please pick a different one.");
+
+            var (settings, edited, originalTag) = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
+                if (i < 0)
+                    throw new CommandException("Cannot find an event with this ID.");
+
+                var e = s.Events[i];
+                s.Events.RemoveAt(i);
+
+                var ot = e.Tag;
+                e.Tag = remove ? null : tag;
+
+                s.Events.Add(e); // Have to remove and re-add to sort properly
+                return (s, e, ot);
+            });
+
+            return (originalTag, edited, $"Event `{edited.Id}` has been " + (remove ? "untagged." : $"tagged as `{edited.Tag}`."));
+        }
+
+        [Command("event", "batch", "Perform multiple event add/remove/edit/tag operations at once.", CommandFlags.TypingIndicator)]
         [Alias("events", "batch")]
-        [Parameter("Batch", ParameterType.String, ParameterFlags.Remainder, "a batch of `add/remove/edit` commands to be executed in order; please see the example")]
-        [Comment("To see the syntax for the individual commands, please see their respective help sections (`event add`, `event remove` and `event edit`).")]
+        [Parameter("Batch", ParameterType.String, ParameterFlags.Remainder, "a batch of `add/remove/edit/tag` commands to be executed in order; please see the example")]
+        [Comment("To see the syntax for the individual commands, please see their respective help sections (`event add`, `event remove`, `event edit`, and `event tag`).")]
         [Example("\nadd 07/23 08:45 Concert\nremove 4th anniversary celebration\nedit 4 8:15\nadd birthday 02/21 00:00 Solar's birthday")]
         public async Task BatchEvent(ICommand command)
         {
@@ -594,7 +640,8 @@ namespace DustyBot.Modules
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add notify"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event remove"),
-                HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event edit")
+                HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event edit"),
+                HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event tag"),
             };
 
             using (var reader = new StringReader(command["Batch"]))
@@ -628,43 +675,53 @@ namespace DustyBot.Modules
 
                         var partialCommand = parseResult.Item2;
                         IEnumerable<DateTime> updateDates;
-                        string updateTag;
+                        var updateTags = new List<string>();
                         var verbs = partialCommandRegistration.PrimaryUsage.Verbs;
                         if (verbs.First() == "add")
                         {
                             var (e, partialMessage) = await AddEventInner(partialCommand, false);
                             message.AppendLine(partialMessage);
                             updateDates = new[] { e.Date };
-                            updateTag = e.Tag;
+                            updateTags.Add(e.Tag);
                         }
                         else if (verbs.First() == "notify")
                         {
                             var (e, partialMessage) = await AddEventInner(partialCommand, true);
                             message.AppendLine(partialMessage);
                             updateDates = new[] { e.Date };
-                            updateTag = e.Tag;
+                            updateTags.Add(e.Tag);
                         }
                         else if (verbs.First() == "remove")
                         {
                             var (e, partialMessage) = await RemoveEventInner(partialCommand);
                             message.AppendLine(partialMessage);
                             updateDates = new[] { e.Date };
-                            updateTag = e.Tag;
+                            updateTags.Add(e.Tag);
                         }
                         else if (verbs.First() == "edit")
                         {
                             var (origDate, e, partialMessage) = await EditEventInner(partialCommand);
                             message.AppendLine(partialMessage);
                             updateDates = new[] { origDate, e.Date };
-                            updateTag = e.Tag;
+                            updateTags.Add(e.Tag);
+                        }
+                        else if (verbs.First() == "tag")
+                        {
+                            var (originalTag, e, partialMessage) = await TagEventInner(partialCommand);
+                            message.AppendLine(partialMessage);
+                            updateDates = new[] { e.Date };
+                            updateTags.AddRange(new[] { e.Tag, originalTag });
                         }
                         else
                             throw new InvalidOperationException($"Unexpected command verb '{partialCommandRegistration.PrimaryUsage.Verbs.First()}'");
 
-                        if (!updates.TryGetValue(updateTag, out var dates))
-                            updates.Add(updateTag, dates = new HashSet<DateTime>());
+                        foreach (var updateTag in updateTags)
+                        {
+                            if (!updates.TryGetValue(updateTag, out var dates))
+                                updates.Add(updateTag, dates = new HashSet<DateTime>());
 
-                        dates.UnionWith(updateDates);
+                            dates.UnionWith(updateDates);
+                        }
                     }
                 }
                 catch (Exception)
@@ -1249,20 +1306,24 @@ namespace DustyBot.Modules
             }
         }
 
-        async Task<RefreshResult> RefreshCalendars(IGuild guild, DateTime? affectedTime = null, Optional<string> tag = default)
-            => await RefreshCalendars(guild, affectedTime.HasValue ? new[] { affectedTime.Value } : Enumerable.Empty<DateTime>(), tag);
+        Task<RefreshResult> RefreshCalendars(IGuild guild, DateTime? affectedTime = null, Optional<string> tag = default) => 
+            RefreshCalendars(guild, affectedTime.HasValue ? new[] { affectedTime.Value } : Enumerable.Empty<DateTime>(), tag);
 
-        async Task<RefreshResult> RefreshCalendars(IGuild guild, IEnumerable<DateTime> affectedTimes, Optional<string> tag = default)
+        Task<RefreshResult> RefreshCalendars(IGuild guild, IEnumerable<DateTime> affectedTimes, Optional<string> tag = default) =>
+            RefreshCalendars(guild, affectedTimes, tag.IsSpecified ? new[] { tag.Value } : Enumerable.Empty<string>());
+
+        async Task<RefreshResult> RefreshCalendars(IGuild guild, IEnumerable<DateTime> affectedTimes, IEnumerable<string> tags)
         {
             var settings = await Settings.Read<ScheduleSettings>(guild.Id);
             var result = new RefreshResult();
+            tags = tags.ToList();
             foreach (var calendar in settings.Calendars)
             {
                 var (beginDate, endDate) = GetDateSpan(calendar, settings);
                 if (affectedTimes.Any() && affectedTimes.All(x => x < beginDate || x >= endDate))
                     continue;
 
-                if (tag.IsSpecified && !calendar.FitsTag(tag.Value))
+                if (!tags.Any(x => calendar.FitsTag(x)))
                     continue;
 
                 result.Add(calendar, await RefreshCalendar(calendar, guild, settings));

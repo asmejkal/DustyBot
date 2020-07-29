@@ -334,7 +334,7 @@ namespace DustyBot.Modules
         static string BuildWebUsageString(CommandRegistration commandRegistration, Framework.Config.IEssentialConfig config)
         {
             string usage = $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
-            foreach (var param in commandRegistration.Parameters)
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
             {
                 string tmp = param.Name;
                 if (param.Flags.HasFlag(ParameterFlags.Remainder))
@@ -347,7 +347,7 @@ namespace DustyBot.Modules
             }
 
             var paramDescriptions = new StringBuilder();
-            foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
                 if (param.Flags.HasFlag(ParameterFlags.Optional))

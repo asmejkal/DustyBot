@@ -7,6 +7,7 @@ using DustyBot.Framework.Utility;
 using System.Threading;
 using Discord.WebSocket;
 using System.Text;
+using DustyBot.Framework.Commands;
 
 namespace DustyBot.Framework.Communication
 {
@@ -84,25 +85,25 @@ namespace DustyBot.Framework.Communication
         public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
             => await SendMessage(channel, pages, messageOwner, resend);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null) 
             => await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)) + " " + message ?? "");
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, CommandRegistration command) 
             => await CommandReplyError(channel, Properties.Resources.Command_MissingBotAccess);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandRegistration command) 
             => await CommandReplyError(channel, Properties.Resources.Command_MissingBotPermissionsUnknown);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) 
             => await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions) 
             => await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 
-        public async Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command) 
+        public async Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, CommandRegistration command) 
             => await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, CommandRegistration command, string explanation, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
@@ -112,7 +113,7 @@ namespace DustyBot.Framework.Communication
             return new[] { await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, CommandRegistration command, string explanation, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
@@ -122,7 +123,7 @@ namespace DustyBot.Framework.Communication
             return new[] { await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command) =>
+        public async Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, CommandRegistration command) =>
             await CommandReplyError(channel, Properties.Resources.Command_DirectMessageOnly);
 
         public async Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel) =>
@@ -313,8 +314,7 @@ namespace DustyBot.Framework.Communication
 
         private static async Task<IUserMessage> ReplyEmbed(IMessageChannel channel, string message, Color? color = null, string title = null, string footer = null)
         {
-            var embed = new EmbedBuilder()
-                    .WithDescription(message);
+            var embed = new EmbedBuilder().WithDescription(message);
 
             if (color != null)
                 embed.WithColor(color.Value);
@@ -328,26 +328,26 @@ namespace DustyBot.Framework.Communication
             return await channel.SendMessageAsync("", false, embed.Build());
         }
 
-        public static string BuildUsageString(Commands.CommandRegistration commandRegistration, Config.IEssentialConfig config)
+        public static string BuildUsageString(CommandRegistration commandRegistration, Config.IEssentialConfig config)
         {
             string usage = $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
-            foreach (var param in commandRegistration.Parameters)
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
             {
                 string tmp = param.Name;
-                if (param.Flags.HasFlag(Commands.ParameterFlags.Remainder))
+                if (param.Flags.HasFlag(ParameterFlags.Remainder))
                     tmp += "...";
 
-                if (param.Flags.HasFlag(Commands.ParameterFlags.Optional))
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
                     tmp = $"[{tmp}]";
 
                 usage += $" `{tmp}`";
             }
 
             string paramDescriptions = string.Empty;
-            foreach (var param in commandRegistration.Parameters.Where(x => !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
-                if (param.Flags.HasFlag(Commands.ParameterFlags.Optional))
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
                     tmp += "optional; ";
 
                 tmp += param.GetDescription(config.CommandPrefix);

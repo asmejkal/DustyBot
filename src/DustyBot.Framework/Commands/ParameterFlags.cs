@@ -10,6 +10,7 @@ namespace DustyBot.Framework.Commands
         None = 0,
         Optional = 1 << 0,
         Remainder = 1 << 1,
-        Repeatable = 1 << 2
+        Repeatable = 1 << 2,
+        Hidden = 1 << 3,
     }
 }
