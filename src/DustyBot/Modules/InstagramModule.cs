@@ -28,7 +28,9 @@ namespace DustyBot.Modules
     class InstagramModule : Module
     {
         private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";
+        private const string QuotedPostRegexString = @"<http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)[^\s]*>";
         private static readonly Regex PostRegex = new Regex(PostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex QuotedPostRegex = new Regex(QuotedPostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private const int LinkPerPostLimit = 8;
         private static readonly TimeSpan PreviewDeleteWindow = TimeSpan.FromSeconds(30);
 
@@ -52,7 +54,7 @@ namespace DustyBot.Modules
         [Alias("instagram")]
         [Parameter("Style", "^(none|embed|text)$", ParameterType.String, ParameterFlags.Optional, "use `embed` or `text` (displays text with all images)")]
         [Parameter("Url", ParameterType.String, ParameterFlags.Remainder, "one or more links (max 8)")]
-        [Comment("You can set the default style with `ig set style`.\n\nGive the bot Manage Messages permission to also delete the \"Login to Instagram\" embeds.")]
+        [Comment("You can set the default style with `ig set style`.\n\nGive the bot Manage Messages permission to also delete the original embeds (or wrap your links in `< >` braces).")]
         public async Task Instagram(ICommand command)
         {
             var style = InstagramPreviewStyle.None;
@@ -72,7 +74,11 @@ namespace DustyBot.Modules
             if (!matches.Any())
                 throw new IncorrectParametersCommandException("Not a valid post link.");
 
-            var suppressTask = TrySuppressEmbed(command.Message);
+            var unquoted = matches.Count > QuotedPostRegex.Matches(command["Url"]).Count;
+            Task suppressionTask = null;
+            if (unquoted && (await command.Guild.GetCurrentUserAsync()).GetPermissions((ITextChannel)command.Channel).ManageMessages)
+                suppressionTask = TrySuppressEmbed(command.Message);
+
             foreach (var id in matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit))
             {
                 try
@@ -93,16 +99,17 @@ namespace DustyBot.Modules
                 }
             }
 
-            await suppressTask;
+            if (suppressionTask != null)
+                await suppressionTask;
         }
 
         [Command("ig", "toggle", "auto", "Automatically create previews for Instagram links you post.", CommandFlags.DirectMessageAllow)]
         [Alias("instagram", "toggle", "auto")]
-        [Comment("Use again to disable. Max number of links per post is 8.\n\nGive the bot Manage Messages permission to also delete the \"Login to Instagram\" embeds.")]
+        [Comment("Use again to disable. Max number of links per post is 8.\n\nGive the bot Manage Messages permission to also delete the original embeds (or wrap your links in `< >` braces).")]
         public async Task ToggleInstagramAuto(ICommand command)
         {
             var current = await Settings.ModifyUser<UserMediaSettings, bool>(command.Author.Id, x => x.InstagramAutoPreviews = !x.InstagramAutoPreviews);
-            await command.ReplySuccess(Communicator, current ? "Previews will now be created automatically for your posts on all servers!" : "Previews will no longer be created automatically for your posts.");
+            await command.ReplySuccess(Communicator, current ? "Previews will now be created automatically for your posts on all servers!" : "Previews will no longer be created automatically for your posts (unless it's toggled on by server admins).");
         }
 
         [Command("ig", "set", "style", "Sets your personal preferred style of Instagram previews.", CommandFlags.DirectMessageAllow)]
@@ -121,7 +128,7 @@ namespace DustyBot.Modules
         [Command("ig", "toggle", "server", "auto", "Automatically create previews for Instagram links posted on your server.", CommandFlags.DirectMessageAllow)]
         [Alias("instagram", "toggle", "server", "auto")]
         [Permissions(GuildPermission.Administrator)]
-        [Comment("Use again to disable. Max number of links per post is 8.\n\nGive the bot Manage Messages permission to also delete the \"Login to Instagram\" embeds.")]
+        [Comment("Use again to disable. Max number of links per post is 8.\n\nGive the bot Manage Messages permission to also delete the original embeds (or wrap your links in `< >` braces).")]
         public async Task ToggleInstagramServerAuto(ICommand command)
         {
             var current = await Settings.Modify<MediaSettings, bool>(command.GuildId, x => x.InstagramAutoPreviews = !x.InstagramAutoPreviews);
@@ -183,12 +190,28 @@ namespace DustyBot.Modules
                     if (commandMatch != null)
                         return; // Don't create duplicate previews from the ig command
 
+                    var unquoted = matches.Count > QuotedPostRegex.Matches(message.Content).Count;
+
                     var ids = matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit).ToList();
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Creating previews of {ids.Count} posts ({string.Join(" ", ids)}) for user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Creating previews of {ids.Count} posts{(unquoted ? " [unquoted]" : "")} ({string.Join(" ", ids)}) for user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
+
+                    Task suppressionTask = null;
+                    if (unquoted)
+                    {
+                        if (!(await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages)
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Warning about missing permissions to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
+                            await Communicator.SendMessage(message.Channel, "Looks like Discord previews are back! \nIf you want to keep using Dusty's previews, either give it the Manage Messages permission (so it can hide the original previews) or wrap your links in `< >` braces.");
+                            return;
+                        }
+                        else
+                        {
+                            suppressionTask = TrySuppressEmbed((IUserMessage)message);
+                        }
+                    }
 
                     foreach (var id in ids)
                     {
-                        var suppressTask = TrySuppressEmbed((IUserMessage)message);
                         try
                         {
                             await PostPreview(id, message.Channel, style, user.Id);
@@ -197,9 +220,10 @@ namespace DustyBot.Modules
                         {
                             await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}", ex));
                         }
-
-                        await suppressTask;
                     }
+
+                    if (suppressionTask != null)
+                        await suppressionTask;
                 }
                 catch (Exception ex)
                 {
@@ -329,7 +353,14 @@ namespace DustyBot.Modules
                 }
 
                 Previews.TryAdd(sent.Last().Id, (authorId, sent));
-                await sent.Last().AddReactionAsync(EmoteConstants.ClickToRemove);
+                try
+                {
+                    await sent.Last().AddReactionAsync(EmoteConstants.ClickToRemove);
+                }
+                catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Forbidden)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to add reaction for post id {id} on {(channel as IGuildChannel)?.Guild.Name}", ex));
+                }
 
                 TaskHelper.FireForget(async () =>
                 {
@@ -355,16 +386,25 @@ namespace DustyBot.Modules
         {
             try
             {
-                if (message.Embeds.All(x => x.Title == "Login • Instagram"))
-                    await message.ModifySuppressionAsync(true);
+                for (int i = 0; i < 12; ++i)
+                {
+                    if (message.Embeds.Any() && message.Embeds.All(x => x.Title == "Login • Instagram" || x.Footer?.Text == "Instagram"))
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting default embed with attempt {i + 1} for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
+                        await message.ModifySuppressionAsync(true);
+                        return;
+                    }
+
+                    await Task.Delay(500); // Discord can take a while with the embed
+                }
             }
             catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Forbidden)
             {
-                // Missing permissions
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}", ex));
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}", ex));
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Instagram", $"Failed to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}", ex));
             }
         }
     }
