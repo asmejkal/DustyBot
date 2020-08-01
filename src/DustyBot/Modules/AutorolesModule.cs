@@ -17,6 +17,7 @@ using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
 using DustyBot.Helpers;
+using DustyBot.Framework.Exceptions;
 
 namespace DustyBot.Modules
 {
@@ -118,8 +119,15 @@ namespace DustyBot.Modules
                 {
                     await user.AddRolesAsync(roles).ConfigureAwait(false);
                 }
-                catch (Exception)
+                catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized || ex.HttpCode == HttpStatusCode.Forbidden)
                 {
+                    throw new CommandException("The bot doesn't have the necessary permissions. Please make sure all of the assigned roles are placed below the bot's highest role.");
+                }
+                catch (Exception ex)
+                {
+                    if (failed <= 0)
+                        await Logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
+
                     failed++;
                 }
             }

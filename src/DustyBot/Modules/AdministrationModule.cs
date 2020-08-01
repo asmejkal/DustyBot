@@ -179,7 +179,7 @@ namespace DustyBot.Modules
         public async Task Roles(ICommand command)
         {
             var result = new StringBuilder();
-            foreach (var role in command.Guild.Roles)
+            foreach (var role in command.Guild.Roles.OrderByDescending(x => x.Position))
                 result.AppendLine($"Name: `{role.Name}` Id: `{role.Id}`");
 
             await command.Reply(Communicator, result.ToString());

@@ -572,13 +572,14 @@ namespace DustyBot.Modules
                                         response.First().DeleteAfter(3);
                                 }
                             }
-                            catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized)
+                            catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized || ex.HttpCode == HttpStatusCode.Forbidden)
                             {
                                 await Communicator.CommandReplyError(message.Channel, "The bot doesn't have the necessary permissions. If you're the admin, please make sure the bot can Manage Roles and all the assignable roles are placed below the bot's highest role.").ConfigureAwait(false);
                             }
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
+                            await Logger.Log(new LogMessage(LogSeverity.Error, "Roles", "Failed to assign roles", ex));
                             await Communicator.CommandReplyGenericFailure(message.Channel);
                         }
                         finally
