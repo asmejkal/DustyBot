@@ -214,7 +214,7 @@ namespace DustyBot.Framework.Communication
                         if (context.Resend)
                         {
                             await concMessage.DeleteAsync();
-                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content, false, newMessage.Embed?.Build());
+                            var result = await concMessage.Channel.SendMessageAsync(newMessage.Content?.Sanitise(), false, newMessage.Embed?.Build());
 
                             lock (_paginatedMessages)
                             {

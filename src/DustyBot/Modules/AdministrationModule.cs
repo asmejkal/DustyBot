@@ -48,12 +48,27 @@ namespace DustyBot.Modules
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "the message to be sent (you may also include one attachment)")]
         public async Task Say(ICommand command)
         {
+            var message = command["Message"].AsString ?? "";
+            var channel = command["TargetChannel"].AsTextChannel;
+
+            // This is a mods-only command, but to prevent permission creep, check
+            // if there's any non-mentionable role and if the sender has a mention everyone perm
+            var nonMentionableRoles = command.Message.MentionedRoleIds.Where(x => !command.Guild.GetRole(x)?.IsMentionable ?? false).ToList();
+            var replaceRoleMentions = (message.ContainsEveryonePings() || nonMentionableRoles.Any()) && 
+                !((IGuildUser)command.Author).GetPermissions(channel).MentionEveryone;
+
+            if (replaceRoleMentions)
+            {
+                message = DiscordHelpers.ReplaceRoleMentions(message, nonMentionableRoles, command.Guild)
+                    .Sanitise(allowRoleMentions: true);
+            }
+
             if (command.Message.Attachments.Count <= 0)
             {
                 if (string.IsNullOrEmpty(command["Message"]))
                     throw new Framework.Exceptions.IncorrectParametersCommandException("Specify a message or an attachment.");
 
-                await command[0].AsTextChannel.SendMessageAsync(command["Message"]);
+                await channel.SendMessageAsync(message);
             }
             else
             {
@@ -66,12 +81,12 @@ namespace DustyBot.Modules
                     await stream.CopyToAsync(memStream);
                     memStream.Position = 0;
 
-                    await command[0].AsTextChannel.SendFileAsync(memStream, attachment.Filename, command["Message"]);
+                    await channel.SendFileAsync(memStream, attachment.Filename, message);
                 }
             }
 
             if (command["TargetChannel"].AsTextChannel.Id != command.Message.Channel.Id)
-                await command.ReplySuccess(Communicator, "Message sent.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, "Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
         }
 
         [Command("edit", "Edits a message sent by the say command.")]

@@ -13,6 +13,7 @@ namespace DustyBot.Framework.Utility
     {
         public const int MaxEmbedFieldLength = 1024;
         public const int MaxMessageLength = 2000;
+        public static readonly Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
 
         private static readonly Regex MarkdownUriRegex = new Regex(@"^\[(.+)\]\((.+)\)$", RegexOptions.Compiled);
         private static readonly Regex MarkdownQuoteRegex = new Regex(@"^> ", RegexOptions.Multiline | RegexOptions.Compiled);
@@ -75,7 +76,6 @@ namespace DustyBot.Framework.Utility
             });
         }
 
-        private static Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
         public static string ReplaceRoleMentions(string content, IEnumerable<ulong> mentionedRoleIds, IGuild guild)
         {
             var names = new Dictionary<ulong, string>();
@@ -106,8 +106,16 @@ namespace DustyBot.Framework.Utility
 
         public static string EscapeMentions(string mention) => mention.Replace("@", "@\u200B");
 
-        public static string Sanitise(this string value)
+        public static bool ContainsEveryonePings(this string value)
         {
+            return value.Contains("@everyone") || value.Contains("@here");
+        }
+
+        public static string Sanitise(this string value, bool allowRoleMentions = false)
+        {
+            if (!allowRoleMentions)
+                value = value.Replace("<@&", "<@\u200B&");
+
             return value
                 .Replace("@everyone", "@\u200Beveryone")
                 .Replace("@here", "@\u200Bhere");

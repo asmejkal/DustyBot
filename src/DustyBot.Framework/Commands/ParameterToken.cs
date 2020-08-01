@@ -197,7 +197,7 @@ namespace DustyBot.Framework.Commands
             return Guild?.TextChannels.FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
         });
 
-        private static Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
+        private static readonly Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
         public IGuildUser AsGuildUser => TryConvert<IGuildUser>(this, ParameterType.GuildUser, x =>
         {
             ulong id;
@@ -235,7 +235,6 @@ namespace DustyBot.Framework.Commands
             return Tuple.Create((IGuildUser)Guild?.Users.FirstOrDefault(y => y.Id == id), (string)null);
         });
 
-        private static Regex RoleMentionRegex = new Regex("<@&?([0-9]+)>", RegexOptions.Compiled);
         public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>
         {
             var role = Guild?.Roles.FirstOrDefault(r => string.Compare(r.Name, x) == 0);
@@ -249,7 +248,7 @@ namespace DustyBot.Framework.Commands
             ulong id;
             if (!ulong.TryParse(x, out id))
             {
-                var match = RoleMentionRegex.Match(x);
+                var match = DiscordHelpers.RoleMentionRegex.Match(x);
                 if (!match.Success)
                     return null;
 
