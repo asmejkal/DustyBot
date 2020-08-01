@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
@@ -34,6 +35,7 @@ namespace DustyBot.Helpers
         public string Name { get; }
         public string Url { get; }
         public int Playcount { get; }
+        public string UrlId => LastFmClient.GetIdFromUrl(Url);
 
         internal LfArtist(string name, string url, int playcount = -1)
         {
@@ -71,6 +73,7 @@ namespace DustyBot.Helpers
         public LfArtist Artist { get; }
         public string Url { get; }
         public int Playcount { get; }
+        public string UrlId => LastFmClient.GetIdFromUrl(Url);
 
         internal LfAlbum(string name, LfArtist artist, string url, int playcount = -1)
         {
@@ -89,6 +92,7 @@ namespace DustyBot.Helpers
         public LfAlbum Album { get; }
         public string Url { get; }
         public int Playcount { get; }
+        public string UrlId => LastFmClient.GetIdFromUrl(Url);
 
         internal LfTrack(string name, LfAlbum album, string url, int playcount = -1)
         {
@@ -117,6 +121,7 @@ namespace DustyBot.Helpers
     public class LastFmClient
     {
         public const int MaxRecentTracksPageSize = 200;
+        public const int MaxTopPageSize = 1000;
 
         private static readonly IReadOnlyDictionary<LfStatsPeriod, string> StatsPeriodMapping = new Dictionary<LfStatsPeriod, string>()
         {
@@ -320,7 +325,7 @@ namespace DustyBot.Helpers
             }
         }
 
-        public async Task<IEnumerable<LfTrack>> GetTopTracks(LfStatsPeriod period, int count)
+        public async Task<IEnumerable<LfTrack>> GetTopTracks(LfStatsPeriod period, int count = int.MaxValue, CancellationToken ct = default)
         {
             if (period == LfStatsPeriod.Day)
             {
@@ -329,15 +334,35 @@ namespace DustyBot.Helpers
             }
             else
             {
-                var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={count}&format=json");
-                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
-                using (var reader = new StreamReader(response.GetResponseStream()))
+                var retrieved = 0;
+                var page = 1;
+                var results = Enumerable.Empty<LfTrack>();
+                var pageSize = Math.Min(count, MaxTopPageSize);
+                while (retrieved < count)
                 {
-                    var text = await reader.ReadToEndAsync();
-                    dynamic root = JObject.Parse(text);
-                    var results = root?.toptracks?.track as JArray ?? Enumerable.Empty<dynamic>();
-                    return results.Select(x => new LfTrack((string)x.name, new LfAlbum(null, new LfArtist((string)x.artist.name, (string)x.artist.url), null), (string)x.url, (int)x.playcount));
+                    ct.ThrowIfCancellationRequested();
+                    var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={pageSize}&page={page}&format=json");
+                    using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                    using (var reader = new StreamReader(response.GetResponseStream()))
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        var text = await reader.ReadToEndAsync();
+                        ct.ThrowIfCancellationRequested();
+
+                        dynamic root = JObject.Parse(text);
+                        var pageResults = (root?.toptracks?.track as JArray ?? Enumerable.Empty<dynamic>()).ToList();
+                        results = results.Concat(pageResults.Select(x => new LfTrack((string)x.name, new LfAlbum(null, new LfArtist((string)x.artist.name, (string)x.artist.url), null), (string)x.url, (int)x.playcount)));
+
+                        retrieved += pageResults.Count;
+                        var more = page < (int)root.toptracks["@attr"].totalPages;
+                        if (!more || !pageResults.Any())
+                            break;
+                    }
+
+                    page++;
                 }
+
+                return results;
             }
         }
 
@@ -456,5 +481,29 @@ namespace DustyBot.Helpers
 
         public static string GetLargestImage(dynamic imageSet) 
             => (string)(imageSet as JArray)?.LastOrDefault()?["#text"];
+
+        public static string GetIdFromUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return null;
+
+            const string prefix = "https://www.last.fm/music/";
+            var id = url.StartsWith(prefix) ? url.Substring(prefix.Length) : null;
+            if (string.IsNullOrEmpty(id))
+                return null;
+
+            using (var hasher = System.Security.Cryptography.SHA256.Create())
+            {
+                var inputBytes = Encoding.ASCII.GetBytes(id);
+                var hashBytes = hasher.ComputeHash(inputBytes);
+
+                // Convert the byte array to hexadecimal string
+                var sb = new StringBuilder();
+                for (int i = 0; i < hashBytes.Length; i++)
+                    sb.Append(hashBytes[i].ToString("X2"));
+
+                return sb.ToString();
+            }
+        }
     }
 }

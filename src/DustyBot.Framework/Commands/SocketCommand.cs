@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using DustyBot.Core.Utility;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Communication;
 using System.Text.RegularExpressions;

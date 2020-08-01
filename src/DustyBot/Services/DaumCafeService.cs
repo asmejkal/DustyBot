@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DustyBot.Core.Utility;
 using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Utility;
@@ -37,16 +38,17 @@ namespace DustyBot.Services
             Logger = logger;
         }
 
-        public Task Start()
+        public Task StartAsync()
         {
             _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
             return Task.CompletedTask;
         }
 
-        public void Stop()
+        public Task StopAsync()
         {
             _timer?.Dispose();
             _timer = null;
+            return Task.CompletedTask;
         }
 
         void OnUpdate(object state)

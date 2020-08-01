@@ -86,7 +86,7 @@ namespace DustyBot.Framework
             await s.WaitAsync();
 
             foreach (var service in _services)
-                await service.Start();
+                await service.StartAsync();
 
             await Client.SetGameAsync(status);
 
@@ -94,10 +94,13 @@ namespace DustyBot.Framework
             await _awaiter.WaitAsync();
         }
 
-        public void Stop()
+        public async Task StopAsync()
         {
+            var stopTasks = new List<Task>();
             foreach (var service in _services)
-                service.Stop();
+                stopTasks.Add(service.StopAsync());
+
+            await Task.WhenAll(stopTasks);
 
             _awaiter.Release();
         }

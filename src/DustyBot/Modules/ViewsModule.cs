@@ -7,6 +7,7 @@ using System.Net;
 using System.IO;
 using System.Globalization;
 using Newtonsoft.Json.Linq;
+using DustyBot.Core.Utility;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;

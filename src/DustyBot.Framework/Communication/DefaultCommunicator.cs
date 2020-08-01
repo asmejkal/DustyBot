@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
+using DustyBot.Core.Utility;
 using DustyBot.Framework.Utility;
 using System.Threading;
 using Discord.WebSocket;
-using System.Text;
 using DustyBot.Framework.Commands;
 
 namespace DustyBot.Framework.Communication

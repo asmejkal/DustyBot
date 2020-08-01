@@ -32,9 +32,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Database\DustyBot.Database.Services\DustyBot.Database.Services.csproj" />
     <ProjectReference Include="..\DustyBot.Entities\DustyBot.Entities.csproj" />
     <ProjectReference Include="..\DustyBot.Framework\DustyBot.Framework.csproj" />
     <ProjectReference Include="..\DustyBot.Framework.LiteDB\DustyBot.Framework.LiteDB.csproj" />
+    <ProjectReference Include="..\_Shared\DustyBot.Core\DustyBot.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
