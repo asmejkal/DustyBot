@@ -671,7 +671,7 @@ namespace DustyBot.Modules
                         var (partialCommandRegistration, usage) = findResult.Value;
                         var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config);
                         if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
-                            throw new IncorrectParametersCommandException();
+                            throw new IncorrectParametersCommandException("");
 
                         var partialCommand = parseResult.Item2;
                         IEnumerable<DateTime> updateDates;
@@ -731,7 +731,10 @@ namespace DustyBot.Modules
                     foreach (var (tag, dates) in updates)
                         partialResult.Merge(await RefreshCalendars(command.Guild, dates, tag.Item));
 
-                    message.AppendLine(partialResult.ToString());
+                    var resultMessage = partialResult.ToString();
+                    if (!string.IsNullOrWhiteSpace(resultMessage))
+                        message.AppendLine(resultMessage);
+
                     message.AppendLine($"An error encountered on line {lineNum}:");
                     await command.ReplyError(Communicator, "Batch finished with errors:\n" + message.ToString());
                     throw;
