@@ -20,6 +20,7 @@ namespace DustyBot.Settings
         public bool Anonymous { get; set; }
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public Dictionary<int, int> Results
         {
             get

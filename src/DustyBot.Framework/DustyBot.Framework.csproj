@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <VersionPrefix>1.1.0</VersionPrefix>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>DustyBot.Framework</AssemblyName>
     <PackageId>DustyBot.Framework</PackageId>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>

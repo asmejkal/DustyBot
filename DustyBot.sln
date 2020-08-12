@@ -17,8 +17,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Web", "src\DustyBo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Entities", "src\DustyBot.Entities\DustyBot.Entities.csproj", "{26D5B351-683F-4880-9089-87A3AB944628}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.MongoDb", "DustyBot.MongoDb\DustyBot.MongoDb.csproj", "{483E742F-ABFC-4CD9-A4BA-88B7108E7998}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,10 +43,6 @@ Global
 		{26D5B351-683F-4880-9089-87A3AB944628}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{26D5B351-683F-4880-9089-87A3AB944628}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{26D5B351-683F-4880-9089-87A3AB944628}.Release|Any CPU.Build.0 = Release|Any CPU
-		{483E742F-ABFC-4CD9-A4BA-88B7108E7998}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{483E742F-ABFC-4CD9-A4BA-88B7108E7998}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{483E742F-ABFC-4CD9-A4BA-88B7108E7998}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{483E742F-ABFC-4CD9-A4BA-88B7108E7998}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -59,7 +53,6 @@ Global
 		{C9C7846F-9BBF-4461-AE7A-A36052EDE81E} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
 		{03048919-3F99-45FC-AA32-10D7BC1C10BE} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
 		{26D5B351-683F-4880-9089-87A3AB944628} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
-		{483E742F-ABFC-4CD9-A4BA-88B7108E7998} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2E56349C-26F6-4600-B6BD-65628186ECF4}

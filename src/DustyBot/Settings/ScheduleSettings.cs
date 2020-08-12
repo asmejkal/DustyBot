@@ -33,9 +33,11 @@ namespace DustyBot.Settings
         public bool Notify { get; set; }
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public bool HasTag => Tag != null;
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public bool HasLink => !string.IsNullOrEmpty(Link);
 
         public int CompareTo(ScheduleEvent other)
@@ -60,7 +62,8 @@ namespace DustyBot.Settings
 
         private static DateTime ConvertToWholeDay(DateTime dt) => dt.Date.Add(new TimeSpan(23, 59, 59));
     }
-    
+
+    [MongoDB.Bson.Serialization.Attributes.BsonKnownTypes(typeof(RangeScheduleCalendar), typeof(UpcomingScheduleCalendar))]
     public abstract class ScheduleCalendar
     {
         public ulong MessageId { get; set; }
@@ -72,9 +75,11 @@ namespace DustyBot.Settings
         public string Footer { get; set; }
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public bool HasTag => Tag != null;
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public bool HasAllTag => ScheduleSettings.IsAllTag(Tag);
 
         public bool FitsTag(string tag) => ScheduleSettings.CompareTag(Tag, tag);
@@ -91,14 +96,17 @@ namespace DustyBot.Settings
         public DateTime EndDate { get => _endDate; set => _endDate = value.Date; }
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public bool HasEndDate => _endDate != DateTime.MaxValue.Date;
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public bool IsMonthCalendar => EndDate - BeginDate == TimeSpan.FromDays(DateTime.DaysInMonth(BeginDate.Year, BeginDate.Month)) && BeginDate.Day == 1;
 
         public bool FitsDate(DateTime date) => date >= BeginDate && date < EndDate;
     }
 
+    [MongoDB.Bson.Serialization.Attributes.BsonKnownTypes(typeof(UpcomingSpanScheduleCalendar), typeof(UpcomingWeekScheduleCalendar))]
     public abstract class UpcomingScheduleCalendar : ScheduleCalendar
     {
     }

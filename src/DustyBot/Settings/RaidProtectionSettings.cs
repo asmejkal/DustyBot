@@ -34,15 +34,19 @@ namespace DustyBot.Settings
         public Dictionary<RaidProtectionRuleType, RaidProtectionRule> Exceptions { get; set; } = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>();
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public ReadOnlyMassMentionsRule MassMentionsRule => GetRule<ReadOnlyMassMentionsRule>(RaidProtectionRuleType.MassMentionsRule);
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public ReadOnlySpamRule TextSpamRule => GetRule<ReadOnlySpamRule>(RaidProtectionRuleType.TextSpamRule);
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public ReadOnlySpamRule ImageSpamRule => GetRule<ReadOnlySpamRule>(RaidProtectionRuleType.ImageSpamRule);
 
         [BsonIgnore]
+        [MongoDB.Bson.Serialization.Attributes.BsonIgnore]
         public ReadOnlyPhraseBlacklistRule PhraseBlacklistRule => GetRule<ReadOnlyPhraseBlacklistRule>(RaidProtectionRuleType.PhraseBlacklistRule);
 
         public T GetRule<T>(RaidProtectionRuleType type)
@@ -53,6 +57,7 @@ namespace DustyBot.Settings
         public void ResetException(RaidProtectionRuleType type) => Exceptions.Remove(type);
     }
 
+    [MongoDB.Bson.Serialization.Attributes.BsonKnownTypes(typeof(MassMentionsRule), typeof(SpamRule), typeof(PhraseBlacklistRule))]
     public class RaidProtectionRule
     {
         public bool Enabled { get; set; }

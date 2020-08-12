@@ -11,7 +11,6 @@ using CommandLine;
 using System.IO;
 using DustyBot.Helpers;
 using DustyBot.Settings;
-using DustyBot.Framework.Settings;
 using DustyBot.Definitions;
 
 namespace DustyBot
@@ -27,8 +26,11 @@ namespace DustyBot
             [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name. Use \"instance create\" to create a new instance.")]
             public string Instance { get; set; }
 
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for this instance.")]
-            public string Password { get; set; }
+            [Value(1, MetaName = "ConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            public string ConnectionString { get; set; }
+
+            [Value(2, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
+            public string LiteDbPassword { get; set; }
         }
 
         [Verb("instance", HelpText = "Manage bot instances.")]
@@ -40,7 +42,7 @@ namespace DustyBot
             [Value(1, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
             public string Instance { get; set; }
 
-            [Value(2, MetaName = "Password", Required = true, HelpText = "Password for instance encryption. If you are creating an instance, the password you enter here will be required for every operation with the instance.")]
+            [Value(2, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
             public string Password { get; set; }
 
             [Option("token", HelpText = "Bot token.")]
@@ -74,44 +76,17 @@ namespace DustyBot
             public string TableStorageConnectionString { get; set; }
         }
 
-        [Verb("encrypt", HelpText = "Encrypt an instance.")]
-        public class EncryptOptions
+        [Verb("litedb-migrate", HelpText = "Migrate old LiteDB database to MongoDB.")]
+        public class LiteDbMigrateOptions
         {
             [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
             public string Instance { get; set; }
 
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database encryption.")]
-            public string Password { get; set; }
-        }
+            [Value(1, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
+            public string LiteDbPassword { get; set; }
 
-        [Verb("decrypt", HelpText = "Decrypt an instance.")]
-        public class DecryptOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
-        }
-
-        [Verb("upgrade", HelpText = "Upgrades to new database format.")]
-        public class UpgradeOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
-        }
-
-        [Verb("check-integrity", HelpText = "Checks integrity of the settings database.")]
-        public class CheckIngegrityOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
+            [Value(2, MetaName = "MongoDbConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            public string MongoDbConnectionString { get; set; }
         }
 
         private ICollection<IModule> _modules;
@@ -122,14 +97,11 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, UpgradeOptions, CheckIngegrityOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, LiteDbMigrateOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
                     (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
-                    (EncryptOptions opts) => new Bot().RunEncrypt(opts),
-                    (DecryptOptions opts) => new Bot().RunDecrypt(opts),
-                    (UpgradeOptions opts) => new Bot().Upgrade(opts),
-                    (CheckIngegrityOptions opts) => new Bot().CheckIntegrityAsync(opts).GetAwaiter().GetResult(),
+                    (LiteDbMigrateOptions opts) => new Bot().RunLiteDbMigrate(opts),
                     errs => 1);
 
             return result;
@@ -152,9 +124,10 @@ namespace DustyBot
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
                 
                 using (var client = new DiscordSocketClient(clientConfig))
-                using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
+                using (var liteDbSettings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.LiteDbPassword))
                 using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(opts.Instance)))
                 {
+                    var settings = new DualSettingsProvider(liteDbSettings, new MongoDbSettingsProvider(opts.ConnectionString, opts.Instance), logger);
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
                     
                     //Get config
@@ -309,7 +282,7 @@ namespace DustyBot
             return 0;
         }
 
-        public int RunEncrypt(EncryptOptions opts)
+        public int RunLiteDbMigrate(LiteDbMigrateOptions opts)
         {
             try
             {
@@ -317,93 +290,7 @@ namespace DustyBot
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
 
-                DatabaseHelpers.Encrypt(instancePath, opts.Password);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-            
-            return 0;
-        }
-
-        public int RunDecrypt(DecryptOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                DatabaseHelpers.Decrypt(instancePath, opts.Password);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-
-            return 0;
-        }
-
-        public int Upgrade(UpgradeOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                DatabaseHelpers.Upgrade(instancePath, opts.Password);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-
-            return 0;
-        }
-
-        public async Task<int> CheckIntegrityAsync(CheckIngegrityOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
-                {
-                    async Task TestSettings(Func<Task> checker, Type type)
-                    {
-                        try
-                        {
-                            await checker();
-                            Console.WriteLine($"OK: {type.Name}");
-                        }
-                        catch (Exception)
-                        {
-                            Console.WriteLine($">> NOT OK: {type.Name}");
-                        }
-                    }
-
-                    Task TestServerSettings<T>() where T : IServerSettings => TestSettings(() => settings.Read<T>(), typeof(T));
-
-                    Task TestUserSettings<T>() where T : IUserSettings => TestSettings(() => settings.ReadUser<T>(), typeof(T));
-
-                    await TestServerSettings<EventsSettings>();
-                    await TestUserSettings<LastFmUserSettings>();
-                    await TestServerSettings<LogSettings>();
-                    await TestServerSettings<MediaSettings>();
-                    await TestServerSettings<NotificationSettings>();
-                    await TestServerSettings<PollSettings>();
-                    await TestServerSettings<RaidProtectionSettings>();
-                    await TestServerSettings<ReactionsSettings>();
-                    await TestServerSettings<RolesSettings>();
-                    await TestServerSettings<ScheduleSettings>();
-                    await TestServerSettings<StarboardSettings>();
-                    await TestUserSettings<UserCredentials>();
-                    await TestUserSettings<UserNotificationSettings>();
-                }
+                MongoDbMigrator.Migrate(instancePath, opts.LiteDbPassword, opts.MongoDbConnectionString, opts.Instance);
             }
             catch (Exception ex)
             {

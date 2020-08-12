@@ -145,7 +145,7 @@ namespace DustyBot.Modules
             }
             else
             {
-                var trackId = trackIdMatch.Groups.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
+                var trackId = trackIdMatch.Groups.Values.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
                 track = await client.GetTrackAsync(trackId);
                 if (track.HasError())
                     throw new AbortException($"Search for track with ID `{trackId}` returned no results. Are you sure the ID is correct?");
