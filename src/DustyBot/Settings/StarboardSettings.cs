@@ -42,6 +42,7 @@ namespace DustyBot.Settings
 
         public HashSet<ulong> ChannelsWhitelist { get; set; } = new HashSet<ulong>();
 
+        [MongoDB.Bson.Serialization.Attributes.BsonDictionaryOptions(MongoDB.Bson.Serialization.Options.DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<ulong, StarredMessage> StarredMessages { get; set; } = new Dictionary<ulong, StarredMessage>();
     }
 

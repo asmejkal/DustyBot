@@ -15,6 +15,8 @@ namespace DustyBot.Settings
         public ulong Channel { get; set; }
         public string Question { get; set; }
         public List<string> Answers { get; set; } = new List<string>();
+
+        [MongoDB.Bson.Serialization.Attributes.BsonDictionaryOptions(MongoDB.Bson.Serialization.Options.DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<ulong, int> Votes { get; set; } = new Dictionary<ulong, int>();
 
         public bool Anonymous { get; set; }

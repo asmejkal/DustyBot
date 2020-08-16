@@ -26,6 +26,8 @@ namespace DustyBot.Settings
 
         public bool PersistentAssignableRoles { get; set; }
         public List<ulong> AdditionalPersistentRoles { get; set; } = new List<ulong>();
+
+        [MongoDB.Bson.Serialization.Attributes.BsonDictionaryOptions(MongoDB.Bson.Serialization.Options.DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<ulong, List<ulong>> PersistentRolesData { get; set; } = new Dictionary<ulong, List<ulong>>();
     }
 }

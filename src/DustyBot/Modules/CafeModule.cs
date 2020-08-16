@@ -6,6 +6,7 @@ using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Settings;
+using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 

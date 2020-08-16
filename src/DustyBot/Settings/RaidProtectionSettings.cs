@@ -31,6 +31,7 @@ namespace DustyBot.Settings
         public bool Enabled { get; set; }
         public ulong LogChannel { get; set; }
 
+        [MongoDB.Bson.Serialization.Attributes.BsonDictionaryOptions(MongoDB.Bson.Serialization.Options.DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<RaidProtectionRuleType, RaidProtectionRule> Exceptions { get; set; } = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>();
 
         [BsonIgnore]

@@ -9,6 +9,7 @@ using MongoDB.Driver;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
+using DustyBot.Framework.LiteDB.Serializers;
 
 namespace DustyBot.Framework.LiteDB
 {
@@ -25,6 +26,9 @@ namespace DustyBot.Framework.LiteDB
         public MongoDbSettingsProvider(string connectionString, string database)
         {
             BsonSerializer.RegisterSerializer(DateTimeSerializer.LocalInstance);
+            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+            BsonSerializer.RegisterSerializer(new SecureStringSerializer());
+
             _client = new MongoClient(connectionString);
             _db = _client.GetDatabase(database);
         }
@@ -117,7 +121,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 action(settings);
-                await _db.GetCollection<T>(typeof(T).Name).ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)serverId)), settings);
+                await UpsertSettings(serverId, settings);
             }
             finally
             {
@@ -136,7 +140,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 var result = action(settings);
-                await _db.GetCollection<T>(typeof(T).Name).ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)serverId)), settings);
+                await UpsertSettings(serverId, settings);
 
                 return result;
             }
@@ -157,7 +161,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 await action(settings);
-                await _db.GetCollection<T>(typeof(T).Name).ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)serverId)), settings);
+                await UpsertSettings(serverId, settings);
             }
             finally
             {
@@ -176,7 +180,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 var result = await action(settings);
-                await _db.GetCollection<T>(typeof(T).Name).ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)serverId)), settings);
+                await UpsertSettings(serverId, settings);
 
                 return result;
             }
@@ -248,8 +252,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument<T>(Definitions.GlobalSettingsId);
                 action(settings);
-                var collection = _db.GetCollection<T>(typeof(T).Name);
-                await collection.ReplaceOneAsync(Builders<T>.Filter.Eq("_id", Definitions.GlobalSettingsId), settings);
+                await UpsertSettings(Definitions.GlobalSettingsId, settings);
             }
             finally
             {
@@ -289,7 +292,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument(unchecked((long)userId), () => CreateUser<T>(userId));
                 action(settings);
-                await _db.GetCollection<T>(typeof(T).Name).ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)userId)), settings);
+                await UpsertSettings(userId, settings);
             }
             finally
             {
@@ -308,7 +311,7 @@ namespace DustyBot.Framework.LiteDB
 
                 var settings = await GetDocument(unchecked((long)userId), () => CreateUser<T>(userId));
                 var result = action(settings);
-                await _db.GetCollection<T>(typeof(T).Name).ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)userId)), settings);
+                await UpsertSettings(userId, settings);
 
                 return result;
             }
@@ -317,7 +320,64 @@ namespace DustyBot.Framework.LiteDB
                 settingsLock.Release();
             }
         }
-        
+
+        public async Task Set<T>(T settings)
+            where T : IServerSettings
+        {
+            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), settings.ServerId));
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                await UpsertSettings(settings.ServerId, settings);
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
+        public async Task SetUser<T>(T settings)
+            where T : IUserSettings
+        {
+            var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), settings.UserId));
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                await UpsertSettings(settings.UserId, settings);
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
+        public async Task SetGlobal<T>(T settings)
+        {
+            var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                await UpsertSettings(Definitions.GlobalSettingsId, settings);
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
+        private Task UpsertSettings<T>(ulong id, T value)
+        {
+            return _db
+                .GetCollection<T>(typeof(T).Name)
+                .ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)id)), value, new ReplaceOptions() { IsUpsert = true });
+        }
+
         public void Dispose()
         {
             _serverSettingsLocks?.Dispose();

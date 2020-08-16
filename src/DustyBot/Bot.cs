@@ -12,6 +12,7 @@ using System.IO;
 using DustyBot.Helpers;
 using DustyBot.Settings;
 using DustyBot.Definitions;
+using DustyBot.Framework.Settings;
 
 namespace DustyBot
 {
@@ -82,11 +83,11 @@ namespace DustyBot
             [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
             public string Instance { get; set; }
 
-            [Value(1, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
-            public string LiteDbPassword { get; set; }
-
-            [Value(2, MetaName = "MongoDbConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            [Value(1, MetaName = "MongoDbConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
             public string MongoDbConnectionString { get; set; }
+
+            [Value(2, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
+            public string LiteDbPassword { get; set; }
         }
 
         private ICollection<IModule> _modules;
@@ -101,7 +102,7 @@ namespace DustyBot
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
                     (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
-                    (LiteDbMigrateOptions opts) => new Bot().RunLiteDbMigrate(opts),
+                    (LiteDbMigrateOptions opts) => new Bot().RunLiteDbMigrate(opts).GetAwaiter().GetResult(),
                     errs => 1);
 
             return result;
@@ -282,7 +283,7 @@ namespace DustyBot
             return 0;
         }
 
-        public int RunLiteDbMigrate(LiteDbMigrateOptions opts)
+        public async Task<int> RunLiteDbMigrate(LiteDbMigrateOptions opts)
         {
             try
             {
@@ -290,7 +291,49 @@ namespace DustyBot
                 if (!File.Exists(instancePath))
                     throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
 
-                MongoDbMigrator.Migrate(instancePath, opts.LiteDbPassword, opts.MongoDbConnectionString, opts.Instance);
+                using (var liteDbSettings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.LiteDbPassword))
+                {
+                    var mongoDbSettings = new MongoDbSettingsProvider(opts.MongoDbConnectionString, opts.Instance);
+
+                    async Task MigrateServerSettings<T>()
+                        where T : IServerSettings
+                    {
+                        var settings = await liteDbSettings.Read<T>();
+                        foreach (var setting in settings)
+                            await mongoDbSettings.Set(setting);
+                    }
+
+                    async Task MigrateUserSettings<T>()
+                        where T : IUserSettings
+                    {
+                        var settings = await liteDbSettings.ReadUser<T>();
+                        foreach (var setting in settings)
+                            await mongoDbSettings.SetUser(setting);
+                    }
+
+                    async Task MigrateGlobalSettings<T>()
+                        where T : new()
+                    {
+                        var settings = await liteDbSettings.ReadGlobal<T>();
+                        await mongoDbSettings.SetGlobal(settings);
+                    }
+
+                    await MigrateGlobalSettings<BotConfig>();
+                    await MigrateServerSettings<EventsSettings>();
+                    await MigrateUserSettings<LastFmUserSettings>();
+                    await MigrateServerSettings<LogSettings>();
+                    await MigrateServerSettings<MediaSettings>();
+                    await MigrateServerSettings<NotificationSettings>();
+                    await MigrateServerSettings<PollSettings>();
+                    await MigrateServerSettings<RaidProtectionSettings>();
+                    await MigrateServerSettings<ReactionsSettings>();
+                    await MigrateServerSettings<RolesSettings>();
+                    await MigrateServerSettings<ScheduleSettings>();
+                    await MigrateServerSettings<StarboardSettings>();
+                    await MigrateUserSettings<UserCredentials>();
+                    await MigrateUserSettings<UserMediaSettings>();
+                    await MigrateUserSettings<UserNotificationSettings>();
+                }
             }
             catch (Exception ex)
             {

@@ -130,7 +130,9 @@ namespace DustyBot.Modules
                         return;
 
                     var guild = guildUser.Guild;
-                    var settings = await Settings.Read<LogSettings>(guild.Id).ConfigureAwait(false);
+                    var settings = await Settings.Read<LogSettings>(guild.Id, false).ConfigureAwait(false);
+                    if (settings == null)
+                        return;
 
                     var eventChannelId = settings.EventNameChangedChannel;
                     if (eventChannelId == 0)

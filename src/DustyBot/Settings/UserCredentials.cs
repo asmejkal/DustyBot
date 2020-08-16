@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.LiteDB;
+using DustyBot.Framework.Utility;
 using LiteDB;
 using System.Security;
-using DustyBot.Helpers;
 
 namespace DustyBot.Settings
 {

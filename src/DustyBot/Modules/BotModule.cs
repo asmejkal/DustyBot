@@ -311,6 +311,28 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Done!").ConfigureAwait(false);
         }
 
+        [Command("performance", "stats", "Stats.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
+        public async Task GetPerformance(ICommand command)
+        {
+            if (Settings is Framework.LiteDB.DualSettingsProvider dualSettings)
+            {
+                void PrintStats(StringBuilder builder, Framework.LiteDB.DualSettingsProvider.PerformanceInfo info, string name)
+                {
+                    builder.AppendLine($"**{name}**");
+                    builder.AppendLine($"Reads: {info.ReadRequestCount} in {info.TotalReadRequestLength} (avg {info.AverageRead})");
+                    builder.AppendLine($"Writes: {info.WriteRequestCount} in {info.TotalWriteRequestLength} (avg {info.AverageWrite})");
+                }
+
+                var stats = dualSettings.GetPerformanceInfo();
+
+                var result = new StringBuilder();
+                PrintStats(result, stats.LiteDb, "LiteDb");
+                PrintStats(result, stats.MongoDb, "MongoDb");
+
+                await command.Reply(Communicator, result.ToString());
+            }
+        }
+
         static string Markdown(string input)
         {
             bool inside = false;
