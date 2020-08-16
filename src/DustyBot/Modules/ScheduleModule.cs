@@ -327,7 +327,7 @@ namespace DustyBot.Modules
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
         [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
-        [Comment("Events added with this command are the same as with `event add`, but will get announced when they begin in the channel set by `schedule set notifications`. \nThe default timezone is KST (can be changed with `schedule set timezone`).")]
+        [Comment("When events added with this command begin, it will get announced in the channel set by `schedule set notifications`. \nThe default timezone is KST (can be changed with `schedule set timezone`).")]
         [Example("07/23 08:45 Concert")]
         [Example("07/23 Fansign")]
         [Example("2019/01/23 Festival")]
