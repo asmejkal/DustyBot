@@ -327,7 +327,7 @@ namespace DustyBot.Modules
         [Parameter("Time", TimeRegex, ParameterType.Regex, ParameterFlags.Optional, "time in `HH:mm` format (eg. `08:45`); skip if the time is unknown")]
         [Parameter("Link", ParameterType.Uri, ParameterFlags.Optional, "web link to make the event clickable")]
         [Parameter("Description", ParameterType.String, ParameterFlags.Remainder, "event description")]
-        [Comment("Events added with this command are the same as with `event add`, but will get announced when they begin in the channel set by `schedule set notifications`. \nThe default timezone is KST (can be changed with `schedule set timezone`).")]
+        [Comment("When events added with this command begin, it will get announced in the channel set by `schedule set notifications`. \nThe default timezone is KST (can be changed with `schedule set timezone`).")]
         [Example("07/23 08:45 Concert")]
         [Example("07/23 Fansign")]
         [Example("2019/01/23 Festival")]
@@ -671,7 +671,7 @@ namespace DustyBot.Modules
                         var (partialCommandRegistration, usage) = findResult.Value;
                         var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config);
                         if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
-                            throw new IncorrectParametersCommandException();
+                            throw new IncorrectParametersCommandException("");
 
                         var partialCommand = parseResult.Item2;
                         IEnumerable<DateTime> updateDates;
@@ -731,7 +731,10 @@ namespace DustyBot.Modules
                     foreach (var (tag, dates) in updates)
                         partialResult.Merge(await RefreshCalendars(command.Guild, dates, tag.Item));
 
-                    message.AppendLine(partialResult.ToString());
+                    var resultMessage = partialResult.ToString();
+                    if (!string.IsNullOrWhiteSpace(resultMessage))
+                        message.AppendLine(resultMessage);
+
                     message.AppendLine($"An error encountered on line {lineNum}:");
                     await command.ReplyError(Communicator, "Batch finished with errors:\n" + message.ToString());
                     throw;
