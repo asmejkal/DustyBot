@@ -85,6 +85,8 @@ namespace DustyBot.Framework
             Client.Ready += () => Task.FromResult(s.Release());
             await s.WaitAsync();
 
+            EventRouter.Start();
+
             foreach (var service in _services)
                 await service.Start();
 

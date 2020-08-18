@@ -10,11 +10,10 @@ namespace DustyBot.Framework.Utility
     {
         public static void DeleteAfter(this IMessage msg, int seconds)
         {
-            Task.Run(async () =>
+            TaskHelper.FireForget(async () =>
             {
                 await Task.Delay(seconds * 1000);
-                try { await msg.DeleteAsync().ConfigureAwait(false); }
-                catch { }
+                await msg.DeleteAsync().ConfigureAwait(false);
             });
         }
 
@@ -58,7 +57,7 @@ namespace DustyBot.Framework.Utility
         }
 
         public static string GetAnimatedIconUrl(this IGuild guild) => 
-            guild.IconId.StartsWith("a_") ? System.IO.Path.ChangeExtension(guild.IconUrl, "gif") : null;
+            (guild.IconId?.StartsWith("a_") ?? false) ? System.IO.Path.ChangeExtension(guild.IconUrl, "gif") : null;
 
         public static string GetFullName(this IUser user) => $"{user.Username}#{user.Discriminator}";
     }

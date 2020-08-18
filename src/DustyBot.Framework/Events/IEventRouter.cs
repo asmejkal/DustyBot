@@ -8,5 +8,6 @@ namespace DustyBot.Framework.Events
     public interface IEventRouter : IEventHandlerCollection
     {
         void Register(IEventHandler handler);
+        void Start();
     }
 }

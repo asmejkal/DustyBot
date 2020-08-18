@@ -335,7 +335,16 @@ namespace DustyBot.Modules
 
             var starrers = new HashSet<ulong>();
             foreach (var emoji in message.Reactions.Where(x => board.Emojis.Contains(x.Key.GetFullName())).Select(x => x.Key))
-                starrers.UnionWith((await message.GetReactionUsersAsync(emoji, int.MaxValue).FlattenAsync()).Select(x => x.Id));
+            {
+                try
+                {
+                    starrers.UnionWith((await message.GetReactionUsersAsync(emoji, int.MaxValue).FlattenAsync()).Select(x => x.Id));
+                }
+                catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Missing access to read reactions in channel {channel.Id} for {message.Id} on {channel.Guild.Name} ({channel.Guild.Id})"));
+                }
+            }
 
             starrers.Remove(message.Author.Id);
 
