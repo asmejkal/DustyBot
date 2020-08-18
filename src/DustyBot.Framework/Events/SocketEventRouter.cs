@@ -9,45 +9,50 @@ namespace DustyBot.Framework.Events
 {
     class SocketEventRouter : IEventRouter
     {
-        HashSet<IEventHandler> _handlers;
-
         public IEnumerable<IEventHandler> Handlers => _handlers;
         public void Register(IEventHandler handler) => _handlers.Add(handler);
+
+        private HashSet<IEventHandler> _handlers;
+        private DiscordSocketClient _client;
 
         public SocketEventRouter(IEnumerable<IEventHandler> handlers, DiscordSocketClient client)
         {
             _handlers = new HashSet<IEventHandler>(handlers);
+            _client = client;
+        }
 
-            client.ChannelCreated += Client_ChannelCreated;
-            client.ChannelDestroyed += Client_ChannelDestroyed;
-            client.ChannelUpdated += Client_ChannelUpdated;
-            client.CurrentUserUpdated += Client_CurrentUserUpdated;
-            client.GuildAvailable += Client_GuildAvailable;
-            client.GuildMembersDownloaded += Client_GuildMembersDownloaded;
-            client.GuildMemberUpdated += Client_GuildMemberUpdated;
-            client.GuildUnavailable += Client_GuildUnavailable;
-            client.GuildUpdated += Client_GuildUpdated;
-            client.JoinedGuild += Client_JoinedGuild;
-            client.LeftGuild += Client_LeftGuild;
-            client.MessageDeleted += Client_MessageDeleted;
-            client.MessageReceived += Client_MessageReceived;
-            client.MessageUpdated += Client_MessageUpdated;
-            client.ReactionAdded += Client_ReactionAdded;
-            client.ReactionRemoved += Client_ReactionRemoved;
-            client.ReactionsCleared += Client_ReactionsCleared;
-            client.RecipientAdded += Client_RecipientAdded;
-            client.RecipientRemoved += Client_RecipientRemoved;
-            client.RoleCreated += Client_RoleCreated;
-            client.RoleDeleted += Client_RoleDeleted;
-            client.RoleUpdated += Client_RoleUpdated;
-            client.UserBanned += Client_UserBanned;
-            client.UserIsTyping += Client_UserIsTyping;
-            client.UserJoined += Client_UserJoined;
-            client.UserLeft += Client_UserLeft;
-            client.UserUnbanned += Client_UserUnbanned;
-            client.UserUpdated += Client_UserUpdated;
-            client.UserVoiceStateUpdated += Client_UserVoiceStateUpdated;
-            client.MessagesBulkDeleted += Client_MessagesBulkDeleted;
+        public void Start()
+        {
+            _client.ChannelCreated += Client_ChannelCreated;
+            _client.ChannelDestroyed += Client_ChannelDestroyed;
+            _client.ChannelUpdated += Client_ChannelUpdated;
+            _client.CurrentUserUpdated += Client_CurrentUserUpdated;
+            _client.GuildAvailable += Client_GuildAvailable;
+            _client.GuildMembersDownloaded += Client_GuildMembersDownloaded;
+            _client.GuildMemberUpdated += Client_GuildMemberUpdated;
+            _client.GuildUnavailable += Client_GuildUnavailable;
+            _client.GuildUpdated += Client_GuildUpdated;
+            _client.JoinedGuild += Client_JoinedGuild;
+            _client.LeftGuild += Client_LeftGuild;
+            _client.MessageDeleted += Client_MessageDeleted;
+            _client.MessageReceived += Client_MessageReceived;
+            _client.MessageUpdated += Client_MessageUpdated;
+            _client.ReactionAdded += Client_ReactionAdded;
+            _client.ReactionRemoved += Client_ReactionRemoved;
+            _client.ReactionsCleared += Client_ReactionsCleared;
+            _client.RecipientAdded += Client_RecipientAdded;
+            _client.RecipientRemoved += Client_RecipientRemoved;
+            _client.RoleCreated += Client_RoleCreated;
+            _client.RoleDeleted += Client_RoleDeleted;
+            _client.RoleUpdated += Client_RoleUpdated;
+            _client.UserBanned += Client_UserBanned;
+            _client.UserIsTyping += Client_UserIsTyping;
+            _client.UserJoined += Client_UserJoined;
+            _client.UserLeft += Client_UserLeft;
+            _client.UserUnbanned += Client_UserUnbanned;
+            _client.UserUpdated += Client_UserUpdated;
+            _client.UserVoiceStateUpdated += Client_UserVoiceStateUpdated;
+            _client.MessagesBulkDeleted += Client_MessagesBulkDeleted;
         }
 
         private async Task Client_MessagesBulkDeleted(IReadOnlyCollection<Discord.Cacheable<Discord.IMessage, ulong>> arg1, ISocketMessageChannel arg2)
