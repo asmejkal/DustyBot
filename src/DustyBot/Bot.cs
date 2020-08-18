@@ -27,11 +27,11 @@ namespace DustyBot
             [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name. Use \"instance create\" to create a new instance.")]
             public string Instance { get; set; }
 
-            [Value(1, MetaName = "ConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
-            public string ConnectionString { get; set; }
-
-            [Value(2, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
+            [Value(1, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
             public string LiteDbPassword { get; set; }
+
+            [Option("ConnectionString", HelpText = "MongoDb connection string for this instance.")]
+            public string ConnectionString { get; set; }
         }
 
         [Verb("instance", HelpText = "Manage bot instances.")]
@@ -128,7 +128,8 @@ namespace DustyBot
                 using (var liteDbSettings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.LiteDbPassword))
                 using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(opts.Instance)))
                 {
-                    var settings = new DualSettingsProvider(liteDbSettings, new MongoDbSettingsProvider(opts.ConnectionString, opts.Instance), logger);
+                    var mongoDbSettings = opts.ConnectionString != null ? new MongoDbSettingsProvider(opts.ConnectionString, opts.Instance) : null;
+                    var settings = new DualSettingsProvider(liteDbSettings, mongoDbSettings, logger);
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
                     
                     //Get config
@@ -162,6 +163,7 @@ namespace DustyBot
                     //Choose services
                     components.Services.Add(new Services.DaumCafeService(components.Client, components.Settings, components.Logger));
                     components.Services.Add(scheduleService);
+                    components.Services.Add(new Services.ReportingService(components.Settings, components.Logger));
                     _services = components.Services;
 
                     //Init framework

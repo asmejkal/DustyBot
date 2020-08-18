@@ -46,7 +46,7 @@ namespace DustyBot.Framework.LiteDB
         public DualSettingsProvider(SettingsProvider liteDbProvider, MongoDbSettingsProvider mongoDbProvider, ILogger logger)
         {
             LiteDbProvider = liteDbProvider ?? throw new ArgumentNullException(nameof(liteDbProvider));
-            MongoDbProvider = mongoDbProvider ?? throw new ArgumentNullException(nameof(mongoDbProvider));
+            MongoDbProvider = mongoDbProvider;
             Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -147,13 +147,17 @@ namespace DustyBot.Framework.LiteDB
 
         private Task Call(Func<ISettingsProvider, Task> call, bool write)
         {
-            FireSilentCall(() => MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write));
+            if (MongoDbProvider != null)
+                FireSilentCall(() => MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write));
+
             return MeasuredSingleCall(LiteDbProvider, call, LitePerformanceInfo, write);
         }
 
         private Task<T> Call<T>(Func<ISettingsProvider, Task<T>> call, bool write)
         {
-            FireSilentCall(() => MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write));
+            if (MongoDbProvider != null)
+                FireSilentCall(() => MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write));
+
             return MeasuredSingleCall(LiteDbProvider, call, LitePerformanceInfo, write);
         }
 
