@@ -14,6 +14,12 @@ namespace DustyBot.Settings
         public ulong RoleId { get; set; }
         public List<string> Names { get; set; } = new List<string>();
         public ulong SecondaryId { get; set; }
+        public HashSet<string> Groups { get; set; } = new HashSet<string>();
+    }
+
+    public class GroupSettings
+    {
+        public uint Limit { get; set; }
     }
 
     public class RolesSettings : BaseServerSettings
@@ -26,6 +32,9 @@ namespace DustyBot.Settings
 
         public bool PersistentAssignableRoles { get; set; }
         public List<ulong> AdditionalPersistentRoles { get; set; } = new List<ulong>();
+
+        public Dictionary<string, GroupSettings> GroupSettings { get; set; } = new Dictionary<string, GroupSettings>();
+
         public Dictionary<ulong, List<ulong>> PersistentRolesData { get; set; } = new Dictionary<ulong, List<ulong>>();
     }
 }
