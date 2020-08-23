@@ -72,7 +72,22 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("about", "Bot and version information.", CommandFlags.DirectMessageAllow)]
+        [Command("supporters", "See the people who help keep this bot up and running.", CommandFlags.DirectMessageAllow)]
+        public async Task Supporters(ICommand command)
+        {
+            var settings = await Settings.ReadGlobal<SupporterSettings>();
+            var result = new StringBuilder();
+            result.AppendLine($":revolving_hearts: People who keep the bot up and running :revolving_hearts:");
+            foreach (var supporter in settings.Supporters)
+                result.AppendLine($"{supporter.Name}");
+
+            result.AppendLine();
+            result.AppendLine($"Support the bot at <{IntegrationConstants.PatreonPage}>");
+
+            await command.Reply(Communicator, result.ToString());
+        }
+
+        [Command("about", "Shows information about the bot.", CommandFlags.DirectMessageAllow)]
         public async Task About(ICommand command)
         {
             var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
@@ -311,6 +326,29 @@ namespace DustyBot.Modules
             }
 
             await command.ReplySuccess(Communicator, "Done!").ConfigureAwait(false);
+        }
+
+        [Command("supporters", "add", "Adds a supporter.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Alias("supporter", "add")]
+        [Parameter("Position", ParameterType.UInt, ParameterFlags.Optional)]
+        [Parameter("Name", ParameterType.String, ParameterFlags.Remainder)]
+        public async Task AddSupporter(ICommand command)
+        {
+            await Settings.ModifyGlobal<SupporterSettings>(x => 
+                x.Supporters.Insert(command["Position"].AsInt ?? x.Supporters.Count, new Supporter() { Name = command["Name"] }));
+
+            await command.ReplySuccess(Communicator, "Done!");
+        }
+
+        [Command("supporters", "remove", "Removes a supporter.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        [Alias("supporter", "remove")]
+        [Parameter("Name", ParameterType.String, ParameterFlags.Remainder)]
+        public async Task RemoveSupporter(ICommand command)
+        {
+            int removed = 0;
+            await Settings.ModifyGlobal<SupporterSettings>(x => removed = x.Supporters.RemoveAll(y => y.Name == command["Name"]));
+
+            await command.ReplySuccess(Communicator, $"Removed {removed} supporters.");
         }
 
         static string Markdown(string input)
