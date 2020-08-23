@@ -21,7 +21,7 @@ namespace DustyBot.Services
         private ISettingsProvider Settings { get; }
         private ILogger Logger { get; }
 
-        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(1); 
+        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(5); 
 
         private bool Updating { get; set; }
         private object UpdatingLock = new object();
