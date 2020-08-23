@@ -53,7 +53,6 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, "a channel that will receive the messages")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the greeting message; you can use " + MentionPlaceholder + ", " + NamePlaceholder + ", " + FullNamePlaceholder + ", " + IdPlaceholder + " and " + ServerPlaceholder + " placeholders")]
-        [Comment("Use without parameters to disable the greeting message.")]
         public async Task Greet(ICommand command)
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)

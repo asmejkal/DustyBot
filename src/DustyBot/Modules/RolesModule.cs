@@ -256,7 +256,7 @@ namespace DustyBot.Modules
                     throw new CommandException("The primary role is not self-assignable.");
 
                 if (s.AssignableRoles.Any(x => x.RoleId == secondary.Id))
-                    throw new CommandException("The secondary role is already self-assignable by itself. Remove it with `roles remove` to add as a secondary.");
+                    throw new CommandException("The secondary role is already self-assignable by itself. Remove it from self-assignable roles with `roles remove` first.");
 
                 assignableRole.SecondaryId = secondary.Id;
             });
@@ -280,95 +280,6 @@ namespace DustyBot.Modules
             });
                         
             await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.");
-        }
-
-        [Command("roles", "group", "add", "Adds one or more roles into a group (advanced).", CommandFlags.Synchronous)]
-        [Alias("role", "group", "add")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("GroupName", ParameterType.String, "name of the group")]
-        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable, "one or more roles (names or IDs) that will be added to the group")]
-        [Comment("All the provided roles must be self-assignable (added with `roles add` or `roles create`).")]
-        [Example("primaries solar wheein moonbyul hwasa")]
-        public async Task AddRoleGroup(ICommand command)
-        {
-            var roles = command["Roles"].Repeats.Select(x => x.AsRole);
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                foreach (var role in roles)
-                {
-                    var assignableRole = s.AssignableRoles.FirstOrDefault(x => x.RoleId == role.Id);
-                    if (assignableRole == default)
-                        throw new CommandException($"Role `{role.Name}` is not self-assignable. Please add it with `roles add` first.");
-
-                    assignableRole.Groups.Add(command["GroupName"]);
-                }
-            });
-
-            await command.ReplySuccess(Communicator, $"Roles {roles.Select(x => x.Name).WordJoinQuoted()} have been added to group `{command["GroupName"]}`.");
-        }
-
-        [Command("roles", "group", "remove", "Removes one or more roles from a group.", CommandFlags.Synchronous)]
-        [Alias("role", "group", "remove")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("GroupName", ParameterType.String, "name of the group")]
-        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable, "one or more roles (names or IDs) that will be removed from the group")]
-        [Example("primaries solar wheein moonbyul hwasa")]
-        public async Task RemoveRoleGroup(ICommand command)
-        {
-            var roles = command["Roles"].Repeats.Select(x => x.AsRole);
-            var removed = new List<string>();
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                foreach (var role in roles)
-                {
-                    var assignableRole = s.AssignableRoles.FirstOrDefault(x => x.RoleId == role.Id);
-                    if (assignableRole == default)
-                        continue;
-
-                    if (assignableRole.Groups.Remove(command["GroupName"]))
-                        removed.Add(role.Name);
-                }
-            });
-
-            await command.ReplySuccess(Communicator, $"Roles {removed.WordJoinQuoted()} have been removed from group `{command["GroupName"]}`.");
-        }
-
-        [Command("roles", "group", "clear", "Removes all roles from a group.", CommandFlags.Synchronous)]
-        [Alias("role", "group", "clear")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("GroupName", ParameterType.String, "name of the group")]
-        public async Task ClearRoleGroup(ICommand command)
-        {
-            var removed = new List<string>();
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                foreach (var role in s.AssignableRoles)
-                {
-                    if (role.Groups.Remove(command["GroupName"]))
-                        removed.Add(command.Guild.GetRole(role.RoleId)?.Name ?? role.RoleId.ToString());
-                }
-            });
-
-            await command.ReplySuccess(Communicator, $"Group `{command["GroupName"]}` has been cleared.");
-        }
-
-        [Command("roles", "group", "set", "limit", "Sets a limit on how many roles can be assigned from a given group.", CommandFlags.Synchronous)]
-        [Alias("role", "group", "set", "limit")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("GroupName", ParameterType.String, "name of the group created with `roles group set`")]
-        [Parameter("Limit", ParameterType.UInt, "the limit; put `0` for no limit")]
-        [Example("primaries 1")]
-        public async Task SetRoleGroupLimit(ICommand command)
-        {
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                if (!s.AssignableRoles.Any(x => x.Groups.Contains(command["GroupName"])))
-                    throw new CommandException($"There's no role added in group `{command["GroupName"]}`. Please set the group first with `roles group set`.");
-
-                s.GroupSettings.GetOrCreate(command["GroupName"]).Limit = command["Limit"].AsUInt.Value;
-            });
-
-            await command.ReplySuccess(Communicator, $"Users may now assign up to `{command["Limit"].AsUInt.Value}` roles from group `{command["GroupName"]}`.");
         }
 
         [Command("roles", "stats", "Server roles statistics.")]
@@ -436,6 +347,95 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, pages);
+        }
+
+        [Command("roles", "group", "add", "Adds one or more roles into a group.", CommandFlags.Synchronous)]
+        [Alias("role", "group", "add")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("GroupName", ParameterType.String, "name of the group")]
+        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable, "one or more roles (names or IDs) that will be added to the group")]
+        [Comment("All the provided roles must be self-assignable (added with `roles add` or `roles create`).")]
+        [Example("primaries solar wheein moonbyul hwasa")]
+        public async Task AddRoleGroup(ICommand command)
+        {
+            var roles = command["Roles"].Repeats.Select(x => x.AsRole);
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                foreach (var role in roles)
+                {
+                    var assignableRole = s.AssignableRoles.FirstOrDefault(x => x.RoleId == role.Id);
+                    if (assignableRole == default)
+                        throw new CommandException($"Role `{role.Name}` is not self-assignable. Please add it with `roles add` first.");
+
+                    assignableRole.Groups.Add(command["GroupName"]);
+                }
+            });
+
+            await command.ReplySuccess(Communicator, $"Role{(roles.Skip(1).Any() ? "s" : "")} {roles.Select(x => x.Name).WordJoinQuoted()} {(roles.Skip(1).Any() ? "have" : "has")} been added to group `{command["GroupName"]}`.");
+        }
+
+        [Command("roles", "group", "remove", "Removes one or more roles from a group.", CommandFlags.Synchronous)]
+        [Alias("role", "group", "remove")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("GroupName", ParameterType.String, "name of the group")]
+        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable, "one or more roles (names or IDs) that will be removed from the group")]
+        [Example("primaries solar wheein moonbyul hwasa")]
+        public async Task RemoveRoleGroup(ICommand command)
+        {
+            var roles = command["Roles"].Repeats.Select(x => x.AsRole);
+            var removed = new List<string>();
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                foreach (var role in roles)
+                {
+                    var assignableRole = s.AssignableRoles.FirstOrDefault(x => x.RoleId == role.Id);
+                    if (assignableRole == default)
+                        continue;
+
+                    if (assignableRole.Groups.Remove(command["GroupName"]))
+                        removed.Add(role.Name);
+                }
+            });
+
+            await command.ReplySuccess(Communicator, $"Role{(roles.Skip(1).Any() ? "s" : "")} {removed.WordJoinQuoted()} {(roles.Skip(1).Any() ? "have" : "has")} been removed from group `{command["GroupName"]}`.");
+        }
+
+        [Command("roles", "group", "clear", "Removes all roles from a group.", CommandFlags.Synchronous)]
+        [Alias("role", "group", "clear")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("GroupName", ParameterType.String, "name of the group")]
+        public async Task ClearRoleGroup(ICommand command)
+        {
+            var removed = new List<string>();
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                foreach (var role in s.AssignableRoles)
+                {
+                    if (role.Groups.Remove(command["GroupName"]))
+                        removed.Add(command.Guild.GetRole(role.RoleId)?.Name ?? role.RoleId.ToString());
+                }
+            });
+
+            await command.ReplySuccess(Communicator, $"Group `{command["GroupName"]}` has been cleared.");
+        }
+
+        [Command("roles", "group", "set", "limit", "Sets a limit on how many roles can be assigned from a given group.", CommandFlags.Synchronous)]
+        [Alias("role", "group", "set", "limit")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("GroupName", ParameterType.String, "name of the group created with `roles group add`")]
+        [Parameter("Limit", ParameterType.UInt, "the limit; put `0` for no limit")]
+        [Example("primaries 1")]
+        public async Task SetRoleGroupLimit(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                if (!s.AssignableRoles.Any(x => x.Groups.Contains(command["GroupName"])))
+                    throw new CommandException($"There's no role in group `{command["GroupName"]}` or it doesn't exist. Please add some roles first with `roles group add`.");
+
+                s.GroupSettings.GetOrCreate(command["GroupName"]).Limit = command["Limit"].AsUInt.Value;
+            });
+
+            await command.ReplySuccess(Communicator, $"Users may now assign up to `{command["Limit"].AsUInt.Value}` roles from group `{command["GroupName"]}`.");
         }
 
         private async Task AddRole(ulong guildId, IRole role, bool checkPermissions)
