@@ -190,10 +190,13 @@ namespace DustyBot.Modules
                 }
 
                 int scount = 0;
-                foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Name, originalName, true) == 0))
+                if (originalName != null && newName != null) // Only applies to categories
                 {
-                    scount++;
-                    comeback.Name = newName;
+                    foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Name, originalName, true) == 0))
+                    {
+                        scount++;
+                        comeback.Name = newName;
+                    }
                 }
 
                 return Tuple.Create(ccount, scount);

@@ -228,6 +228,8 @@ namespace DustyBot.Modules
 
                     if (handledCommand.PrimaryUsage.InvokeUsage == "calendar create")
                         result.AppendLine("</br><p class=\"text-muted\">Calendars are automatically updated messages which display parts of the schedule.</p>");
+                    else if (handledCommand.PrimaryUsage.InvokeUsage == "roles group add")
+                        result.AppendLine("</br><p class=\"text-muted\">Use groups to limit the number of roles a user may have.</p>");
 
                     result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
                         $"<i class=\"fa fa-angle-right\" style=\"margin-right: 3px;\"></i><span class=\"paramlistcode\">{handledCommand.PrimaryUsage.InvokeUsage}</span> – {handledCommand.Description} " +
