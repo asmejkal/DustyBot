@@ -152,6 +152,8 @@ namespace DustyBot.Helpers
         public string User { get; }
         private string Key { get; }
 
+        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
+
         public LastFmClient(string user, string key)
         {
             User = user;
@@ -161,6 +163,7 @@ namespace DustyBot.Helpers
         public async Task<dynamic> GetUserInfo()
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={User}&api_key={Key}&format=json");
+            request.Timeout = (int)RequestTimeout.TotalMilliseconds;
             using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
@@ -202,6 +205,7 @@ namespace DustyBot.Helpers
         public async Task<(IEnumerable<dynamic> tracks, bool nowPlaying, bool remaining)> GetRecentTracksPage(int page, int count, DateTimeOffset? from = null)
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={User}&api_key={Key}&format=json&limit={count}&page={page}&extended=1" + (from.HasValue ? $"&from={from.Value.ToUnixTimeSeconds()}" : string.Empty));
+            request.Timeout = (int)RequestTimeout.TotalMilliseconds;
             using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
@@ -223,6 +227,7 @@ namespace DustyBot.Helpers
         public async Task<dynamic> GetArtistInfo(string artist)
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=artist.getInfo&api_key={Key}&artist={Uri.EscapeDataString(artist)}&format=json&username={User}");
+            request.Timeout = (int)RequestTimeout.TotalMilliseconds;
             using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
@@ -235,6 +240,7 @@ namespace DustyBot.Helpers
         public async Task<dynamic> GetTrackInfo(string artist, string track)
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key={Key}&artist={Uri.EscapeDataString(artist)}&track={Uri.EscapeDataString(track)}&format=json&username={User}");
+            request.Timeout = (int)RequestTimeout.TotalMilliseconds;
             using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
@@ -288,6 +294,7 @@ namespace DustyBot.Helpers
             else
             {
                 var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={count}&format=json");
+                request.Timeout = (int)RequestTimeout.TotalMilliseconds;
                 using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
@@ -309,6 +316,7 @@ namespace DustyBot.Helpers
             else
             {
                 var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={count}&format=json");
+                request.Timeout = (int)RequestTimeout.TotalMilliseconds;
                 using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
@@ -330,6 +338,7 @@ namespace DustyBot.Helpers
             else
             {
                 var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={count}&format=json");
+                request.Timeout = (int)RequestTimeout.TotalMilliseconds;
                 using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
@@ -350,6 +359,7 @@ namespace DustyBot.Helpers
         public async Task<int> GetTotalPlaycount(DateTimeOffset? from = null)
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={User}&api_key={Key}&limit=1&format=json" + (from.HasValue ? $"&from={from.Value.ToUnixTimeSeconds()}" : string.Empty));
+            request.Timeout = (int)RequestTimeout.TotalMilliseconds;
             using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
@@ -365,6 +375,7 @@ namespace DustyBot.Helpers
             {
                 var infoTask = GetArtistInfo(artist);
                 var request = WebRequest.CreateHttp($"https://www.last.fm/user/{User}/library/music/{Uri.EscapeDataString(artist)}?date_preset={StatsPeriodWebMapping[period]}");
+                request.Timeout = (int)RequestTimeout.TotalMilliseconds;
                 using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
