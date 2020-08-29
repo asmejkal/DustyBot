@@ -53,6 +53,8 @@ namespace DustyBot.Services
         {
             TaskHelper.FireForget(async () =>
             {
+                var stopwatch = Stopwatch.StartNew();
+
                 bool skip = false;
                 lock (UpdatingLock)
                 {
@@ -68,11 +70,10 @@ namespace DustyBot.Services
                     return;
                 }
 
-                var stopwatch = Stopwatch.StartNew();
-                await Logger.Log(new LogMessage(LogSeverity.Debug, "Service", "Updating Daum Cafe feeds."));
-
                 try
                 {
+                    await Logger.Log(new LogMessage(LogSeverity.Debug, "Service", "Updating Daum Cafe feeds."));
+
                     foreach (var settings in await Settings.Read<MediaSettings>().ConfigureAwait(false))
                     {
                         if (settings.DaumCafeFeeds == null || settings.DaumCafeFeeds.Count <= 0)

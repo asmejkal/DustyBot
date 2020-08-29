@@ -190,7 +190,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach Last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -235,7 +235,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach Last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -389,7 +389,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -466,7 +466,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -526,7 +526,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -586,7 +586,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -646,7 +646,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -731,7 +731,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Couldn't reach last.fm (error {(e.Response as HttpWebResponse)?.StatusCode}). Please try again in a few seconds.");
+                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
