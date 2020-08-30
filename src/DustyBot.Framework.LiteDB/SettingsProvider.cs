@@ -208,7 +208,8 @@ namespace DustyBot.Framework.LiteDB
 
             var dJson = JsonSerializer.Deserialize(json);
             var doc = BsonMapper.Global.ToDocument(dJson);
-            col.Upsert(doc);
+            col.Delete(doc["_id"]);
+            col.Insert(doc);
 
             return Task.CompletedTask;
         }

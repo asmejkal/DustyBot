@@ -80,5 +80,38 @@ namespace DustyBot.Framework.LiteDB
             File.Delete(sourceConn.Filename);
             File.Move(tmpPath, sourceConn.Filename);
         }
+
+        public static void Recreate(string dbPath, string password)
+        {
+            var sourceConn = new ConnectionString($"Filename={dbPath};Password={password};Upgrade=false;Collation=en-US/IgnoreCase");
+
+            var tmpPath = sourceConn.Filename + "_tmp";
+            if (File.Exists(tmpPath))
+                File.Delete(tmpPath);
+
+            using (var source = new LiteDatabase(sourceConn))
+            {
+                string destConnString = $"Filename={tmpPath};Password={password};Collation=en-US/IgnoreCase";
+                using (var destination = new LiteDatabase(destConnString))
+                {
+                    foreach (var name in source.GetCollectionNames())
+                    {
+                        var oldCol = source.GetCollection(name);
+                        var newCol = destination.GetCollection(name);
+
+                        var items = oldCol.FindAll();
+                        newCol.InsertBulk(items);
+                    }
+
+                    destination.UserVersion = source.UserVersion;
+                    destination.Checkpoint();
+                    destination.Rebuild();
+                    destination.Checkpoint();
+                }
+            }
+
+            File.Delete(sourceConn.Filename);
+            File.Move(tmpPath, sourceConn.Filename);
+        }
     }
 }

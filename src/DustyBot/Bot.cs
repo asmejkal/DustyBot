@@ -90,6 +90,16 @@ namespace DustyBot
             public string LiteDbPassword { get; set; }
         }
 
+        [Verb("litedb-recreate", HelpText = "Recreate the LiteDB database.")]
+        public class LiteDbRecreateOptions
+        {
+            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
+            public string Instance { get; set; }
+
+            [Value(2, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
+            public string LiteDbPassword { get; set; }
+        }
+
         private ICollection<IModule> _modules;
         public IEnumerable<IModule> Modules => _modules;
 
@@ -98,11 +108,12 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, LiteDbMigrateOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, LiteDbMigrateOptions, LiteDbRecreateOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
                     (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
                     (LiteDbMigrateOptions opts) => new Bot().RunLiteDbMigrate(opts).GetAwaiter().GetResult(),
+                    (LiteDbRecreateOptions opts) => new Bot().RunLiteDbRecreate(opts).GetAwaiter().GetResult(),
                     errs => 1);
 
             return result;
@@ -343,6 +354,25 @@ namespace DustyBot
             }
 
             return 0;
+        }
+
+        public Task<int> RunLiteDbRecreate(LiteDbRecreateOptions opts)
+        {
+            try
+            {
+                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
+                if (!File.Exists(instancePath))
+                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
+
+                DatabaseHelpers.Recreate(instancePath, opts.LiteDbPassword);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Failure: " + ex.ToString());
+                return Task.FromResult(1);
+            }
+
+            return Task.FromResult(0);
         }
     }
 }
