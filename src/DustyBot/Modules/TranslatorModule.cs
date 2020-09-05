@@ -49,7 +49,7 @@ namespace DustyBot.Modules
             //TODO(BJRambo) : checking to why did Reload httpclient later.
             try
             {
-                var papagoClient = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt") as HttpWebRequest;
+                var papagoClient = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt");
                 papagoClient.Method = "POST";
                 papagoClient.ContentType = "application/x-www-form-urlencoded";
                 papagoClient.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
