@@ -7,6 +7,7 @@ using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using Newtonsoft.Json.Linq;
+using System;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -43,7 +44,7 @@ namespace DustyBot.Modules
             var firstLang = command["From"].ToString();
             var lastLang = command["To"].ToString();
 
-            var byteDataParams = Encoding.UTF8.GetBytes("source=" + firstLang + "&target=" + lastLang + "&text=" + stringMessage);
+            var byteDataParams = Encoding.UTF8.GetBytes($"source={Uri.EscapeDataString(firstLang)}&target={Uri.EscapeDataString(lastLang)}&text={Uri.EscapeDataString(stringMessage)}");
 
             try
             {
