@@ -75,6 +75,12 @@ namespace DustyBot
 
             [Option("tablestoragecs", HelpText = "Azure Table Storage connection string.")]
             public string TableStorageConnectionString { get; set; }
+
+            [Option("papagoclientid", HelpText = "Papago client id string.")]
+            public string PapagoClientId { get; set; }
+
+            [Option("papagoclientsecret", HelpText = "Papago client secret string.")]
+            public string PapagoClientSecret { get; set; }
         }
 
         [Verb("litedb-migrate", HelpText = "Migrate old LiteDB database to MongoDB.")]
@@ -169,6 +175,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger, client));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.InfoModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services
@@ -227,7 +234,9 @@ namespace DustyBot
                             LastFmKey = opts.LastFmKey,
                             SpotifyId = opts.SpotifyId,
                             SpotifyKey = opts.SpotifyKey,
-                            TableStorageConnectionString = opts.TableStorageConnectionString
+                            TableStorageConnectionString = opts.TableStorageConnectionString,
+                            PapagoClientId = opts.PapagoClientId,
+                            PapagoClientSecret = opts.PapagoClientSecret
                         });
                     }
                 }
