@@ -19,7 +19,6 @@ using Discord.Net;
 using DustyBot.Definitions;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
