@@ -189,6 +189,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger, client));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.InfoModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services
