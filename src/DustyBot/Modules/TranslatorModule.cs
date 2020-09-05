@@ -81,6 +81,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to reach Papago", e));
                 await command.Reply(Communicator, $"Couldn't reach Papago (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
