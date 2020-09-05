@@ -354,11 +354,11 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Removed {removed} supporters.");
         }
 
-        [Command("번역", "trans")]
+        [Command("번역", "Translate words and sentences.")]
         [Alias("tr")]
-        [Parameter("start", ParameterType.String)]
-        [Parameter("end", ParameterType.String)]
-        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "content of the direct message, see below for how the whole message will look like")]
+        [Parameter("start", ParameterType.String, "Select the language that needs to be translated.")]
+        [Parameter("end", ParameterType.String, "Select the language to translate.")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "Input the word or sentence you want to translate.")]
         public async Task Translation(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
@@ -400,7 +400,7 @@ namespace DustyBot.Modules
 
                         EmbedBuilder embedBuilder = new EmbedBuilder()
                         {
-                            Title = $"번역 from **{FirstLang.ToUpper()}** to **{LastLang.ToUpper()}**"
+                            Title = $"Translate from **{FirstLang.ToUpper()}** to **{LastLang.ToUpper()}**"
                         };
 
                         embedBuilder.WithDescription(translateSentence);
