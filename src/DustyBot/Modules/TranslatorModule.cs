@@ -18,9 +18,11 @@ namespace DustyBot.Modules
     [Module("Translator", "Lets you translate between languages.")]
     class TranslatorModule : Module
     {
+        private const string LanguageRegex = @"^[a-zA-Z]{2}(?:-[a-zA-Z]{2})?$";
+
         private ILogger Logger { get; }
-        public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        private ICommunicator Communicator { get; }
+        private ISettingsProvider Settings { get; }
 
         public TranslatorModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
         {
@@ -31,10 +33,10 @@ namespace DustyBot.Modules
 
         [Command("translate", "Translates a piece of text.")]
         [Alias("tr"), Alias("번역")]
-        [Parameter("From", ParameterType.String, "the language of the message")]
-        [Parameter("To", ParameterType.String, "the language to translate into")]
+        [Parameter("From", LanguageRegex, ParameterType.String, "the language of the message")]
+        [Parameter("To", LanguageRegex, ParameterType.String, "the language to translate into")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the word or sentence you want to translate")]
-        [Comment("Korean = ko \nJapan = ja \nEnglish = en \nChinese(Simplified) = zh-CH \nChinese(Traditional) = zh - TW \nSpanish = es \nFrench = fr \nGerman = de \nRussian = ru \nPortuguese = pt \nItalian = it \nVietnamese = vi \nThai = th \nIndonesian = id")]
+        [Comment("Korean = `ko` \nJapan = `ja` \nEnglish = `en` \nChinese(Simplified) = `zh-CH` \nChinese(Traditional) = `zh-TW` \nSpanish = `es` \nFrench = `fr` \nGerman = `de` \nRussian = `ru` \nPortuguese = `pt` \nItalian = `it` \nVietnamese = `vi` \nThai = `th` \nIndonesian = `id`")]
         public async Task Translation(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();
