@@ -21,5 +21,7 @@ namespace DustyBot.Settings
         public string SpotifyId { get; set; }
         public string SpotifyKey { get; set; }
         public string TableStorageConnectionString { get; set; }
+        public string PapagoClientId { get; set; }
+        public string PapagoClientSecret { get; set; }
     }
 }
