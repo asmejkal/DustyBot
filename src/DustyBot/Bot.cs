@@ -162,7 +162,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (BotConfig)components.Config));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, components.Settings, components.Logger, components.Config));
-                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, components.Settings, components.Logger, client.Rest));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, components.Settings, components.Logger));

@@ -529,7 +529,7 @@ namespace DustyBot.Modules
             var footer = $"\n{emote} {starCount} | `{message.CreatedAt.ToUniversalTime().ToString(@"MMM d yyyy HH:mm", new CultureInfo("en-US"))}` | {channel.Mention}";
             string attachmentsSection = string.Join("\n", attachments);
 
-            var author = (IGuildUser)message.Author;
+            var author = await channel.Guild.GetUserAsync(message.Author.Id); // Sometimes the message has a RestUser author
             string content = $"**@{author.Username}{(string.IsNullOrEmpty(author.Nickname) ? "" : $" – {author.Nickname}")}:**\n";
 
             if (string.IsNullOrWhiteSpace(message.Content))

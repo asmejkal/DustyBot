@@ -208,6 +208,10 @@ namespace DustyBot.Modules
 
                     await LogSingleMessage(userMessage, guild, textChannel, eventChannel);
                 }
+                catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Log", "Missing permissions to log deleted message", ex));
+                }
                 catch (Exception ex)
                 {
                     await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process deleted message", ex));
@@ -332,6 +336,10 @@ namespace DustyBot.Modules
                     if (!string.IsNullOrEmpty(embed.Description))
                         await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
                 }
+                catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Log", "Missing permissions to log deleted messages", ex));
+                }
                 catch (Exception ex)
                 {
                     await Logger.Log(new LogMessage(LogSeverity.Error, "Log", $"Failed to process deleted messages on {(channel as ITextChannel)?.GuildId}", ex));
@@ -346,8 +354,9 @@ namespace DustyBot.Modules
             await Logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging deleted message from {userMessage.Author.Username} on {guild.Name}"));
             var preface = $"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n";
             var embed = new EmbedBuilder()
-            .WithDescription(preface + userMessage.Content.Truncate(EmbedBuilder.MaxDescriptionLength - preface.Length))
-            .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")})"));
+                .WithDescription(preface + userMessage.Content.Truncate(EmbedBuilder.MaxDescriptionLength - preface.Length))
+                .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")})"));
+
             if (userMessage.Attachments.Any())
                 embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
 

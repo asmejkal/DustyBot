@@ -184,10 +184,6 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
-            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
@@ -228,10 +224,6 @@ namespace DustyBot.Modules
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
-            }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
             }
             catch (WebException e)
             {
@@ -383,10 +375,6 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
-            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
@@ -460,10 +448,6 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
-            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
@@ -519,10 +503,6 @@ namespace DustyBot.Modules
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
-            }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
             }
             catch (WebException e)
             {
@@ -580,10 +560,6 @@ namespace DustyBot.Modules
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
             }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
-            }
             catch (WebException e)
             {
                 await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
@@ -639,10 +615,6 @@ namespace DustyBot.Modules
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
-            }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
             }
             catch (WebException e)
             {
@@ -724,10 +696,6 @@ namespace DustyBot.Modules
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
                 throw new CommandException("The bot can't access your recently listened tracks. \n\nPlease make sure you don't have `Hide recent listening information` checked in your Last.fm settings (Settings -> Privacy -> Recent listening).");
-            }
-            catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                await command.Reply(Communicator, $"Last.fm is not responding. Please try again in a few seconds.");
             }
             catch (WebException e)
             {

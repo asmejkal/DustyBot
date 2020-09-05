@@ -20,6 +20,7 @@ using DustyBot.Framework.Logging;
 using System.Collections;
 using Newtonsoft.Json;
 using DustyBot.Helpers;
+using Discord.Rest;
 
 namespace DustyBot.Modules
 {
@@ -31,12 +32,14 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; }
         public ISettingsProvider Settings { get; }
         public ILogger Logger { get; }
+        public DiscordRestClient RestClient { get; }
 
-        public RaidProtectionModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public RaidProtectionModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
+            RestClient = restClient;
         }
 
         [Command("raid", "protection", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -250,7 +253,16 @@ namespace DustyBot.Modules
 
                     var user = message.Author as IGuildUser;
                     if (user == null)
-                        return;
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Warning, "Admin", $"Raid protection: user {message.Author.Id} is not a guild user in {channel.GuildId}"));
+                        user = await RestClient.GetGuildUserAsync(channel.GuildId, message.Author.Id);
+
+                        if (user == null)
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Raid protection: user {message.Author.Id} not found in guild {channel.GuildId}"));
+                            return;
+                        }
+                    }
 
                     if (user.IsBot)
                         return;

@@ -227,7 +227,7 @@ namespace DustyBot.Modules
         {
             var config = await Settings.ReadGlobal<BotConfig>();
             var result = new StringBuilder();
-            var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 0px\">\n<h3>Quick navigation</h3>\n");
+            var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 0px\">\n<h3><img class=\"feature-icon-big\" src=\"img/compass.png\"/>Quick navigation</h3>\n");
             int counter = 0;
             foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
             {
