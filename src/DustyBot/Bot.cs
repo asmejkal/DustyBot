@@ -165,6 +165,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.InstagramModule(components.Communicator, components.Settings, components.Logger, (BotConfig)components.Config));
                     components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
+                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (BotConfig)components.Config));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, components.Settings, components.Logger, components.Config));
@@ -175,7 +176,6 @@ namespace DustyBot
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger, client));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger));
                     components.Modules.Add(new Modules.InfoModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, components.Settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services
@@ -280,6 +280,12 @@ namespace DustyBot
 
                             if (opts.TableStorageConnectionString != null)
                                 s.TableStorageConnectionString = opts.TableStorageConnectionString;
+
+                            if (opts.PapagoClientId != null)
+                                s.PapagoClientId = opts.PapagoClientId;
+
+                            if (opts.PapagoClientSecret != null)
+                                s.PapagoClientSecret = opts.PapagoClientSecret;
                         });
                     }
                 }

@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Modules
 {
-    [Module("Translator", "The ability to translate.")]
+    [Module("Translator", "Lets you translate between languages.")]
     class TranslatorModule : Module
     {
         private ILogger Logger { get; }
@@ -25,15 +25,14 @@ namespace DustyBot.Modules
         {
             Communicator = communicator;
             Settings = settings;
-            //Now not use to it. but it will be use to later.
             Logger = logger;
         }
 
-        [Command("translate", "translate")]
+        [Command("translate", "Translates a piece of text.")]
         [Alias("tr"), Alias("번역")]
-        [Parameter("Start", ParameterType.String, "Select the language that needs to be translated.")]
-        [Parameter("End", ParameterType.String, "Select the language to translate.")]
-        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "Input the word or sentence you want to translate.")]
+        [Parameter("From", ParameterType.String, "the language of the message")]
+        [Parameter("To", ParameterType.String, "the language to translate into")]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the word or sentence you want to translate")]
         [Comment("Korean = ko \nJapan = ja \nEnglish = en \nChinese(Simplified) = zh-CH \nChinese(Traditional) = zh - TW \nSpanish = es \nFrench = fr \nGerman = de \nRussian = ru \nPortuguese = pt \nItalian = it \nVietnamese = vi \nThai = th \nIndonesian = id")]
         public async Task Translation(ICommand command)
         {
@@ -41,12 +40,11 @@ namespace DustyBot.Modules
 
             await command.Message.Channel.TriggerTypingAsync();
             var stringMessage = command["Message"].ToString();
-            var firstLang = command["Start"].ToString();
-            var lastLang = command["End"].ToString();
+            var firstLang = command["From"].ToString();
+            var lastLang = command["To"].ToString();
 
             var byteDataParams = Encoding.UTF8.GetBytes("source=" + firstLang + "&target=" + lastLang + "&text=" + stringMessage);
 
-            //TODO(BJRambo) : checking to why did Reload httpclient later.
             try
             {
                 var papagoClient = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt");
@@ -63,8 +61,8 @@ namespace DustyBot.Modules
                 using (var responseClient = await papagoClient.GetResponseAsync())
                 using (var reader = new StreamReader(responseClient.GetResponseStream()))
                 {
-                    var ParserObject = JObject.Parse(await reader.ReadToEndAsync());
-                    var trMessage = ParserObject["message"]["result"]["translatedText"].ToString();
+                    var parserObject = JObject.Parse(await reader.ReadToEndAsync());
+                    var trMessage = parserObject["message"]["result"]["translatedText"].ToString();
 
                     var translateSentence = trMessage.Truncate(EmbedBuilder.MaxDescriptionLength);
 
