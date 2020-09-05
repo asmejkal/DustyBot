@@ -17,6 +17,10 @@ using System.Net;
 using System.IO;
 using Discord.Net;
 using DustyBot.Definitions;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
@@ -349,6 +353,64 @@ namespace DustyBot.Modules
             await Settings.ModifyGlobal<SupporterSettings>(x => removed = x.Supporters.RemoveAll(y => y.Name == command["Name"]));
 
             await command.ReplySuccess(Communicator, $"Removed {removed} supporters.");
+        }
+
+        [Command("번역", "trans")]
+        [Alias("tr")]
+        [Parameter("start", ParameterType.String)]
+        [Parameter("end", ParameterType.String)]
+        [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "content of the direct message, see below for how the whole message will look like")]
+        public async Task Translation(ICommand command)
+        {
+            var config = await Settings.ReadGlobal<BotConfig>();
+
+            await command.Message.Channel.TriggerTypingAsync();
+            string stringMessage = command["Message"].ToString();
+            string FirstLang = command["start"].ToString();
+            string LastLang = command["end"].ToString();
+
+            var data = new Dictionary<string, string>()
+            {
+                {"source", FirstLang},
+                {"target", LastLang},
+                {"text", stringMessage},
+            };
+
+            //TODO(BJRambo) : checking to why did Reload httpclient later.
+            using (var papagoClient = new HttpClient())
+            {
+                papagoClient.DefaultRequestHeaders.Clear();
+                papagoClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                papagoClient.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json");
+
+                using (var request = new HttpRequestMessage(HttpMethod.Post, "https://openapi.naver.com/v1/papago/n2mt") { Content = new FormUrlEncodedContent(data) })
+                {
+                    request.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
+                    request.Headers.Add("X-Naver-Client-Secret", config.PapagoClientSecret);
+                    var responseClinet = await papagoClient.SendAsync(request).ConfigureAwait(false);
+                    if (responseClinet.IsSuccessStatusCode)
+                    {
+                        var ParserObject = JObject.Parse(await responseClinet.Content.ReadAsStringAsync());
+                        string trMessage = ParserObject["message"]["result"]["translatedText"].ToString();
+
+                        string translateSentence = trMessage;
+                        if (translateSentence.Length > EmbedBuilder.MaxDescriptionLength)
+                        {
+                            translateSentence = $"{translateSentence.Substring(0, EmbedBuilder.MaxDescriptionLength - 3)}...";
+                        }
+
+                        EmbedBuilder embedBuilder = new EmbedBuilder()
+                        {
+                            Title = $"번역 from **{FirstLang.ToUpper()}** to **{LastLang.ToUpper()}**"
+                        };
+
+                        embedBuilder.WithDescription(translateSentence);
+                        embedBuilder.WithColor(new Color(0, 206, 56));
+                        embedBuilder.WithFooter("powerd by papago.naver.com");
+                        await command.Message.Channel.SendMessageAsync(string.Empty, false, embedBuilder.Build()).ConfigureAwait(false);
+                    }
+                }
+            }
         }
 
         static string Markdown(string input)
