@@ -4,20 +4,20 @@ using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Settings;
+using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Net.Http.Headers;
+using System.IO;
+using System.Net;
+using System.Text;
 using System.Threading.Tasks;
-using DustyBot.Framework.Utility;
 
 namespace DustyBot.Modules
 {
     [Module("Translator", "The ability to translate.")]
     class TranslatorModule : Module
     {
-        private ILogger Logger;
+        private ILogger Logger { get; };
         public ICommunicator Communicator { get; }
         public ISettingsProvider Settings { get; }
 
@@ -29,8 +29,8 @@ namespace DustyBot.Modules
             Logger = logger;
         }
 
-        [Command("tr", "translate")]
-        [Alias("번역")]
+        [Command("translate", "translate")]
+        [Alias("tr", "번역")]
         [Parameter("Start", ParameterType.String, "Select the language that needs to be translated.")]
         [Parameter("End", ParameterType.String, "Select the language to translate.")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "Input the word or sentence you want to translate.")]
@@ -44,27 +44,26 @@ namespace DustyBot.Modules
             var firstLang = command["Start"].ToString();
             var lastLang = command["End"].ToString();
 
-            var data = new Dictionary<string, string>()
-            {
-                {"source", firstLang},
-                {"target", lastLang},
-                {"text", stringMessage},
-            };
+            var byteDataParams = Encoding.UTF8.GetBytes("source=" + firstLang + "&target=" + lastLang + "&text=" + stringMessage);
 
             //TODO(BJRambo) : checking to why did Reload httpclient later.
-            var papagoClient = new HttpClient();
-            papagoClient.DefaultRequestHeaders.Clear();
-            papagoClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            papagoClient.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json");
-
-            using (var request = new HttpRequestMessage(HttpMethod.Post, "https://openapi.naver.com/v1/papago/n2mt") { Content = new FormUrlEncodedContent(data) })
+            try
             {
-                request.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
-                request.Headers.Add("X-Naver-Client-Secret", config.PapagoClientSecret);
-                var responseClient = await papagoClient.SendAsync(request);
-                if (responseClient.IsSuccessStatusCode)
+                var papagoClient = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt") as HttpWebRequest;
+                papagoClient.Method = "POST";
+                papagoClient.ContentType = "application/x-www-form-urlencoded";
+                papagoClient.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
+                papagoClient.Headers.Add("X-Naver-Client-Secret", config.PapagoClientSecret);
+                papagoClient.ContentLength = byteDataParams.Length;
+                using (var st = papagoClient.GetRequestStream())
                 {
-                    var ParserObject = JObject.Parse(await responseClient.Content.ReadAsStringAsync());
+                    st.Write(byteDataParams, 0, byteDataParams.Length);
+                }
+
+                using (var responseClient = await papagoClient.GetResponseAsync())
+                using (var reader = new StreamReader(responseClient.GetResponseStream()))
+                {
+                    var ParserObject = JObject.Parse(await reader.ReadToEndAsync());
                     var trMessage = ParserObject["message"]["result"]["translatedText"].ToString();
 
                     var translateSentence = trMessage.Truncate(EmbedBuilder.MaxDescriptionLength);
@@ -79,6 +78,10 @@ namespace DustyBot.Modules
                     embedBuilder.WithFooter("Powered by Papago");
                     await command.Message.Channel.SendMessageAsync(string.Empty, false, embedBuilder.Build()).ConfigureAwait(false);
                 }
+            }
+            catch (WebException e)
+            {
+                await command.Reply(Communicator, $"Couldn't reach Papago (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
     }
