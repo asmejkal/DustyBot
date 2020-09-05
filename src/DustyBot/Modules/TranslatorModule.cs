@@ -17,7 +17,7 @@ namespace DustyBot.Modules
     [Module("Translator", "The ability to translate.")]
     class TranslatorModule : Module
     {
-        private ILogger Logger { get; };
+        private ILogger Logger { get; }
         public ICommunicator Communicator { get; }
         public ISettingsProvider Settings { get; }
 
