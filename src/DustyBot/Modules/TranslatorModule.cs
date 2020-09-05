@@ -30,7 +30,7 @@ namespace DustyBot.Modules
         }
 
         [Command("translate", "translate")]
-        [Alias("tr", "번역")]
+        [Alias("tr"), Alias("번역")]
         [Parameter("Start", ParameterType.String, "Select the language that needs to be translated.")]
         [Parameter("End", ParameterType.String, "Select the language to translate.")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "Input the word or sentence you want to translate.")]
