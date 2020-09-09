@@ -15,6 +15,7 @@ using DustyBot.Helpers;
 using System;
 using System.Collections.Generic;
 using DustyBot.Framework.Utility;
+using Discord.WebSocket;
 
 namespace DustyBot.Modules
 {
@@ -251,8 +252,7 @@ namespace DustyBot.Modules
         public async Task ModDm(ICommand command)
         {
             const int userThreshold = 100;
-            var users = await command.Guild.GetUsersAsync();
-            if (users.Count < userThreshold)
+            if (((SocketGuild)command.Guild).MemberCount < userThreshold)
             {
                 await command.ReplyError(Communicator, $"For security reasons, this command cannot be used on servers below {userThreshold} members.");
                 return;
