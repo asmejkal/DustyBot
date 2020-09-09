@@ -8,6 +8,7 @@ using Discord;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
 using System.Threading;
+using DustyBot.Framework.Logging;
 
 namespace DustyBot.Framework
 {
@@ -50,6 +51,7 @@ namespace DustyBot.Framework
         public DiscordSocketClient Client { get; private set; }
         public Config.IEssentialConfig Config { get; private set; }
         public Events.IEventRouter EventRouter { get; private set; }
+        public ILogger Logger { get; }
 
         public Framework(Components components)
         {
@@ -64,6 +66,7 @@ namespace DustyBot.Framework
             if (components.Logger == null)
                 components.Logger = new Logging.ConsoleLogger(components.Client);
 
+            Logger = components.Logger;
             EventRouter = new Events.SocketEventRouter(components.Modules, components.Client);
 
             if (components.Communicator == null)
@@ -77,13 +80,27 @@ namespace DustyBot.Framework
 
         public async Task Run(string status = "")
         {
+            var s = new SemaphoreSlim(0);
+            Client.Ready += () => Task.FromResult(s.Release());
+
             //Login and start client
             await Client.LoginAsync(TokenType.Bot, Config.BotToken);
             await Client.StartAsync();
 
-            var s = new SemaphoreSlim(0);
-            Client.Ready += () => Task.FromResult(s.Release());
             await s.WaitAsync();
+
+            Utility.TaskHelper.FireForget(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMinutes(5));
+
+                var failed = Client.Guilds.Where(x => x.DownloadedMemberCount < x.MemberCount).ToList();
+                var total = Client.Guilds.Count;
+
+                if (failed.Any())
+                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Gateway", $"Failed to download {failed.Count} guilds out of {total}: {string.Join(", ", failed.Select(x => $"{x.Name} ({x.Id}) - {x.MemberCount - x.DownloadedMemberCount} missing"))}"));
+                else
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Gateway", $"All guilds were downloaded successfully."));
+            });
 
             EventRouter.Start();
 

@@ -1,6 +1,7 @@
 ﻿using Discord;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Settings;
@@ -50,18 +51,18 @@ namespace DustyBot.Modules
 
             try
             {
-                var papagoClient = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt");
-                papagoClient.Method = "POST";
-                papagoClient.ContentType = "application/x-www-form-urlencoded";
-                papagoClient.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
-                papagoClient.Headers.Add("X-Naver-Client-Secret", config.PapagoClientSecret);
-                papagoClient.ContentLength = byteDataParams.Length;
-                using (var st = papagoClient.GetRequestStream())
+                var request = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt");
+                request.Method = "POST";
+                request.ContentType = "application/x-www-form-urlencoded";
+                request.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
+                request.Headers.Add("X-Naver-Client-Secret", config.PapagoClientSecret);
+                request.ContentLength = byteDataParams.Length;
+                using (var st = request.GetRequestStream())
                 {
                     st.Write(byteDataParams, 0, byteDataParams.Length);
                 }
 
-                using (var responseClient = await papagoClient.GetResponseAsync())
+                using (var responseClient = await request.GetResponseAsync())
                 using (var reader = new StreamReader(responseClient.GetResponseStream()))
                 {
                     var parserObject = JObject.Parse(await reader.ReadToEndAsync());
@@ -70,15 +71,17 @@ namespace DustyBot.Modules
                     var translateSentence = trMessage.Truncate(EmbedBuilder.MaxDescriptionLength);
 
                     EmbedBuilder embedBuilder = new EmbedBuilder()
-                    {
-                        Title = $"Translate from **{firstLang.ToUpper()}** to **{lastLang.ToUpper()}**"
-                    };
+                        .WithTitle($"Translation from **{firstLang.ToUpper()}** to **{lastLang.ToUpper()}**")
+                        .WithDescription(translateSentence)
+                        .WithColor(new Color(0, 206, 56))
+                        .WithFooter("Powered by Papago");
 
-                    embedBuilder.WithDescription(translateSentence);
-                    embedBuilder.WithColor(new Color(0, 206, 56));
-                    embedBuilder.WithFooter("Powered by Papago");
                     await command.Message.Channel.SendMessageAsync(string.Empty, false, embedBuilder.Build()).ConfigureAwait(false);
                 }
+            }
+            catch (WebException e) when (e.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.BadRequest)
+            {
+                throw new IncorrectParametersCommandException("Unsupported language combination.");
             }
             catch (WebException e)
             {

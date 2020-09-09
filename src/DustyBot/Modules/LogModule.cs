@@ -24,15 +24,17 @@ namespace DustyBot.Modules
     [Module("Log", "Provides logging of server events.")]
     class LogModule : Module
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
-        public ILogger Logger { get; }
+        private ICommunicator Communicator { get; }
+        private ISettingsProvider Settings { get; }
+        private ILogger Logger { get; }
+        private DiscordSocketClient SocketClient { get; }
 
-        public LogModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public LogModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, DiscordSocketClient socketClient)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
+            SocketClient = socketClient;
         }
 
         [Command("log", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -115,34 +117,50 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "A channel filter for logging of deleted messages has been " + 
                 (channelIds.Count > 0 ? "set." : "disabled.")).ConfigureAwait(false);
         }
-        
+
+        public override Task OnGuildMemberUpdated(SocketGuildUser before, SocketGuildUser after) => 
+            OnUserUpdated(before, after);
+
         public override Task OnUserUpdated(SocketUser before, SocketUser after)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
+                    if (string.IsNullOrEmpty(before.Username) || string.IsNullOrEmpty(after.Username))
+                        return;
+
                     if (before.Username == after.Username)
                         return;
 
-                    var guildUser = after as SocketGuildUser;
-                    if (guildUser == null)
-                        return;
+                    var updated = new List<SocketGuild>();
+                    foreach (var guild in SocketClient.Guilds.Select(x => x.GetUser(after.Id)?.Guild).Where(x => x != null))
+                    {
+                        try
+                        {
+                            var settings = await Settings.Read<LogSettings>(guild.Id, false);
+                            if (settings == null)
+                                continue;
 
-                    var guild = guildUser.Guild;
-                    var settings = await Settings.Read<LogSettings>(guild.Id, false).ConfigureAwait(false);
-                    if (settings == null)
-                        return;
+                            var eventChannelId = settings.EventNameChangedChannel;
+                            if (eventChannelId == 0)
+                                continue;
 
-                    var eventChannelId = settings.EventNameChangedChannel;
-                    if (eventChannelId == 0)
-                        return;
+                            var eventChannel = guild.TextChannels.FirstOrDefault(x => x.Id == eventChannelId);
+                            if (eventChannel == null)
+                                continue;
 
-                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
-                    if (eventChannel == null)
-                        return;
+                            await Communicator.SendMessage(eventChannel, $"`{before.Username}` changed to `{after.Username}` (<@{after.Id}>)");
+                            updated.Add(guild);
+                        }
+                        catch (Exception ex)
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Error, "Log", $"Failed to process user {after.Id} update for guild {guild.Name} ({guild.Id})", ex));
+                        }
+                    }
 
-                    await Communicator.SendMessage(eventChannel, $"`{before.Username}` changed to `{after.Username}` (<@{after.Id}>)").ConfigureAwait(false);
+                    if (updated.Any())
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Logged username change {before.Username} -> {after.Username} ({after.Id}) on {updated.Count} servers: {string.Join(", ", updated.Select(x => $"{x.Name} ({x.Id})"))}"));
                 }
                 catch (Exception ex)
                 {

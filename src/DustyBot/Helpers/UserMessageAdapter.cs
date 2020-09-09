@@ -94,5 +94,15 @@ namespace DustyBot.Helpers
 
         public Task RemoveReactionAsync(IEmote emote, ulong userId, RequestOptions options = null)
             => Inner.RemoveReactionAsync(emote, userId, options);
+
+        public Task CrosspostAsync(RequestOptions options = null)
+        {
+            return Inner.CrosspostAsync(options);
+        }
+
+        public Task RemoveAllReactionsForEmoteAsync(IEmote emote, RequestOptions options = null)
+        {
+            return Inner.RemoveAllReactionsForEmoteAsync(emote, options);
+        }
     }
 }

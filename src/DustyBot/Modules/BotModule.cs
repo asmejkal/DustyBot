@@ -26,9 +26,9 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; }
         public ISettingsProvider Settings { get; }
         public IModuleCollection ModuleCollection { get; }
-        public IDiscordClient Client { get; }
+        public DiscordSocketClient Client { get; }
 
-        public BotModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, IDiscordClient client)
+        public BotModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, DiscordSocketClient client)
         {
             Communicator = communicator;
             Settings = settings;
@@ -90,15 +90,11 @@ namespace DustyBot.Modules
         [Command("about", "Shows information about the bot.", CommandFlags.DirectMessageAllow)]
         public async Task About(ICommand command)
         {
-            var guilds = await Client.GetGuildsAsync().ConfigureAwait(false);
             var config = await Settings.ReadGlobal<BotConfig>();
 
             var users = new HashSet<ulong>();
-            foreach (var guild in guilds)
-            {
-                foreach (var user in await guild.GetUsersAsync().ConfigureAwait(false))
-                    users.Add(user.Id);
-            }
+            foreach (var guild in Client.Guilds)
+                users.UnionWith(guild.Users.Select(x => x.Id));
 
             var uptime = (DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime());
 
@@ -106,7 +102,7 @@ namespace DustyBot.Modules
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddField("Author", "Yeba#3517", true)
                 .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
-                .AddField("Presence", $"{users.Count} users\n{guilds.Count} servers", true)
+                .AddField("Presence", $"{users.Count} users\n{Client.Guilds.Count} servers", true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
                 .AddField("Web", WebConstants.WebsiteRoot, true)
@@ -123,7 +119,10 @@ namespace DustyBot.Modules
 
             foreach (var owner in config.OwnerIDs)
             {
-                var user = await Client.GetUserAsync(owner);
+                var user = (IUser)Client.GetUser(owner);
+                if (user == null)
+                    user = await Client.Rest.GetUserAsync(owner);
+
                 var author = command.Message.Author;
                 await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
             }
@@ -141,7 +140,7 @@ namespace DustyBot.Modules
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();
-            foreach (var guild in (await Client.GetGuildsAsync(CacheMode.AllowDownload)).Select(x => x as SocketGuild).OrderByDescending(x => x.MemberCount))
+            foreach (var guild in Client.Guilds.OrderByDescending(x => x.MemberCount))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 10 == 0)
                     pages.Add(new EmbedBuilder());
@@ -160,9 +159,9 @@ namespace DustyBot.Modules
         {
             SocketGuild guild;
             if (command["ServerNameOrId"].AsId.HasValue)
-                guild = (await Client.GetGuildAsync(command["ServerNameOrId"].AsId.Value).ConfigureAwait(false)) as SocketGuild;
+                guild = Client.GetGuild(command["ServerNameOrId"].AsId.Value);
             else
-                guild = (await Client.GetGuildsAsync().ConfigureAwait(false)).FirstOrDefault(x => x.Name == command["ServerNameOrId"]) as SocketGuild;
+                guild = Client.Guilds.FirstOrDefault(x => x.Name == command["ServerNameOrId"]) as SocketGuild;
 
             if (guild == null)
             {
