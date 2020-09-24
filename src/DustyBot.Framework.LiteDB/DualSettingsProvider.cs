@@ -147,18 +147,14 @@ namespace DustyBot.Framework.LiteDB
 
         private Task Call(Func<ISettingsProvider, Task> call, bool write)
         {
-            if (MongoDbProvider != null)
-                FireSilentCall(() => MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write));
-
-            return MeasuredSingleCall(LiteDbProvider, call, LitePerformanceInfo, write);
+            FireSilentCall(() => MeasuredSingleCall(LiteDbProvider, call, LitePerformanceInfo, write));
+            return MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write);
         }
 
         private Task<T> Call<T>(Func<ISettingsProvider, Task<T>> call, bool write)
         {
-            if (MongoDbProvider != null)
-                FireSilentCall(() => MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write));
-
-            return MeasuredSingleCall(LiteDbProvider, call, LitePerformanceInfo, write);
+            FireSilentCall(() => MeasuredSingleCall(LiteDbProvider, call, LitePerformanceInfo, write));
+            return MeasuredSingleCall(MongoDbProvider, call, MongoPerformanceInfo, write);
         }
 
         private async Task MeasuredSingleCall(ISettingsProvider provider, Func<ISettingsProvider, Task> call, PerformanceInfo performanceInfo, bool write)

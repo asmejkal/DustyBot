@@ -359,6 +359,7 @@ namespace DustyBot
                     await MigrateServerSettings<RolesSettings>();
                     await MigrateServerSettings<ScheduleSettings>();
                     await MigrateServerSettings<StarboardSettings>();
+                    await MigrateGlobalSettings<SupporterSettings>();
                     await MigrateUserSettings<UserCredentials>();
                     await MigrateUserSettings<UserMediaSettings>();
                     await MigrateUserSettings<UserNotificationSettings>();
