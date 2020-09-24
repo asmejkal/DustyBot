@@ -5,7 +5,7 @@ using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
+using DustyBot.Core.Utility;
 using DustyBot.Settings;
 using Newtonsoft.Json.Linq;
 using System;

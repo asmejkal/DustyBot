@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
+using DustyBot.Core.Utility;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;

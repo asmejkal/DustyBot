@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
+using DustyBot.Core.Utility;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
@@ -13,10 +14,8 @@ using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
-using System.IO;
-using Newtonsoft.Json.Linq;
 using DustyBot.Definitions;
-using Newtonsoft.Json;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -59,13 +58,15 @@ namespace DustyBot.Modules
 
         private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3months|3month|3mo|6months|6month|6mo|year|y|all)$";
 
-        public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        private ICommunicator Communicator { get; }
+        private ISettingsProvider Settings { get; }
+        private Func<Task<ILastFmService>> LastFmServiceFactory { get; }
 
-        public LastFmModule(ICommunicator communicator, ISettingsProvider settings)
+        public LastFmModule(ICommunicator communicator, ISettingsProvider settings, Func<Task<ILastFmService>> lastFmServiceFactory)
         {
             Communicator = communicator;
             Settings = settings;
+            LastFmServiceFactory = lastFmServiceFactory;
         }
 
         [Command("lf", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -749,49 +750,36 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Your Last.fm username has been deleted.");
         }
 
-        //[Command("lf", "test", "Deletes your saved Last.fm username.", CommandFlags.DirectMessageAllow)]
-        //[Comment("Can be used in a direct message.")]
-        //public async Task Test(ICommand command)
-        //{
-        //    var settings = await Settings.ReadUser<LastFmUserSettings>();
-        //    var key = (await Settings.ReadGlobal<BotConfig>()).LastFmKey;
-        //    var tasks = new List<Task<int>>();
-        //    var semaphore = new System.Threading.SemaphoreSlim(1000, 1000);
-        //    ServicePointManager.DefaultConnectionLimit = 1000;
-        //    ServicePointManager.FindServicePoint(new Uri("http://ws.audioscrobbler.com")).ConnectionLimit = 1000;
-        //    for (int i = 0; ; i++)
-        //    {
-        //        var batch = settings.Skip(i * 7).Take(7);
-        //        if (!batch.Any())
-        //            break;
+        [Command("lf", "top", "artists", "global", "Shows the top artists among all users.", CommandFlags.OwnerOnly)]
+        [Alias("lf", "ta", "global"), Alias("lf", "top", "artist", "global", true), Alias("lf", "topartists", "global", true)]
+        [Alias("lf", "topartist", "global", true), Alias("lf", "artists", "global")]
+        public async Task Test(ICommand command)
+        {
+            using (var dbService = await LastFmServiceFactory())
+            {
+                const int NumDisplayed = 100;
+                var results = await dbService.GetTopArtistsAsync(NumDisplayed, default);
 
-        //        tasks.Add(Task.Run(async () =>
-        //        {
-        //            var req = WebRequest.CreateHttp($"https://dustybotfunctionsjobs.azurewebsites.net/api/Function1");
-        //            req.Method = "POST";
-        //            req.ContentType = "application/json";
-        //            req.Timeout = System.Threading.Timeout.Infinite;
-        //            req.UserAgent = "User-Agent: PostmanRuntime/7.22.0";
-        //            req.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+                var pages = new PageCollectionBuilder();
+                var place = 1;
+                foreach (var entry in results.Take(NumDisplayed))
+                    pages.AppendLine($"`#{place++}` **{FormatLink(entry.Name, entry.Url, true)}**_ – {entry.Plays.ToStringBigNumber()} plays_");
 
-        //            var body = JsonConvert.SerializeObject(new { accounts = batch.Select(x => x.LastFmUsername).ToList() });
-        //            using (var writer = new StreamWriter(await req.GetRequestStreamAsync(), Encoding.UTF8))
-        //                await writer.WriteAsync(body).ConfigureAwait(false);
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
+                    .WithIconUrl(WebConstants.LfIconUrl)
+                    .WithName($"Global top artists");
 
-        //            using (var res = await req.GetResponseAsync())
-        //            using (var stream = new StreamReader(res.GetResponseStream()))
-        //            {
-        //                var result = await stream.ReadToEndAsync();
-        //                Console.WriteLine($"Batch {i}: {result}");
-        //                return int.Parse(result);
-        //            }
-        //        }));
+                    return new EmbedBuilder()
+                        .WithColor(0xd9, 0x23, 0x23)
+                        .WithAuthor(author)
+                        .WithFooter($"From top artists of all bot users");
+                });
 
-        //        await Task.Delay(200);
-        //    }
-
-        //    var results = (await Task.WhenAll(tasks)).Sum();
-        //}
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+            }
+        }
 
         string FormatDynamicLink(dynamic entity, bool trim = false)
             => FormatLink((string)entity?.name ?? "Unknown", (string)entity?.url, trim);

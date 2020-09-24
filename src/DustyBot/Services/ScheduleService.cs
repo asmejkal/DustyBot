@@ -79,7 +79,7 @@ namespace DustyBot.Services
             Logger = logger;
         }
 
-        public async Task Start()
+        public async Task StartAsync()
         {
             // Calendar updates
             var delay = UpdateFrequency.Minutes - (DateTime.UtcNow.Minute % UpdateFrequency.Minutes);
@@ -90,10 +90,11 @@ namespace DustyBot.Services
                 await RefreshNotifications(settings.ServerId, settings);
         }
 
-        public void Stop()
+        public Task StopAsync()
         {
             UpdateTimer?.Dispose();
             UpdateTimer = null;
+            return Task.CompletedTask;
         }
 
         public async Task RefreshNotifications(ulong serverId, ScheduleSettings settings)

@@ -12,6 +12,8 @@ using System.IO;
 using DustyBot.Helpers;
 using DustyBot.Settings;
 using DustyBot.Definitions;
+using DustyBot.Database.Services;
+using DustyBot.Database.Entities;
 using DustyBot.Framework.Settings;
 
 namespace DustyBot
@@ -76,6 +78,9 @@ namespace DustyBot
             [Option("tablestoragecs", HelpText = "Azure Table Storage connection string.")]
             public string TableStorageConnectionString { get; set; }
 
+            [Option("sqldbcs", HelpText = "SQL DB connection string.")]
+            public string SqlDbConnectionString { get; set; }
+        
             [Option("papagoclientid", HelpText = "Papago client id string.")]
             public string PapagoClientId { get; set; }
 
@@ -149,18 +154,27 @@ namespace DustyBot
                     var mongoDbSettings = opts.ConnectionString != null ? new MongoDbSettingsProvider(opts.ConnectionString, opts.Instance) : null;
                     var settings = new DualSettingsProvider(liteDbSettings, mongoDbSettings, logger);
                     var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
-                    
+
                     //Get config
                     components.Config = await components.Settings.ReadGlobal<BotConfig>();
 
                     //Choose communicator
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
 
+                    // Sql services
+                    var sqlConnectionString = ((BotConfig)components.Config).SqlDbConnectionString;
+                    Func<Task<ILastFmService>> lastFmServiceFactory = null;
+                    if (sqlConnectionString != null)
+                    {
+                        lastFmServiceFactory = new Func<Task<ILastFmService>>(() => 
+                            Task.FromResult<ILastFmService>(new LastFmService(DustyBotDbContext.Create(sqlConnectionString))));
+                    }
+
                     //Choose modules
                     var scheduleService = new Services.ScheduleService(components.Client, components.Settings, components.Logger);
                     components.Modules.Add(new Modules.BotModule(components.Communicator, components.Settings, this, components.Client));
                     components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Logger, client, scheduleService));
-                    components.Modules.Add(new Modules.LastFmModule(components.Communicator, components.Settings));
+                    components.Modules.Add(new Modules.LastFmModule(components.Communicator, components.Settings, lastFmServiceFactory));
                     components.Modules.Add(new Modules.SpotifyModule(components.Communicator, components.Settings, (BotConfig)components.Config));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
@@ -182,19 +196,22 @@ namespace DustyBot
                     //Choose services
                     components.Services.Add(new Services.DaumCafeService(components.Client, components.Settings, components.Logger));
                     components.Services.Add(scheduleService);
-                    components.Services.Add(new Services.ReportingService(components.Settings, components.Logger));
                     _services = components.Services;
 
                     //Init framework
                     var framework = new Framework.Framework(components);
 
+                    Task stopTask = null;
                     Console.CancelKeyPress += (s, e) =>
                     {
                         e.Cancel = true;
-                        framework.Stop();
+                        stopTask = framework.StopAsync();
                     };
 
                     await framework.Run($"{components.Config.CommandPrefix}help | {WebConstants.WebsiteShorthand}");
+
+                    if (stopTask != null)
+                        await stopTask;
                 }
             }
             catch (Exception ex)
@@ -236,6 +253,7 @@ namespace DustyBot
                             SpotifyId = opts.SpotifyId,
                             SpotifyKey = opts.SpotifyKey,
                             TableStorageConnectionString = opts.TableStorageConnectionString,
+                            SqlDbConnectionString = opts.SqlDbConnectionString,
                             PapagoClientId = opts.PapagoClientId,
                             PapagoClientSecret = opts.PapagoClientSecret
                         });
@@ -281,6 +299,9 @@ namespace DustyBot
 
                             if (opts.TableStorageConnectionString != null)
                                 s.TableStorageConnectionString = opts.TableStorageConnectionString;
+
+                            if (opts.SqlDbConnectionString != null)
+                                s.SqlDbConnectionString = opts.SqlDbConnectionString;
 
                             if (opts.PapagoClientId != null)
                                 s.PapagoClientId = opts.PapagoClientId;
