@@ -4,23 +4,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
 using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Framework.LiteDB.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using Discord.WebSocket;
 using System.Text.RegularExpressions;
-using System.Threading;
+using DustyBot.Database.Services;
+using DustyBot.Core.Collections;
+using DustyBot.Core.Formatting;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Modules
 {
@@ -28,13 +26,13 @@ namespace DustyBot.Modules
     class StarboardModule : Module
     {
         public ICommunicator Communicator { get; private set; }
-        public ISettingsProvider Settings { get; private set; }
+        public ISettingsService Settings { get; private set; }
         public ILogger Logger { get; private set; }
         BotConfig Config { get; }
 
         AsyncMutexCollection<Tuple<ulong, int>> _processingMutexes = new AsyncMutexCollection<Tuple<ulong, int>>();
 
-        public StarboardModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, BotConfig config)
+        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
         {
             Communicator = communicator;
             Settings = settings;

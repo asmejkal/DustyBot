@@ -1,13 +1,12 @@
-﻿    using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Discord.WebSocket;
 using Discord;
-using DustyBot.Framework.Utility;
-using System.Text.RegularExpressions;
 using System.Diagnostics;
+using DustyBot.Core.Async;
+using DustyBot.Core.Collections;
 
 namespace DustyBot.Framework.Commands
 {
@@ -20,11 +19,11 @@ namespace DustyBot.Framework.Commands
 
         public Communication.ICommunicator Communicator { get; set; }
         public Logging.ILogger Logger { get; set; }
-        public Config.IEssentialConfig Config { get; set; }
+        public Config.FrameworkConfig Config { get; set; }
 
         private int CommandCounter { get; set; } = 0;
 
-        public CommandRouter(IEnumerable<ICommandHandler> handlers, Communication.ICommunicator communicator, Logging.ILogger logger, Config.IEssentialConfig config)
+        public CommandRouter(IEnumerable<ICommandHandler> handlers, Communication.ICommunicator communicator, Logging.ILogger logger, Config.FrameworkConfig config)
         {
             Communicator = communicator;
             Logger = logger;
@@ -125,7 +124,7 @@ namespace DustyBot.Framework.Commands
                 var verificationElapsed = stopwatch.Elapsed;
 
                 //Create command
-                var parseResult = await SocketCommand.TryCreate(commandRegistration, commandUsage, userMessage, Config);
+                var parseResult = await SocketCommand.TryCreate(commandRegistration, commandUsage, userMessage, Config.CommandPrefix);
                 if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
                 {
                     string explanation = string.Empty;

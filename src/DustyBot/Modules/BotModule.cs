@@ -7,8 +7,6 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using System.Reflection;
@@ -16,7 +14,9 @@ using Discord.WebSocket;
 using System.Net;
 using System.IO;
 using Discord.Net;
+using DustyBot.Core.Formatting;
 using DustyBot.Definitions;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -24,11 +24,11 @@ namespace DustyBot.Modules
     class BotModule : Framework.Modules.Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public IModuleCollection ModuleCollection { get; }
         public DiscordSocketClient Client { get; }
 
-        public BotModule(ICommunicator communicator, ISettingsProvider settings, IModuleCollection moduleCollection, DiscordSocketClient client)
+        public BotModule(ICommunicator communicator, ISettingsService settings, IModuleCollection moduleCollection, DiscordSocketClient client)
         {
             Communicator = communicator;
             Settings = settings;
@@ -66,7 +66,7 @@ namespace DustyBot.Modules
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
-                embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, config)));
+                embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, config.CommandPrefix)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
             }
@@ -250,7 +250,7 @@ namespace DustyBot.Modules
                         //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
                         "</p>");
 
-                    var usage = BuildWebUsageString(handledCommand, config);
+                    var usage = BuildWebUsageString(handledCommand, config.CommandPrefix);
                     if (string.IsNullOrEmpty(usage))
                         continue;
 
@@ -289,44 +289,6 @@ namespace DustyBot.Modules
             await Task.WhenAll(tasks);
         }
 
-        [Command("server", "settings", "get", "Gets settings for a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
-        [Parameter("ServerId", ParameterType.Id, ParameterFlags.Optional)]
-        [Parameter("Module", ParameterType.String, "LiteDB collection name")]
-        [Parameter("Raw", @"^raw$", ParameterType.String, ParameterFlags.Optional, "get unformatted output")]
-        public async Task GetSettings(ICommand command)
-        {
-            var serverId = command[0].AsId ?? command.GuildId;
-            var result = await Settings.DumpSettings(serverId, command["Module"], command["Raw"].HasValue);
-            
-            using (var stream = new MemoryStream())
-            using (var writer = new StreamWriter(stream, Encoding.UTF8))
-            {
-                await writer.WriteAsync(result);
-                await writer.FlushAsync();
-                stream.Position = 0;
-
-                await command.Channel.SendFileAsync(stream, $"{command["Module"]}-{serverId}.json");
-            }
-        }
-
-        [Command("server", "settings", "set", "Sets settings for a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
-        [Parameter("Module", ParameterType.String, "LiteDB collection name")]
-        public async Task SetSettings(ICommand command)
-        {
-            if (command.Message.Attachments.Count <= 0)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Missing attachment.");
-
-            var request = WebRequest.CreateHttp(command.Message.Attachments.First().Url);
-            using (var response = await request.GetResponseAsync())
-            using (var reader = new StreamReader(response.GetResponseStream()))
-            {
-                var json = await reader.ReadToEndAsync();
-                await Settings.SetSettings(command["Module"], json);
-            }
-
-            await command.ReplySuccess(Communicator, "Done!").ConfigureAwait(false);
-        }
-
         [Command("supporters", "add", "Adds a supporter.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
         [Alias("supporter", "add")]
         [Parameter("Position", ParameterType.UInt, ParameterFlags.Optional)]
@@ -350,28 +312,6 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Removed {removed} supporters.");
         }
 
-        [Command("performance", "stats", "Stats.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
-        public async Task GetPerformance(ICommand command)
-        {
-            if (Settings is Framework.LiteDB.DualSettingsProvider dualSettings)
-            {
-                void PrintStats(StringBuilder builder, Framework.LiteDB.DualSettingsProvider.PerformanceInfo info, string name)
-                {
-                    builder.AppendLine($"**{name}**");
-                    builder.AppendLine($"Reads: {info.ReadRequestCount} in {info.TotalReadRequestLength} (avg {info.AverageRead})");
-                    builder.AppendLine($"Writes: {info.WriteRequestCount} in {info.TotalWriteRequestLength} (avg {info.AverageWrite})");
-                }
-
-                var stats = dualSettings.GetPerformanceInfo();
-
-                var result = new StringBuilder();
-                PrintStats(result, stats.LiteDb, "LiteDb");
-                PrintStats(result, stats.MongoDb, "MongoDb");
-
-                await command.Reply(Communicator, result.ToString());
-            }
-        }
-
         static string Markdown(string input)
         {
             bool inside = false;
@@ -392,9 +332,9 @@ namespace DustyBot.Modules
             return input;
         }
 
-        static string BuildWebUsageString(CommandRegistration commandRegistration, Framework.Config.IEssentialConfig config)
+        static string BuildWebUsageString(CommandRegistration commandRegistration, string commandPrefix)
         {
-            string usage = $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
+            string usage = $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
             foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
             {
                 string tmp = param.Name;
@@ -408,18 +348,18 @@ namespace DustyBot.Modules
             }
 
             var paramDescriptions = new StringBuilder();
-            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(commandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
                 if (param.Flags.HasFlag(ParameterFlags.Optional))
                     tmp += "optional; ";
 
-                tmp += param.GetDescription(config.CommandPrefix);
+                tmp += param.GetDescription(commandPrefix);
                 paramDescriptions.Append(paramDescriptions.Length <= 0 ? tmp : "<br/>" + tmp);
             }
 
             var examples = commandRegistration.Examples
-                .Select(x => $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
+                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "<br/>" + y);
 
@@ -427,8 +367,8 @@ namespace DustyBot.Modules
             if (paramDescriptions.Length > 0)
                 result.Append("<br/><br/>" + Markdown(paramDescriptions.ToString()));
 
-            if (!string.IsNullOrWhiteSpace(commandRegistration.GetComment(config.CommandPrefix)))
-                result.Append("<br/><br/>" + Markdown(commandRegistration.GetComment(config.CommandPrefix)));
+            if (!string.IsNullOrWhiteSpace(commandRegistration.GetComment(commandPrefix)))
+                result.Append("<br/><br/>" + Markdown(commandRegistration.GetComment(commandPrefix)));
 
             if (!string.IsNullOrWhiteSpace(examples))
                 result.Append("<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");

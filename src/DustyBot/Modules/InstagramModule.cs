@@ -3,12 +3,10 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Logging;
 using System.Linq;
 using System;
 using Discord.WebSocket;
-using DustyBot.Framework.Utility;
 using System.Net;
 using System.IO;
 using Newtonsoft.Json.Linq;
@@ -20,6 +18,8 @@ using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using DustyBot.Definitions;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Modules
 {
@@ -34,14 +34,14 @@ namespace DustyBot.Modules
         private static readonly TimeSpan PreviewDeleteWindow = TimeSpan.FromSeconds(30);
 
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
         public BotConfig Config { get; }
 
         private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
             new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
-        public InstagramModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, BotConfig config)
+        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
         {
             Communicator = communicator;
             Settings = settings;

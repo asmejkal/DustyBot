@@ -3,13 +3,13 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Logging;
 using DustyBot.Definitions;
 using System.Linq;
 using System;
 using Discord.WebSocket;
 using DustyBot.Framework.Utility;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -17,10 +17,10 @@ namespace DustyBot.Modules
     class InfoModule : Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
-        public InfoModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public InfoModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;

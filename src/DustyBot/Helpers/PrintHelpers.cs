@@ -1,10 +1,10 @@
 ﻿using Discord;
-using DustyBot.Core.Utility;
 using DustyBot.Framework.Utility;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Helpers
 {

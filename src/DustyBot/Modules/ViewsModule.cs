@@ -7,15 +7,15 @@ using System.Net;
 using System.IO;
 using System.Globalization;
 using Newtonsoft.Json.Linq;
-using DustyBot.Core.Utility;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using System.Text.RegularExpressions;
+using DustyBot.Database.Services;
+using DustyBot.Core.Formatting;
+using DustyBot.Core.Parsing;
 
 namespace DustyBot.Modules
 {
@@ -23,9 +23,9 @@ namespace DustyBot.Modules
     class ViewsModule : Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
 
-        public ViewsModule(ICommunicator communicator, ISettingsProvider settings)
+        public ViewsModule(ICommunicator communicator, ISettingsService settings)
         {
             Communicator = communicator;
             Settings = settings;

@@ -11,9 +11,8 @@ namespace DustyBot.Definitions
     {
         public const string DefaultPrefix = ">";
         public const string DataFolder = "Data";
-        public static string GetInstanceDbPath(string instance) => Path.Combine(DataFolder, instance + ".db");
         public static string GetLogFile(string instance) => Path.Combine(DataFolder, instance + ".log");
-        public const ushort SettingsVersion = 12;
+        
         public static readonly CultureInfo Culture = new CultureInfo("en-US");
     }
 }

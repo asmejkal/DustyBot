@@ -1,4 +1,4 @@
-﻿using DustyBot.Database.Entities;
+﻿using DustyBot.Database.Sql;
 using System;
 
 namespace DustyBot.Database.Services

@@ -4,11 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
-using DustyBot.Core.Utility;
-using DustyBot.Framework.Utility;
 using DustyBot.Framework.Communication;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using DustyBot.Core.Parsing;
+using DustyBot.Core.Collections;
 
 namespace DustyBot.Framework.Commands
 {
@@ -49,7 +49,7 @@ namespace DustyBot.Framework.Commands
         public IUser Author => Message.Author;
         public IMessageChannel Channel => Message.Channel;
 
-        public string Prefix => Config.CommandPrefix;
+        public string Prefix { get; }
         public string Invoker { get; private set; }
 
         public IEnumerable<string> Verbs => _verbs;
@@ -64,21 +64,20 @@ namespace DustyBot.Framework.Commands
         public ParameterToken this[int key] => GetParameter(key);
         public ParameterToken this[string name] => GetParameter(name);
 
-        public Config.IEssentialConfig Config { get; set; }
         public CommandRegistration Registration { get; }
         public CommandRegistration.Usage Usage { get; }
 
-        private SocketCommand(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, Config.IEssentialConfig config)
+        private SocketCommand(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix)
         {
             Registration = registration;
             Usage = usage;
             Message = message;
-            Config = config;
+            Prefix = prefix;
         }
 
-        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, Config.IEssentialConfig config)
+        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix)
         {
-            var command = new SocketCommand(registration, usage, message, config);
+            var command = new SocketCommand(registration, usage, message, prefix);
             return Tuple.Create(await command.TryParse(), command as ICommand);
         }
 
@@ -183,9 +182,9 @@ namespace DustyBot.Framework.Commands
 
                     // Handle the case when a user surrounds the remainder with quotes (even though they don't have to)
                     if (value.Length >= 2 && TextQualifiers.Contains(value.First()) && TextQualifiers.Contains(value.Last()))
-                        token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild);
+                        token = new ParameterToken(new Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild);
                     else
-                        token = new ParameterToken(new StringExtensions.Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild);
+                        token = new ParameterToken(new Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild);
                 }
 
                 // Check if the token fits the parameter description

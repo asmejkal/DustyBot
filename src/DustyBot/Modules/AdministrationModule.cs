@@ -8,7 +8,6 @@ using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Logging;
 using Newtonsoft.Json;
 using DustyBot.Helpers;
@@ -16,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using DustyBot.Framework.Utility;
 using Discord.WebSocket;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -23,11 +23,11 @@ namespace DustyBot.Modules
     class AdministrationModule : Module
     {
         private ICommunicator Communicator { get; }
-        private ISettingsProvider Settings { get; }
+        private ISettingsService Settings { get; }
         private ILogger Logger { get; }
         private IDiscordClient Client { get; }
 
-        public AdministrationModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IDiscordClient client)
+        public AdministrationModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IDiscordClient client)
         {
             Communicator = communicator;
             Settings = settings;

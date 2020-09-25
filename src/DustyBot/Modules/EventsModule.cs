@@ -1,23 +1,16 @@
 ﻿using Discord;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
-using System.Text.RegularExpressions;
 using DustyBot.Helpers;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Modules
 {
@@ -25,7 +18,7 @@ namespace DustyBot.Modules
     class EventsModule : Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
         public const string MentionPlaceholder = "{mention}";
@@ -34,7 +27,7 @@ namespace DustyBot.Modules
         public const string IdPlaceholder = "{id}";
         public const string ServerPlaceholder = "{server}";
 
-        public EventsModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public EventsModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;

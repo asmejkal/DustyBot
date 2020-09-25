@@ -4,28 +4,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
 using System.IO;
 using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Settings;
-using System.Text.RegularExpressions;
-using Discord.WebSocket;
-using System.Threading;
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Calendar.v3;
-using Google.Apis.Calendar.v3.Data;
-using Google.Apis.Services;
 using DustyBot.Helpers;
 using DustyBot.Definitions;
 using DustyBot.Services;
+using DustyBot.Database.Services;
+using DustyBot.Core.Collections;
+using DustyBot.Core.Formatting;
+using DustyBot.Core.Miscellaneous;
+using DustyBot.Framework.Config;
 
 namespace DustyBot.Modules
 {
@@ -51,12 +46,12 @@ namespace DustyBot.Modules
         static readonly IReadOnlyCollection<string> ReservedTags = new[] { ScheduleSettings.AllTag, NoneTag, "notify" };
 
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
         public IDiscordClient Client { get; }
         public IScheduleService Service { get; }
 
-        public ScheduleModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IDiscordClient client, IScheduleService service)
+        public ScheduleModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IDiscordClient client, IScheduleService service)
         {
             Communicator = communicator;
             Settings = settings;
@@ -669,7 +664,7 @@ namespace DustyBot.Modules
                             throw new IncorrectParametersCommandException($"Unknown command. Only {allowedCommands.Select(x => x.PrimaryUsage.InvokeUsage).WordJoinQuoted()} commands are allowed.");
 
                         var (partialCommandRegistration, usage) = findResult.Value;
-                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config);
+                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config.CommandPrefix);
                         if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
                             throw new IncorrectParametersCommandException("");
 

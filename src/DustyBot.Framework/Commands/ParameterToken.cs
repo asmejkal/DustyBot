@@ -3,12 +3,11 @@ using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DustyBot.Framework.Utility;
 using System.Globalization;
-using DustyBot.Core.Utility;
+using DustyBot.Core.Parsing;
 
 namespace DustyBot.Framework.Commands
 {
@@ -78,7 +77,7 @@ namespace DustyBot.Framework.Commands
         {
         }
 
-        public ParameterToken(StringExtensions.Token token, SocketGuild guild)
+        public ParameterToken(Token token, SocketGuild guild)
         {
             Repeats.Add(this);
             Begin = token.Begin;

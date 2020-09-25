@@ -9,18 +9,17 @@ using DustyBot.Web.Models;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Http;
-using System.IO;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using Microsoft.WindowsAzure.Storage.Table;
 using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Auth;
-using DustyBot.Entities;
-using DustyBot.Entities.TableStorage;
 using Microsoft.AspNetCore.Http.Extensions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using DustyBot.Database.TableStorage.Tables;
+using DustyBot.Database.Services;
+using System.Threading;
 
 namespace DustyBot.Web.Controllers
 {
@@ -153,18 +152,14 @@ namespace DustyBot.Web.Controllers
                 }
             }
 
-            var storageAccount = CloudStorageAccount.Parse(Environment.GetEnvironmentVariable("TableStorageConnectionString"));
-            var storageClient = storageAccount.CreateCloudTableClient();
-            var table = storageClient.GetTableReference(TableNames.SpotifyAccountTable);
-
-            var entity = new SpotifyAccount()
+            var account = new SpotifyAccount()
             {
-                UserId = id,
+                UserId = id.ToString(),
                 RefreshToken = refreshToken
             };
 
-            await table.CreateIfNotExistsAsync();
-            await table.ExecuteAsync(TableOperation.InsertOrReplace(entity.ToTableEntity()));
+            var service = new SpotifyAccountsService(Environment.GetEnvironmentVariable("TableStorageConnectionString"));
+            await service.AddOrUpdateUserAccountAsync(account, CancellationToken.None);
 
             ViewData["UserName"] = userNameClaim;
             return View();

@@ -5,12 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
-using DustyBot.Core.Utility;
+using DustyBot.Core.Formatting;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
@@ -59,10 +58,10 @@ namespace DustyBot.Modules
         private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3months|3month|3mo|6months|6month|6mo|year|y|all)$";
 
         private ICommunicator Communicator { get; }
-        private ISettingsProvider Settings { get; }
-        private Func<Task<ILastFmService>> LastFmServiceFactory { get; }
+        private ISettingsService Settings { get; }
+        private Func<Task<ILastFmStatsService>> LastFmServiceFactory { get; }
 
-        public LastFmModule(ICommunicator communicator, ISettingsProvider settings, Func<Task<ILastFmService>> lastFmServiceFactory)
+        public LastFmModule(ICommunicator communicator, ISettingsService settings, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
         {
             Communicator = communicator;
             Settings = settings;
@@ -411,7 +410,7 @@ namespace DustyBot.Modules
                     }
                     else if (track.date?.uts != null)
                     {
-                        var ts = TimeHelpers.UnixTimeStampToDateTimeOffset((double)track.date.uts) - DateTimeOffset.UtcNow;
+                        var ts = DateTimeOffset.FromUnixTimeSeconds(track.date.uts) - DateTimeOffset.UtcNow;
                         when = ts.SimpleFormat();
                     }
 

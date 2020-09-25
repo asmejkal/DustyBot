@@ -9,6 +9,7 @@ using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
 using System.Threading;
 using DustyBot.Framework.Logging;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Framework
 {
@@ -22,8 +23,7 @@ namespace DustyBot.Framework
             public DiscordSocketClient Client { get; set; }
             public ICollection<IModule> Modules { get; } = new HashSet<IModule>();
             public ICollection<IService> Services { get; } = new HashSet<IService>();
-            public Settings.ISettingsProvider Settings { get; set; }
-            public Config.IEssentialConfig Config { get; set; }
+            public Config.FrameworkConfig Config { get; set; }
 
             //Optional
             public Communication.ICommunicator Communicator { get; set; }
@@ -33,7 +33,6 @@ namespace DustyBot.Framework
             {
                 return (Modules.Count > 0 || Services.Count > 0) &&
                     Client != null &&
-                    Settings != null &&
                     Config != null;
             }
         }
@@ -49,7 +48,7 @@ namespace DustyBot.Framework
         public IEnumerable<IService> Services => _services;
 
         public DiscordSocketClient Client { get; private set; }
-        public Config.IEssentialConfig Config { get; private set; }
+        public Config.FrameworkConfig Config { get; private set; }
         public Events.IEventRouter EventRouter { get; private set; }
         public ILogger Logger { get; }
 
@@ -89,7 +88,7 @@ namespace DustyBot.Framework
 
             await s.WaitAsync();
 
-            Utility.TaskHelper.FireForget(async () =>
+            TaskHelper.FireForget(async () =>
             {
                 await Task.Delay(TimeSpan.FromMinutes(5));
 

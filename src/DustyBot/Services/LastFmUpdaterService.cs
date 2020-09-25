@@ -1,32 +1,28 @@
-﻿using Discord.WebSocket;
-using DustyBot.Framework.Settings;
-using DustyBot.Settings;
+﻿using DustyBot.Settings;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
 using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
-using DustyBot.Framework.Utility;
 using Discord;
 using System.Threading;
-using System.Collections.Concurrent;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Services;
-using DustyBot.Database.Entities.UserDefinedTypes;
 using System.Diagnostics;
 using System.Collections.Generic;
+using DustyBot.Database.Sql.UserDefinedTypes;
 
 namespace DustyBot.Services
 {
     internal sealed class LastFmUpdaterService : IService, IDisposable
     {
-        private ISettingsProvider Settings { get; }
+        private ISettingsService Settings { get; }
         private ILogger Logger { get; }
-        private Func<Task<ILastFmService>> LastFmServiceFactory { get; }
+        private Func<Task<ILastFmStatsService>> LastFmServiceFactory { get; }
         private CancellationTokenSource CancellationTokenSource { get; set; }
         private Task ExecuteTask { get; set; }
 
-        public LastFmUpdaterService(ISettingsProvider settings, ILogger logger, Func<Task<ILastFmService>> lastFmServiceFactory)
+        public LastFmUpdaterService(ISettingsService settings, ILogger logger, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
         {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             Logger = logger ?? throw new ArgumentNullException(nameof(logger));

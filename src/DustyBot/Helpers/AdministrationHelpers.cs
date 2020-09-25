@@ -1,5 +1,5 @@
 ﻿using Discord;
-using DustyBot.Framework.Settings;
+using DustyBot.Database.Services;
 using DustyBot.Settings;
 using System;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ namespace DustyBot.Helpers
         /// Mutes a member.
         /// </summary>
         /// <returns>A list of channels that couldn't be muted because of missing permissions.</returns>
-        public static async Task<IEnumerable<IGuildChannel>> Mute(IGuildUser user, string reason, ISettingsProvider settings)
+        public static async Task<IEnumerable<IGuildChannel>> Mute(IGuildUser user, string reason, ISettingsService settings)
         {
             IRole muteRole = user.Guild.Roles.FirstOrDefault(x => x.Name == MuteRoleName);
             if (muteRole == null)

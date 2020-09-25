@@ -4,21 +4,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
-using DustyBot.Framework.Config;
 using DustyBot.Settings;
 using DustyBot.Helpers;
-using Discord.WebSocket;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -26,11 +20,11 @@ namespace DustyBot.Modules
     class PollModule : Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
-        public IEssentialConfig Config { get; }
+        public BotConfig Config { get; }
 
-        public PollModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, IEssentialConfig config)
+        public PollModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
         {
             Communicator = communicator;
             Settings = settings;

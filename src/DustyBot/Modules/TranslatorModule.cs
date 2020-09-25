@@ -4,8 +4,6 @@ using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
-using DustyBot.Framework.Settings;
-using DustyBot.Core.Utility;
 using DustyBot.Settings;
 using Newtonsoft.Json.Linq;
 using System;
@@ -13,6 +11,8 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using DustyBot.Database.Services;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Modules
 {
@@ -23,9 +23,9 @@ namespace DustyBot.Modules
 
         private ILogger Logger { get; }
         private ICommunicator Communicator { get; }
-        private ISettingsProvider Settings { get; }
+        private ISettingsService Settings { get; }
 
-        public TranslatorModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public TranslatorModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;
