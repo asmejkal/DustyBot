@@ -14,19 +14,18 @@ namespace DustyBot.Tools.LiteDBMigrator
         [Verb("migrate", HelpText = "Migrate old LiteDB database to MongoDB.")]
         public class LiteDbMigrateOptions
         {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
+            [Value(0, MetaName = "LiteDbPath", Required = true, HelpText = "Path to source LiteDB database.")]
+            public string LiteDbPath { get; set; }
 
             [Value(1, MetaName = "LiteDbPassword", Required = true, HelpText = "Password for database decryption.")]
             public string LiteDbPassword { get; set; }
 
-            [Value(2, MetaName = "MongoDbConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            [Value(2, MetaName = "MongoDbConnectionString", Required = true, HelpText = "MongoDb database connection string for the target database.")]
             public string MongoDbConnectionString { get; set; }
         }
 
         public const string DataFolder = "Data";
         public const ushort SettingsVersion = 12;
-        public static string GetInstanceDbPath(string instance) => Path.Combine(DataFolder, instance + ".db");
 
         static int Main(string[] args)
         {
@@ -42,14 +41,9 @@ namespace DustyBot.Tools.LiteDBMigrator
         {
             try
             {
-                var instancePath = GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found.");
-
-                using (var liteDbSettings = new SettingsProvider(instancePath, new Migrator(SettingsVersion, new Migrations()), opts.LiteDbPassword))
+                using (var liteDbSettings = new SettingsProvider(opts.LiteDbPath, new Migrator(SettingsVersion, new Migrations()), opts.LiteDbPassword))
+                using (var mongoDbSettings = new MongoDbSettingsProvider(opts.MongoDbConnectionString))
                 {
-                    var mongoDbSettings = new MongoDbSettingsProvider(opts.MongoDbConnectionString, opts.Instance);
-
                     async Task MigrateServerSettings<T>()
                         where T : IServerSettings
                     {

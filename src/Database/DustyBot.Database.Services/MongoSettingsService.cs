@@ -16,6 +16,8 @@ namespace DustyBot.Database.Services
 {
     public sealed class MongoSettingsService : ISettingsService, IDisposable
     {
+        public string DatabaseName { get; }
+
         private IMongoClient _client;
         private IMongoDatabase _db;
 
@@ -24,29 +26,23 @@ namespace DustyBot.Database.Services
         AsyncMutexCollection<Tuple<Type, ulong>> _userSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
         AsyncMutexCollection<Type> _globalSettingsLocks = new AsyncMutexCollection<Type>();
 
-        private MongoSettingsService(IMongoClient client, IMongoDatabase db)
+        private MongoSettingsService(IMongoClient client, IMongoDatabase db, string databaseName)
         {
             _client = client;
             _db = db;
+            DatabaseName = databaseName;
         }
 
-        public static async Task<MongoSettingsService> CreateAsync(string connectionString, string database, bool createIfNotExists = false)
+        public static Task<MongoSettingsService> CreateAsync(string connectionString)
         {
             BsonSerializer.RegisterSerializer(DateTimeSerializer.LocalInstance);
             BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
             BsonSerializer.RegisterSerializer(new SecureStringSerializer());
 
-            var client = new MongoClient(connectionString);
-            if (!createIfNotExists)
-            {
-                var cursor = await client.ListDatabaseNamesAsync();
-                var dbs = await cursor.ToListAsync();
-                if (!dbs.Contains(database))
-                    throw new DatabaseNotFoundException();
-            }
-
-            var db = client.GetDatabase(database);
-            return new MongoSettingsService(client, db);
+            var url = MongoUrl.Create(connectionString);
+            var client = new MongoClient(url);
+            var db = client.GetDatabase(url.DatabaseName);
+            return Task.FromResult(new MongoSettingsService(client, db, url.DatabaseName));
         }
 
         private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)

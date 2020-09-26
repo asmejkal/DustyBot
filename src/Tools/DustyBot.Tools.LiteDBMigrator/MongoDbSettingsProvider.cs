@@ -23,14 +23,15 @@ namespace DustyBot.Framework.LiteDB
         AsyncMutexCollection<Tuple<Type, ulong>> _userSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
         AsyncMutexCollection<Type> _globalSettingsLocks = new AsyncMutexCollection<Type>();
 
-        public MongoDbSettingsProvider(string connectionString, string database)
+        public MongoDbSettingsProvider(string connectionString)
         {
             BsonSerializer.RegisterSerializer(DateTimeSerializer.LocalInstance);
             BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
             BsonSerializer.RegisterSerializer(new SecureStringSerializer());
 
-            _client = new MongoClient(connectionString);
-            _db = _client.GetDatabase(database);
+            var url = MongoUrl.Create(connectionString);
+            _client = new MongoClient(url);
+            _db = _client.GetDatabase(url.DatabaseName);
         }
 
         private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)

@@ -6,15 +6,13 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
 using CommandLine;
-using System.IO;
 using DustyBot.Helpers;
 using DustyBot.Settings;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
-using DustyBot.Database.Services.Exceptions;
 using DustyBot.Framework.Config;
 using DustyBot.Database.Sql;
-using DustyBot.Database.Mongo.Management;
+using MongoDB.Driver;
 
 namespace DustyBot
 {
@@ -33,23 +31,14 @@ namespace DustyBot
         [Verb("run", HelpText = "Run the bot.")]
         public class RunOptions
         {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name. Use \"instance create\" to create a new instance.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            [Value(0, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this deployment.")]
             public string MongoConnectionString { get; set; }
         }
 
-        [Verb("instance", HelpText = "Manage bot instances.")]
-        public class InstanceOptions
+        [Verb("configure", HelpText = "Configure the bot deployment.")]
+        public class ConfigureOptions
         {
-            [Value(0, MetaName = "Task", Required = true, HelpText = "The task to perform. Tasks: \"create\" - creates a new instance, \"modify\" - modifies an existing instance, \"delete\" - deletes an instance and all its settings permanently.")]
-            public string Task { get; set; }
-
-            [Value(1, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(2, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            [Value(0, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
             public string MongoConnectionString { get; set; }
 
             [Option("token", HelpText = "Bot token.")]
@@ -100,10 +89,10 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, ConfigureOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
-                    (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
+                    (ConfigureOptions opts) => new Bot().ConfigureAsync(opts).GetAwaiter().GetResult(),
                     errs => ReturnCode.GeneralFailure);
 
             return (int)result;
@@ -122,8 +111,8 @@ namespace DustyBot
                 };
                 
                 using (var client = new DiscordSocketClient(clientConfig))
-                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString, opts.Instance))
-                using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(opts.Instance)))
+                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
+                using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(settings.DatabaseName)))
                 {
                     var components = new Framework.Framework.Components() { Client = client, Logger = logger };
 
@@ -175,7 +164,7 @@ namespace DustyBot
                     components.Services.Add(new Services.DaumCafeService(components.Client, settings, components.Logger));
                     components.Services.Add(scheduleService);
                     _services = components.Services;
-
+                    
                     //Init framework
                     var framework = new Framework.Framework(components);
 
@@ -192,10 +181,9 @@ namespace DustyBot
                         await stopTask;
                 }
             }
-            catch (DatabaseNotFoundException)
+            catch (MongoCommandException ex) when (ex.Code == 13)
             {
-                Console.WriteLine($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-                return ReturnCode.InstanceNotFound;
+                Console.WriteLine("Failed to authorize access to MongoDB. Please check your connection string.\n\n" + ex.ToString());
             }
             catch (Exception ex)
             {
@@ -205,93 +193,59 @@ namespace DustyBot
             return ReturnCode.Success;
         }
 
-        public async Task<ReturnCode> ManageInstance(InstanceOptions opts)
+        public async Task<ReturnCode> ConfigureAsync(ConfigureOptions opts)
         {
             try
             {
-                if (string.Compare(opts.Task, "create", true) == 0)
+                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
                 {
-                    if (opts.OwnerIDs == null || !opts.OwnerIDs.Any() || string.IsNullOrWhiteSpace(opts.Token))
-                        throw new ArgumentException("Owner IDs and bot token must be specified to create an instance.");
-
-                    if (!Directory.Exists(GlobalDefinitions.DataFolder))
-                        Directory.CreateDirectory(GlobalDefinitions.DataFolder);
-
-                    using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString, opts.Instance, createIfNotExists: true))
+                    await settings.ModifyGlobal(async (BotConfig s) =>
                     {
-                        await settings.ModifyGlobal(async (BotConfig s) =>
-                        {
+                        // Required
+                        if (opts.Token != null)
                             s.BotToken = opts.Token;
-                            s.CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? GlobalDefinitions.DefaultPrefix : opts.Prefix;
+
+                        if (opts.OwnerIDs != null && opts.OwnerIDs.Count() > 0)
                             s.OwnerIDs = new List<ulong>(opts.OwnerIDs);
+
+                        if (s.OwnerIDs == null || !s.OwnerIDs.Any() || string.IsNullOrWhiteSpace(s.BotToken))
+                            throw new ArgumentException("Owner IDs and bot token must be specified.");
+
+                        s.CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? GlobalDefinitions.DefaultPrefix : opts.Prefix;
+
+                        // Optional
+                        if (opts.YouTubeKey != null)
                             s.YouTubeKey = opts.YouTubeKey;
-                            s.GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
+
+                        var gac = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
+                        if (gac != null)
+                            s.GCalendarSAC = gac;
+
+                        if (opts.ShortenerKey != null)
                             s.ShortenerKey = opts.ShortenerKey;
+
+                        if (opts.LastFmKey != null)
                             s.LastFmKey = opts.LastFmKey;
+
+                        if (opts.SpotifyId != null)
                             s.SpotifyId = opts.SpotifyId;
+
+                        if (opts.SpotifyKey != null)
                             s.SpotifyKey = opts.SpotifyKey;
+
+                        if (opts.TableStorageConnectionString != null)
                             s.TableStorageConnectionString = opts.TableStorageConnectionString;
+
+                        if (opts.SqlDbConnectionString != null)
                             s.SqlDbConnectionString = opts.SqlDbConnectionString;
+
+                        if (opts.PapagoClientId != null)
                             s.PapagoClientId = opts.PapagoClientId;
+
+                        if (opts.PapagoClientSecret != null)
                             s.PapagoClientSecret = opts.PapagoClientSecret;
-                        });
-                    }
+                    });
                 }
-                else if (string.Compare(opts.Task, "modify", true) == 0)
-                {
-                    var googleAccountCredentials = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
-
-                    using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString, opts.Instance))
-                    {
-                        await settings.ModifyGlobal((BotConfig s) =>
-                        {
-                            if (opts.Token != null)
-                                s.BotToken = opts.Token;
-
-                            if (!string.IsNullOrWhiteSpace(opts.Prefix))
-                                s.CommandPrefix = opts.Prefix;
-
-                            if (opts.OwnerIDs != null && opts.OwnerIDs.Count() > 0)
-                                s.OwnerIDs = new List<ulong>(opts.OwnerIDs);
-
-                            if (opts.YouTubeKey != null)
-                                s.YouTubeKey = opts.YouTubeKey;
-
-                            if (googleAccountCredentials != null)
-                                s.GCalendarSAC = googleAccountCredentials;
-
-                            if (opts.ShortenerKey != null)
-                                s.ShortenerKey = opts.ShortenerKey;
-
-                            if (opts.LastFmKey != null)
-                                s.LastFmKey = opts.LastFmKey;
-
-                            if (opts.SpotifyId != null)
-                                s.SpotifyId = opts.SpotifyId;
-
-                            if (opts.SpotifyKey != null)
-                                s.SpotifyKey = opts.SpotifyKey;
-
-                            if (opts.TableStorageConnectionString != null)
-                                s.TableStorageConnectionString = opts.TableStorageConnectionString;
-
-                            if (opts.SqlDbConnectionString != null)
-                                s.SqlDbConnectionString = opts.SqlDbConnectionString;
-
-                            if (opts.PapagoClientId != null)
-                                s.PapagoClientId = opts.PapagoClientId;
-
-                            if (opts.PapagoClientSecret != null)
-                                s.PapagoClientSecret = opts.PapagoClientSecret;
-                        });
-                    }
-                }
-                else if (string.Compare(opts.Task, "delete", true) == 0)
-                {
-                    await MongoDatabaseManager.DropDatabaseAsync(opts.MongoConnectionString, opts.Instance);
-                }
-                else
-                    throw new ArgumentException("Invalid task.");
             }
             catch (Exception ex)
             {

@@ -3,7 +3,6 @@
   <PropertyGroup>
     <Description>Dusty Bot</Description>
     <AssemblyTitle>Dusty Bot</AssemblyTitle>
-    <VersionPrefix>1.1.0</VersionPrefix>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <AssemblyName>DustyBot</AssemblyName>
     <OutputType>Exe</OutputType>
@@ -14,9 +13,7 @@
     <Authors>Yebafan</Authors>
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
-    <AssemblyVersion>2.9.4.0</AssemblyVersion>
-    <FileVersion>2.9.4.0</FileVersion>
-    <Version>2.9.4</Version>
+    <Version>3.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,13 +25,8 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.2.1" />
     <PackageReference Include="Discord.Net" Version="2.3.0-dev-20200904.2" />
-    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.36.0.1375" />
     <PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
-    <PackageReference Include="Microsoft.Experimental.Collections" Version="1.0.6-e190117-3" />
-    <PackageReference Include="Nito.Collections.Deque" Version="1.0.4" />
     <PackageReference Include="SpotifyAPI.Web" Version="5.1.1" />
-    <PackageReference Include="System.Security.SecureString" Version="4.3.0" />
-    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
 
 </Project>

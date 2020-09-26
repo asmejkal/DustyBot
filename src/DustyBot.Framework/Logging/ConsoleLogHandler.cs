@@ -23,6 +23,8 @@ namespace DustyBot.Framework.Logging
 
             if (!string.IsNullOrEmpty(logFile))
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(logFile));
+
                 FileStream stream;
                 if (!File.Exists(logFile))
                     stream = new FileStream(logFile, FileMode.OpenOrCreate);
