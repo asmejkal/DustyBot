@@ -19,12 +19,17 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Async;
+using DustyBot.Definitions;
+using System.Net;
 
 namespace DustyBot.Modules
 {
     [Module("Starboard", "Reposts the best messages as voted by users into specified channels.")]
     class StarboardModule : Module
     {
+        private static readonly Regex LinkOnlyMessageRegex = new Regex(@"^\s*(?:(http[s]?:\/\/[^\s]+)\s*)+$", RegexOptions.Compiled);
+        private static readonly Regex InstagramThumbnailRegex = new Regex(@"https?:\/\/(?:www.)?instagram.com\/p\/\w+\/media", RegexOptions.Compiled);
+
         public ICommunicator Communicator { get; private set; }
         public ISettingsService Settings { get; private set; }
         public ILogger Logger { get; private set; }
@@ -51,7 +56,7 @@ namespace DustyBot.Modules
         [Command("starboard", "add", "Sets up a new starboard.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Remainder, "a channel that will receive the starred messages")]
-        [Comment("The bot will repost messages that were reacted to with a chosen emoji (:star: by default) to this channel. A user can't star their own message.\n\nYou can modify the minimum number of required reactions. You can have multiple starboards with different emojis or scoped to different channels.")]
+        [Comment("The bot will repost messages that were reacted to with a chosen emoji (:star: by default) to this channel. \n\nA user can't star their own messages unless you allow it with `starboard set rule`.")]
         public async Task AddStarboard(ICommand command)
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
@@ -62,14 +67,40 @@ namespace DustyBot.Modules
 
             var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
-                s.Starboards.Add(new Starboard() { Id = s.NextId, Channel = command["Channel"].AsTextChannel.Id });
+                s.Starboards.Add(new Starboard() { Id = s.NextId, Channel = command["Channel"].AsTextChannel.Id, Style = StarboardStyle.Embed });
                 return s.NextId++;
             }).ConfigureAwait(false);
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}. Use the `starboard set ...` commands to customize it.").ConfigureAwait(false);
         }
 
-        [Command("starboard", "emojis", "Sets one or more custom emoji for a starboard.")]
+        [Command("starboard", "set", "style", "Sets the style for the starboard (embed or text).")]
+        [Alias("starboard", "style", true)]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
+        [Parameter("Style", ParameterType.String, "use `embed` or `text`")]
+        [Comment("`embed` - compact + allows you to jump to the original message \n`text` - better for media (multiple images, playable videos, etc.)")]
+        public async Task SetStyle(ICommand command)
+        {
+            if (!Enum.TryParse<StarboardStyle>(command["Style"], true, out var style) || !Enum.IsDefined(typeof(StarboardStyle), style))
+                throw new IncorrectParametersCommandException("Unknown style.");
+
+            var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            {
+                var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
+                if (board == null)
+                    throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
+
+                board.Style = style;
+                return board.Id;
+            });
+
+            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now use the `{command["Style"]}` style.").ConfigureAwait(false);
+        }
+
+        [Command("starboard", "set", "emoji", "Sets one or more custom emoji for a starboard.")]
+        [Alias("starboard", "set", "emojis", true), Alias("starboard", "set", "emotes", true)]
+        [Alias("starboard", "emoji", true), Alias("starboard", "emojis", true), Alias("starboard", "emotes", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
         [Parameter("Emojis", ParameterType.String, ParameterFlags.Repeatable, "one or more emojis that will be used to star messages instead of the default :star: emoji; the first emoji will be the main one")]
@@ -83,12 +114,13 @@ namespace DustyBot.Modules
 
                 board.Emojis = new List<string>(command["Emojis"].Repeats.Select(x => x.AsString));
                 return board.Id;
-            }).ConfigureAwait(false);
+            });
 
             await command.ReplySuccess(Communicator, $"Starboard `{id}` will now look for {(command["Emojis"].Repeats.Count == 1 ? "the " : "")}{command["Emojis"].Repeats.Select(x => x.AsString).WordJoin()} emoji{(command["Emojis"].Repeats.Count > 1 ? "s" : "")}.").ConfigureAwait(false);
         }
 
-        [Command("starboard", "threshold", "Sets the minimum reactions for a starboard.")]
+        [Command("starboard", "set", "threshold", "Sets the minimum reactions for a starboard.")]
+        [Alias("starboard", "threshold", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
         [Parameter("Threshold", ParameterType.UInt, "sets how many reactions a message must have to get reposted in the starboard channel")]
@@ -104,7 +136,7 @@ namespace DustyBot.Modules
 
                     board.Threshold = (uint)command["Threshold"];
                     return board.Id;
-                }).ConfigureAwait(false);
+                });
 
                 await command.ReplySuccess(Communicator, $"Starboard `{id}` will now require a minimum of `{(uint)command["Threshold"]}` reactions.").ConfigureAwait(false);
             }
@@ -114,7 +146,8 @@ namespace DustyBot.Modules
             }
         }
 
-        [Command("starboard", "channels", "Sets which channels belong to this starboard.")]
+        [Command("starboard", "set", "channels", "Sets which channels belong to this starboard.")]
+        [Alias("starboard", "channels", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
         [Parameter("Channels", ParameterType.TextChannel, ParameterFlags.Repeatable | ParameterFlags.Optional, "one or more channels")]
@@ -133,12 +166,45 @@ namespace DustyBot.Modules
                     board.ChannelsWhitelist.Clear();
 
                 return board.Id;
-            }).ConfigureAwait(false);
+            });
 
             if (command["Channels"].HasValue)
                 await command.ReplySuccess(Communicator, $"Starboard `{id}` will now only repost messages from {command["Channels"].Repeats.Select(x => x.AsTextChannel.Mention).WordJoin()}.").ConfigureAwait(false);
             else
                 await command.ReplySuccess(Communicator, $"Starboard `{id}` will now repost messages from all channels.").ConfigureAwait(false);
+        }
+
+        [Command("starboard", "set", "rule", "Sets the rules for a starboard, e.g. to allow self-stars.")]
+        [Alias("starboard", "set", "rules", true)]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
+        [Parameter("Rule", ParameterType.String, "the rule (see below)")]
+        [Parameter("Setting", "^(allow|deny)$", ParameterType.String, "the rule setting: `allow` or `deny`")]
+        [Comment("__Rules:__ \n`SelfStars` - allow users to star their own messages")]
+        [Example("SelfStars allow")]
+        [Example("SelfStars deny")]
+        public async Task SetRule(ICommand command)
+        {
+            var rule = (string)command["Rule"];
+            var allow = string.Compare(command["Setting"], "allow", true, GlobalDefinitions.Culture) == 0;
+            if (string.Compare(rule, "SelfStars", true, GlobalDefinitions.Culture) == 0)
+            {
+                var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+                {
+                    var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
+                    if (board == null)
+                        throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
+
+                    board.AllowSelfStars = allow;
+                    return board.Id;
+                });
+
+                await command.ReplySuccess(Communicator, $"Users can {(allow ? "now" : "no longer")} star their own messages for starboard `{id}`.");
+            }
+            else
+            {
+                throw new IncorrectParametersCommandException("Unknown rule.");
+            }
         }
 
         [Command("starboard", "list", "Lists all active starboards.")]
@@ -153,7 +219,7 @@ namespace DustyBot.Modules
 
             var result = new StringBuilder();
             foreach (var s in settings.Starboards)
-                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Emojis: {string.Join(" ", s.Emojis)} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
+                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Style: `{(s.Style)}` Emojis: {string.Join(" ", s.Emojis)} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
 
             await command.Reply(Communicator, result.ToString());
         }
@@ -325,7 +391,7 @@ namespace DustyBot.Modules
             if (message == null)
                 return;
 
-            if (message.Author.Id == reaction.UserId || message.Author.IsBot)
+            if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || message.Author.IsBot)
                 return;
 
             if (string.IsNullOrEmpty(message.Content) && message.Attachments.Count <= 0)
@@ -344,7 +410,8 @@ namespace DustyBot.Modules
                 }
             }
 
-            starrers.Remove(message.Author.Id);
+            if (!board.AllowSelfStars)
+                starrers.Remove(message.Author.Id);
 
             var entry = await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
             {
@@ -373,8 +440,8 @@ namespace DustyBot.Modules
             {
                 //Post new
                 var attachments = await ProcessAttachments(message.Attachments);
-                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), attachments);
-                var starMessage = await starChannel.SendMessageAsync(built);
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), attachments, board.Style);
+                var starMessage = await starChannel.SendMessageAsync(built.Text, embed: built.Embed);
 
                 await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
                 {
@@ -385,6 +452,8 @@ namespace DustyBot.Modules
                         e.Attachments = attachments;
                     }
                 });
+
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"New starred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
             }
             else
             {
@@ -393,8 +462,12 @@ namespace DustyBot.Modules
                 if (starMessage == null)
                     return; //Probably got deleted from starboard
 
-                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments);
-                await starMessage.ModifyAsync(x => x.Content = built);
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments, board.Style);
+                await starMessage.ModifyAsync(x => 
+                {
+                    x.Content = built.Text;
+                    x.Embed = built.Embed;
+                });
             }
         }
 
@@ -428,7 +501,7 @@ namespace DustyBot.Modules
                             }
                             catch (Exception ex)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to removed star in board {board.Id} on {textChannel.Guild.Name} for message {cachedMessage.Id}", ex));
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} for message {cachedMessage.Id}", ex));
                             }
                             finally
                             {
@@ -455,7 +528,7 @@ namespace DustyBot.Modules
             if (message == null)
                 return;
 
-            if (message.Author.Id == reaction.UserId || message.Author.IsBot)
+            if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || message.Author.IsBot)
                 return;
 
             if (string.IsNullOrEmpty(message.Content) && message.Attachments.Count <= 0)
@@ -465,19 +538,28 @@ namespace DustyBot.Modules
             foreach (var emoji in message.Reactions.Where(x => board.Emojis.Contains(x.Key.GetFullName())).Select(x => x.Key))
                 starrers.UnionWith((await message.GetReactionUsersAsync(emoji, int.MaxValue).FlattenAsync()).Select(x => x.Id));
 
-            starrers.Remove(message.Author.Id);
+            if (!board.AllowSelfStars)
+                starrers.Remove(message.Author.Id);
 
             var entry = await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
             {
                 var b = s.Starboards.FirstOrDefault(x => x.Id == board.Id);
-                if (b != null && b.StarredMessages.TryGetValue(message.Id, out var e))
+                if (b == null)
+                    return null;
+
+                if (starrers.Count <= 0)
                 {
-                    e.StarCount = starrers.Count;
-                    return e;
+                    if (b.StarredMessages.Remove(message.Id, out var e))
+                        return e;
+                    else
+                        return null;
                 }
                 else
                 {
-                    return null;
+                    if (b.StarredMessages.TryGetValue(message.Id, out var e))
+                        return e;
+                    else
+                        return null;
                 }
             });
 
@@ -495,18 +577,39 @@ namespace DustyBot.Modules
             if (starMessage == null)
                 return; //Probably got deleted from starboard
 
-            var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments);
-            await starMessage.ModifyAsync(x => x.Content = built);
+            if (starrers.Count <= 0)
+            {
+                try
+                {
+                    await starMessage.DeleteAsync();
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed unstarred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete unstarred message {message.Id} on {channel.Guild} ({channel.GuildId})", ex));
+                }
+            }
+            else
+            {
+                var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments, board.Style);
+                await starMessage.ModifyAsync(x =>
+                {
+                    x.Content = built.Text;
+                    x.Embed = built.Embed;
+                });
+            }
         }
 
-        async Task<List<string>> ProcessAttachments(IEnumerable<IAttachment> attachments)
+        private bool IsImageLink(string link) => link.EndsWith(".jpg") || link.EndsWith(".jpeg") || link.EndsWith(".png");
+
+        private async Task<List<string>> ProcessAttachments(IEnumerable<IAttachment> attachments)
         {
             var result = new List<string>();
             foreach (var a in attachments)
             {
                 try
                 {
-                    if (a.Url.EndsWith(".jpg") || a.Url.EndsWith(".jpeg") || a.Url.EndsWith(".png"))
+                    if (IsImageLink(a.Url))
                         result.Add(await UrlShortener.ShortenUrl(a.Url, Config.ShortenerKey));
                     else
                         result.Add(a.Url);
@@ -521,36 +624,167 @@ namespace DustyBot.Modules
             return result;
         }
 
-        static readonly Regex HttpUrlRegex = new Regex(@"^http[s]?://[^\s]+$", RegexOptions.Compiled);
-        async Task<string> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments)
+        async Task<(string Text, Embed Embed)> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments, StarboardStyle style)
         {
-            var footer = $"\n{emote} {starCount} | `{message.CreatedAt.ToUniversalTime().ToString(@"MMM d yyyy HH:mm", new CultureInfo("en-US"))}` | {channel.Mention}";
-            string attachmentsSection = string.Join("\n", attachments);
-
             var author = await channel.Guild.GetUserAsync(message.Author.Id); // Sometimes the message has a RestUser author
-            string content = $"**@{author.Username}{(string.IsNullOrEmpty(author.Nickname) ? "" : $" – {author.Nickname}")}:**\n";
 
-            if (string.IsNullOrWhiteSpace(message.Content))
+            if (style == StarboardStyle.Embed)
             {
-                //No content, should have attachments
-                if (attachments.Count > 0)
-                    content += attachmentsSection;
-            }
-            else if (message.Embeds.Count > 0 && HttpUrlRegex.IsMatch(message.Content))
-            {
-                content += message.Content;
-                if (attachments.Count > 0)
-                    content += "\n" + attachmentsSection;
+                var embed = message.Embeds.FirstOrDefault(x => x.Thumbnail.HasValue || x.Image.HasValue);
+                var attachedImage = attachments.FirstOrDefault(x => UrlShortener.IsShortenedLink(x));
+                PrintHelpers.Thumbnail thumbnail = null;
+                if (attachedImage != null)
+                {
+                    thumbnail = new PrintHelpers.Thumbnail(attachedImage);
+                }
+                else if (embed != null)
+                {
+                    if (embed.Video.HasValue)
+                        thumbnail = new PrintHelpers.Thumbnail(embed.Thumbnail?.Url, true, embed.Video.Value.Url);
+                    else
+                        thumbnail = new PrintHelpers.Thumbnail(embed.Thumbnail?.Url ?? embed.Image?.Url);
+                }
+                else if (attachments.Any())
+                {
+                    thumbnail = new PrintHelpers.Thumbnail(attachments.First());
+                }
+
+                if (InstagramThumbnailRegex.IsMatch(thumbnail.Url))
+                    thumbnail.Url = await ResolveInstagramThumbnailAsync(thumbnail.Url) ?? thumbnail.Url;
+
+                var result = PrintHelpers.BuildMediaEmbed(
+                    $"{author.Username}{(string.IsNullOrEmpty(author.Nickname) ? "" : $" ~ {author.Nickname}")}",
+                    attachments.Select(x => x),
+                    caption: message.Content,
+                    thumbnail: thumbnail,
+                    captionFooter: $"[⤴️ Go to message]({message.GetLink()})",
+                    footer: $"⭐ {starCount} in #{message.Channel.Name}",
+                    timestamp: message.Timestamp,
+                    iconUrl: message.Author.GetAvatarUrl(),
+                    maxCaptionLength: int.MaxValue,
+                    maxCaptionLines: int.MaxValue);
+
+                return (null, result.Build());
             }
             else
             {
-                content += message.Content.Quote() + "\n";
-                if (attachments.Count > 0)
-                    content += attachmentsSection.Quote();
+                var content = message.Content;
+                var linkMatch = LinkOnlyMessageRegex.Match(message.Content);
+                if (linkMatch.Success)
+                {
+                    content = null;
+                    attachments.InsertRange(0, linkMatch.Groups[1].Captures.Select(x => x.Value));
+                }
+
+                var footer = $"{emote} {starCount} | `{message.CreatedAt.ToUniversalTime().ToString(@"MMM d yyyy HH:mm", new CultureInfo("en-US"))}` | {channel.Mention}";
+                var messages = PrintHelpers.BuildMediaText(
+                    $"**@{author.Username}{(string.IsNullOrEmpty(author.Nickname) ? "" : $" ~ {author.Nickname}")}:**",
+                    attachments.Take(PrintHelpers.MediaPerTextMessage),
+                    caption: content,
+                    footer: footer);
+
+                var result = await DiscordHelpers.ReplaceMentions(messages.First(), message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
+                return (DiscordHelpers.EscapeMentions(result), null);
+            }
+        }
+
+        public override Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
+        {
+            TaskHelper.FireForget(async () =>
+            {
+                try
+                {
+                    var textChannel = channel as ITextChannel;
+                    if (textChannel == null)
+                        return;
+
+                    var guild = textChannel.Guild;
+
+                    var settings = await Settings.Read<StarboardSettings>(guild.Id, false);
+                    if (settings == null)
+                        return;
+
+                    bool wasStarred = false;
+                    foreach (var board in settings.Starboards)
+                    {
+                        if (!board.StarredMessages.TryGetValue(message.Id, out var starredMessage))
+                            continue;
+
+                        wasStarred = true;
+                        if (starredMessage.StarboardMessage != default)
+                        {
+                            var starChannel = await guild.GetTextChannelAsync(board.Channel);
+                            if (starChannel == null)
+                                continue;
+
+                            var starMessage = await starChannel.GetMessageAsync(starredMessage.StarboardMessage) as IUserMessage;
+                            if (starMessage == null)
+                                continue;
+
+                            try
+                            {
+                                await starMessage.DeleteAsync();
+                                await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed deleted starred message {message.Id} in board {board.Id} on {guild.Name} ({guild.Id})"));
+                            }
+                            catch (Exception ex)
+                            {
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete message {message.Id} on {guild.Id}", ex));
+                            }
+                        }
+                    }
+
+                    if (wasStarred)
+                    {
+                        await Settings.Modify(guild.Id, (StarboardSettings s) =>
+                        {
+                            foreach (var board in s.Starboards)
+                                board.StarredMessages.Remove(message.Id);
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", "Failed to process deleted message", ex));
+                }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        private async Task<string> ResolveInstagramThumbnailAsync(string baseUrl)
+        {
+            try
+            {
+                var currentUrl = baseUrl;
+                var redirectCodes = new[] { HttpStatusCode.MovedPermanently, HttpStatusCode.Redirect };
+                for (int i = 0; i < 8; ++i)
+                {
+                    try
+                    {
+                        if (string.IsNullOrEmpty(currentUrl))
+                            break;
+
+                        var request = WebRequest.CreateHttp(currentUrl);
+                        request.Method = "GET";
+                        request.AllowAutoRedirect = false;
+
+                        using (var response = await request.GetResponseAsync())
+                        {
+                            return currentUrl;
+                        }
+                    }
+                    catch (WebException ex) when (ex.Response is HttpWebResponse r && redirectCodes.Contains(r.StatusCode))
+                    {
+                        currentUrl = r.Headers["Location"];
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to resolve instagram thumbnail {baseUrl}", ex));
             }
 
-            content = await DiscordHelpers.ReplaceMentions(content, message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
-            return DiscordHelpers.EscapeMentions(content + footer);
+            return null;
         }
     }
 }

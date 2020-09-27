@@ -1,9 +1,17 @@
 ﻿using DustyBot.Database.Mongo.Collections.Templates;
+using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Bson.Serialization.Options;
 using System;
 using System.Collections.Generic;
 
 namespace DustyBot.Settings
 {
+    public enum StarboardStyle
+    {
+        Text,
+        Embed
+    }
+
     public class StarredMessage
     {
         public int StarCount { get; set; }
@@ -21,6 +29,8 @@ namespace DustyBot.Settings
         public int Id { get; set; }
         public ulong Channel { get; set; }
         public List<string> Emojis { get; set; } = DefaultEmojis;
+        public StarboardStyle Style { get; set; }
+        public bool AllowSelfStars { get; set; }
 
         uint _threshold = DefaultThreshold;
         public uint Threshold
@@ -28,7 +38,7 @@ namespace DustyBot.Settings
             get => _threshold;
             set
             {
-                if (value > 99 || value < 1)
+                if (value < 1)
                     throw new ArgumentOutOfRangeException();
 
                 _threshold = value;
@@ -37,7 +47,7 @@ namespace DustyBot.Settings
 
         public HashSet<ulong> ChannelsWhitelist { get; set; } = new HashSet<ulong>();
 
-        [MongoDB.Bson.Serialization.Attributes.BsonDictionaryOptions(MongoDB.Bson.Serialization.Options.DictionaryRepresentation.ArrayOfDocuments)]
+        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<ulong, StarredMessage> StarredMessages { get; set; } = new Dictionary<ulong, StarredMessage>();
     }
 
