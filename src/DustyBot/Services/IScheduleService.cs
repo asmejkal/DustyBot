@@ -1,6 +1,5 @@
 ﻿using DustyBot.Framework.Services;
 using DustyBot.Settings;
-using System;
 using System.Threading.Tasks;
 
 namespace DustyBot.Services

@@ -4,23 +4,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using Discord.WebSocket;
 using System.Threading;
 using DustyBot.Framework.Logging;
 using System.Collections;
-using Newtonsoft.Json;
 using DustyBot.Helpers;
 using Discord.Rest;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
+using DustyBot.Core.Collections;
 
 namespace DustyBot.Modules
 {
@@ -30,11 +27,11 @@ namespace DustyBot.Modules
         public const string MuteRoleName = "Muted";
 
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
         public DiscordRestClient RestClient { get; }
 
-        public RaidProtectionModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
+        public RaidProtectionModule(ICommunicator communicator, ISettingsService settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
         {
             Communicator = communicator;
             Settings = settings;

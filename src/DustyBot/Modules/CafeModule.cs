@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using DustyBot.Helpers;
+using DustyBot.Core.Security;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -17,9 +18,9 @@ namespace DustyBot.Modules
         public const int ServerFeedLimit = 25;
 
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
 
-        public CafeModule(ICommunicator communicator, ISettingsProvider settings)
+        public CafeModule(ICommunicator communicator, ISettingsService settings)
         {
             Communicator = communicator;
             Settings = settings;
@@ -230,7 +231,7 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result);
         }
 
-        public static async Task<Credential> GetCredential(ISettingsProvider settings, ulong userId, string id)
+        public static async Task<Credential> GetCredential(ISettingsService settings, ulong userId, string id)
         {
             Guid guid;
             if (!Guid.TryParse(id, out guid))
@@ -239,7 +240,7 @@ namespace DustyBot.Modules
             return await GetCredential(settings, userId, guid);
         }
 
-        public static async Task<Credential> GetCredential(ISettingsProvider settings, ulong userId, Guid guid)
+        public static async Task<Credential> GetCredential(ISettingsService settings, ulong userId, Guid guid)
         {
             var credentials = await settings.ReadUser<UserCredentials>(userId);
             var credential = credentials.Credentials.FirstOrDefault(x => x.Id == guid);
@@ -249,7 +250,7 @@ namespace DustyBot.Modules
             return credential;
         }
 
-        public static async Task EnsureCredential(ISettingsProvider settings, ulong userId, string id)
+        public static async Task EnsureCredential(ISettingsService settings, ulong userId, string id)
         {
             Guid guid;
             if (!Guid.TryParse(id, out guid))

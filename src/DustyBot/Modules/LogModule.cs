@@ -4,20 +4,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using Discord.WebSocket;
 using System.Text.RegularExpressions;
 using DustyBot.Framework.Logging;
 using DustyBot.Helpers;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Modules
 {
@@ -25,11 +22,11 @@ namespace DustyBot.Modules
     class LogModule : Module
     {
         private ICommunicator Communicator { get; }
-        private ISettingsProvider Settings { get; }
+        private ISettingsService Settings { get; }
         private ILogger Logger { get; }
         private DiscordSocketClient SocketClient { get; }
 
-        public LogModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger, DiscordSocketClient socketClient)
+        public LogModule(ICommunicator communicator, ISettingsService settings, ILogger logger, DiscordSocketClient socketClient)
         {
             Communicator = communicator;
             Settings = settings;

@@ -1,15 +1,15 @@
 ﻿using Discord.WebSocket;
-using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Utility;
 using Discord;
 using System.Threading;
 using System.Collections.Concurrent;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Services
 {
@@ -60,7 +60,7 @@ namespace DustyBot.Services
             }
         }
 
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public DiscordSocketClient Client { get; }
         public ILogger Logger { get; }
 
@@ -72,14 +72,14 @@ namespace DustyBot.Services
         private Timer UpdateTimer { get; set; }
         private ConcurrentDictionary<ulong, NotificationContext> Notifications { get; } = new ConcurrentDictionary<ulong, NotificationContext>();
 
-        public ScheduleService(DiscordSocketClient client, ISettingsProvider settings, ILogger logger)
+        public ScheduleService(DiscordSocketClient client, ISettingsService settings, ILogger logger)
         {
             Settings = settings;
             Client = client;
             Logger = logger;
         }
 
-        public async Task Start()
+        public async Task StartAsync()
         {
             // Calendar updates
             var delay = UpdateFrequency.Minutes - (DateTime.UtcNow.Minute % UpdateFrequency.Minutes);
@@ -90,10 +90,11 @@ namespace DustyBot.Services
                 await RefreshNotifications(settings.ServerId, settings);
         }
 
-        public void Stop()
+        public Task StopAsync()
         {
             UpdateTimer?.Dispose();
             UpdateTimer = null;
+            return Task.CompletedTask;
         }
 
         public async Task RefreshNotifications(ulong serverId, ScheduleSettings settings)

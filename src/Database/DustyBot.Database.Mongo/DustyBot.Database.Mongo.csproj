@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Driver" Version="2.11.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\_Shared\DustyBot.Core\DustyBot.Core.csproj" />
+    <ProjectReference Include="..\DustyBot.Database.Core\DustyBot.Database.Core.csproj" />
+  </ItemGroup>
+
+</Project>

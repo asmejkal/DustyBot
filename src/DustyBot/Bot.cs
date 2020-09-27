@@ -5,14 +5,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
-using DustyBot.Framework.LiteDB;
-using DustyBot.Settings.LiteDB;
 using CommandLine;
-using System.IO;
 using DustyBot.Helpers;
 using DustyBot.Settings;
-using DustyBot.Framework.Settings;
 using DustyBot.Definitions;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Config;
+using DustyBot.Database.Sql;
+using MongoDB.Driver;
 
 namespace DustyBot
 {
@@ -21,27 +21,25 @@ namespace DustyBot
     /// </summary>
     class Bot : IModuleCollection, IServiceCollection
     {
+        public enum ReturnCode
+        {
+            Success = 0,
+            GeneralFailure = 1,
+            InstanceNotFound = 2
+        }
+
         [Verb("run", HelpText = "Run the bot.")]
         public class RunOptions
         {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name. Use \"instance create\" to create a new instance.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for this instance.")]
-            public string Password { get; set; }
+            [Value(0, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this deployment.")]
+            public string MongoConnectionString { get; set; }
         }
 
-        [Verb("instance", HelpText = "Manage bot instances.")]
-        public class InstanceOptions
+        [Verb("configure", HelpText = "Configure the bot deployment.")]
+        public class ConfigureOptions
         {
-            [Value(0, MetaName = "Task", Required = true, HelpText = "The task to perform. Tasks: \"create\" - creates a new instance, \"modify\" - modifies an existing instance, \"delete\" - deletes an instance and all its settings permanently.")]
-            public string Task { get; set; }
-
-            [Value(1, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(2, MetaName = "Password", Required = true, HelpText = "Password for instance encryption. If you are creating an instance, the password you enter here will be required for every operation with the instance.")]
-            public string Password { get; set; }
+            [Value(0, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this instance.")]
+            public string MongoConnectionString { get; set; }
 
             [Option("token", HelpText = "Bot token.")]
             public string Token { get; set; }
@@ -73,51 +71,14 @@ namespace DustyBot
             [Option("tablestoragecs", HelpText = "Azure Table Storage connection string.")]
             public string TableStorageConnectionString { get; set; }
 
+            [Option("sqldbcs", HelpText = "SQL DB connection string.")]
+            public string SqlDbConnectionString { get; set; }
+        
             [Option("papagoclientid", HelpText = "Papago client id string.")]
             public string PapagoClientId { get; set; }
 
             [Option("papagoclientsecret", HelpText = "Papago client secret string.")]
             public string PapagoClientSecret { get; set; }
-        }
-
-        [Verb("encrypt", HelpText = "Encrypt an instance.")]
-        public class EncryptOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database encryption.")]
-            public string Password { get; set; }
-        }
-
-        [Verb("decrypt", HelpText = "Decrypt an instance.")]
-        public class DecryptOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
-        }
-
-        [Verb("upgrade", HelpText = "Upgrades to new database format.")]
-        public class UpgradeOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
-        }
-
-        [Verb("check-integrity", HelpText = "Checks integrity of the settings database.")]
-        public class CheckIngegrityOptions
-        {
-            [Value(0, MetaName = "Instance", Required = true, HelpText = "Instance name.")]
-            public string Instance { get; set; }
-
-            [Value(1, MetaName = "Password", Required = true, HelpText = "Password for database decryption.")]
-            public string Password { get; set; }
         }
 
         private ICollection<IModule> _modules;
@@ -128,20 +89,16 @@ namespace DustyBot
 
         static int Main(string[] args)
         {
-            var result = Parser.Default.ParseArguments<RunOptions, InstanceOptions, EncryptOptions, DecryptOptions, UpgradeOptions, CheckIngegrityOptions>(args)
+            var result = Parser.Default.ParseArguments<RunOptions, ConfigureOptions>(args)
                 .MapResult(
                     (RunOptions opts) => new Bot().RunAsync(opts).GetAwaiter().GetResult(),
-                    (InstanceOptions opts) => new Bot().ManageInstance(opts).GetAwaiter().GetResult(),
-                    (EncryptOptions opts) => new Bot().RunEncrypt(opts),
-                    (DecryptOptions opts) => new Bot().RunDecrypt(opts),
-                    (UpgradeOptions opts) => new Bot().Upgrade(opts),
-                    (CheckIngegrityOptions opts) => new Bot().CheckIntegrityAsync(opts).GetAwaiter().GetResult(),
-                    errs => 1);
+                    (ConfigureOptions opts) => new Bot().ConfigureAsync(opts).GetAwaiter().GetResult(),
+                    errs => ReturnCode.GeneralFailure);
 
-            return result;
+            return (int)result;
         }
 
-        public async Task<int> RunAsync(RunOptions opts)
+        public async Task<ReturnCode> RunAsync(RunOptions opts)
         {
             try
             {
@@ -152,273 +109,142 @@ namespace DustyBot
                     ExclusiveBulkDelete = true,
                     AlwaysDownloadUsers = true
                 };
-
-                //Check if this instance exists
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
                 
                 using (var client = new DiscordSocketClient(clientConfig))
-                using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
-                using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(opts.Instance)))
+                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
+                using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(settings.DatabaseName)))
                 {
-                    var components = new Framework.Framework.Components() { Client = client, Settings = settings, Logger = logger };
-                    
+                    var components = new Framework.Framework.Components() { Client = client, Logger = logger };
+
                     //Get config
-                    components.Config = await components.Settings.ReadGlobal<BotConfig>();
+                    var config = await settings.ReadGlobal<BotConfig>();
+                    components.Config = new FrameworkConfig(config.CommandPrefix, config.BotToken, config.OwnerIDs);
 
                     //Choose communicator
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
 
+                    // Sql services
+                    var sqlConnectionString = config.SqlDbConnectionString;
+                    Func<Task<ILastFmStatsService>> lastFmServiceFactory = null;
+                    if (!string.IsNullOrEmpty(sqlConnectionString))
+                    {
+                        lastFmServiceFactory = new Func<Task<ILastFmStatsService>>(() => 
+                            Task.FromResult<ILastFmStatsService>(new LastFmStatsService(DustyBotDbContext.Create(sqlConnectionString))));
+                    }
+
+                    // Table storage services
+                    SpotifyAccountsService spotifyAccountsService = null;
+                    if (!string.IsNullOrEmpty(config.TableStorageConnectionString))
+                        spotifyAccountsService = new SpotifyAccountsService(config.TableStorageConnectionString);
+
                     //Choose modules
-                    var scheduleService = new Services.ScheduleService(components.Client, components.Settings, components.Logger);
-                    components.Modules.Add(new Modules.BotModule(components.Communicator, components.Settings, this, components.Client));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, components.Settings, components.Logger, client, scheduleService));
-                    components.Modules.Add(new Modules.LastFmModule(components.Communicator, components.Settings));
-                    components.Modules.Add(new Modules.SpotifyModule(components.Communicator, components.Settings, (BotConfig)components.Config));
-                    components.Modules.Add(new Modules.CafeModule(components.Communicator, components.Settings));
-                    components.Modules.Add(new Modules.ViewsModule(components.Communicator, components.Settings));
-                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, components.Settings, components.Logger, (BotConfig)components.Config));
-                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, components.Settings, components.Logger, (BotConfig)components.Config));
-                    components.Modules.Add(new Modules.PollModule(components.Communicator, components.Settings, components.Logger, components.Config));
-                    components.Modules.Add(new Modules.ReactionsModule(components.Communicator, components.Settings, components.Logger, components.Config));
-                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, components.Settings, components.Logger, client.Rest));
-                    components.Modules.Add(new Modules.EventsModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.AutorolesModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.RolesModule(components.Communicator, components.Settings, components.Logger));
-                    components.Modules.Add(new Modules.AdministrationModule(components.Communicator, components.Settings, components.Logger, client));
-                    components.Modules.Add(new Modules.LogModule(components.Communicator, components.Settings, components.Logger, client));
-                    components.Modules.Add(new Modules.InfoModule(components.Communicator, components.Settings, components.Logger));
+                    var scheduleService = new Services.ScheduleService(components.Client, settings, components.Logger);
+                    components.Modules.Add(new Modules.BotModule(components.Communicator, settings, this, components.Client));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, settings, components.Logger, client, scheduleService));
+                    components.Modules.Add(new Modules.LastFmModule(components.Communicator, settings, lastFmServiceFactory));
+                    components.Modules.Add(new Modules.SpotifyModule(components.Communicator, settings, spotifyAccountsService, config));
+                    components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
+                    components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
+                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, client.Rest));
+                    components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.AutorolesModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.RolesModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.AdministrationModule(components.Communicator, settings, components.Logger, client));
+                    components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger, client));
+                    components.Modules.Add(new Modules.InfoModule(components.Communicator, settings, components.Logger));
                     _modules = components.Modules;
 
                     //Choose services
-                    components.Services.Add(new Services.DaumCafeService(components.Client, components.Settings, components.Logger));
+                    components.Services.Add(new Services.DaumCafeService(components.Client, settings, components.Logger));
                     components.Services.Add(scheduleService);
                     _services = components.Services;
-
+                    
                     //Init framework
                     var framework = new Framework.Framework(components);
 
+                    Task stopTask = null;
                     Console.CancelKeyPress += (s, e) =>
                     {
                         e.Cancel = true;
-                        framework.Stop();
+                        stopTask = framework.StopAsync();
                     };
 
                     await framework.Run($"{components.Config.CommandPrefix}help | {WebConstants.WebsiteShorthand}");
+
+                    if (stopTask != null)
+                        await stopTask;
                 }
+            }
+            catch (MongoCommandException ex) when (ex.Code == 13)
+            {
+                Console.WriteLine("Failed to authorize access to MongoDB. Please check your connection string.\n\n" + ex.ToString());
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Top level exception: " + ex.ToString());
             }
 
-            return 0;
+            return ReturnCode.Success;
         }
 
-        public async Task<int> ManageInstance(InstanceOptions opts)
+        public async Task<ReturnCode> ConfigureAsync(ConfigureOptions opts)
         {
             try
             {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (string.Compare(opts.Task, "create", true) == 0)
+                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
                 {
-                    if (File.Exists(instancePath))
-                        throw new InvalidOperationException("An instance with this name already exists.");
-                    
-                    if (opts.OwnerIDs == null || !opts.OwnerIDs.Any() || string.IsNullOrWhiteSpace(opts.Token))
-                        throw new ArgumentException("Owner IDs and bot token must be specified to create an instance.");
-
-                    if (!Directory.Exists(GlobalDefinitions.DataFolder))
-                        Directory.CreateDirectory(GlobalDefinitions.DataFolder);
-
-                    using (var db = DatabaseHelpers.CreateOrOpen(instancePath, opts.Password))
+                    await settings.ModifyGlobal(async (BotConfig s) =>
                     {
-                        db.UserVersion = GlobalDefinitions.SettingsVersion;
-                        db.GetCollection<BotConfig>().Insert(new BotConfig
-                        {
-                            BotToken = opts.Token,
-                            CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? GlobalDefinitions.DefaultPrefix : opts.Prefix,
-                            OwnerIDs = new List<ulong>(opts.OwnerIDs),
-                            YouTubeKey = opts.YouTubeKey,
-                            GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null,
-                            ShortenerKey = opts.ShortenerKey,
-                            LastFmKey = opts.LastFmKey,
-                            SpotifyId = opts.SpotifyId,
-                            SpotifyKey = opts.SpotifyKey,
-                            TableStorageConnectionString = opts.TableStorageConnectionString,
-                            PapagoClientId = opts.PapagoClientId,
-                            PapagoClientSecret = opts.PapagoClientSecret
-                        });
-                    }
-                }
-                else if (string.Compare(opts.Task, "modify", true) == 0)
-                {
-                    if (!File.Exists(instancePath))
-                        throw new InvalidOperationException($"Instance {opts.Instance} not found");
+                        // Required
+                        if (opts.Token != null)
+                            s.BotToken = opts.Token;
 
-                    var GCalendarSAC = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
+                        if (opts.OwnerIDs != null && opts.OwnerIDs.Count() > 0)
+                            s.OwnerIDs = new List<ulong>(opts.OwnerIDs);
 
-                    using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
-                    {
-                        await settings.ModifyGlobal((BotConfig s) =>
-                        {
-                            if (opts.Token != null)
-                                s.BotToken = opts.Token;
+                        if (s.OwnerIDs == null || !s.OwnerIDs.Any() || string.IsNullOrWhiteSpace(s.BotToken))
+                            throw new ArgumentException("Owner IDs and bot token must be specified.");
 
-                            if (!string.IsNullOrWhiteSpace(opts.Prefix))
-                                s.CommandPrefix = opts.Prefix;
+                        s.CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? GlobalDefinitions.DefaultPrefix : opts.Prefix;
 
-                            if (opts.OwnerIDs != null && opts.OwnerIDs.Count() > 0)
-                                s.OwnerIDs = new List<ulong>(opts.OwnerIDs);
+                        // Optional
+                        if (opts.YouTubeKey != null)
+                            s.YouTubeKey = opts.YouTubeKey;
 
-                            if (opts.YouTubeKey != null)
-                                s.YouTubeKey = opts.YouTubeKey;
+                        var gac = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
+                        if (gac != null)
+                            s.GCalendarSAC = gac;
 
-                            if (GCalendarSAC != null)
-                                s.GCalendarSAC = GCalendarSAC;
+                        if (opts.ShortenerKey != null)
+                            s.ShortenerKey = opts.ShortenerKey;
 
-                            if (opts.ShortenerKey != null)
-                                s.ShortenerKey = opts.ShortenerKey;
+                        if (opts.LastFmKey != null)
+                            s.LastFmKey = opts.LastFmKey;
 
-                            if (opts.LastFmKey != null)
-                                s.LastFmKey = opts.LastFmKey;
+                        if (opts.SpotifyId != null)
+                            s.SpotifyId = opts.SpotifyId;
 
-                            if (opts.SpotifyId != null)
-                                s.SpotifyId = opts.SpotifyId;
+                        if (opts.SpotifyKey != null)
+                            s.SpotifyKey = opts.SpotifyKey;
 
-                            if (opts.SpotifyKey != null)
-                                s.SpotifyKey = opts.SpotifyKey;
+                        if (opts.TableStorageConnectionString != null)
+                            s.TableStorageConnectionString = opts.TableStorageConnectionString;
 
-                            if (opts.TableStorageConnectionString != null)
-                                s.TableStorageConnectionString = opts.TableStorageConnectionString;
+                        if (opts.SqlDbConnectionString != null)
+                            s.SqlDbConnectionString = opts.SqlDbConnectionString;
 
-                            if (opts.PapagoClientId != null)
-                                s.PapagoClientId = opts.PapagoClientId;
+                        if (opts.PapagoClientId != null)
+                            s.PapagoClientId = opts.PapagoClientId;
 
-                            if (opts.PapagoClientSecret != null)
-                                s.PapagoClientSecret = opts.PapagoClientSecret;
-                        });
-                    }
-                }
-                else if (string.Compare(opts.Task, "delete", true) == 0)
-                {
-                    if (!File.Exists(instancePath))
-                        throw new InvalidOperationException($"Instance {opts.Instance} not found");
-
-                    //Check password
-                    var db = DatabaseHelpers.CreateOrOpen(instancePath, opts.Password);
-                    db.Dispose();
-
-                    File.Delete(instancePath);
-                }
-                else
-                    throw new ArgumentException("Invalid task.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-
-            return 0;
-        }
-
-        public int RunEncrypt(EncryptOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                DatabaseHelpers.Encrypt(instancePath, opts.Password);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-            
-            return 0;
-        }
-
-        public int RunDecrypt(DecryptOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                DatabaseHelpers.Decrypt(instancePath, opts.Password);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-
-            return 0;
-        }
-
-        public int Upgrade(UpgradeOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                DatabaseHelpers.Upgrade(instancePath, opts.Password);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Failure: " + ex.ToString());
-            }
-
-            return 0;
-        }
-
-        public async Task<int> CheckIntegrityAsync(CheckIngegrityOptions opts)
-        {
-            try
-            {
-                var instancePath = GlobalDefinitions.GetInstanceDbPath(opts.Instance);
-                if (!File.Exists(instancePath))
-                    throw new InvalidOperationException($"Instance {opts.Instance} not found. Use \"instance create\" to create an instance.");
-
-                using (var settings = new SettingsProvider(instancePath, new Migrator(GlobalDefinitions.SettingsVersion, new Migrations()), opts.Password))
-                {
-                    async Task TestSettings(Func<Task> checker, Type type)
-                    {
-                        try
-                        {
-                            await checker();
-                            Console.WriteLine($"OK: {type.Name}");
-                        }
-                        catch (Exception)
-                        {
-                            Console.WriteLine($">> NOT OK: {type.Name}");
-                        }
-                    }
-
-                    Task TestServerSettings<T>() where T : IServerSettings => TestSettings(() => settings.Read<T>(), typeof(T));
-
-                    Task TestUserSettings<T>() where T : IUserSettings => TestSettings(() => settings.ReadUser<T>(), typeof(T));
-
-                    await TestServerSettings<EventsSettings>();
-                    await TestUserSettings<LastFmUserSettings>();
-                    await TestServerSettings<LogSettings>();
-                    await TestServerSettings<MediaSettings>();
-                    await TestServerSettings<NotificationSettings>();
-                    await TestServerSettings<PollSettings>();
-                    await TestServerSettings<RaidProtectionSettings>();
-                    await TestServerSettings<ReactionsSettings>();
-                    await TestServerSettings<RolesSettings>();
-                    await TestServerSettings<ScheduleSettings>();
-                    await TestServerSettings<StarboardSettings>();
-                    await TestUserSettings<UserCredentials>();
-                    await TestUserSettings<UserNotificationSettings>();
+                        if (opts.PapagoClientSecret != null)
+                            s.PapagoClientSecret = opts.PapagoClientSecret;
+                    });
                 }
             }
             catch (Exception ex)

@@ -1,5 +1,4 @@
 ﻿using Discord.WebSocket;
-using DustyBot.Framework.Settings;
 using DustyBot.Settings;
 using System;
 using System.Collections.Generic;
@@ -11,6 +10,9 @@ using DustyBot.Framework.Utility;
 using Discord;
 using DustyBot.Framework.Services;
 using System.Diagnostics;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Services
 {
@@ -20,7 +22,7 @@ namespace DustyBot.Services
 
         private System.Threading.Timer _timer;
 
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public DiscordSocketClient Client { get; }
         public ILogger Logger { get; }
 
@@ -30,23 +32,24 @@ namespace DustyBot.Services
 
         Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
 
-        public DaumCafeService(DiscordSocketClient client, ISettingsProvider settings, ILogger logger)
+        public DaumCafeService(DiscordSocketClient client, ISettingsService settings, ILogger logger)
         {
             Settings = settings;
             Client = client;
             Logger = logger;
         }
 
-        public Task Start()
+        public Task StartAsync()
         {
             _timer = new System.Threading.Timer(OnUpdate, null, (int)UpdateFrequency.TotalMilliseconds, (int)UpdateFrequency.TotalMilliseconds);
             return Task.CompletedTask;
         }
 
-        public void Stop()
+        public Task StopAsync()
         {
             _timer?.Dispose();
             _timer = null;
+            return Task.CompletedTask;
         }
 
         void OnUpdate(object state)

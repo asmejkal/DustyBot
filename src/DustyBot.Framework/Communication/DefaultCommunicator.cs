@@ -6,8 +6,11 @@ using Discord;
 using DustyBot.Framework.Utility;
 using System.Threading;
 using Discord.WebSocket;
-using System.Text;
 using DustyBot.Framework.Commands;
+using DustyBot.Core.Async;
+using DustyBot.Core.Formatting;
+using DustyBot.Core.Parsing;
+using DustyBot.Core.Collections;
 
 namespace DustyBot.Framework.Communication
 {
@@ -58,13 +61,13 @@ namespace DustyBot.Framework.Communication
 
         Dictionary<ulong, PaginatedMessageContext> _paginatedMessages = new Dictionary<ulong, PaginatedMessageContext>();
 
-        public Config.IEssentialConfig Config { get; set; }
+        public Config.FrameworkConfig Config { get; set; }
         public Logging.ILogger Logger { get; set; }
 
         public string SuccessMarker => ":white_check_mark:";
         public string FailureMarker => ":no_entry:";
 
-        public DefaultCommunicator(Config.IEssentialConfig config, Logging.ILogger logger)
+        public DefaultCommunicator(Config.FrameworkConfig config, Logging.ILogger logger)
         {
             Config = config;
             Logger = logger;
@@ -107,7 +110,7 @@ namespace DustyBot.Framework.Communication
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(BuildUsageString(command, Config))
+                    .WithDescription(BuildUsageString(command, Config.CommandPrefix))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
             return new[] { await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
@@ -117,7 +120,7 @@ namespace DustyBot.Framework.Communication
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(BuildUsageString(command, Config))
+                    .WithDescription(BuildUsageString(command, Config.CommandPrefix))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
             return new[] { await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
@@ -328,9 +331,9 @@ namespace DustyBot.Framework.Communication
             return await channel.SendMessageAsync("", false, embed.Build());
         }
 
-        public static string BuildUsageString(CommandRegistration commandRegistration, Config.IEssentialConfig config)
+        public static string BuildUsageString(CommandRegistration commandRegistration, string commandPrefix)
         {
-            string usage = $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
+            string usage = $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
             foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
             {
                 string tmp = param.Name;
@@ -344,24 +347,24 @@ namespace DustyBot.Framework.Communication
             }
 
             string paramDescriptions = string.Empty;
-            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(config.CommandPrefix))))
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(commandPrefix))))
             {
                 string tmp = $"● `{param.Name}` ‒ ";
                 if (param.Flags.HasFlag(ParameterFlags.Optional))
                     tmp += "optional; ";
 
-                tmp += param.GetDescription(config.CommandPrefix);
+                tmp += param.GetDescription(commandPrefix);
                 paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "\n" + tmp;
             }
 
             var examples = commandRegistration.Examples
-                .Select(x => $"{config.CommandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
+                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "\n" + y);
 
             return usage +
                 (string.IsNullOrWhiteSpace(paramDescriptions) ? string.Empty : "\n\n" + paramDescriptions) +
-                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(config.CommandPrefix)) ? string.Empty : "\n\n" + commandRegistration.GetComment(config.CommandPrefix)) +
+                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(commandPrefix)) ? string.Empty : "\n\n" + commandRegistration.GetComment(commandPrefix)) +
                 (string.IsNullOrWhiteSpace(examples) ? string.Empty : "\n\n__Examples:__\n" + examples);
         }
     }

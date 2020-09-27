@@ -10,11 +10,12 @@ using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
-using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using System.Text.RegularExpressions;
+using DustyBot.Database.Services;
+using DustyBot.Core.Formatting;
+using DustyBot.Core.Parsing;
 
 namespace DustyBot.Modules
 {
@@ -22,9 +23,9 @@ namespace DustyBot.Modules
     class ViewsModule : Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
 
-        public ViewsModule(ICommunicator communicator, ISettingsProvider settings)
+        public ViewsModule(ICommunicator communicator, ISettingsService settings)
         {
             Communicator = communicator;
             Settings = settings;
@@ -124,7 +125,7 @@ namespace DustyBot.Modules
         {
             var info = new ComebackInfo
             {
-                Category = command["CategoryName"],
+                Category = command["CategoryName"].HasValue ? (string)command["CategoryName"] : null,
                 Name = command["SongName"],
                 VideoIds = new HashSet<string>(command["YouTubeLinks"].Repeats.Select(x => Enumerable.Cast<Group>(x.AsRegex.Groups).Skip(1).First(y => !string.IsNullOrEmpty(y.Value)).Value))
             };
@@ -156,12 +157,16 @@ namespace DustyBot.Modules
             else
                 throw new Framework.Exceptions.IncorrectParametersCommandException("Too many parameters.");            
 
-            if (string.Compare(category, "default", true) == 0)
+            if (string.Compare(category, "default", true) == 0 || string.IsNullOrEmpty(category))
                 category = null;
 
             var removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                return s.YouTubeComebacks.RemoveAll(x => string.Compare(x.Name, name, true) == 0 && string.Compare(x.Category, category, true) == 0);
+                return s.YouTubeComebacks.RemoveAll(x =>
+                {
+                    return string.Compare(x.Name, name, true) == 0 && 
+                        string.Compare(string.IsNullOrEmpty(x.Category) ? null : x.Category, category, true) == 0;
+                });
             }).ConfigureAwait(false);
 
             if (removed > 0)
@@ -241,8 +246,7 @@ namespace DustyBot.Modules
 
         public async Task<YoutubeInfo> GetYoutubeInfo(IEnumerable<string> ids, string youtubeKey)
         {
-            string html = string.Empty;
-            string url = @"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=" + String.Join(",", ids) + @"&key=" + youtubeKey;
+            string url = $"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id={string.Join(",", ids)}&key={youtubeKey}";
 
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
 
@@ -250,7 +254,7 @@ namespace DustyBot.Modules
             using (Stream stream = response.GetResponseStream())
             using (StreamReader reader = new StreamReader(stream))
             {
-                html = await reader.ReadToEndAsync().ConfigureAwait(false);
+                var html = await reader.ReadToEndAsync().ConfigureAwait(false);
                 var json = JObject.Parse(html);
                 ulong totalViews = 0;
                 ulong totalLikes = 0;

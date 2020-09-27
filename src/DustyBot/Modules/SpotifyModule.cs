@@ -9,20 +9,19 @@ using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
-using DustyBot.Entities.TableStorage;
-using System.Threading;
-using DustyBot.Entities;
 using DustyBot.Definitions;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;
 using SpotifyAPI.Web.Enums;
 using System.Text.RegularExpressions;
+using DustyBot.Database.Services;
+using DustyBot.Core.Formatting;
+using System.Threading;
 
 namespace DustyBot.Modules
 {
@@ -46,23 +45,17 @@ namespace DustyBot.Modules
 
         private const string StatsPeriodRegex = "^(?:month|mo|6months|6month|6mo|all)$";
 
-        public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        private ICommunicator Communicator { get; }
+        private ISettingsService Settings { get; }
+        private ISpotifyAccountsService AccountsService { get; }
         private BotConfig Config { get; }
-        private CloudTable SpotifyAccountsTable { get; }
 
-        public SpotifyModule(ICommunicator communicator, ISettingsProvider settings, BotConfig config)
+        public SpotifyModule(ICommunicator communicator, ISettingsService settings, ISpotifyAccountsService accountsService, BotConfig config)
         {
             Communicator = communicator;
             Settings = settings;
+            AccountsService = accountsService;
             Config = config;
-
-            if (config.TableStorageConnectionString != null)
-            {
-                var storageAccount = CloudStorageAccount.Parse(config.TableStorageConnectionString);
-                var storageClient = storageAccount.CreateCloudTableClient();
-                SpotifyAccountsTable = storageClient.GetTableReference(TableNames.SpotifyAccountTable);
-            }
         }
 
         [Command("sf", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -145,7 +138,7 @@ namespace DustyBot.Modules
             }
             else
             {
-                var trackId = trackIdMatch.Groups.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
+                var trackId = trackIdMatch.Groups.Values.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
                 track = await client.GetTrackAsync(trackId);
                 if (track.HasError())
                     throw new AbortException($"Search for track with ID `{trackId}` returned no results. Are you sure the ID is correct?");
@@ -350,12 +343,7 @@ namespace DustyBot.Modules
         {
             try
             {
-                var account = new SpotifyAccount()
-                {
-                    UserId = command.Author.Id
-                };
-
-                var result = await SpotifyAccountsTable.ExecuteAsync(TableOperation.Delete(account.ToTableEntity()));
+                await AccountsService.RemoveUserAccountAsync(command.Author.Id, CancellationToken.None);
                 await command.ReplySuccess(Communicator, $"Your Spotify account has been disconnected.");
             }
             catch (StorageException ex) when (ex.RequestInformation.HttpStatusCode == 404)
@@ -366,7 +354,7 @@ namespace DustyBot.Modules
 
         private async Task<SpotifyWebAPI> GetClient(ulong userId, IMessageChannel responseChannel, bool otherUser)
         {
-            var account = await GetUserAccount(userId);
+            var account = await AccountsService.GetUserAccountAsync(userId, CancellationToken.None);
             if (account != null)
             {
                 try
@@ -405,16 +393,6 @@ namespace DustyBot.Modules
                 AccessToken = token.Token,
                 TokenType = "Bearer"
             };
-        }
-
-        private async Task<SpotifyAccount> GetUserAccount(ulong id)
-        {
-            var filter = TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, id.ToString());
-            var results = await SpotifyAccountsTable.ExecuteQueryAsync(new TableQuery<SpotifyAccountTableEntity>().Where(filter), CancellationToken.None);
-            if (!results.Any())
-                return null;
-
-            return results.Single().ToModel();
         }
 
         private string FormatLink(string text, Dictionary<string, string> externUrls, bool trim = true)

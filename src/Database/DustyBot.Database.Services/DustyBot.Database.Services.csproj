@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DustyBot.Database.Core\DustyBot.Database.Core.csproj" />
+    <ProjectReference Include="..\DustyBot.Database.Mongo\DustyBot.Database.Mongo.csproj" />
+    <ProjectReference Include="..\DustyBot.Database.Sql\DustyBot.Database.Sql.csproj" />
+    <ProjectReference Include="..\DustyBot.Database.TableStorage\DustyBot.Database.TableStorage.csproj" />
+  </ItemGroup>
+
+</Project>

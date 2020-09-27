@@ -8,7 +8,6 @@ using System.Globalization;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Exceptions;
@@ -16,6 +15,10 @@ using DustyBot.Settings;
 using Discord.WebSocket;
 using System.Collections.Concurrent;
 using DustyBot.Helpers;
+using DustyBot.Database.Services;
+using DustyBot.Core.Async;
+using DustyBot.Core.Collections;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Modules
 {
@@ -76,7 +79,7 @@ namespace DustyBot.Modules
         public const int MaxNotificationsPerUser = 15;
 
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
         private static readonly TimeSpan NotificationTimeoutDelay = TimeSpan.FromSeconds(8);
@@ -84,7 +87,7 @@ namespace DustyBot.Modules
 
         private ConcurrentDictionary<ulong, KeywordTree> KeywordTrees { get; } = new ConcurrentDictionary<ulong, KeywordTree>();
 
-        public NotificationsModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public NotificationsModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;

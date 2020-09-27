@@ -1,7 +1,7 @@
 ﻿using Discord;
+using DustyBot.Database.Services;
 using DustyBot.Definitions;
 using DustyBot.Framework.Modules;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using System.Threading.Tasks;
@@ -13,7 +13,7 @@ namespace DustyBot.Helpers
         public static string GetModuleWebLink(IModule module) => 
             DiscordHelpers.SanitiseMarkdownUri(WebConstants.ReferenceUrl + "#" + WebConstants.GetModuleWebAnchor(module.Name));
 
-        public static async Task<Embed> GetModuleHelpEmbed(IModule module, ISettingsProvider settings)
+        public static async Task<Embed> GetModuleHelpEmbed(IModule module, ISettingsService settings)
         {
             var config = await settings.ReadGlobal<BotConfig>();
             return new EmbedBuilder()
@@ -21,7 +21,7 @@ namespace DustyBot.Helpers
                 .WithTitle($"❔ {module.Name} help").Build();
         }
 
-        public static async Task<EmbedBuilder> GetHelpEmbed(ISettingsProvider settings)
+        public static async Task<EmbedBuilder> GetHelpEmbed(ISettingsService settings)
         {
             var config = await settings.ReadGlobal<BotConfig>();
             return new EmbedBuilder()

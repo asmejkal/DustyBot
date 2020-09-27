@@ -1,5 +1,5 @@
 ﻿using Discord;
-using DustyBot.Framework.Utility;
+using DustyBot.Core.Formatting;
 using System;
 using System.Collections.Generic;
 using System.Text;

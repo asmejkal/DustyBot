@@ -5,13 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json.Linq;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Settings;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
@@ -20,6 +16,10 @@ using DustyBot.Helpers;
 using DustyBot.Definitions;
 using DustyBot.Framework.Exceptions;
 using System.Threading;
+using DustyBot.Core.Async;
+using DustyBot.Core.Collections;
+using DustyBot.Core.Formatting;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
@@ -27,12 +27,12 @@ namespace DustyBot.Modules
     class RolesModule : Module
     {
         public ICommunicator Communicator { get; }
-        public ISettingsProvider Settings { get; }
+        public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
         private SemaphoreSlim RoleAssignmentLock { get; } = new SemaphoreSlim(1, 1);
 
-        public RolesModule(ICommunicator communicator, ISettingsProvider settings, ILogger logger)
+        public RolesModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;

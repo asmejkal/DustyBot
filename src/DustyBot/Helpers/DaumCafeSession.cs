@@ -5,12 +5,11 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DustyBot.Framework.Utility;
 using System.Security;
 using System.Net.Http;
 using HtmlAgilityPack;
-using DustyBot.Helpers;
 using System.IO.Compression;
+using DustyBot.Core.Security;
 
 namespace DustyBot.Helpers
 {
