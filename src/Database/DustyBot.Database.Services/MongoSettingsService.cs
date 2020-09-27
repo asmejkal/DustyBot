@@ -2,7 +2,6 @@
 using DustyBot.Database.Core.Settings;
 using DustyBot.Database.Mongo.Collections.Templates;
 using DustyBot.Database.Mongo.Serializers;
-using DustyBot.Database.Services.Exceptions;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;

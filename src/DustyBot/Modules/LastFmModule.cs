@@ -410,7 +410,7 @@ namespace DustyBot.Modules
                     }
                     else if (track.date?.uts != null)
                     {
-                        var ts = DateTimeOffset.FromUnixTimeSeconds(track.date.uts) - DateTimeOffset.UtcNow;
+                        var ts = DateTimeOffset.FromUnixTimeSeconds((long)track.date.uts) - DateTimeOffset.UtcNow;
                         when = ts.SimpleFormat();
                     }
 

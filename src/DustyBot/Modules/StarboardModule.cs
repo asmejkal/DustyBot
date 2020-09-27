@@ -181,8 +181,8 @@ namespace DustyBot.Modules
         [Parameter("Rule", ParameterType.String, "the rule (see below)")]
         [Parameter("Setting", "^(allow|deny)$", ParameterType.String, "the rule setting: `allow` or `deny`")]
         [Comment("__Rules:__ \n`SelfStars` - allow users to star their own messages")]
-        [Example("SelfStars allow")]
-        [Example("SelfStars deny")]
+        [Example("2 SelfStars allow")]
+        [Example("2 SelfStars deny")]
         public async Task SetRule(ICommand command)
         {
             var rule = (string)command["Rule"];
