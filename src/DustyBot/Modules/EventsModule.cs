@@ -59,9 +59,9 @@ namespace DustyBot.Modules
                 s.ResetGreet();
                 s.GreetChannel = command["Channel"].AsTextChannel.Id;
                 s.GreetMessage = command["Message"];
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Greeting message set.");
         }
 
         [Command("greet", "embed", "Sets an embed greeting message.")]
@@ -91,17 +91,17 @@ namespace DustyBot.Modules
 
                 if (command.Message.Attachments.Any())
                     s.GreetEmbed.Image = new Uri(command.Message.Attachments.First().Url);
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, "Greeting message set.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Greeting message set.");
         }
 
         [Command("greet", "disable", "Disables greeting messages.")]
         [Permissions(GuildPermission.Administrator)]
         public async Task GreetDisable(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (EventsSettings s) => s.ResetGreet()).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, "Greeting has been disabled.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (EventsSettings s) => s.ResetGreet());
+            await command.ReplySuccess(Communicator, "Greeting has been disabled.");
         }
 
         [Command("greet", "test", "Sends a sample greet message in this channel.")]
@@ -111,7 +111,7 @@ namespace DustyBot.Modules
             var settings = await Settings.Read<EventsSettings>(command.GuildId, false);
             if (settings == null || settings.GreetChannel == default)
             {
-                await command.ReplyError(Communicator, "No greeting has been set.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, "No greeting has been set.");
                 return;
             }
 
@@ -131,9 +131,9 @@ namespace DustyBot.Modules
                 {
                     s.ByeChannel = 0;
                     s.ByeMessage = string.Empty;
-                }).ConfigureAwait(false);
+                });
 
-                await command.ReplySuccess(Communicator, "Bye message has been disabled.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, "Bye message has been disabled.");
             }
             else if (command.ParametersCount >= 2)
             {
@@ -150,9 +150,9 @@ namespace DustyBot.Modules
                 {
                     s.ByeChannel = command["Channel"].AsTextChannel.Id;
                     s.ByeMessage = command["Message"];
-                }).ConfigureAwait(false);
+                });
 
-                await command.ReplySuccess(Communicator, "Bye message set.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, "Bye message set.");
             }
             else
                 throw new Framework.Exceptions.IncorrectParametersCommandException(string.Empty);

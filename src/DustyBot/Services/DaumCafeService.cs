@@ -77,7 +77,7 @@ namespace DustyBot.Services
                 {
                     await Logger.Log(new LogMessage(LogSeverity.Debug, "Service", "Updating Daum Cafe feeds."));
 
-                    foreach (var settings in await Settings.Read<MediaSettings>().ConfigureAwait(false))
+                    foreach (var settings in await Settings.Read<MediaSettings>())
                     {
                         if (settings.DaumCafeFeeds == null || settings.DaumCafeFeeds.Count <= 0)
                             continue;
@@ -153,7 +153,7 @@ namespace DustyBot.Services
                     var current = s.DaumCafeFeeds.FirstOrDefault(x => x.Id == feed.Id);
                     if (current != null && current.LastPostId < 0)
                         current.LastPostId = lastPostId;
-                }).ConfigureAwait(false);
+                });
 
                 return;
             }
@@ -187,7 +187,7 @@ namespace DustyBot.Services
                 var current = settings.DaumCafeFeeds.FirstOrDefault(x => x.Id == feed.Id);
                 if (current != null && current.LastPostId < currentPostId)
                     current.LastPostId = currentPostId;
-            }).ConfigureAwait(false);
+            });
         }
 
         private Embed BuildPreview(string title, string url, string description, string imageUrl, string cafeName)

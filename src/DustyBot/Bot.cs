@@ -13,6 +13,7 @@ using DustyBot.Database.Services;
 using DustyBot.Framework.Config;
 using DustyBot.Database.Sql;
 using MongoDB.Driver;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot
 {
@@ -139,25 +140,26 @@ namespace DustyBot
 
                     //Choose modules
                     var scheduleService = new Services.ScheduleService(components.Client, settings, components.Logger);
+                    var userFetcher = new UserFetcher(client.Rest);
                     components.Modules.Add(new Modules.BotModule(components.Communicator, settings, this, components.Client));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, settings, components.Logger, client, scheduleService));
+                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, settings, components.Logger, client, scheduleService, userFetcher));
                     components.Modules.Add(new Modules.LastFmModule(components.Communicator, settings, lastFmServiceFactory));
                     components.Modules.Add(new Modules.SpotifyModule(components.Communicator, settings, spotifyAccountsService, config));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config));
-                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
                     components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, config, userFetcher));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger, config));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
                     components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, client.Rest));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.AdministrationModule(components.Communicator, settings, components.Logger, client));
+                    components.Modules.Add(new Modules.AdministrationModule(components.Communicator, settings, components.Logger, client, userFetcher));
                     components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger, client));
-                    components.Modules.Add(new Modules.InfoModule(components.Communicator, settings, components.Logger));
+                    components.Modules.Add(new Modules.InfoModule(components.Communicator, settings, components.Logger, userFetcher));
                     _modules = components.Modules;
 
                     //Choose services

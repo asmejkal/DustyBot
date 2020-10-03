@@ -53,16 +53,16 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command["Channel"].AsTextChannel.Id).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Name changes will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command["Channel"].AsTextChannel.Id);
+            await command.ReplySuccess(Communicator, $"Name changes will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.");
         }
 
         [Command("log", "names", "disable", "Disables name change logging.")]
         [Permissions(GuildPermission.Administrator)]
         public async Task LogNameChangesDisable(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = 0).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Name change logging channel has been disabled.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = 0);
+            await command.ReplySuccess(Communicator, $"Name change logging channel has been disabled.");
         }
 
         [Command("log", "messages", "Sets a channel for logging of deleted messages.")]
@@ -76,16 +76,16 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = command["Channel"].AsTextChannel.Id).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Deleted messages will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = command["Channel"].AsTextChannel.Id);
+            await command.ReplySuccess(Communicator, $"Deleted messages will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.");
         }
 
         [Command("log", "messages", "disable", "Disables logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
         public async Task LogMessagesDisable(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = 0).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Logging of deleted messages has been disabled.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedChannel = 0);
+            await command.ReplySuccess(Communicator, $"Logging of deleted messages has been disabled.");
         }
 
         [Command("log", "filter", "messages", "Sets or disables a regex filter for deleted messages.")]
@@ -94,8 +94,8 @@ namespace DustyBot.Modules
         [Comment("Use without parameters to disable. For testing of regular expressions you can use https://regexr.com/.")]
         public async Task SetMessagesFilter(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedFilter = command["RegularExpression"]).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command["RegularExpression"]) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventMessageDeletedFilter = command["RegularExpression"]);
+            await command.ReplySuccess(Communicator, string.IsNullOrEmpty(command["RegularExpression"]) ? "Filtering of deleted messages has been disabled." : "A filter for logged deleted messages has been set.");
         }
 
         [Command("log", "filter", "channels", "Excludes channels from logging of deleted messages.")]
@@ -109,10 +109,10 @@ namespace DustyBot.Modules
             await Settings.Modify(command.GuildId, (LogSettings s) =>
             {
                 s.EventMessageDeletedChannelFilter = channelIds;
-            }).ConfigureAwait(false);
+            });
 
             await command.ReplySuccess(Communicator, "A channel filter for logging of deleted messages has been " + 
-                (channelIds.Count > 0 ? "set." : "disabled.")).ConfigureAwait(false);
+                (channelIds.Count > 0 ? "set." : "disabled."));
         }
 
         public override Task OnGuildMemberUpdated(SocketGuildUser before, SocketGuildUser after) => 
@@ -131,7 +131,7 @@ namespace DustyBot.Modules
                         return;
 
                     var updated = new List<SocketGuild>();
-                    foreach (var guild in SocketClient.Guilds.Select(x => x.GetUser(after.Id)?.Guild).Where(x => x != null))
+                    foreach (var guild in SocketClient.Guilds.Select(x => x.GetUser(after.Id)?.Guild).Where(x => x != null)) // TODO: intents
                     {
                         try
                         {
@@ -189,7 +189,7 @@ namespace DustyBot.Modules
                     if (guild == null)
                         return;
 
-                    var settings = await Settings.Read<LogSettings>(guild.Id, false).ConfigureAwait(false);
+                    var settings = await Settings.Read<LogSettings>(guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -260,7 +260,7 @@ namespace DustyBot.Modules
                     if (!messages.Any())
                         return;
 
-                    var settings = await Settings.Read<LogSettings>(guild.Id, false).ConfigureAwait(false);
+                    var settings = await Settings.Read<LogSettings>(guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -339,7 +339,7 @@ namespace DustyBot.Modules
 
                         if ((embed.Description?.Length ?? 0) + totalLength > EmbedBuilder.MaxDescriptionLength)
                         {
-                            await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                            await eventChannel.SendMessageAsync(string.Empty, false, embed.Build());
                             embed = new EmbedBuilder();
                         }
                         else
@@ -349,7 +349,7 @@ namespace DustyBot.Modules
                     }
 
                     if (!string.IsNullOrEmpty(embed.Description))
-                        await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                        await eventChannel.SendMessageAsync(string.Empty, false, embed.Build());
                 }
                 catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
                 {
@@ -375,7 +375,7 @@ namespace DustyBot.Modules
             if (userMessage.Attachments.Any())
                 embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
 
-            await eventChannel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+            await eventChannel.SendMessageAsync(string.Empty, false, embed.Build());
         }
     }
 }

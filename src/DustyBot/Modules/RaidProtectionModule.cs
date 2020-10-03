@@ -66,7 +66,7 @@ namespace DustyBot.Modules
                 x.LogChannel = command["LogChannel"].AsTextChannel.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid-protection rules` to see the active rules.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid-protection rules` to see the active rules.");
         }
 
         [Command("raid", "protection", "disable", "Disables raid protection.")]
@@ -76,7 +76,7 @@ namespace DustyBot.Modules
         public async Task DisableRaidProtection(ICommand command)
         {
             await Settings.Modify(command.GuildId, (RaidProtectionSettings x) => x.Enabled = false);
-            await command.ReplySuccess(Communicator, $"Raid protection has been disabled.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Raid protection has been disabled.");
         }
 
         [Command("raid", "protection", "rules", "Displays active raid protection rules.")]
@@ -103,7 +103,7 @@ namespace DustyBot.Modules
             result.AppendLine($"**PhraseBlacklistRule** - if enabled, blocks messages containing any of the specified phrases" + PrintDefaultFlag(RaidProtectionRuleType.PhraseBlacklistRule));
             result.AppendLine("`" + settings.PhraseBlacklistRule + "`\n");
 
-            await command.Reply(Communicator, result.ToString()).ConfigureAwait(false);
+            await command.Reply(Communicator, result.ToString());
         }
 
         [Command("raid", "protection", "rules", "set", "Modifies a raid protection rule.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
@@ -264,7 +264,7 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    var settings = await Settings.Read<RaidProtectionSettings>(channel.GuildId, false).ConfigureAwait(false);
+                    var settings = await Settings.Read<RaidProtectionSettings>(channel.GuildId, false);
                     if (settings == null || !settings.Enabled)
                         return;
 

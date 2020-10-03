@@ -52,7 +52,7 @@ namespace DustyBot.Modules
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Add(command[0].AsRole.Id)).ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Add(command[0].AsRole.Id));
             await command.ReplySuccess(Communicator, $"Will now assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})` to users upon joining.");
         }
 
@@ -62,7 +62,7 @@ namespace DustyBot.Modules
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
         public async Task RemoveAutoRole(ICommand command)
         {
-            var removed = await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Remove(command[0].AsRole.Id)).ConfigureAwait(false);
+            var removed = await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Remove(command[0].AsRole.Id));
 
             if (removed)
                 await command.ReplySuccess(Communicator, $"Will no longer assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})`.");
@@ -75,7 +75,7 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageRoles)]
         public async Task ListAutoRole(ICommand command)
         {
-            var settings = await Settings.Read<RolesSettings>(command.GuildId).ConfigureAwait(false);
+            var settings = await Settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
                 await command.ReplyError(Communicator, "No automatically assigned roles have been set.");
@@ -97,23 +97,24 @@ namespace DustyBot.Modules
         [Comment("May take a while to complete.")]
         public async Task ApplyAutoRole(ICommand command)
         {
-            var settings = await Settings.Read<RolesSettings>(command.GuildId).ConfigureAwait(false);
+            // TODO: intents
+            var settings = await Settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
                 await command.ReplyError(Communicator, "No automatically assigned roles have been set.");
                 return;
             }
 
-            var waitMsg = await command.Reply(Communicator, $"This may take a while...").ConfigureAwait(false);
+            var waitMsg = await command.Reply(Communicator, $"This may take a while...");
 
             var failed = 0;
             var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
-            var users = await command.Guild.GetUsersAsync().ConfigureAwait(false);
+            var users = await command.Guild.GetUsersAsync();
             foreach (var user in users)
             {
                 try
                 {
-                    await user.AddRolesAsync(roles).ConfigureAwait(false);
+                    await user.AddRolesAsync(roles);
                 }
                 catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized || ex.HttpCode == HttpStatusCode.Forbidden)
                 {
@@ -128,8 +129,8 @@ namespace DustyBot.Modules
                 }
             }
 
-            await waitMsg.First().DeleteAsync().ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : ".")).ConfigureAwait(false);
+            await waitMsg.First().DeleteAsync();
+            await command.ReplySuccess(Communicator, $"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : "."));
         }
 
         [Command("autorole", "check", "Checks for users who are missing an automatic role.")]
@@ -137,8 +138,9 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         public async Task CheckAutoRole(ICommand command)
         {
+            // TODO: intents
             string result = string.Empty;
-            var settings = await Settings.Read<RolesSettings>(command.GuildId).ConfigureAwait(false);
+            var settings = await Settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
                 await command.ReplyError(Communicator, "No automatically assigned roles have been set.");
@@ -160,7 +162,7 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(result))
                 result = settings.AutoAssignRoles.Count > 1 ? "Everyone has these roles." : "Everyone has this role.";
 
-            await command.Reply(Communicator, result).ConfigureAwait(false);
+            await command.Reply(Communicator, result);
         }
 
         public override Task OnUserJoined(SocketGuildUser guildUser)

@@ -169,7 +169,7 @@ namespace DustyBot.Helpers
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={User}&api_key={Key}&format=json");
             request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
                 var text = await reader.ReadToEndAsync();
@@ -211,7 +211,7 @@ namespace DustyBot.Helpers
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={User}&api_key={Key}&format=json&limit={count}&page={page}&extended=1" + (from.HasValue ? $"&from={from.Value.ToUnixTimeSeconds()}" : string.Empty));
             request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
                 var text = await reader.ReadToEndAsync();
@@ -233,7 +233,7 @@ namespace DustyBot.Helpers
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=artist.getInfo&api_key={Key}&artist={Uri.EscapeDataString(artist)}&format=json&username={User}");
             request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
                 var text = await reader.ReadToEndAsync();
@@ -246,7 +246,7 @@ namespace DustyBot.Helpers
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key={Key}&artist={Uri.EscapeDataString(artist)}&track={Uri.EscapeDataString(track)}&format=json&username={User}");
             request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
                 var text = await reader.ReadToEndAsync();
@@ -300,7 +300,7 @@ namespace DustyBot.Helpers
             {
                 var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={count}&format=json");
                 request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
                     var text = await reader.ReadToEndAsync();
@@ -322,7 +322,7 @@ namespace DustyBot.Helpers
             {
                 var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={count}&format=json");
                 request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
                     var text = await reader.ReadToEndAsync();
@@ -351,7 +351,7 @@ namespace DustyBot.Helpers
                     ct.ThrowIfCancellationRequested();
                     var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user={User}&api_key={Key}&period={StatsPeriodMapping[period]}&limit={pageSize}&page={page}&format=json");
                     request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-                    using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                    using (var response = (HttpWebResponse)await request.GetResponseAsync())
                     using (var reader = new StreamReader(response.GetResponseStream()))
                     {
                         ct.ThrowIfCancellationRequested();
@@ -385,7 +385,7 @@ namespace DustyBot.Helpers
         {
             var request = WebRequest.CreateHttp($"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={User}&api_key={Key}&limit=1&format=json" + (from.HasValue ? $"&from={from.Value.ToUnixTimeSeconds()}" : string.Empty));
             request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
                 var text = await reader.ReadToEndAsync();
@@ -401,7 +401,7 @@ namespace DustyBot.Helpers
                 var infoTask = GetArtistInfo(artist);
                 var request = WebRequest.CreateHttp($"https://www.last.fm/user/{User}/library/music/{Uri.EscapeDataString(artist)}?date_preset={StatsPeriodWebMapping[period]}");
                 request.Timeout = (int)RequestTimeout.TotalMilliseconds;
-                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 using (var reader = new StreamReader(response.GetResponseStream()))
                 {
                     var content = await reader.ReadToEndAsync();

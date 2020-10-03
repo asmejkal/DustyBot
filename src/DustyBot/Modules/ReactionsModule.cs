@@ -65,12 +65,12 @@ namespace DustyBot.Modules
             var result = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 return s.Reactions.RemoveAll(x => x.Id == (int)command[0]) > 0;
-            }).ConfigureAwait(false);
+            });
             
             if (!result)
-                await command.ReplyError(Communicator, "Could not find a reaction with this ID.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, "Could not find a reaction with this ID.");
             else
-                await command.ReplySuccess(Communicator, "Reaction removed.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, "Reaction removed.");
         }
 
         [Command("reactions", "clear", "Removes all reactions.")]
@@ -81,9 +81,9 @@ namespace DustyBot.Modules
             await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 s.Reset();
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, "All reactions cleared.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "All reactions cleared.");
         }
 
         [Command("reactions", "list", "Lists all reactions.")]
@@ -102,11 +102,11 @@ namespace DustyBot.Modules
 
             if (pages.Count <= 0)
             {
-                await command.Reply(Communicator, "No reactions have been set up.").ConfigureAwait(false);
+                await command.Reply(Communicator, "No reactions have been set up.");
                 return;
             }
 
-            await command.Reply(Communicator, pages).ConfigureAwait(false);
+            await command.Reply(Communicator, pages);
         }
 
         public override Task OnMessageReceived(SocketMessage message)

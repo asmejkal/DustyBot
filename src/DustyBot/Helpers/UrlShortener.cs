@@ -17,13 +17,13 @@ namespace DustyBot.Helpers
             request.Headers["Authorization"] = "Bearer " + BitlyApiKey;
 
             using (var writer = new StreamWriter(await request.GetRequestStreamAsync(), Encoding.ASCII))
-                await writer.WriteAsync("{\"long_url\": \"" + url + "\"}").ConfigureAwait(false);
+                await writer.WriteAsync("{\"long_url\": \"" + url + "\"}");
 
-            using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+            using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var stream = response.GetResponseStream())
             using (var reader = new StreamReader(stream))
             {
-                var content = await reader.ReadToEndAsync().ConfigureAwait(false);
+                var content = await reader.ReadToEndAsync();
                 var o = JObject.Parse(content);
 
                 return (string)o["link"];

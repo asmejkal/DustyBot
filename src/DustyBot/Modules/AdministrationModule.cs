@@ -25,14 +25,16 @@ namespace DustyBot.Modules
         private ICommunicator Communicator { get; }
         private ISettingsService Settings { get; }
         private ILogger Logger { get; }
-        private IDiscordClient Client { get; }
+        private DiscordSocketClient Client { get; }
+        private IUserFetcher UserFetcher { get; }
 
-        public AdministrationModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IDiscordClient client)
+        public AdministrationModule(ICommunicator communicator, ISettingsService settings, ILogger logger, DiscordSocketClient client, IUserFetcher userFetcher)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             Client = client;
+            UserFetcher = userFetcher;
         }
 
         [Command("administration", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -96,9 +98,9 @@ namespace DustyBot.Modules
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the message to send")]
         public async Task Edit(ICommand command)
         {
-            var message = await command[0].AsGuildSelfMessage();
+            var message = await command[0].AsGuildSelfMessage;
             await message.ModifyAsync(x => x.Content = command["Message"].AsString);
-            await command.ReplySuccess(Communicator, "Message edited.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Message edited.");
         }
 
         [Command("mute", "Mutes a server member.")]
@@ -107,8 +109,9 @@ namespace DustyBot.Modules
         [Parameter("Reason", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "reason")]
         public async Task Mute(ICommand command)
         {
-            var permissionFails = await AdministrationHelpers.Mute(command["User"].AsGuildUser, command["Reason"], Settings);
-            var reply = $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been muted.";
+            var user = await command["User"].AsGuildUser;
+            var permissionFails = await AdministrationHelpers.Mute(user, command["Reason"], Settings);
+            var reply = $"User **{user.Username}#{user.DiscriminatorValue}** has been muted.";
             var fails = permissionFails.Count();
             if (fails > 0)
                 reply += $"\nℹ Couldn't mute in {fails} channel{(fails > 1 ? "s" : "")} because the bot doesn't have permission to access {(fails > 1 ? "them" : "it")}.";
@@ -121,8 +124,9 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUser, "a server member to be unmuted (mention or ID)")]
         public async Task Unmute(ICommand command)
         {
-            await AdministrationHelpers.Unmute(command["User"].AsGuildUser); 
-            await command.ReplySuccess(Communicator, $"User **{command["User"].AsGuildUser.Username}#{command["User"].AsGuildUser.DiscriminatorValue}** has been unmuted.");
+            var user = await command["User"].AsGuildUser;
+            await AdministrationHelpers.Unmute(user); 
+            await command.ReplySuccess(Communicator, $"User **{user.Username}#{user.DiscriminatorValue}** has been unmuted.");
         }
 
         [Command("ban", "Bans one or more users.")]
@@ -144,7 +148,7 @@ namespace DustyBot.Modules
             foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
             {
                 string userName;
-                var guildUser = await command.Guild.GetUserAsync(id);
+                var guildUser = await command.Guild.GetUserAsync(id) ?? await UserFetcher.FetchGuildUserAsync(command.GuildId, id);
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
@@ -156,7 +160,7 @@ namespace DustyBot.Modules
                 }
                 else
                 {
-                    var user = await Client.GetUserAsync(id);
+                    var user = (IUser)Client.GetUser(id) ?? await UserFetcher.FetchUserAsync(id);
                     userName = user != null ? $"{user.GetFullName()} ({user.Id})" : id.ToString();
                 }
 
@@ -187,6 +191,16 @@ namespace DustyBot.Modules
                     result.AppendLine($"{Communicator.SuccessMarker} User `{ban.User}` has been banned.");
                 }
             }
+
+            await command.Reply(Communicator, result.ToString());
+        }
+
+        [Command("lock", "channel", "Lists all roles on the server with their IDs.")]
+        public async Task LockChannel(ICommand command)
+        {
+            var result = new StringBuilder();
+            foreach (var role in command.Guild.Roles.OrderByDescending(x => x.Position))
+                result.AppendLine($"Name: `{role.Name}` Id: `{role.Id}`");
 
             await command.Reply(Communicator, result.ToString());
         }
@@ -258,13 +272,14 @@ namespace DustyBot.Modules
                 return;
             }
 
-            if (command["User"].AsGuildUser.IsBot)
+            var user = await command["User"].AsGuildUser;
+            if (user.IsBot)
             {
                 await command.ReplyError(Communicator, $"This is a bot.");
                 return;
             }
 
-            var channel = await command["User"].AsGuildUser.GetOrCreateDMChannelAsync();
+            var channel = await user.GetOrCreateDMChannelAsync();
 
             try
             {

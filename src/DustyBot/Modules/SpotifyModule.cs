@@ -86,7 +86,7 @@ namespace DustyBot.Modules
 
         public async Task NowPlayingInner(ICommand command, bool analyse)
         {
-            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
+            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
             var result = await client.GetPlayingTrackAsync();
@@ -99,7 +99,7 @@ namespace DustyBot.Modules
                 var recents = await client.GetUsersRecentlyPlayedTracksAsync(1);
                 if (!recents.Items.Any())
                 {
-                    await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.").ConfigureAwait(false);
+                    await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.");
                     return;
                 }
 
@@ -156,7 +156,7 @@ namespace DustyBot.Modules
         {
             var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
 
-            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
+            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
             var results = await client.GetUsersTopTracksAsync(period, 50);
@@ -220,7 +220,7 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Recent(ICommand command)
         {
-            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
+            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
             const int NumDisplayed = 100;
@@ -264,7 +264,7 @@ namespace DustyBot.Modules
         {
             var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
 
-            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
+            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
             const int NumDisplayed = 100;
@@ -305,7 +305,7 @@ namespace DustyBot.Modules
         {
             var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
 
-            var user = command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author;
+            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
             var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
             const int NumDisplayed = 100;

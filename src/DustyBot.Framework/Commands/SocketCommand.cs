@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Globalization;
 using DustyBot.Core.Parsing;
 using DustyBot.Core.Collections;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Commands
 {
@@ -40,9 +41,6 @@ namespace DustyBot.Framework.Commands
 
         public static readonly ICollection<char> TextQualifiers = new[] { '"', '“', '‟', '”', '＂' };
 
-        private List<string> _verbs = new List<string>();
-        private List<ParameterToken> _tokens = new List<ParameterToken>();
-
         public IUserMessage Message { get; private set; }
         public ulong GuildId => (Message.Channel as IGuildChannel)?.GuildId ?? 0;
         public IGuild Guild => (Message.Channel as IGuildChannel)?.Guild;
@@ -67,17 +65,22 @@ namespace DustyBot.Framework.Commands
         public CommandRegistration Registration { get; }
         public CommandRegistration.Usage Usage { get; }
 
-        private SocketCommand(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix)
+        private List<string> _verbs = new List<string>();
+        private List<ParameterToken> _tokens = new List<ParameterToken>();
+        private IUserFetcher _userFetcher;
+
+        private SocketCommand(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix, IUserFetcher userFetcher)
         {
-            Registration = registration;
-            Usage = usage;
-            Message = message;
-            Prefix = prefix;
+            Registration = registration ?? throw new ArgumentNullException(nameof(registration));
+            Usage = usage ?? throw new ArgumentNullException(nameof(usage));
+            Message = message ?? throw new ArgumentNullException(nameof(message));
+            Prefix = prefix ?? throw new ArgumentNullException(nameof(prefix));
+            _userFetcher = userFetcher ?? throw new ArgumentNullException(nameof(userFetcher));
         }
 
-        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix)
+        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix, IUserFetcher userFetcher)
         {
-            var command = new SocketCommand(registration, usage, message, prefix);
+            var command = new SocketCommand(registration, usage, message, prefix, userFetcher);
             return Tuple.Create(await command.TryParse(), command as ICommand);
         }
 
@@ -156,7 +159,7 @@ namespace DustyBot.Framework.Commands
             if (Registration.Parameters.SkipLast().Any(x => x.Flags.HasFlag(ParameterFlags.Repeatable)))
                 throw new InvalidOperationException($"Command '{Registration.PrimaryUsage.InvokeUsage}' cannot be parsed. Only the last parameter in a command can be repeatable.");
 
-            return await TryParseParamsInner(Body.Tokenize(TextQualifiers.ToArray()).Select(x => new ParameterToken(x, Guild as SocketGuild)), Registration.Parameters);
+            return await TryParseParamsInner(Body.Tokenize(TextQualifiers.ToArray()).Select(x => new ParameterToken(x, Guild as SocketGuild, _userFetcher)), Registration.Parameters);
         }
         
         private async Task<ParseResult> TryParseParamsInner(IEnumerable<ParameterToken> tokens, IEnumerable<ParameterRegistration> registrations, bool test = false)
@@ -182,9 +185,9 @@ namespace DustyBot.Framework.Commands
 
                     // Handle the case when a user surrounds the remainder with quotes (even though they don't have to)
                     if (value.Length >= 2 && TextQualifiers.Contains(value.First()) && TextQualifiers.Contains(value.Last()))
-                        token = new ParameterToken(new Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild);
+                        token = new ParameterToken(new Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild, _userFetcher);
                     else
-                        token = new ParameterToken(new Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild);
+                        token = new ParameterToken(new Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild, _userFetcher);
                 }
 
                 // Check if the token fits the parameter description

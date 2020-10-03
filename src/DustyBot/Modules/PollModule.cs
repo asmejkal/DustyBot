@@ -111,7 +111,7 @@ namespace DustyBot.Modules
 
                 s.Polls.Add(poll);
                 return true;
-            }).ConfigureAwait(false);
+            });
 
             if (command.Message.Channel.Id != poll.Channel)
                 await command.ReplySuccess(Communicator, "Poll started!");
@@ -126,11 +126,11 @@ namespace DustyBot.Modules
             var channelId = command[0].HasValue ? command[0].AsTextChannel.Id : command.Message.Channel.Id;
             var resultsChannel = command.Message.Channel as ITextChannel;
 
-            bool result = await PrintPollResults(command, true, channelId, resultsChannel).ConfigureAwait(false);
+            bool result = await PrintPollResults(command, true, channelId, resultsChannel);
             if (!result)
                 return;
 
-            await Settings.Modify(command.GuildId, (PollSettings s) => s.Polls.RemoveAll(x => x.Channel == channelId) > 0).ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (PollSettings s) => s.Polls.RemoveAll(x => x.Channel == channelId) > 0);
         }
 
         [Command("poll", "results", "Checks results of a running poll.")]
@@ -141,7 +141,7 @@ namespace DustyBot.Modules
             var channelId = command[0].HasValue ? command[0].AsTextChannel.Id : command.Message.Channel.Id;
             var resultsChannel = command.Message.Channel as ITextChannel;
 
-            await PrintPollResults(command, false, channelId, resultsChannel).ConfigureAwait(false);
+            await PrintPollResults(command, false, channelId, resultsChannel);
         }
 
         [Command("vote", "Votes in a poll.")]
@@ -182,13 +182,13 @@ namespace DustyBot.Modules
                 }
 
                 return p;
-            }).ConfigureAwait(false);
+            });
             
             if (poll == null)
-                await command.ReplyError(Communicator, "There is no poll running in this channel.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, "There is no poll running in this channel.");
             else
             {
-                var confMessage = await command.ReplySuccess(Communicator, $"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.").ConfigureAwait(false);
+                var confMessage = await command.ReplySuccess(Communicator, $"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.");
                 if (poll.Anonymous)
                 {
                     await command.Message.DeleteAsync();
@@ -199,7 +199,7 @@ namespace DustyBot.Modules
 
         private async Task<bool> PrintPollResults(ICommand command, bool closed, ulong channelId, ITextChannel resultsChannel)
         {
-            var settings = await Settings.Read<PollSettings>(command.GuildId).ConfigureAwait(false);
+            var settings = await Settings.Read<PollSettings>(command.GuildId);
             var poll = settings.Polls.FirstOrDefault(x => x.Channel == channelId);
             if (poll == null)
             {

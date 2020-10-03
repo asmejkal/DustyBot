@@ -52,12 +52,12 @@ namespace DustyBot.Helpers
 
         public async Task<int> GetLastPostId(string cafeId, string boardId)
         {
-            return (await GetPostIds(cafeId, boardId).ConfigureAwait(false)).DefaultIfEmpty().Max();
+            return (await GetPostIds(cafeId, boardId)).DefaultIfEmpty().Max();
         }
 
         public async Task<List<int>> GetPostIds(string cafeId, string boardId)
         {
-            var content = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}").ConfigureAwait(false);
+            var content = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}");
             var result = new List<int>();
 
             await Task.Run(() =>
@@ -73,7 +73,7 @@ namespace DustyBot.Helpers
 
                     result.Add(id);
                 }
-            }).ConfigureAwait(false);
+            });
 
             return result;
         }
@@ -142,13 +142,13 @@ namespace DustyBot.Helpers
         public async Task<PageMetadata> GetPageMetadata(Uri mobileUrl)
         {
             string content;
-            var response = await _client.GetAsync(mobileUrl).ConfigureAwait(false);
+            var response = await _client.GetAsync(mobileUrl);
             if (response.StatusCode == (HttpStatusCode)308)
             {
                 //Deal with the wonky 308 status code (permanent redirect) - HttpClient should redirect, but it doesn't (probably because 308 is not even in .NET docs)
                 var location = response.Headers.Location;
                 var absoluteLocation = location.IsAbsoluteUri ? location : new Uri(new Uri(mobileUrl.GetComponents(UriComponents.Scheme | UriComponents.StrongAuthority, UriFormat.Unescaped)), location);
-                content = await _client.GetStringAsync(absoluteLocation).ConfigureAwait(false);
+                content = await _client.GetStringAsync(absoluteLocation);
             }
             else
                 content = await response.Content.ReadAsStringAsync();
@@ -161,7 +161,7 @@ namespace DustyBot.Helpers
                 foreach (Match match in matches)
                     properties.Add(Tuple.Create(match.Groups[1].Value, match.Groups[2].Value));
 
-            }).ConfigureAwait(false);
+            });
             
             var url = properties.FirstOrDefault(x => x.Item1 == "og:url")?.Item2;
             if (!string.IsNullOrEmpty(url) && url.Contains("comments"))
@@ -208,12 +208,12 @@ namespace DustyBot.Helpers
                 request.Headers["Accept-Encoding"] = "gzip, deflate, br";
                 request.Headers["Accept-Language"] = "en,cs-CZ;q=0.9,cs;q=0.8";
 
-                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 using (var stream = response.GetResponseStream())
                 using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
                 using (var reader = new StreamReader(gzipStream))
                 {
-                    var content = await reader.ReadToEndAsync().ConfigureAwait(false);
+                    var content = await reader.ReadToEndAsync();
 
                     var doc = new HtmlDocument();
                     doc.LoadHtml(content);
@@ -249,7 +249,7 @@ namespace DustyBot.Helpers
                     await _credential.Item2.ForEach(async x => { await writer.WriteAsync((char)x); });
                 }
 
-                using (var response = (HttpWebResponse)await request.GetResponseAsync().ConfigureAwait(false))
+                using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 {
                     //Expire old cookies
                     foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("https://daum.net")))
@@ -273,7 +273,7 @@ namespace DustyBot.Helpers
             List<int> ids;
             try
             {
-                ids = await GetPostIds(cafeId, boardId).ConfigureAwait(false);
+                ids = await GetPostIds(cafeId, boardId);
             }
             catch (HttpRequestException ex)
             {
@@ -286,7 +286,7 @@ namespace DustyBot.Helpers
             {
                 try
                 {
-                    var _ = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}/{postId}").ConfigureAwait(false);
+                    var _ = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}/{postId}");
                     return true;
                 }
                 catch (HttpRequestException)
@@ -313,7 +313,7 @@ namespace DustyBot.Helpers
                 try
                 {
                     //Gotta make an HTTP request to get the Cafe ID...
-                    var content = await _client.GetStringAsync(boardUrl).ConfigureAwait(false);
+                    var content = await _client.GetStringAsync(boardUrl);
                     var grpCodeMatch = _groupCodeRegex.Match(content);
                     if (!grpCodeMatch.Success)
                         throw new Exception("Unexpected response.");

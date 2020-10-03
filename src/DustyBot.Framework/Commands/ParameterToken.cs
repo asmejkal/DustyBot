@@ -58,9 +58,6 @@ namespace DustyBot.Framework.Commands
 
         public static readonly ParameterToken Empty = new ParameterToken();
 
-        ValueCache _cache = new ValueCache();
-        Regex _regex;
-
         public SocketGuild Guild { get; }
         public string Raw { get; } = string.Empty;
         public string LastError { get; private set; }
@@ -73,20 +70,25 @@ namespace DustyBot.Framework.Commands
 
         public ParameterToken this[int key] => Repeats.ElementAtOrDefault(key) ?? Empty;
 
+        private ValueCache _cache = new ValueCache();
+        private Regex _regex;
+        private readonly IUserFetcher _userFetcher;
+
         private ParameterToken()
         {
         }
 
-        public ParameterToken(Token token, SocketGuild guild)
+        public ParameterToken(Token token, SocketGuild guild, IUserFetcher userFetcher)
         {
             Repeats.Add(this);
             Begin = token.Begin;
             End = token.End;
             Raw = token.Value ?? string.Empty;
             Guild = guild;
+            _userFetcher = userFetcher;
         }
 
-        public ParameterToken(ParameterRegistration registration, int begin, int end, string value, SocketGuild guild)
+        public ParameterToken(ParameterRegistration registration, int begin, int end, string value, SocketGuild guild, IUserFetcher userFetcher)
         {
             Repeats.Add(this);
             Registration = registration;
@@ -94,6 +96,7 @@ namespace DustyBot.Framework.Commands
             End = end;
             Raw = value ?? string.Empty;
             Guild = guild;
+            _userFetcher = userFetcher;
         }
 
         public async Task<bool> IsType(ParameterType type) => (await GetValue(type).ConfigureAwait(false)) != null;
@@ -121,11 +124,11 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.Id: result = AsId; break;
                 case ParameterType.MentionOrId: result = AsMentionOrId; break;
                 case ParameterType.TextChannel: result = AsTextChannel; break;
-                case ParameterType.GuildUser: result = AsGuildUser; break;
-                case ParameterType.GuildUserOrName: result = AsGuildUserOrName; break;
+                case ParameterType.GuildUser: result = await AsGuildUser.ConfigureAwait(false); break;
+                case ParameterType.GuildUserOrName: result = await AsGuildUserOrName.ConfigureAwait(false); break;
                 case ParameterType.Role: result = AsRole; break;
-                case ParameterType.GuildUserMessage: result = await AsGuildUserMessage().ConfigureAwait(false); break;
-                case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage().ConfigureAwait(false); break;
+                case ParameterType.GuildUserMessage: result = await AsGuildUserMessage.ConfigureAwait(false); break;
+                case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage.ConfigureAwait(false); break;
                 default: result = null; break;
             }
 
@@ -198,8 +201,11 @@ namespace DustyBot.Framework.Commands
         });
 
         private static readonly Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
-        public IGuildUser AsGuildUser => TryConvert<IGuildUser>(this, ParameterType.GuildUser, x =>
+        public Task<IGuildUser> AsGuildUser => TryConvert<IGuildUser>(this, ParameterType.GuildUser, async x =>
         {
+            if (Guild == null)
+                return null;
+
             ulong id;
             if (!ulong.TryParse(x, out id))
             {
@@ -210,10 +216,14 @@ namespace DustyBot.Framework.Commands
                 id = ulong.Parse(match.Groups[1].Value);
             }
 
-            return Guild?.Users.FirstOrDefault(y => y.Id == id);
+            var user = Guild.Users.FirstOrDefault(y => y.Id == id) as IGuildUser;
+            if (user == null)
+                user = await _userFetcher.FetchGuildUserAsync(Guild.Id, id).ConfigureAwait(false); // fallback to REST
+
+            return user;
         });
 
-        public Tuple<IGuildUser, string> AsGuildUserOrName => TryConvert<Tuple<IGuildUser, string>>(this, ParameterType.GuildUserOrName, x =>
+        public Task<Tuple<IGuildUser, string>> AsGuildUserOrName => TryConvert<Tuple<IGuildUser, string>>(this, ParameterType.GuildUserOrName, async x =>
         {
             if (string.IsNullOrEmpty(x))
                 return null;
@@ -228,11 +238,14 @@ namespace DustyBot.Framework.Commands
                 id = ulong.Parse(match.Groups[1].Value);
             }
 
-            var user = (IGuildUser)Guild?.Users.FirstOrDefault(y => y.Id == id);
-            if (user == null)
+            if (Guild == null)
                 return null;
 
-            return Tuple.Create((IGuildUser)Guild?.Users.FirstOrDefault(y => y.Id == id), (string)null);
+            var user = Guild.Users.FirstOrDefault(y => y.Id == id) as IGuildUser;
+            if (user == null)
+                user = await _userFetcher.FetchGuildUserAsync(Guild.Id, id).ConfigureAwait(false); // fallback to REST
+
+            return user != null ? Tuple.Create(user, (string)null) : null;
         });
 
         public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>
@@ -258,7 +271,7 @@ namespace DustyBot.Framework.Commands
             return Guild?.GetRole(id);
         });
 
-        public async Task<IUserMessage> AsGuildUserMessage() => await TryConvert<IUserMessage>(this, ParameterType.GuildUserMessage, async x =>
+        public Task<IUserMessage> AsGuildUserMessage => TryConvert<IUserMessage>(this, ParameterType.GuildUserMessage, async x =>
         {
             if (AsULong == null || Guild == null)
                 return null;
@@ -270,9 +283,9 @@ namespace DustyBot.Framework.Commands
             return message;
         });
 
-        public async Task<IUserMessage> AsGuildSelfMessage() => await TryConvert<IUserMessage>(this, ParameterType.GuildSelfMessage, async x =>
+        public Task<IUserMessage> AsGuildSelfMessage => TryConvert<IUserMessage>(this, ParameterType.GuildSelfMessage, async x =>
         {
-            var message = await AsGuildUserMessage();
+            var message = await AsGuildUserMessage;
             if (message == null || Guild == null)
                 return null;
 

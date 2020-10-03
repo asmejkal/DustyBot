@@ -30,19 +30,21 @@ namespace DustyBot.Modules
         private static readonly Regex LinkOnlyMessageRegex = new Regex(@"^\s*(?:(http[s]?:\/\/[^\s]+)\s*)+$", RegexOptions.Compiled);
         private static readonly Regex InstagramThumbnailRegex = new Regex(@"https?:\/\/(?:www.)?instagram.com\/p\/\w+\/media", RegexOptions.Compiled);
 
-        public ICommunicator Communicator { get; private set; }
-        public ISettingsService Settings { get; private set; }
-        public ILogger Logger { get; private set; }
-        BotConfig Config { get; }
+        private ICommunicator Communicator { get; }
+        private ISettingsService Settings { get; }
+        private ILogger Logger { get; }
+        private BotConfig Config { get; }
+        private IUserFetcher UserFetcher { get; }
 
         AsyncMutexCollection<Tuple<ulong, int>> _processingMutexes = new AsyncMutexCollection<Tuple<ulong, int>>();
 
-        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
+        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUserFetcher userFetcher)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             Config = config;
+            UserFetcher = userFetcher;
         }
 
         [Command("starboard", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -69,9 +71,9 @@ namespace DustyBot.Modules
             {
                 s.Starboards.Add(new Starboard() { Id = s.NextId, Channel = command["Channel"].AsTextChannel.Id, Style = StarboardStyle.Embed });
                 return s.NextId++;
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}. Use the `starboard set ...` commands to customize it.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}. Use the `starboard set ...` commands to customize it.");
         }
 
         [Command("starboard", "set", "style", "Sets the style for the starboard (embed or text).")]
@@ -95,7 +97,7 @@ namespace DustyBot.Modules
                 return board.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now use the `{command["Style"]}` style.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now use the `{command["Style"]}` style.");
         }
 
         [Command("starboard", "set", "emoji", "Sets one or more custom emoji for a starboard.")]
@@ -116,7 +118,7 @@ namespace DustyBot.Modules
                 return board.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now look for {(command["Emojis"].Repeats.Count == 1 ? "the " : "")}{command["Emojis"].Repeats.Select(x => x.AsString).WordJoin()} emoji{(command["Emojis"].Repeats.Count > 1 ? "s" : "")}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now look for {(command["Emojis"].Repeats.Count == 1 ? "the " : "")}{command["Emojis"].Repeats.Select(x => x.AsString).WordJoin()} emoji{(command["Emojis"].Repeats.Count > 1 ? "s" : "")}.");
         }
 
         [Command("starboard", "set", "threshold", "Sets the minimum reactions for a starboard.")]
@@ -138,7 +140,7 @@ namespace DustyBot.Modules
                     return board.Id;
                 });
 
-                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now require a minimum of `{(uint)command["Threshold"]}` reactions.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now require a minimum of `{(uint)command["Threshold"]}` reactions.");
             }
             catch (ArgumentOutOfRangeException)
             {
@@ -169,9 +171,9 @@ namespace DustyBot.Modules
             });
 
             if (command["Channels"].HasValue)
-                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now only repost messages from {command["Channels"].Repeats.Select(x => x.AsTextChannel.Mention).WordJoin()}.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now only repost messages from {command["Channels"].Repeats.Select(x => x.AsTextChannel.Mention).WordJoin()}.");
             else
-                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now repost messages from all channels.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now repost messages from all channels.");
         }
 
         [Command("starboard", "set", "rule", "Sets the rules for a starboard, e.g. to allow self-stars.")]
@@ -210,10 +212,10 @@ namespace DustyBot.Modules
         [Command("starboard", "list", "Lists all active starboards.")]
         public async Task ListStarboards(ICommand command)
         {
-            var settings = await Settings.Read<StarboardSettings>(command.GuildId, false).ConfigureAwait(false);
+            var settings = await Settings.Read<StarboardSettings>(command.GuildId, false);
             if (settings == null || settings.Starboards.Count <= 0)
             {
-                await command.Reply(Communicator, "No starboards have been set up on this server. Use `starboard add` to create a starboard.").ConfigureAwait(false);
+                await command.Reply(Communicator, "No starboards have been set up on this server. Use `starboard add` to create a starboard.");
                 return;
             }
 
@@ -233,10 +235,10 @@ namespace DustyBot.Modules
             var r = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 return s.Starboards.RemoveAll(x => x.Id == (int)command["StarboardID"]);
-            }).ConfigureAwait(false);
+            });
 
             if (r > 0)
-                await command.ReplySuccess(Communicator, $"Starboard `{command["StarboardID"]}` has been disabled.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Starboard `{command["StarboardID"]}` has been disabled.");
             else
                 throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
         }
@@ -262,7 +264,7 @@ namespace DustyBot.Modules
             int count = 0;
             foreach (var dataPair in data.OrderByDescending(x => x.Value))
             {
-                var user = await command.Guild.GetUserAsync(dataPair.Key);
+                var user = await command.Guild.GetUserAsync(dataPair.Key) ?? await UserFetcher.FetchGuildUserAsync(command.Guild.Id, dataPair.Key);
                 if (user == null)
                     continue;
 
@@ -626,7 +628,7 @@ namespace DustyBot.Modules
 
         async Task<(string Text, Embed Embed)> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments, StarboardStyle style)
         {
-            var author = await channel.Guild.GetUserAsync(message.Author.Id); // Sometimes the message has a RestUser author
+            var author = await channel.Guild.GetUserAsync(message.Author.Id) ?? await UserFetcher.FetchGuildUserAsync(channel.GuildId, message.Author.Id);
 
             if (style == StarboardStyle.Embed)
             {
@@ -649,7 +651,7 @@ namespace DustyBot.Modules
                     thumbnail = new PrintHelpers.Thumbnail(attachments.First());
                 }
 
-                if (InstagramThumbnailRegex.IsMatch(thumbnail.Url))
+                if (thumbnail != null && InstagramThumbnailRegex.IsMatch(thumbnail.Url))
                     thumbnail.Url = await ResolveInstagramThumbnailAsync(thumbnail.Url) ?? thumbnail.Url;
 
                 var result = PrintHelpers.BuildMediaEmbed(

@@ -26,6 +26,7 @@ namespace DustyBot.Core.Formatting
         {
             return value.Length <= maxChars ? value : value.Substring(0, maxChars - ellipsis.Length) + ellipsis;
         }
+
         public static string TruncateLines(this string value, int maxLines, string ellipsis = "...", bool trim = false)
         {
             var count = 0;

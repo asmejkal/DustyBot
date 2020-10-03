@@ -21,6 +21,7 @@ using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Miscellaneous;
 using DustyBot.Framework.Config;
+using Discord.WebSocket;
 
 namespace DustyBot.Modules
 {
@@ -37,27 +38,28 @@ namespace DustyBot.Modules
             .AddField(x => x.WithName(":four: Adding events").WithValue("Use the `event add` command to add events. The command adds events to the newest schedule message by default. If you need to add an event to a different message, put its ID as the first parameter."))
             .Build();
 
-        const string DateRegex = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
-        const string TimeRegex = @"^(?:([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?)$";
-        static readonly string[] MonthFormats = new string[] { "MMMM", "MMM", "%M" };
-        static readonly string[] DateFormats = new string[] { "yyyy/M/d", "M/d" };
+        private const string DateRegex = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
+        private const string TimeRegex = @"^(?:([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?)$";
+        private static readonly string[] MonthFormats = new string[] { "MMMM", "MMM", "%M" };
+        private static readonly string[] DateFormats = new string[] { "yyyy/M/d", "M/d" };
+        private const string NoneTag = "none";
+        private static readonly IReadOnlyCollection<string> ReservedTags = new[] { ScheduleSettings.AllTag, NoneTag, "notify" };
 
-        const string NoneTag = "none";
-        static readonly IReadOnlyCollection<string> ReservedTags = new[] { ScheduleSettings.AllTag, NoneTag, "notify" };
+        private ICommunicator Communicator { get; }
+        private ISettingsService Settings { get; }
+        private ILogger Logger { get; }
+        private DiscordSocketClient Client { get; }
+        private IScheduleService Service { get; }
+        private IUserFetcher UserFetcher { get; }
 
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
-        public IDiscordClient Client { get; }
-        public IScheduleService Service { get; }
-
-        public ScheduleModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IDiscordClient client, IScheduleService service)
+        public ScheduleModule(ICommunicator communicator, ISettingsService settings, ILogger logger, DiscordSocketClient client, IScheduleService service, IUserFetcher userFetcher)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             Client = client;
             Service = service;
+            UserFetcher = userFetcher;
         }
 
         [Command("schedule", "help", "Shows a usage guide.", CommandFlags.Hidden)]
@@ -84,7 +86,7 @@ namespace DustyBot.Modules
             var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
             if (settings == null || settings.Events.Count <= 0)
             {
-                await command.ReplyError(Communicator, $"No events to display on this server. To set up a schedule check out the guide at <{WebConstants.ScheduleGuideUrl}>.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"No events to display on this server. To set up a schedule check out the guide at <{WebConstants.ScheduleGuideUrl}>.");
                 return;
             }
 
@@ -102,7 +104,7 @@ namespace DustyBot.Modules
 
             if (events.Count() <= 0)
             {
-                await command.Reply(Communicator, $"No upcoming events{(tag != null ? $" with tag `{tag}`" : "")}.{(all.Any() ? " There are upcoming events with other tags; `schedule all` will display all events regardless of tags." : "")}").ConfigureAwait(false);
+                await command.Reply(Communicator, $"No upcoming events{(tag != null ? $" with tag `{tag}`" : "")}.{(all.Any() ? " There are upcoming events with other tags; `schedule all` will display all events regardless of tags." : "")}");
                 return;
             }
 
@@ -148,7 +150,7 @@ namespace DustyBot.Modules
                 .WithFooter($"{BuildUTCOffsetString(settings)}" + (truncateWarning ? $" • Shows first {displayed} events" : string.Empty))
                 .WithColor(0xbe, 0xe7, 0xb6);
 
-            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
         }
 
         [Command("schedule", "set", "style", "Switches between display styles.", CommandFlags.TypingIndicator)]
@@ -162,9 +164,9 @@ namespace DustyBot.Modules
             if (!Enum.TryParse(command["EventFormat"], true, out EventFormat format))
                 throw new IncorrectParametersCommandException("Unknown event formatting type.");
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.EventFormat = format).ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.EventFormat = format);
             var result = await RefreshCalendars(command.Guild);
-            await command.ReplySuccess(Communicator, $"Schedule display style has been set to `{format}`. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Schedule display style has been set to `{format}`. {result}");
         }
 
         [Command("schedule", "set", "manager", "Sets an optional role that allows users to edit the schedule.")]
@@ -173,11 +175,11 @@ namespace DustyBot.Modules
         [Comment("Users with this role will be able to edit the schedule, in addition to users with the Manage Messages privilege.\n\nUse without parameters to disable.")]
         public async Task SetScheduleRole(ICommand command)
         {
-            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default).ConfigureAwait(false);
+            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.ScheduleRole = command["RoleNameOrID"].AsRole?.Id ?? default);
             if (r == default)
-                await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.");
             else
-                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.");
         }
 
         [Command("schedule", "set", "notifications", "Sets a channel for event notifications.")]
@@ -213,9 +215,9 @@ namespace DustyBot.Modules
                     Channel = command["Channel"].AsTextChannel.Id,
                     Role = command["RoleNameOrID"].AsRole?.Id ?? default
                 });
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, $"Notified events {BuildTagString(tag)} will now be posted in {command["Channel"].AsTextChannel.Mention}{(command["RoleNameOrId"].HasValue ? $" and ping the `{command["RoleNameOrId"].AsRole.Name}` role" : "")}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Notified events {BuildTagString(tag)} will now be posted in {command["Channel"].AsTextChannel.Mention}{(command["RoleNameOrId"].HasValue ? $" and ping the `{command["RoleNameOrId"].AsRole.Name}` role" : "")}.");
         }
 
         [Command("schedule", "reset", "notifications", "Resets event notifications.")]
@@ -227,14 +229,14 @@ namespace DustyBot.Modules
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
             var tag = command["Tag"].HasValue ? command["Tag"].AsString : null;
-            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>s.Notifications.RemoveAll(x => ScheduleSettings.CompareTag(x.Tag, tag, ignoreAllTag: true))).ConfigureAwait(false);
+            var r = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>s.Notifications.RemoveAll(x => ScheduleSettings.CompareTag(x.Tag, tag, ignoreAllTag: true)));
             if (r <= 0)
             {
-                await command.ReplyError(Communicator, $"There's no notification settings for this tag.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"There's no notification settings for this tag.");
                 return;
             }
 
-            await command.ReplySuccess(Communicator, $"Events {BuildTagString(tag)} will no longer be notified.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Events {BuildTagString(tag)} will no longer be notified.");
         }
 
         [Command("schedule", "set", "timezone", "Changes the schedule's timezone.", CommandFlags.TypingIndicator)]
@@ -277,7 +279,7 @@ namespace DustyBot.Modules
             });
 
             var result = await RefreshCalendars(command.Guild);
-            await command.ReplySuccess(Communicator, $"The schedule's timezone has been set to `{BuildUTCOffsetString(settings)}`. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"The schedule's timezone has been set to `{BuildUTCOffsetString(settings)}`. {result}");
         }
 
         [Command("schedule", "set", "length", "Sets the number of events displayed by the schedule command.")]
@@ -290,8 +292,8 @@ namespace DustyBot.Modules
             if (command["MaxEvents"].AsInt < 1)
                 throw new IncorrectParametersCommandException("Must be more than 0.", false);
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.UpcomingEventsDisplayLimit = (int)command["MaxEvents"]).ConfigureAwait(false);
-            await command.ReplySuccess(Communicator, $"The `schedule` command will now display up to {(int)command["MaxEvents"]} events.").ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.UpcomingEventsDisplayLimit = (int)command["MaxEvents"]);
+            await command.ReplySuccess(Communicator, $"The `schedule` command will now display up to {(int)command["MaxEvents"]} events.");
         }
 
         [Command("event", "add", "Adds an event to schedule.")]
@@ -664,7 +666,7 @@ namespace DustyBot.Modules
                             throw new IncorrectParametersCommandException($"Unknown command. Only {allowedCommands.Select(x => x.PrimaryUsage.InvokeUsage).WordJoinQuoted()} commands are allowed.");
 
                         var (partialCommandRegistration, usage) = findResult.Value;
-                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config.CommandPrefix);
+                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config.CommandPrefix, UserFetcher);
                         if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
                             throw new IncorrectParametersCommandException("");
 
@@ -828,9 +830,9 @@ namespace DustyBot.Modules
                     throw new CommandException($"Could not create the calendar because it would be too long to display. Try narrowing the range of dates for the calendar.");
                 }
 
-                await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+                await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar));
 
-                await command.ReplySuccess(Communicator, $"A calendar has been created to display events {BuildCalendarSpanString(calendar)}{BuildCalendarTagString(calendar)} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"A calendar has been created to display events {BuildCalendarSpanString(calendar)}{BuildCalendarTagString(calendar)} in {command["Channel"].AsTextChannel.Mention}.");
             }
             catch (FormatException)
             {
@@ -874,9 +876,9 @@ namespace DustyBot.Modules
                 throw new CommandException($"Could not create the calendar because it would be too long to display. Try narrowing the range of dates for the calendar.");
             }
 
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar));
 
-            await command.ReplySuccess(Communicator, $"A calendar has been created to display the `{calendar.BeginDate.ToString(@"MMMM", GlobalDefinitions.Culture)}` schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"A calendar has been created to display the `{calendar.BeginDate.ToString(@"MMMM", GlobalDefinitions.Culture)}` schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.");
         }
 
         [Command("calendar", "create", "upcoming", "Creates a permanent message to display only upcoming events.")]
@@ -903,9 +905,9 @@ namespace DustyBot.Modules
             var message = await command["Channel"].AsTextChannel.SendMessageAsync(text, embed: embed);
 
             calendar.MessageId = message.Id;
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar));
 
-            await command.ReplySuccess(Communicator, $"A calendar has been created to display upcoming{(calendar.DaysSpan > 0 ? $" {calendar.DaysSpan} days of" : string.Empty)} schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"A calendar has been created to display upcoming{(calendar.DaysSpan > 0 ? $" {calendar.DaysSpan} days of" : string.Empty)} schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.");
         }
 
         [Command("calendar", "create", "upcoming", "week", "Creates a permanent message to display events in the next 7 days.")]
@@ -929,9 +931,9 @@ namespace DustyBot.Modules
             var message = await command["Channel"].AsTextChannel.SendMessageAsync(text, embed: embed);
 
             calendar.MessageId = message.Id;
-            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar)).ConfigureAwait(false);
+            await Settings.Modify(command.GuildId, (ScheduleSettings s) => s.Calendars.Add(calendar));
 
-            await command.ReplySuccess(Communicator, $"A calendar has been created to display the upcoming week of schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"A calendar has been created to display the upcoming week of schedule{BuildCalendarTagString(calendar, "for events")} in {command["Channel"].AsTextChannel.Mention}.");
         }
 
         [Command("calendar", "set", "begin", "Moves the begin date of a calendar.")]
@@ -956,7 +958,7 @@ namespace DustyBot.Modules
             });
 
             var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}");
         }
 
         [Command("calendar", "set", "end", "Moves the end date of a calendar.")]
@@ -983,7 +985,7 @@ namespace DustyBot.Modules
             });
 
             var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display events {BuildCalendarSpanString(calendar)}. {result}");
         }
 
         [Command("calendar", "set", "month", "Sets an existing calendar to display a different month.")]
@@ -1010,7 +1012,7 @@ namespace DustyBot.Modules
             });
 
             var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display the `{calendar.BeginDate.ToString(@"MMMM", GlobalDefinitions.Culture)}` schedule. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display the `{calendar.BeginDate.ToString(@"MMMM", GlobalDefinitions.Culture)}` schedule. {result}");
         }
         
         [Command("calendar", "set", "title", "Sets a custom title for a calendar.")]
@@ -1029,7 +1031,7 @@ namespace DustyBot.Modules
             });
 
             var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"New title has been set.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"New title has been set.");
         }
 
         [Command("calendar", "set", "footer", "Sets a custom footer for a calendar.")]
@@ -1049,7 +1051,7 @@ namespace DustyBot.Modules
             });
 
             var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"New footer has been set.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"New footer has been set.");
         }
 
         [Command("calendar", "set", "tag", "Makes a calendar display only events with a specific tag.")]
@@ -1072,11 +1074,11 @@ namespace DustyBot.Modules
             var result = new RefreshResult(calendar, await RefreshCalendar(calendar, command.Guild, settings));
 
             if (calendar.HasAllTag)
-                await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display all events, regardless of tags.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display all events, regardless of tags.");
             else if (calendar.HasTag)
-                await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display only events marked with tag `{calendar.Tag}`.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display only events marked with tag `{calendar.Tag}`.");
             else
-                await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display only untagged events.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Calendar `{calendar.MessageId}` will now display only untagged events.");
         }
 
         [Command("calendar", "list", "Lists all active calendars on this server.")]
@@ -1085,10 +1087,10 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false).ConfigureAwait(false);
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
             if (settings == null || settings.Calendars.Count <= 0)
             {
-                await command.Reply(Communicator, $"No calendars found. Use one of the `calendar create` commands to create a calendar.").ConfigureAwait(false);
+                await command.Reply(Communicator, $"No calendars found. Use one of the `calendar create` commands to create a calendar.");
                 return;
             }
 
@@ -1124,7 +1126,7 @@ namespace DustyBot.Modules
                 result.AppendLine();
             }                
 
-            await command.Reply(Communicator, result.ToString()).ConfigureAwait(false);
+            await command.Reply(Communicator, result.ToString());
         }
 
         [Command("calendar", "split", "Splits a calendar in two by a given date.")]
@@ -1184,7 +1186,7 @@ namespace DustyBot.Modules
             });
 
             var result = new RefreshResult(origCalendar, await RefreshCalendar(origCalendar, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"The original calendar will now display events {BuildCalendarSpanString(origCalendar)}. A new calendar has been created to display events {BuildCalendarSpanString(newCalendar)}.\n**Tip:** You can reorder calendars in your schedule channel with the `calendar swap` or `calendar set begin/end` commands. {result.ToString(false)}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"The original calendar will now display events {BuildCalendarSpanString(origCalendar)}. A new calendar has been created to display events {BuildCalendarSpanString(newCalendar)}.\n**Tip:** You can reorder calendars in your schedule channel with the `calendar swap` or `calendar set begin/end` commands. {result.ToString(false)}");
         }
 
         [Command("calendar", "swap", "Swaps two calendars.")]
@@ -1214,7 +1216,7 @@ namespace DustyBot.Modules
             var result = new RefreshResult();
             result.Add(first, await RefreshCalendar(first, command.Guild, settings));
             result.Add(second, await RefreshCalendar(second, command.Guild, settings));
-            await command.ReplySuccess(Communicator, $"Calendars have been swapped. {result}").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Calendars have been swapped. {result}");
         }
 
         [Command("calendar", "delete", "Deletes a calendar.")]
@@ -1233,7 +1235,7 @@ namespace DustyBot.Modules
                 var c = s.Calendars[i];
                 s.Calendars.RemoveAt(i);
                 return c;
-            }).ConfigureAwait(false);
+            });
 
             if (removed == null)
                 throw new IncorrectParametersCommandException("Cannot find a calendar with this message ID.");
@@ -1253,7 +1255,7 @@ namespace DustyBot.Modules
                 await Logger.Log(new LogMessage(LogSeverity.Error, "Schedule", $"Failed to remove calendar message {removed.MessageId} in channel {removed.ChannelId} on {command.Guild.Name} ({command.GuildId}).", ex));
             }
 
-            await command.ReplySuccess(Communicator, $"Calendar has been deleted.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Calendar has been deleted.");
         }
 
         class RefreshResult
@@ -1335,8 +1337,8 @@ namespace DustyBot.Modules
             var result = new RefreshResult();
             try
             {
-                var channel = await guild.GetTextChannelAsync(calendar.ChannelId).ConfigureAwait(false);
-                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId).ConfigureAwait(false)) as IUserMessage : null;
+                var channel = await guild.GetTextChannelAsync(calendar.ChannelId);
+                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId)) as IUserMessage : null;
                 if (message == null)
                 {
                     await Settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
@@ -1345,7 +1347,7 @@ namespace DustyBot.Modules
                 }
 
                 var (text, embed) = BuildCalendarMessage(calendar, settings);
-                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; }).ConfigureAwait(false);
+                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; });
                 return RefreshResult.Reason.Success;
             }
             catch (ArgumentOutOfRangeException)
@@ -1690,7 +1692,7 @@ namespace DustyBot.Modules
             var result = new RefreshResult();
             foreach (var s in settings)
             {
-                var guild = await Client.GetGuildAsync(s.ServerId);
+                var guild = Client.GetGuild(s.ServerId);
                 if (guild == null)
                     continue;
 

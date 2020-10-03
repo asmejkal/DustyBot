@@ -291,7 +291,7 @@ namespace DustyBot.Modules
             foreach (var role in command.Guild.Roles)
                 data[role.Id] = 0;
 
-            foreach (var user in await command.Guild.GetUsersAsync())
+            foreach (var user in await command.Guild.GetUsersAsync()) // TODO: intents
                 foreach (var role in user.RoleIds)
                     data[role] += 1;
 

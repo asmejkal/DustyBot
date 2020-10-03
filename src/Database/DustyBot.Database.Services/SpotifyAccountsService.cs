@@ -32,6 +32,9 @@ namespace DustyBot.Database.Services
         public async Task AddOrUpdateUserAccountAsync(SpotifyAccount account, CancellationToken ct)
         {
             await Table.CreateIfNotExistsAsync();
+            account.PartitionKey = "root";
+            account.RowKey = account.UserId;
+            account.ETag = "*";
             await Table.ExecuteAsync(TableOperation.InsertOrReplace(account));
         }
 
@@ -39,7 +42,10 @@ namespace DustyBot.Database.Services
         {
             var account = new SpotifyAccount()
             {
-                UserId = userId.ToString()
+                UserId = userId.ToString(),
+                PartitionKey = "root",
+                RowKey = userId.ToString(),
+                ETag = "*"
             };
 
             return Table.ExecuteAsync(TableOperation.Delete(account));

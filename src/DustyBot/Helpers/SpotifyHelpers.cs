@@ -22,7 +22,7 @@ namespace DustyBot.Helpers
 
             using (var writer = new StreamWriter(await request.GetRequestStreamAsync(), Encoding.ASCII))
             {
-                await writer.WriteAsync($"grant_type=refresh_token&refresh_token={refreshToken}").ConfigureAwait(false);
+                await writer.WriteAsync($"grant_type=refresh_token&refresh_token={refreshToken}");
             }
 
             using (var response = (HttpWebResponse)await request.GetResponseAsync())
@@ -42,7 +42,7 @@ namespace DustyBot.Helpers
             request.Headers.Add("Authorization", BuildAuthorizationHeader(clientId, clientSecret));
 
             using (var writer = new StreamWriter(await request.GetRequestStreamAsync(), Encoding.ASCII))
-                await writer.WriteAsync("grant_type=client_credentials").ConfigureAwait(false);
+                await writer.WriteAsync("grant_type=client_credentials");
 
             using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var reader = new StreamReader(response.GetResponseStream()))

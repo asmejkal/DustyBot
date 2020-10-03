@@ -94,7 +94,7 @@ namespace DustyBot.Modules
                 var nowPlaying = result.nowPlaying;
                 if (!tracks.Any())
                 {
-                    await command.Reply(Communicator, GetNoScrobblesMessage(command["User"]?.AsGuildUserOrName?.Item2));
+                    await command.Reply(Communicator, GetNoScrobblesMessage((await command["User"].AsGuildUserOrName)?.Item2));
                     return;
                 }
 
@@ -177,8 +177,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -208,18 +207,18 @@ namespace DustyBot.Modules
                 var nowPlaying = (await nowPlayingTask).tracks.FirstOrDefault();
                 if (nowPlaying == null)
                 {
-                    await command.Reply(Communicator, GetNoScrobblesMessage(command["User"]?.AsGuildUserOrName?.Item2));
+                    await command.Reply(Communicator, GetNoScrobblesMessage((await command["User"].AsGuildUserOrName)?.Item2));
                     return;
                 }
 
                 var url = await spotify.SearchTrackUrl($"{nowPlaying.name} artist:{nowPlaying.artist.name}");
                 if (string.IsNullOrEmpty(url))
                 {
-                    await command.Reply(Communicator, $"Can't find this track on Spotify...").ConfigureAwait(false);
+                    await command.Reply(Communicator, $"Can't find this track on Spotify...");
                     return;
                 }
 
-                await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url).ConfigureAwait(false);
+                await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -368,8 +367,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -441,8 +439,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -470,7 +467,7 @@ namespace DustyBot.Modules
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetArtistScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
-                    throw new AbortException(GetNoScrobblesTimePeriodMessage(command["User"]?.AsGuildUserOrName?.Item2));
+                    throw new AbortException(GetNoScrobblesTimePeriodMessage((await command["User"].AsGuildUserOrName)?.Item2));
 
                 var pages = new PageCollectionBuilder();
                 var place = 1;
@@ -497,8 +494,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -526,7 +522,7 @@ namespace DustyBot.Modules
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetAlbumScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
-                    throw new AbortException(GetNoScrobblesTimePeriodMessage(command["User"]?.AsGuildUserOrName?.Item2));
+                    throw new AbortException(GetNoScrobblesTimePeriodMessage((await command["User"].AsGuildUserOrName)?.Item2));
 
                 var pages = new PageCollectionBuilder();
                 var place = 1;
@@ -553,8 +549,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -582,7 +577,7 @@ namespace DustyBot.Modules
                 var playcountTask = client.GetTotalPlaycount(period);
                 var results = (await client.GetTrackScores(period, NumDisplayed, playcountTask)).ToList();
                 if (!results.Any())
-                    throw new AbortException(GetNoScrobblesTimePeriodMessage(command["User"]?.AsGuildUserOrName?.Item2));
+                    throw new AbortException(GetNoScrobblesTimePeriodMessage((await command["User"].AsGuildUserOrName)?.Item2));
 
                 var pages = new PageCollectionBuilder();
                 var place = 1;
@@ -609,8 +604,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -631,7 +625,7 @@ namespace DustyBot.Modules
         {
             try
             {
-                var (settings, user) = await GetLastFmSettings(command["User"].HasValue ? command["User"].AsGuildUser : (IGuildUser)command.Author, command["User"].HasValue);
+                var (settings, user) = await GetLastFmSettings(command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author, command["User"].HasValue);
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LfStatsPeriod.Overall;
                 if (period == LfStatsPeriod.Day)
                     throw new IncorrectParametersCommandException("The `day` value can't be used with this command.", false);
@@ -690,8 +684,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
-                var extUser = command["User"].HasValue ? command["User"].AsGuildUserOrName.Item2 : null;
-                throw new IncorrectParametersCommandException(extUser != null ? $"User `{extUser}` not found." : "User not found.");
+                ThrowUserNotFound((await command["User"].AsGuildUserOrName)?.Item2);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -829,16 +822,17 @@ namespace DustyBot.Modules
 
         async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(ParameterToken param, IGuildUser fallback = null)
         {
-            if (param.HasValue && !string.IsNullOrEmpty(param.AsGuildUserOrName.Item2))
+            var userOrName = await param.AsGuildUserOrName;
+            if (!string.IsNullOrEmpty(userOrName.Item2))
             {
                 // Off-discord username
-                return (new LastFmUserSettings() { LastFmUsername = param.AsGuildUserOrName.Item2, Anonymous = false }, param.AsGuildUserOrName.Item2);
+                return (new LastFmUserSettings() { LastFmUsername = userOrName.Item2, Anonymous = false }, userOrName.Item2);
             }
 
-            if (!param.HasValue && fallback == null)
+            if (userOrName == null && fallback == null)
                 throw new ArgumentException();
 
-            var user = param.HasValue ? param.AsGuildUserOrName.Item1 : fallback;
+            var user = param.HasValue ? userOrName.Item1 : fallback;
             return await GetLastFmSettings(user, param.HasValue);
         }
 
@@ -898,5 +892,8 @@ namespace DustyBot.Modules
         static int GetCommonPlays<T>(IEnumerable<LfMatch<T>> matches)
             where T : ILfEntity
             => matches.Aggregate(0, (x, y) => x + Math.Min(y.First.Playcount, y.Second.Playcount));
+
+        private static void ThrowUserNotFound(string name) => 
+            throw new IncorrectParametersCommandException(name != null ? $"User `{name}` not found." : "User not found.");
     }
 }

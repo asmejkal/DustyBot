@@ -108,9 +108,9 @@ namespace DustyBot.Modules
                 s.DaumCafeFeeds.RemoveAll(x => x.CafeId == feed.CafeId && x.BoardId == feed.BoardId && x.TargetChannel == feed.TargetChannel);
 
                 s.DaumCafeFeeds.Add(feed);
-            }).ConfigureAwait(false);
+            });
             
-            await command.ReplySuccess(Communicator, $"Cafe feed has been added!" + (!postsAccesible ? "\n\n**Warning:** The bot cannot view posts on this board and will not create post previews. To get previews you need to provide credentials to an account that can view posts on this board." : "")).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Cafe feed has been added!" + (!postsAccesible ? "\n\n**Warning:** The bot cannot view posts on this board and will not create post previews. To get previews you need to provide credentials to an account that can view posts on this board." : ""));
         }
 
         [Command("cafe", "remove", "Removes a Daum Cafe board feed.")]
@@ -125,9 +125,9 @@ namespace DustyBot.Modules
             });
 
             if (removed)
-                await command.ReplySuccess(Communicator, $"Feed has been removed.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Feed has been removed.");
             else
-                await command.ReplyError(Communicator, $"A feed with this ID does not exist.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"A feed with this ID does not exist.");
         }
 
         [Command("cafe", "remove", "global", "Removes a Daum Cafe board feed from any server.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
@@ -141,12 +141,12 @@ namespace DustyBot.Modules
                 {
                     var removed = await Settings.Modify(settings.ServerId, (MediaSettings x) => x.DaumCafeFeeds.RemoveAll(y => y.Id == command["FeedId"].AsGuid));
 
-                    await command.ReplySuccess(Communicator, $"Feed has been removed from server `{settings.ServerId}`.").ConfigureAwait(false);
+                    await command.ReplySuccess(Communicator, $"Feed has been removed from server `{settings.ServerId}`.");
                     return;
                 }
             }
 
-            await command.ReplyError(Communicator, $"A feed with this ID does not exist.").ConfigureAwait(false);
+            await command.ReplyError(Communicator, $"A feed with this ID does not exist.");
         }
 
         [Command("cafe", "list", "Lists all active Daum Cafe board feeds.")]
@@ -181,7 +181,7 @@ namespace DustyBot.Modules
                 return c.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"A credential with ID `{id}` has been added! Use `credential list` to view all your saved credentials.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"A credential with ID `{id}` has been added! Use `credential list` to view all your saved credentials.");
         }
 
         [Command("credential", "remove", "Removes a saved credential.", CommandFlags.DirectMessageAllow)]
@@ -197,9 +197,9 @@ namespace DustyBot.Modules
             });
 
             if (removed)
-                await command.ReplySuccess(Communicator, $"Credential has been removed.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, $"Credential has been removed.");
             else
-                await command.ReplyError(Communicator, $"Couldn't find a credential with ID `{command[0]}`. Use `credential list` to view all your saved credentials and their IDs.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"Couldn't find a credential with ID `{command[0]}`. Use `credential list` to view all your saved credentials and their IDs.");
         }
 
         [Command("credential", "clear", "Removes all your saved credentials.", CommandFlags.DirectMessageAllow)]
@@ -208,7 +208,7 @@ namespace DustyBot.Modules
         {
             await Settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => s.Credentials.Clear());
 
-            await command.ReplySuccess(Communicator, $"All your credentials have been removed.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"All your credentials have been removed.");
         }
 
         [Command("credential", "list", "Lists all your saved credentials.", CommandFlags.DirectMessageAllow)]

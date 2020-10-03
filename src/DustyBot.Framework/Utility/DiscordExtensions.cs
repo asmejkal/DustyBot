@@ -18,13 +18,17 @@ namespace DustyBot.Framework.Utility
 
         public static async Task<IMessage> GetMessageAsync(this IGuild guild, ulong id)
         {
-            foreach (var c in await guild.GetChannelsAsync())
+            var user = await guild.GetCurrentUserAsync().ConfigureAwait(false);
+            foreach (var c in await guild.GetChannelsAsync().ConfigureAwait(false))
             {
                 if (c is ITextChannel textChannel)
                 {
                     try
                     {
-                        var message = await textChannel.GetMessageAsync(id);
+                        if (!user.GetPermissions(c).ReadMessageHistory)
+                            continue;
+                        
+                        var message = await textChannel.GetMessageAsync(id).ConfigureAwait(false);
                         if (message != null)
                             return message;
                     }

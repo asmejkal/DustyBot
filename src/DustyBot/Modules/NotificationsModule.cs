@@ -78,20 +78,23 @@ namespace DustyBot.Modules
         public const int MaxNotificationLength = 50;
         public const int MaxNotificationsPerUser = 15;
 
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
-
         private static readonly TimeSpan NotificationTimeoutDelay = TimeSpan.FromSeconds(8);
+
+        private ICommunicator Communicator { get; }
+        private ISettingsService Settings { get; }
+        private ILogger Logger { get; }
+        private IUserFetcher UserFetcher { get; }
+
         private Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> ActiveMessages { get; } = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();
 
         private ConcurrentDictionary<ulong, KeywordTree> KeywordTrees { get; } = new ConcurrentDictionary<ulong, KeywordTree>();
 
-        public NotificationsModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
+        public NotificationsModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
+            UserFetcher = userFetcher;
         }
 
         [Command("notification", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -110,13 +113,13 @@ namespace DustyBot.Modules
         {
             if (command["Word"].AsString.Length < MinNotificationLength)
             {
-                await command.ReplyError(Communicator, $"A notification has to be at least {MinNotificationLength} characters long.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"A notification has to be at least {MinNotificationLength} characters long.");
                 return;
             }
 
             if (command["Word"].AsString.Length > MaxNotificationLength)
             {
-                await command.ReplyError(Communicator, $"A notification can't be longer than {MaxNotificationLength} characters.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"A notification can't be longer than {MaxNotificationLength} characters.");
                 return;
             }
 
@@ -146,9 +149,9 @@ namespace DustyBot.Modules
                 });
 
                 KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, "You will now be notified when this word is mentioned.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "You will now be notified when this word is mentioned.");
         }
 
         [Command("notification", "remove", "Removes a notified word.")]
@@ -172,9 +175,9 @@ namespace DustyBot.Modules
                     throw new CommandException($"You don't have this word set as a notification. You can see all your notifications with `notification list`.");
 
                 KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
-            }).ConfigureAwait(false);
+            });
 
-            await command.ReplySuccess(Communicator, "You will no longer be notified when this word is mentioned.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "You will no longer be notified when this word is mentioned.");
         }
 
         [Command("notification", "list", "Lists all your notified words on this server.")]
@@ -199,7 +202,7 @@ namespace DustyBot.Modules
             var dm = await command.Message.Author.GetOrCreateDMChannelAsync();
             await dm.SendMessageAsync(result.ToString());
 
-            await command.ReplySuccess(Communicator, "Please check your direct messages.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Please check your direct messages.");
         }
 
         [Command("notification", "ignore", "active", "channel", "Skip notifications from the channel you're currently active in.")]
@@ -209,7 +212,7 @@ namespace DustyBot.Modules
         {
             var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
 
-            await command.ReplySuccess(Communicator, enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 
         private void RegisterPendingNotification((ulong, ulong) key, ulong message)
@@ -265,7 +268,7 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    if (!(message.Channel is ITextChannel channel))
+                    if (!(message.Channel is SocketTextChannel channel))
                         return;
 
                     if (!(message.Author is IGuildUser user))
@@ -274,13 +277,13 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    var settings = await Settings.Read<NotificationSettings>(channel.GuildId, false).ConfigureAwait(false);
+                    var settings = await Settings.Read<NotificationSettings>(channel.Guild.Id, false);
                     if (settings == null || settings.Notifications.Count <= 0)
                         return;
 
                     ResetPendingNotifications(user.Id, channel.Id);
 
-                    var tree = KeywordTrees.GetOrAdd(channel.GuildId, x => new KeywordTree(settings.Notifications));
+                    var tree = KeywordTrees.GetOrAdd(channel.Guild.Id, x => new KeywordTree(settings.Notifications));
                     var notifiedUsers = new HashSet<ulong>();
                     foreach (var (p, n) in tree.Match(message.Content))
                     {
@@ -296,9 +299,12 @@ namespace DustyBot.Modules
                         if (message.Author.Id == n.User)
                             continue; // Don't notify on self-sent messages
 
-                        var targetUser = await channel.GetUserAsync(n.User);
+                        var targetUser = (IGuildUser)channel.Guild.GetUser(n.User) ?? await UserFetcher.FetchGuildUserAsync(channel.Guild.Id, n.User);
                         if (targetUser == null)
-                            continue; // User can't see this channel
+                            continue;
+
+                        if (!targetUser.GetPermissions(channel).ViewChannel)
+                            continue;
 
                         notifiedUsers.Add(n.User);
 
@@ -306,7 +312,7 @@ namespace DustyBot.Modules
                         {
                             try
                             {
-                                await Settings.Modify(channel.GuildId, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
+                                await Settings.Modify(channel.Guild.Id, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
 
                                 var targetUserSettings = await Settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
                                 if (targetUserSettings?.IgnoreActiveChannel ?? false)

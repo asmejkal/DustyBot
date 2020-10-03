@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using DustyBot.Framework.Modules;
@@ -10,6 +9,7 @@ using DustyBot.Framework.Services;
 using System.Threading;
 using DustyBot.Framework.Logging;
 using DustyBot.Core.Async;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework
 {
@@ -74,7 +74,7 @@ namespace DustyBot.Framework
             if (components.Communicator is Communication.DefaultCommunicator defaultCommunicator)
                 EventRouter.Register(defaultCommunicator);
             
-            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config));
+            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config, new UserFetcher(Client.Rest)));
         }
 
         public async Task Run(string status = "")

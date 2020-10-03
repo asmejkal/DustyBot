@@ -148,8 +148,8 @@ namespace DustyBot.Services
                         {
                             try
                             {
-                                var channel = await guild.GetTextChannelAsync(calendar.ChannelId).ConfigureAwait(false);
-                                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId).ConfigureAwait(false)) as IUserMessage : null;
+                                var channel = await guild.GetTextChannelAsync(calendar.ChannelId);
+                                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId)) as IUserMessage : null;
                                 if (message == null)
                                 {
                                     await Settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
@@ -158,7 +158,7 @@ namespace DustyBot.Services
                                 }
 
                                 var (text, embed) = Modules.ScheduleModule.BuildCalendarMessage(calendar, settings);
-                                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; }).ConfigureAwait(false);
+                                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; });
 
                                 await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Updated calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId})."));
                             }
@@ -219,7 +219,7 @@ namespace DustyBot.Services
                             {
                                 try
                                 {
-                                    var channel = await guild.GetTextChannelAsync(s.Channel).ConfigureAwait(false);
+                                    var channel = await guild.GetTextChannelAsync(s.Channel);
                                     if (channel == null)
                                         continue;
 

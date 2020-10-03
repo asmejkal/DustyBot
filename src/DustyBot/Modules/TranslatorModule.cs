@@ -76,7 +76,7 @@ namespace DustyBot.Modules
                         .WithColor(new Color(0, 206, 56))
                         .WithFooter("Powered by Papago");
 
-                    await command.Message.Channel.SendMessageAsync(string.Empty, false, embedBuilder.Build()).ConfigureAwait(false);
+                    await command.Message.Channel.SendMessageAsync(string.Empty, false, embedBuilder.Build());
                 }
             }
             catch (WebException e) when (e.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.BadRequest)

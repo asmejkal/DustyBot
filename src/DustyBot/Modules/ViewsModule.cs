@@ -59,7 +59,7 @@ namespace DustyBot.Modules
                 else
                     rec = "Try " + GetOtherCategoriesRecommendation(settings, config, param, true) + ".";
 
-                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}");
                 return;
             }
 
@@ -67,7 +67,7 @@ namespace DustyBot.Modules
             var pages = new PageCollection();
             var infos = new List<Tuple<ComebackInfo, YoutubeInfo>>();
             foreach (var comeback in comebacks)
-                infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey).ConfigureAwait(false)));
+                infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey)));
 
             //Compose embeds with info
             string recommendation = "Try also: " + GetOtherCategoriesRecommendation(settings, config, param, false) + ".";
@@ -90,7 +90,7 @@ namespace DustyBot.Modules
                     ));
             }
 
-            await command.Reply(Communicator, pages).ConfigureAwait(false);
+            await command.Reply(Communicator, pages);
         }
 
         private string GetOtherCategoriesRecommendation(MediaSettings settings, BotConfig config, string category, bool useMarkdown)
@@ -133,9 +133,9 @@ namespace DustyBot.Modules
             await Settings.Modify(command.GuildId, (MediaSettings s) =>
             {
                 s.YouTubeComebacks.Add(info);
-            }).ConfigureAwait(false);
+            });
             
-            await command.ReplySuccess(Communicator, $"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos {info.VideoIds.WordJoinQuoted()}.").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, $"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos {info.VideoIds.WordJoinQuoted()}.");
         }
 
         [Command("views", "remove", "Removes a song.")]
@@ -167,12 +167,12 @@ namespace DustyBot.Modules
                     return string.Compare(x.Name, name, true) == 0 && 
                         string.Compare(string.IsNullOrEmpty(x.Category) ? null : x.Category, category, true) == 0;
                 });
-            }).ConfigureAwait(false);
+            });
 
             if (removed > 0)
-                await command.ReplySuccess(Communicator, removed > 1 ? $"Removed {removed} songs." : "Song has been removed.").ConfigureAwait(false);
+                await command.ReplySuccess(Communicator, removed > 1 ? $"Removed {removed} songs." : "Song has been removed.");
             else
-                await command.ReplyError(Communicator, $"Couldn't find song with name `{name}` in category `{category ?? "default"}`.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"Couldn't find song with name `{name}` in category `{category ?? "default"}`.");
         }
 
         [Command("views", "rename", "Renames a category or song.")]
@@ -205,24 +205,24 @@ namespace DustyBot.Modules
                 }
 
                 return Tuple.Create(ccount, scount);
-            }).ConfigureAwait(false);
+            });
 
             if (result.Item1 <= 0 && result.Item2 <= 0)
             {
-                await command.ReplyError(Communicator, $"There's no category or song matching this name.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, $"There's no category or song matching this name.");
                 return;
             }
 
-            await command.ReplySuccess(Communicator, (result.Item1 > 0 ? $"Moved all comebacks from `{(string)command[0]}` category. " : string.Empty) + (result.Item2 > 0 ? $"Renamed all songs named `{(string)command[0]}`. " : string.Empty)).ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, (result.Item1 > 0 ? $"Moved all comebacks from `{(string)command[0]}` category. " : string.Empty) + (result.Item2 > 0 ? $"Renamed all songs named `{(string)command[0]}`. " : string.Empty));
         }
 
         [Command("views", "list", "Lists all songs.")]
         public async Task ListComebacks(ICommand command)
         {
-            var settings = await Settings.Read<MediaSettings>(command.GuildId, false).ConfigureAwait(false);
+            var settings = await Settings.Read<MediaSettings>(command.GuildId, false);
             if (settings == null || settings.YouTubeComebacks.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No comeback info has been set. Use the `views add` command.").ConfigureAwait(false);
+                await command.ReplyError(Communicator, "No comeback info has been set. Use the `views add` command.");
                 return;
             }
 
@@ -234,7 +234,7 @@ namespace DustyBot.Modules
                     $"` IDs: `{string.Join(" ", comeback.VideoIds)}`\n";
             }
 
-            await command.Reply(Communicator, result).ConfigureAwait(false);
+            await command.Reply(Communicator, result);
         }
 
         public class YoutubeInfo
@@ -250,11 +250,11 @@ namespace DustyBot.Modules
 
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
 
-            using (HttpWebResponse response = (HttpWebResponse)(await request.GetResponseAsync().ConfigureAwait(false)))
+            using (HttpWebResponse response = (HttpWebResponse)(await request.GetResponseAsync()))
             using (Stream stream = response.GetResponseStream())
             using (StreamReader reader = new StreamReader(stream))
             {
-                var html = await reader.ReadToEndAsync().ConfigureAwait(false);
+                var html = await reader.ReadToEndAsync();
                 var json = JObject.Parse(html);
                 ulong totalViews = 0;
                 ulong totalLikes = 0;

@@ -44,7 +44,7 @@ namespace DustyBot.Modules
             var config = await Settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
-                await command.Message.Channel.SendMessageAsync(string.Empty, embed: (await HelpBuilder.GetHelpEmbed(Settings)).Build()).ConfigureAwait(false);
+                await command.Message.Channel.SendMessageAsync(string.Empty, embed: (await HelpBuilder.GetHelpEmbed(Settings)).Build());
             }
             else
             {
@@ -68,7 +68,7 @@ namespace DustyBot.Modules
 
                 embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, config.CommandPrefix)));
 
-                await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+                await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
             }
         }
 
@@ -92,23 +92,19 @@ namespace DustyBot.Modules
         {
             var config = await Settings.ReadGlobal<BotConfig>();
 
-            var users = new HashSet<ulong>();
-            foreach (var guild in Client.Guilds)
-                users.UnionWith(guild.Users.Select(x => x.Id));
-
-            var uptime = (DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime());
+            var uptime = DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
             var embed = new EmbedBuilder()
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddField("Author", "Yeba#3517", true)
                 .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
-                .AddField("Presence", $"{users.Count} users\n{Client.Guilds.Count} servers", true)
+                .AddField("Presence", $"{Client.Guilds.Count} servers", true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
                 .AddField("Web", WebConstants.WebsiteRoot, true)
                 .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
 
-            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build()).ConfigureAwait(false);
+            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
         }
 
         [Command("feedback", "Suggest a modification or report an issue.", CommandFlags.DirectMessageAllow)]
@@ -119,15 +115,12 @@ namespace DustyBot.Modules
 
             foreach (var owner in config.OwnerIDs)
             {
-                var user = (IUser)Client.GetUser(owner);
-                if (user == null)
-                    user = await Client.Rest.GetUserAsync(owner);
-
+                var user = (IUser)Client.GetUser(owner) ?? await Client.Rest.GetUserAsync(owner);
                 var author = command.Message.Author;
                 await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
             }
 
-            await command.ReplySuccess(Communicator, "Thank you for your feedback!").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Thank you for your feedback!");
         }
 
         [Command("invite", "Shows a link to invite the bot to your server.", CommandFlags.DirectMessageAllow)]
@@ -147,10 +140,10 @@ namespace DustyBot.Modules
 
                 pages.Last.Embed.AddField(x => x
                     .WithName(guild?.Name ?? "Unknown")
-                    .WithValue($"{guild?.Id}\n{guild?.MemberCount} members\nOwned by {guild?.Owner?.Username}#{guild?.Owner?.Discriminator} ({guild?.OwnerId})"));
+                    .WithValue($"{guild?.Id}\n{guild?.MemberCount} members"));
             }
 
-            await command.Reply(Communicator, pages, true).ConfigureAwait(false);
+            await command.Reply(Communicator, pages, true);
         }
 
         [Command("server", "global", "Shows information about a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -169,16 +162,17 @@ namespace DustyBot.Modules
                 return;
             }
 
+            var owner = (IGuildUser)guild.Owner ?? await Client.Rest.GetGuildUserAsync(guild.Id, guild.OwnerId);
             var embed = new EmbedBuilder()
                 .WithTitle(guild.Name)
                 .WithThumbnailUrl(guild.IconUrl)
                 .AddField(x => x.WithIsInline(true).WithName("ID").WithValue(guild.Id))
-                .AddField(x => x.WithIsInline(true).WithName("Owner").WithValue($"{guild.Owner.Username}#{guild.Owner.Discriminator}"))
+                .AddField(x => x.WithIsInline(true).WithName("Owner").WithValue($"{owner.Username}#{owner.Discriminator}"))
                 .AddField(x => x.WithIsInline(true).WithName("Owner ID").WithValue(guild.OwnerId))
                 .AddField(x => x.WithIsInline(true).WithName("Members").WithValue(guild.MemberCount))
                 .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString("dd.MM.yyyy H:mm:ss UTC")));
 
-            await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build()).ConfigureAwait(false);
+            await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build());
         }
 
         [Command("setavatar", "Changes the bot's avatar.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -210,7 +204,7 @@ namespace DustyBot.Modules
                 }
             }
 
-            await command.ReplySuccess(Communicator, "Avatar was changed!").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Avatar was changed!");
         }
 
         [Command("setname", "Changes the bot's username.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -218,7 +212,7 @@ namespace DustyBot.Modules
         public async Task SetName(ICommand command)
         {
             await Client.CurrentUser.ModifyAsync(x => x.Username = (string)command["NewName"]);
-            await command.ReplySuccess(Communicator, "Username was changed!").ConfigureAwait(false);
+            await command.ReplySuccess(Communicator, "Username was changed!");
         }
 
         [Command("help", "dump", "Generates a list of all commands.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
