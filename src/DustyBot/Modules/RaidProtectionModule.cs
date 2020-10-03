@@ -486,31 +486,45 @@ namespace DustyBot.Modules
                     userContext.Mutex.Release();
                 }
 
-                IUserMessage warningMessage;
-                if (punish)
+                var currentUser = await channel.Guild.GetCurrentUserAsync();
+                if (currentUser.GetPermissions(channel).SendMessages)
                 {
-                    await AdministrationHelpers.Mute(user, "raid protection rule", Settings);
-                    warningMessage = (await Communicator.SendMessage(channel, $"{user.Mention} you have been muted for breaking raid protection rules. If you believe this is a mistake, please contact a moderator.")).First();
+                    IUserMessage warningMessage;
+                    if (punish)
+                    {
+                        await AdministrationHelpers.Mute(user, "raid protection rule", Settings);
+                        warningMessage = (await Communicator.SendMessage(channel, $"{user.Mention} you have been muted for breaking raid protection rules. If you believe this is a mistake, please contact a moderator.")).First();
+                    }
+                    else
+                        warningMessage = (await Communicator.SendMessage(channel, $"{user.Mention} you have broken a raid protection rule.")).First();
+
+                    warningMessage.DeleteAfter(8);
                 }
                 else
-                    warningMessage = (await Communicator.SendMessage(channel, $"{user.Mention} you have broken a raid protection rule.")).First();
-
-                warningMessage.DeleteAfter(8);
-
-                var embed = new EmbedBuilder()
-                    .WithFooter(fb => fb.WithText(messages.Last().Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")))
-                    .AddField(fb => fb.WithName("Reason").WithValue($"Broken rule ({rule.Type})."));
-
-                if (punish)
-                    embed.WithDescription($"**Muted user {user.Mention} for suspicious behavior:**\n" + reason).WithColor(Color.Red);
-                else
-                    embed.WithDescription($"**Warned user {user.Mention} for suspicious behavior:**\n" + reason).WithColor(Color.Orange);
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Missing permissions to warn offender about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                }
 
                 var logChannel = await channel.Guild.GetTextChannelAsync(logChannelId);
-                if (logChannel != null)
-                    await logChannel.SendMessageAsync(string.Empty, embed: embed.Build());
+                if (logChannel != null && currentUser.GetPermissions(logChannel).SendMessages)
+                {
+                    var embed = new EmbedBuilder()
+                        .WithFooter(fb => fb.WithText(messages.Last().Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")))
+                        .AddField(fb => fb.WithName("Reason").WithValue($"Broken rule ({rule.Type})."));
 
-                await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Enforced rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} because of {reason}"));
+                    if (punish)
+                        embed.WithDescription($"**Muted user {user.Mention} for suspicious behavior:**\n" + reason).WithColor(Color.Red);
+                    else
+                        embed.WithDescription($"**Warned user {user.Mention} for suspicious behavior:**\n" + reason).WithColor(Color.Orange);
+
+                    await logChannel.SendMessageAsync(string.Empty, embed: embed.Build());
+                }
+                else
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Couldn't report about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                }
+
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Enforced rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id}) because of {reason}"));
             }
         }
     }

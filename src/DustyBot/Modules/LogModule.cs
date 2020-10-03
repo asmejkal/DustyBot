@@ -197,9 +197,15 @@ namespace DustyBot.Modules
                     if (eventChannelId == 0)
                         return;
 
-                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
+                    var eventChannel = guild.TextChannels.First(x => x.Id == eventChannelId);
                     if (eventChannel == null)
                         return;
+
+                    if (!guild.CurrentUser.GetPermissions(eventChannel).SendMessages)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted message on {guild.Name} ({guild.Id}) because of missing permissions"));
+                        return;
+                    }
 
                     if (settings.EventMessageDeletedChannelFilter.Contains(channel.Id))
                         return;
@@ -222,10 +228,6 @@ namespace DustyBot.Modules
                     }
 
                     await LogSingleMessage(userMessage, guild, textChannel, eventChannel);
-                }
-                catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Log", "Missing permissions to log deleted message", ex));
                 }
                 catch (Exception ex)
                 {
@@ -268,9 +270,15 @@ namespace DustyBot.Modules
                     if (eventChannelId == 0)
                         return;
 
-                    var eventChannel = guild.Channels.First(x => x.Id == eventChannelId) as ISocketMessageChannel;
+                    var eventChannel = guild.TextChannels.First(x => x.Id == eventChannelId);
                     if (eventChannel == null)
                         return;
+
+                    if (!guild.CurrentUser.GetPermissions(eventChannel).SendMessages)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted messages on {guild.Name} ({guild.Id}) because of missing permissions"));
+                        return;
+                    }
 
                     if (settings.EventMessageDeletedChannelFilter.Contains(channel.Id))
                         return;
@@ -350,10 +358,6 @@ namespace DustyBot.Modules
 
                     if (!string.IsNullOrEmpty(embed.Description))
                         await eventChannel.SendMessageAsync(string.Empty, false, embed.Build());
-                }
-                catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Log", "Missing permissions to log deleted messages", ex));
                 }
                 catch (Exception ex)
                 {

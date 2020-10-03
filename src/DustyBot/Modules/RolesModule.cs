@@ -546,22 +546,28 @@ namespace DustyBot.Modules
             {
                 try
                 {
+                    var channel = message.Channel as SocketTextChannel;
+                    if (channel == null)
+                        return;
+
+                    var user = message.Author as IGuildUser;
+                    if (user == null)
+                        return;
+
+                    if (user.IsBot)
+                        return;
+
                     using (await RoleAssignmentLock.ClaimAsync()) // To prevent race-conditions when spamming roles (would be nicer with per-guild locks)
                     {
-                        var channel = message.Channel as ITextChannel;
-                        if (channel == null)
-                            return;
-
-                        var user = message.Author as IGuildUser;
-                        if (user == null)
-                            return;
-
-                        if (user.IsBot)
-                            return;
-
-                        var settings = await Settings.Read<RolesSettings>(channel.GuildId, false);
+                        var settings = await Settings.Read<RolesSettings>(channel.Guild.Id, false);
                         if (settings == null || settings.RoleChannel != channel.Id)
                             return;
+
+                        if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Can't assign role because of missing SendMessage permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                            return;
+                        }
 
                         try
                         {

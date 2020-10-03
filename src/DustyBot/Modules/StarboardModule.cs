@@ -441,6 +441,12 @@ namespace DustyBot.Modules
             if (entry.StarboardMessage == default)
             {
                 //Post new
+                if (!(await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).SendMessages)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Can't post starred message because of missing permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    return;
+                }
+
                 var attachments = await ProcessAttachments(message.Attachments);
                 var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), attachments, board.Style);
                 var starMessage = await starChannel.SendMessageAsync(built.Text, embed: built.Embed);

@@ -209,7 +209,13 @@ namespace DustyBot.Modules
                     if (channel == null)
                         return;
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+                    if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't greet user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                        return;
+                    }
+
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
 
                     await Greet(channel, settings, guildUser);
                 }
@@ -239,7 +245,13 @@ namespace DustyBot.Modules
                     if (channel == null)
                         return;
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Goodbyed user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+                    if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't bye user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                        return;
+                    }
+
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Goodbyed user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
 
                     await Communicator.SendMessage(channel, ReplacePlaceholders(settings.ByeMessage, guildUser));
                 }

@@ -167,18 +167,15 @@ namespace DustyBot.Services
             while (lastPostId > currentPostId)
             {
                 var preview = await CreatePreview(session, feed.CafeId, feed.BoardId, currentPostId + 1);
-                
-                try
+
+                if (!guild.CurrentUser.GetPermissions(channel).SendMessages)
                 {
-                    await channel.SendMessageAsync(preview.Item1.Sanitise(), false, preview.Item2);
-                }
-                catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50013)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Can't update Cafe feed because of permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Can't update Cafe feed because of permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
                     currentPostId = lastPostId;
                     break;
                 }
 
+                await channel.SendMessageAsync(preview.Item1.Sanitise(), false, preview.Item2);
                 currentPostId++;
             }
 

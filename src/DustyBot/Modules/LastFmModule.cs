@@ -823,7 +823,7 @@ namespace DustyBot.Modules
         async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(ParameterToken param, IGuildUser fallback = null)
         {
             var userOrName = await param.AsGuildUserOrName;
-            if (!string.IsNullOrEmpty(userOrName.Item2))
+            if (!string.IsNullOrEmpty(userOrName?.Item2))
             {
                 // Off-discord username
                 return (new LastFmUserSettings() { LastFmUsername = userOrName.Item2, Anonymous = false }, userOrName.Item2);
