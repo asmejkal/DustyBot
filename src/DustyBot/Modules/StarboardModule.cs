@@ -181,32 +181,39 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.Administrator)]
         [Parameter("StarboardID", ParameterType.Int, "ID of the starboard, use `starboard list` to see all active starboards and their IDs")]
         [Parameter("Rule", ParameterType.String, "the rule (see below)")]
-        [Parameter("Setting", "^(allow|deny)$", ParameterType.String, "the rule setting: `allow` or `deny`")]
-        [Comment("__Rules:__ \n`SelfStars` - allow users to star their own messages")]
-        [Example("2 SelfStars allow")]
-        [Example("2 SelfStars deny")]
+        [Parameter("Setting", "^(yes|no)$", ParameterType.String, "the rule setting: `yes` or `no`")]
+        [Comment("__Rules:__ \n`SelfStars` - allow users to star their own messages \n`KeepUnstarred` - don't delete reposts that fall below the star treshold \n`KeepDeleted` - don't delete reposts if the original message gets deleted")]
+        [Example("2 SelfStars yes")]
         public async Task SetRule(ICommand command)
         {
             var rule = (string)command["Rule"];
-            var allow = string.Compare(command["Setting"], "allow", true, GlobalDefinitions.Culture) == 0;
-            if (string.Compare(rule, "SelfStars", true, GlobalDefinitions.Culture) == 0)
+            var value = string.Compare(command["Setting"], "yes", true, GlobalDefinitions.Culture) == 0;
+            var explanation = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
-                var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+                var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
+                if (board == null)
+                    throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
+
+                if (string.Compare(rule, "SelfStars", true, GlobalDefinitions.Culture) == 0)
                 {
-                    var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
-                    if (board == null)
-                        throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
+                    board.AllowSelfStars = value;
+                    return $"Users can {(value ? "now" : "no longer")} star their own messages for starboard `{board.Id}`.";
+                }
+                else if (string.Compare(rule, "KeepUnstarred", true, GlobalDefinitions.Culture) == 0)
+                {
+                    board.KeepUnstarred = value;
+                    return $"Messages that fall below the minimum star count of `{board.Threshold}` will {(value ? "now" : "no longer")} be kept for starboard `{board.Id}`.";
+                }
+                else if (string.Compare(rule, "KeepDeleted", true, GlobalDefinitions.Culture) == 0)
+                {
+                    board.KeepDeleted = value;
+                    return $"Reposts in starboard `{board.Id}` will {(value ? "now" : "no longer")} be kept if the original message is deleted.";
+                }
+                else
+                    throw new IncorrectParametersCommandException("Unknown rule.");
+            });
 
-                    board.AllowSelfStars = allow;
-                    return board.Id;
-                });
-
-                await command.ReplySuccess(Communicator, $"Users can {(allow ? "now" : "no longer")} star their own messages for starboard `{id}`.");
-            }
-            else
-            {
-                throw new IncorrectParametersCommandException("Unknown rule.");
-            }
+            await command.ReplySuccess(Communicator, explanation);
         }
 
         [Command("starboard", "list", "Lists all active starboards.")]
@@ -319,7 +326,12 @@ namespace DustyBot.Modules
                 if (message == null)
                     continue;
 
-                pages.Add(new Page() { Content = $"**[#{pages.Count + 1}]** " + message.Content });
+                pages.Add(new Page() 
+                { 
+                    Content = $"**[#{pages.Count + 1}]** " + message.Content, 
+                    Embed = string.IsNullOrEmpty(message.Content) ? message.Embeds?.FirstOrDefault()?.ToEmbedBuilder() : null
+                });
+
                 if (pages.Count >= 20)
                     break;
             }
@@ -331,6 +343,36 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, pages);
+        }
+
+        [Command("starboard", "remove", "message", "Removes one of your own messages from starboard.")]
+        [Parameter("Message", ParameterType.GuildSelfMessage, "ID or link to the starboard message (the repost in starboard, not the original message)")]
+        [Comment("You can only remove your own messages. To get a message link, right click the message and select `Copy Message Link`.")]
+        public async Task RemoveStarboardMessage(ICommand command)
+        {
+            var message = await command["Message"].AsGuildSelfMessage;
+            var found = await Settings.Modify(command.GuildId, (StarboardSettings x) =>
+            {
+                foreach (var b in x.Starboards)
+                {
+                    var id = b.StarredMessages.FirstOrDefault(x => x.Value.StarboardMessage == message.Id && x.Value.Author == command.Author.Id).Key;
+                    if (id != default)
+                    {
+                        b.StarredMessages.Remove(id);
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+            if (found)
+            {
+                await message.DeleteAsync();
+                await command.Reply(Communicator, $"Removed your starred message `{message.Id}` from starboard in channel <#{message.Channel.Id}>.");
+            }
+            else
+                await command.Reply(Communicator, $"Can't find message `{message.Id}` in any starboard on this server. Please provide a valid message from a starboard channel (not the original message).");
         }
 
         public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
@@ -555,20 +597,12 @@ namespace DustyBot.Modules
                 if (b == null)
                     return null;
 
-                if (starrers.Count <= 0)
-                {
-                    if (b.StarredMessages.Remove(message.Id, out var e))
-                        return e;
-                    else
-                        return null;
-                }
-                else
-                {
-                    if (b.StarredMessages.TryGetValue(message.Id, out var e))
-                        return e;
-                    else
-                        return null;
-                }
+                b.StarredMessages.TryGetValue(message.Id, out var e);
+
+                if (starrers.Count <= 0 && !board.KeepUnstarred)
+                    b.StarredMessages.Remove(message.Id);
+
+                return e;
             });
 
             if (entry == null)
@@ -585,7 +619,7 @@ namespace DustyBot.Modules
             if (starMessage == null)
                 return; //Probably got deleted from starboard
 
-            if (starrers.Count <= 0)
+            if (starrers.Count <= 0 && !board.KeepUnstarred)
             {
                 try
                 {
@@ -712,13 +746,16 @@ namespace DustyBot.Modules
                     if (settings == null)
                         return;
 
-                    bool wasStarred = false;
+                    var boardIds = new List<int>();
                     foreach (var board in settings.Starboards)
                     {
+                        if (board.KeepDeleted)
+                            continue;
+
                         if (!board.StarredMessages.TryGetValue(message.Id, out var starredMessage))
                             continue;
 
-                        wasStarred = true;
+                        boardIds.Add(board.Id);
                         if (starredMessage.StarboardMessage != default)
                         {
                             var starChannel = await guild.GetTextChannelAsync(board.Channel);
@@ -741,11 +778,11 @@ namespace DustyBot.Modules
                         }
                     }
 
-                    if (wasStarred)
+                    if (boardIds.Any())
                     {
                         await Settings.Modify(guild.Id, (StarboardSettings s) =>
                         {
-                            foreach (var board in s.Starboards)
+                            foreach (var board in s.Starboards.Where(x => boardIds.Contains(x.Id)))
                                 board.StarredMessages.Remove(message.Id);
                         });
                     }

@@ -31,6 +31,8 @@ namespace DustyBot.Settings
         public List<string> Emojis { get; set; } = DefaultEmojis;
         public StarboardStyle Style { get; set; }
         public bool AllowSelfStars { get; set; }
+        public bool KeepUnstarred { get; set; }
+        public bool KeepDeleted { get; set; }
 
         uint _threshold = DefaultThreshold;
         public uint Threshold

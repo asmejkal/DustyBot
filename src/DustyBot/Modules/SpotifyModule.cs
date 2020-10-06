@@ -86,31 +86,38 @@ namespace DustyBot.Modules
 
         public async Task NowPlayingInner(ICommand command, bool analyse)
         {
-            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
-            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
-
-            var result = await client.GetPlayingTrackAsync();
-            bool nowPlaying = result != null && result.IsPlaying;
-
-            var track = result.Item;
-            if (track == null)
+            try
             {
-                // Pull from recents
-                var recents = await client.GetUsersRecentlyPlayedTracksAsync(1);
-                if (!recents.Items.Any())
+                var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
+                var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
+
+                var result = await client.GetPlayingTrackAsync();
+                bool nowPlaying = result != null && result.IsPlaying;
+
+                var track = result.Item;
+                if (track == null)
                 {
-                    await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.");
-                    return;
+                    // Pull from recents
+                    var recents = await client.GetUsersRecentlyPlayedTracksAsync(1);
+                    if (!recents.Items.Any())
+                    {
+                        await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.");
+                        return;
+                    }
+
+                    var item = recents.Items.First();
+                    track = await client.GetTrackAsync(item.Track.Id);
                 }
 
-                var item = recents.Items.First();
-                track = await client.GetTrackAsync(item.Track.Id);
+                var title = (user.Nickname ?? user.Username) + (nowPlaying ? " is now listening to..." : " last listened to...");
+                var embed = await PrepareTrackEmbed(client, track, title, analyse);
+
+                await command.Channel.SendMessageAsync(embed: embed.Build());
             }
-
-            var title = (user.Nickname ?? user.Username) + (nowPlaying ? " is now listening to..." : " last listened to...");
-            var embed = await PrepareTrackEmbed(client, track, title, analyse);
-
-            await command.Channel.SendMessageAsync(embed: embed.Build());
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
+                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+            }
         }
 
         [Command("sf", "track", "Shows track info and analysis.", CommandFlags.TypingIndicator)]
@@ -120,33 +127,40 @@ namespace DustyBot.Modules
         [Example("https://open.spotify.com/track/5crqbWLP7Jb0s86hnm0XDA")]
         public async Task Track(ICommand command)
         {
-            var client = await GetClient();
-            var trackIdMatch = SpotifyTrackIdRegex.Match(command["Track"]);
-            FullTrack track;
-            if (!trackIdMatch.Success)
-            {
-                var sclient = await SpotifyClient.Create(Config.SpotifyId, Config.SpotifyKey);
+            try
+            { 
+                var client = await GetClient();
+                var trackIdMatch = SpotifyTrackIdRegex.Match(command["Track"]);
+                FullTrack track;
+                if (!trackIdMatch.Success)
+                {
+                    var sclient = await SpotifyClient.Create(Config.SpotifyId, Config.SpotifyKey);
 
-                var trackId = await sclient.SearchTrackId(command["Track"]);
-                //var searchResult = await client.SearchItemsAsync($"q={command["Track"]}", SearchType.Track, 1);
-                //if (!searchResult.Tracks.Items.Any())
-                if (trackId == null)
-                    throw new AbortException($"Search for track `{command["Track"]}` returned no results. Consider passing a Spotify link instead.");
+                    var trackId = await sclient.SearchTrackId(command["Track"]);
+                    //var searchResult = await client.SearchItemsAsync($"q={command["Track"]}", SearchType.Track, 1);
+                    //if (!searchResult.Tracks.Items.Any())
+                    if (trackId == null)
+                        throw new AbortException($"Search for track `{command["Track"]}` returned no results. Consider passing a Spotify link instead.");
 
-                //track = searchResult.Tracks.Items.First();
-                track = await client.GetTrackAsync(trackId);
+                    //track = searchResult.Tracks.Items.First();
+                    track = await client.GetTrackAsync(trackId);
+                }
+                else
+                {
+                    var trackId = trackIdMatch.Groups.Values.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
+                    track = await client.GetTrackAsync(trackId);
+                    if (track.HasError())
+                        throw new AbortException($"Search for track with ID `{trackId}` returned no results. Are you sure the ID is correct?");
+                }
+
+                var embed = await PrepareTrackEmbed(client, track, "Track analysis", true);
+
+                await command.Channel.SendMessageAsync(embed: embed.Build());
             }
-            else
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                var trackId = trackIdMatch.Groups.Values.Skip(1).First(x => !string.IsNullOrEmpty(x.Value)).Value;
-                track = await client.GetTrackAsync(trackId);
-                if (track.HasError())
-                    throw new AbortException($"Search for track with ID `{trackId}` returned no results. Are you sure the ID is correct?");
+                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
-
-            var embed = await PrepareTrackEmbed(client, track, "Track analysis", true);
-
-            await command.Channel.SendMessageAsync(embed: embed.Build());
         }
 
         [Command("sf", "stats", "Shows user's listening stats and habits.", CommandFlags.TypingIndicator)]
@@ -154,65 +168,72 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Stats(ICommand command)
         {
-            var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
+            try
+            { 
+                var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
 
-            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
-            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
+                var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
+                var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
-            var results = await client.GetUsersTopTracksAsync(period, 50);
-            if (!results?.Items.Any() ?? true)
-                throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
+                var results = await client.GetUsersTopTracksAsync(period, 50);
+                if (!results?.Items.Any() ?? true)
+                    throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
-            var features = await client.GetSeveralAudioFeaturesAsync(results.Items.Select(x => x.Id).ToList());
-            var albums = results.Items.Select(x => x.Album);
-            var artistIds = results.Items.SelectMany(x => x.Artists).Select(x => x.Id).Distinct();
-            var artists = await client.GetSeveralArtistsAsync(artistIds.Take(50).ToList());
+                var features = await client.GetSeveralAudioFeaturesAsync(results.Items.Select(x => x.Id).ToList());
+                var albums = results.Items.Select(x => x.Album);
+                var artistIds = results.Items.SelectMany(x => x.Artists).Select(x => x.Id).Distinct();
+                var artists = await client.GetSeveralArtistsAsync(artistIds.Take(50).ToList());
 
-            var topGenres = artists.Artists.SelectMany(x => x.Genres).GroupBy(x => x).OrderByDescending(x => x.Count()).Select(x => x.Key);
-            var topDecades = albums.Select(x => int.Parse(x.ReleaseDate.Split('-').First()))
-                .GroupBy(x => x / 10)
-                .Where(x => x.Count() >= 5)
-                .OrderByDescending(x => x.Count())
-                .Select(x => $"{x.Key * 10}'s");
+                var topGenres = artists.Artists.SelectMany(x => x.Genres).GroupBy(x => x).OrderByDescending(x => x.Count()).Select(x => x.Key);
+                var topDecades = albums.Select(x => int.Parse(x.ReleaseDate.Split('-').First()))
+                    .GroupBy(x => x / 10)
+                    .Where(x => x.Count() >= 5)
+                    .OrderByDescending(x => x.Count())
+                    .Select(x => $"{x.Key * 10}'s");
 
-            var danceability = features.AudioFeatures.Average(x => x.Danceability);
-            var acousticness = features.AudioFeatures.Average(x => x.Acousticness);
-            var instrumentalness = features.AudioFeatures.Average(x => x.Instrumentalness);
-            var energy = features.AudioFeatures.Average(x => x.Energy);
-            var positivity = features.AudioFeatures.Average(x => x.Valence);
-            var popularity = results.Items.Average(x => x.Popularity) / 100;
-            var avgTempo = Math.Round(features.AudioFeatures.Average(x => x.Tempo));
+                var danceability = features.AudioFeatures.Average(x => x.Danceability);
+                var acousticness = features.AudioFeatures.Average(x => x.Acousticness);
+                var instrumentalness = features.AudioFeatures.Average(x => x.Instrumentalness);
+                var energy = features.AudioFeatures.Average(x => x.Energy);
+                var positivity = features.AudioFeatures.Average(x => x.Valence);
+                var popularity = results.Items.Average(x => x.Popularity) / 100;
+                var avgTempo = Math.Round(features.AudioFeatures.Average(x => x.Tempo));
 
-            var author = new EmbedAuthorBuilder()
-                .WithIconUrl(WebConstants.SpotifyIconUrl)
-                .WithName($"{user.Nickname ?? user.Username}'s listening habits {FormatStatsPeriod(period)}");
+                var author = new EmbedAuthorBuilder()
+                    .WithIconUrl(WebConstants.SpotifyIconUrl)
+                    .WithName($"{user.Nickname ?? user.Username}'s listening habits {FormatStatsPeriod(period)}");
 
-            var embed = new EmbedBuilder()
-                .WithAuthor(author)
-                .WithColor(0x31, 0xd9, 0x64)
-                .WithFooter($"Based on your top 50 tracks");
+                var embed = new EmbedBuilder()
+                    .WithAuthor(author)
+                    .WithColor(0x31, 0xd9, 0x64)
+                    .WithFooter($"Based on your top 50 tracks");
 
-            var genresBuilder = new StringBuilder();
-            int lineLength = 0;
-            foreach (var genre in topGenres.Take(4))
-            {
-                var newLine = genre.Length + lineLength > 24;
-                genresBuilder.Append((newLine ? "\n" : "") + $"`{genre}` ");
-                lineLength = newLine ? genre.Length : (lineLength + genre.Length);
+                var genresBuilder = new StringBuilder();
+                int lineLength = 0;
+                foreach (var genre in topGenres.Take(4))
+                {
+                    var newLine = genre.Length + lineLength > 24;
+                    genresBuilder.Append((newLine ? "\n" : "") + $"`{genre}` ");
+                    lineLength = newLine ? genre.Length : (lineLength + genre.Length);
+                }
+
+                embed.AddField(x => x.WithIsInline(true).WithName("Top genres").WithValue(genresBuilder.Length > 0 ? genresBuilder.ToString() : "`unknown`"));
+                embed.AddField(x => x.WithIsInline(true).WithName("Top decades").WithValue(topDecades.Take(3).WordJoinQuoted("`", " ", " ")));
+                embed.AddField(x => x.WithIsInline(true).WithName($"Average tempo").WithValue($"{avgTempo} BPM ({ApproximateClassicalTempo((int)avgTempo)})"));
+
+                AddPercentageField(embed, "Popularity", popularity);
+                AddPercentageField(embed, "Instrumental", instrumentalness);
+                AddPercentageField(embed, "Acoustic", acousticness);
+                AddPercentageField(embed, "Danceability", danceability);
+                AddPercentageField(embed, "Energy", energy);
+                AddPercentageField(embed, "Positivity", positivity);
+
+                await command.Channel.SendMessageAsync(embed: embed.Build());
             }
-
-            embed.AddField(x => x.WithIsInline(true).WithName("Top genres").WithValue(genresBuilder.Length > 0 ? genresBuilder.ToString() : "`unknown`"));
-            embed.AddField(x => x.WithIsInline(true).WithName("Top decades").WithValue(topDecades.Take(3).WordJoinQuoted("`", " ", " ")));
-            embed.AddField(x => x.WithIsInline(true).WithName($"Average tempo").WithValue($"{avgTempo} BPM ({ApproximateClassicalTempo((int)avgTempo)})"));
-
-            AddPercentageField(embed, "Popularity", popularity);
-            AddPercentageField(embed, "Instrumental", instrumentalness);
-            AddPercentageField(embed, "Acoustic", acousticness);
-            AddPercentageField(embed, "Danceability", danceability);
-            AddPercentageField(embed, "Energy", energy);
-            AddPercentageField(embed, "Positivity", positivity);
-
-            await command.Channel.SendMessageAsync(embed: embed.Build());
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
+                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+            }
         }
 
         [Command("sf", "recent", "Shows user's recently played songs.", CommandFlags.TypingIndicator)]
@@ -220,40 +241,47 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Recent(ICommand command)
         {
-            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
-            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
-
-            const int NumDisplayed = 100;
-
-            var results = await client.GetUsersRecentlyPlayedTracksAsync(50);
-            if (!results?.Items.Any() ?? true)
-                throw new AbortException("Looks like this user hasn't listened to anything recently.");
-
-            var pages = new PageCollectionBuilder();
-            var place = 1;
-            var now = DateTime.UtcNow;
-            foreach (var item in results.Items.Take(NumDisplayed))
+            try
             {
-                var track = item.Track;
-                var when = now - item.PlayedAt;
+                var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
+                var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
+
+                const int NumDisplayed = 100;
+
+                var results = await client.GetUsersRecentlyPlayedTracksAsync(50);
+                if (!results?.Items.Any() ?? true)
+                    throw new AbortException("Looks like this user hasn't listened to anything recently.");
+
+                var pages = new PageCollectionBuilder();
+                var place = 1;
+                var now = DateTime.UtcNow;
+                foreach (var item in results.Items.Take(NumDisplayed))
+                {
+                    var track = item.Track;
+                    var when = now - item.PlayedAt;
                 
-                pages.AppendLine($"`{place++}>` **{FormatLink(track.Name, track.ExternUrls)}** by {BuildArtistsString(track.Artists)}_ – {when.SimpleFormat()} ago_");
+                    pages.AppendLine($"`{place++}>` **{FormatLink(track.Name, track.ExternUrls)}** by {BuildArtistsString(track.Artists)}_ – {when.SimpleFormat()} ago_");
+                }
+
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
+                        .WithIconUrl(WebConstants.SpotifyIconUrl)
+                        .WithName($"{user.Nickname ?? user.Username} last listened to...");
+
+                    var embed = new EmbedBuilder()
+                        .WithAuthor(author)
+                        .WithColor(0x31, 0xd9, 0x64);
+
+                    return embed;
+                });
+
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
             }
-
-            var embedFactory = new Func<EmbedBuilder>(() =>
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(WebConstants.SpotifyIconUrl)
-                    .WithName($"{user.Nickname ?? user.Username} last listened to...");
-
-                var embed = new EmbedBuilder()
-                    .WithAuthor(author)
-                    .WithColor(0x31, 0xd9, 0x64);
-
-                return embed;
-            });
-
-            await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+            }
         }
 
         [Command("sf", "top", "artists", "Shows user's top artists.", CommandFlags.TypingIndicator)]
@@ -262,39 +290,46 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Artists(ICommand command)
         {
-            var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
-
-            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
-            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
-
-            const int NumDisplayed = 100;
-            
-            var results = await client.GetUsersTopArtistsAsync(period, 50);
-            if (!results?.Items.Any() ?? true)
-                throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
-
-            var pages = new PageCollectionBuilder();
-            var place = 1;
-            var now = DateTime.UtcNow;
-            foreach (var item in results.Items.Take(NumDisplayed))
-                pages.AppendLine($"`#{place++}` **{FormatLink(item.Name, item.ExternalUrls, false)}**");
-
-            var embedFactory = new Func<EmbedBuilder>(() =>
+            try
             {
-                var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(WebConstants.SpotifyIconUrl)
-                    .WithName($"{user.Nickname ?? user.Username}'s top artists {FormatStatsPeriod(period)}");
+                var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
 
-                var embed = new EmbedBuilder()
-                    .WithAuthor(author)
-                    .WithColor(0x31, 0xd9, 0x64)
-                    .WithFooter($"Recent listens hold more weight")
-                    .WithThumbnailUrl(results.Items.First().Images.FirstOrDefault()?.Url);
+                var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
+                var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
-                return embed;
-            });
+                const int NumDisplayed = 100;
+            
+                var results = await client.GetUsersTopArtistsAsync(period, 50);
+                if (!results?.Items.Any() ?? true)
+                    throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
-            await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                var pages = new PageCollectionBuilder();
+                var place = 1;
+                var now = DateTime.UtcNow;
+                foreach (var item in results.Items.Take(NumDisplayed))
+                    pages.AppendLine($"`#{place++}` **{FormatLink(item.Name, item.ExternalUrls, false)}**");
+
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
+                        .WithIconUrl(WebConstants.SpotifyIconUrl)
+                        .WithName($"{user.Nickname ?? user.Username}'s top artists {FormatStatsPeriod(period)}");
+
+                    var embed = new EmbedBuilder()
+                        .WithAuthor(author)
+                        .WithColor(0x31, 0xd9, 0x64)
+                        .WithFooter($"Recent listens hold more weight")
+                        .WithThumbnailUrl(results.Items.First().Images.FirstOrDefault()?.Url);
+
+                    return embed;
+                });
+
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+            }
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
+                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+            }
         }
 
         [Command("sf", "top", "tracks", "Shows user's top tracks.", CommandFlags.TypingIndicator)]
@@ -303,38 +338,45 @@ namespace DustyBot.Modules
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "the user (mention or ID); shows your own stats if omitted")]
         public async Task Tracks(ICommand command)
         {
-            var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
-
-            var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
-            var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
-
-            const int NumDisplayed = 100;
-
-            var results = await client.GetUsersTopTracksAsync(period, 50);
-            if (!results?.Items.Any() ?? true)
-                throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
-
-            var pages = new PageCollectionBuilder();
-            var place = 1;
-            var now = DateTime.UtcNow;
-            foreach (var item in results.Items.Take(NumDisplayed))
-                pages.AppendLine($"`#{place++}` **{FormatLink(item.Name, item.ExternUrls)}** by {BuildArtistsString(item.Artists)}");
-
-            var embedFactory = new Func<EmbedBuilder>(() =>
+            try
             {
-                var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(WebConstants.SpotifyIconUrl)
-                    .WithName($"{user.Nickname ?? user.Username}'s top tracks {FormatStatsPeriod(period)}");
+                var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : TimeRangeType.LongTerm;
 
-                var embed = new EmbedBuilder()
-                    .WithAuthor(author)
-                    .WithColor(0x31, 0xd9, 0x64)
-                    .WithFooter($"Recent listens hold more weight");
+                var user = command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author;
+                var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
-                return embed;
-            });
+                const int NumDisplayed = 100;
 
-            await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                var results = await client.GetUsersTopTracksAsync(period, 50);
+                if (!results?.Items.Any() ?? true)
+                    throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
+
+                var pages = new PageCollectionBuilder();
+                var place = 1;
+                var now = DateTime.UtcNow;
+                foreach (var item in results.Items.Take(NumDisplayed))
+                    pages.AppendLine($"`#{place++}` **{FormatLink(item.Name, item.ExternUrls)}** by {BuildArtistsString(item.Artists)}");
+
+                var embedFactory = new Func<EmbedBuilder>(() =>
+                {
+                    var author = new EmbedAuthorBuilder()
+                        .WithIconUrl(WebConstants.SpotifyIconUrl)
+                        .WithName($"{user.Nickname ?? user.Username}'s top tracks {FormatStatsPeriod(period)}");
+
+                    var embed = new EmbedBuilder()
+                        .WithAuthor(author)
+                        .WithColor(0x31, 0xd9, 0x64)
+                        .WithFooter($"Recent listens hold more weight");
+
+                    return embed;
+                });
+
+                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+            }
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
+                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+            }
         }
 
         [Command("sf", "reset", "Disconnect your Spotify account.", CommandFlags.DirectMessageAllow)]

@@ -57,6 +57,7 @@ namespace DustyBot.Framework.Commands
         }
 
         public static readonly ParameterToken Empty = new ParameterToken();
+        private static readonly Regex MessageLinkRegex = new Regex(@"https:\/\/discord.*\.com\/channels\/\d+\/\d+\/(\d+)");
 
         public SocketGuild Guild { get; }
         public string Raw { get; } = string.Empty;
@@ -273,10 +274,20 @@ namespace DustyBot.Framework.Commands
 
         public Task<IUserMessage> AsGuildUserMessage => TryConvert<IUserMessage>(this, ParameterType.GuildUserMessage, async x =>
         {
-            if (AsULong == null || Guild == null)
+            if (Guild == null)
                 return null;
 
-            var message = (await Guild.GetMessageAsync(AsULong.Value).ConfigureAwait(false)) as IUserMessage;
+            var id = AsULong;
+            if (id == null)
+            {
+                var match = MessageLinkRegex.Match(x);
+                if (!match.Success)
+                    return null;
+
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            var message = (await Guild.GetMessageAsync(id.Value).ConfigureAwait(false)) as IUserMessage;
             if (message == null)
                 LastError = Properties.Resources.Parameter_UserMessageNotFound;
 

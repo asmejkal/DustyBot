@@ -197,7 +197,7 @@ namespace DustyBot.Modules
                     if (eventChannelId == 0)
                         return;
 
-                    var eventChannel = guild.TextChannels.First(x => x.Id == eventChannelId);
+                    var eventChannel = guild.TextChannels.FirstOrDefault(x => x.Id == eventChannelId);
                     if (eventChannel == null)
                         return;
 
@@ -270,7 +270,7 @@ namespace DustyBot.Modules
                     if (eventChannelId == 0)
                         return;
 
-                    var eventChannel = guild.TextChannels.First(x => x.Id == eventChannelId);
+                    var eventChannel = guild.TextChannels.FirstOrDefault(x => x.Id == eventChannelId);
                     if (eventChannel == null)
                         return;
 

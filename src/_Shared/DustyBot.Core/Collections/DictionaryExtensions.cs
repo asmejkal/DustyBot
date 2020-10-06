@@ -20,13 +20,15 @@ namespace DustyBot.Core.Collections
             return val;
         }
 
-        public static void RemoveAll<TKey, TValue>(this IDictionary<TKey, TValue> dic, Func<TKey, TValue, bool> predicate)
+        public static ICollection<KeyValuePair<TKey, TValue>> RemoveAll<TKey, TValue>(this IDictionary<TKey, TValue> dic, Func<TKey, TValue, bool> predicate)
         {
-            var keys = dic.Keys.Where(k => predicate(k, dic[k])).ToList();
-            foreach (var key in keys)
+            var items = dic.Where(x => predicate(x.Key, x.Value)).ToList();
+            foreach (var item in items)
             {
-                dic.Remove(key);
+                dic.Remove(item.Key);
             }
+
+            return items;
         }
     }
 }
