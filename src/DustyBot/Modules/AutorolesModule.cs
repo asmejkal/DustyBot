@@ -14,6 +14,10 @@ using DustyBot.Framework.Exceptions;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
+using System.Text;
 
 namespace DustyBot.Modules
 {
@@ -23,6 +27,9 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
+
+        private ConcurrentDictionary<ulong, bool> ApplyTasks = new ConcurrentDictionary<ulong, bool>();
+        private ConcurrentDictionary<ulong, bool> CheckTasks = new ConcurrentDictionary<ulong, bool>();
 
         public AutorolesModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
@@ -97,7 +104,6 @@ namespace DustyBot.Modules
         [Comment("May take a while to complete.")]
         public async Task ApplyAutoRole(ICommand command)
         {
-            // TODO: intents
             var settings = await Settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
@@ -105,32 +111,59 @@ namespace DustyBot.Modules
                 return;
             }
 
-            var waitMsg = await command.Reply(Communicator, $"This may take a while...");
+            var added = ApplyTasks.TryAdd(command.GuildId, true);
+            if (!added)
+                throw new AbortException("Please wait a while before running this command again.");
 
-            var failed = 0;
-            var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
-            var users = await command.Guild.GetUsersAsync();
-            foreach (var user in users)
+            try
             {
-                try
-                {
-                    await user.AddRolesAsync(roles);
-                }
-                catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized || ex.HttpCode == HttpStatusCode.Forbidden)
-                {
-                    throw new CommandException("The bot doesn't have the necessary permissions. Please make sure all of the assigned roles are placed below the bot's highest role.");
-                }
-                catch (Exception ex)
-                {
-                    if (failed <= 0)
-                        await Logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
+                string BuildProgressMessage(int processed, int total) => $"This may take a while... assigning roles to users: {processed}/{total}";
 
-                    failed++;
+                var guild = (SocketGuild)command.Guild;
+                var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
+                var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
+
+                var processed = 0;
+                var failed = 0;
+                await foreach (var batch in guild.GetUsersAsync())
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Applying autoroles {processed}/{guild.MemberCount} on server {command.Guild.Name} ({command.GuildId})"));
+                    foreach (var user in batch)
+                    {
+                        try
+                        {
+                            foreach (var role in roles.Where(x => !user.RoleIds.Contains(x.Id)))
+                                await user.AddRoleAsync(role);
+                        }
+                        catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized || ex.HttpCode == HttpStatusCode.Forbidden)
+                        {
+                            throw new CommandException("The bot doesn't have the necessary permissions. Please make sure all of the assigned roles are placed below the bot's highest role.");
+                        }
+                        catch (Exception ex)
+                        {
+                            if (failed <= 5)
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
+
+                            failed++;
+                        }
+                    }
+
+                    processed += batch.Count;
+                    await progressMsg.ModifyAsync(x => x.Content = BuildProgressMessage(processed, guild.MemberCount));
                 }
+
+                await progressMsg.DeleteAsync();
+                await command.ReplySuccess(Communicator, $"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : "."));
             }
-
-            await waitMsg.First().DeleteAsync();
-            await command.ReplySuccess(Communicator, $"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : "."));
+            finally
+            {
+                TaskHelper.FireForget(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromHours(1));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Removing autorole apply command lock for guild {command.GuildId}"));
+                    ApplyTasks.TryRemove(command.GuildId, out _);
+                });
+            }
         }
 
         [Command("autorole", "check", "Checks for users who are missing an automatic role.")]
@@ -138,8 +171,6 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         public async Task CheckAutoRole(ICommand command)
         {
-            // TODO: intents
-            string result = string.Empty;
             var settings = await Settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
@@ -147,22 +178,53 @@ namespace DustyBot.Modules
                 return;
             }
 
-            var users = await command.Guild.GetUsersAsync();
-            foreach (var user in users)
+            var added = CheckTasks.TryAdd(command.GuildId, true);
+            if (!added)
+                throw new AbortException("Please wait a while before running this command again.");
+
+            try
             {
-                if (settings.AutoAssignRoles.All(x => user.RoleIds.Contains(x)))
-                    continue;
+                string BuildProgressMessage(int processed, int total) => $"This may take a while... checking users: {processed}/{total}";
 
-                result += user.Username + "#" + user.Discriminator + ", ";
+                var guild = (SocketGuild)command.Guild;
+                var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
+                var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
+
+                var processed = 0;
+                var found = 0;
+                var result = new StringBuilder();
+                await foreach (var batch in guild.GetUsersAsync())
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Checking autoroles {processed}/{guild.MemberCount} on server {command.Guild.Name} ({command.GuildId})"));
+                    foreach (var user in batch)
+                    {
+                        if (settings.AutoAssignRoles.All(x => user.RoleIds.Contains(x)))
+                            continue;
+
+                        found++;
+                        result.Append($"`{user.Username}#{user.Discriminator}` ");
+                    }
+
+                    processed += batch.Count;
+                    await progressMsg.ModifyAsync(x => x.Content = BuildProgressMessage(processed, guild.MemberCount));
+                }
+
+                await progressMsg.DeleteAsync();
+
+                if (found <= 0)
+                    await command.ReplySuccess(Communicator, settings.AutoAssignRoles.Count > 1 ? "Everyone has these roles." : "Everyone has this role.");
+                else
+                    await command.Reply(Communicator, $"**{found}** users are missing at least one role:\n" + result.ToString());
             }
-
-            if (result.Length > 2)
-                result = result.Substring(0, result.Length - 2);
-
-            if (string.IsNullOrEmpty(result))
-                result = settings.AutoAssignRoles.Count > 1 ? "Everyone has these roles." : "Everyone has this role.";
-
-            await command.Reply(Communicator, result);
+            finally
+            {
+                TaskHelper.FireForget(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(30));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Removing autorole check command lock for guild {command.GuildId}"));
+                    CheckTasks.TryRemove(command.GuildId, out _);
+                });
+            }
         }
 
         public override Task OnUserJoined(SocketGuildUser guildUser)

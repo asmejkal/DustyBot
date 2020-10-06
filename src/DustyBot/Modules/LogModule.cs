@@ -42,29 +42,6 @@ namespace DustyBot.Modules
             await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
         }
 
-        [Command("log", "names", "Sets a channel for name change logging.")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("Channel", ParameterType.TextChannel)]
-        public async Task LogNameChanges(ICommand command)
-        {
-            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
-            {
-                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
-                return;
-            }
-
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = command["Channel"].AsTextChannel.Id);
-            await command.ReplySuccess(Communicator, $"Name changes will now be logged in the {command["Channel"].AsTextChannel.Mention} channel.");
-        }
-
-        [Command("log", "names", "disable", "Disables name change logging.")]
-        [Permissions(GuildPermission.Administrator)]
-        public async Task LogNameChangesDisable(ICommand command)
-        {
-            await Settings.Modify(command.GuildId, (LogSettings s) => s.EventNameChangedChannel = 0);
-            await command.ReplySuccess(Communicator, $"Name change logging channel has been disabled.");
-        }
-
         [Command("log", "messages", "Sets a channel for logging of deleted messages.")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel)]
@@ -113,59 +90,6 @@ namespace DustyBot.Modules
 
             await command.ReplySuccess(Communicator, "A channel filter for logging of deleted messages has been " + 
                 (channelIds.Count > 0 ? "set." : "disabled."));
-        }
-
-        public override Task OnGuildMemberUpdated(SocketGuildUser before, SocketGuildUser after) => 
-            OnUserUpdated(before, after);
-
-        public override Task OnUserUpdated(SocketUser before, SocketUser after)
-        {
-            TaskHelper.FireForget(async () =>
-            {
-                try
-                {
-                    if (string.IsNullOrEmpty(before.Username) || string.IsNullOrEmpty(after.Username))
-                        return;
-
-                    if (before.Username == after.Username)
-                        return;
-
-                    var updated = new List<SocketGuild>();
-                    foreach (var guild in SocketClient.Guilds.Select(x => x.GetUser(after.Id)?.Guild).Where(x => x != null)) // TODO: intents
-                    {
-                        try
-                        {
-                            var settings = await Settings.Read<LogSettings>(guild.Id, false);
-                            if (settings == null)
-                                continue;
-
-                            var eventChannelId = settings.EventNameChangedChannel;
-                            if (eventChannelId == 0)
-                                continue;
-
-                            var eventChannel = guild.TextChannels.FirstOrDefault(x => x.Id == eventChannelId);
-                            if (eventChannel == null)
-                                continue;
-
-                            await Communicator.SendMessage(eventChannel, $"`{before.Username}` changed to `{after.Username}` (<@{after.Id}>)");
-                            updated.Add(guild);
-                        }
-                        catch (Exception ex)
-                        {
-                            await Logger.Log(new LogMessage(LogSeverity.Error, "Log", $"Failed to process user {after.Id} update for guild {guild.Name} ({guild.Id})", ex));
-                        }
-                    }
-
-                    if (updated.Any())
-                        await Logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Logged username change {before.Username} -> {after.Username} ({after.Id}) on {updated.Count} servers: {string.Join(", ", updated.Select(x => $"{x.Name} ({x.Id})"))}"));
-                }
-                catch (Exception ex)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process user update", ex));
-                }
-            });
-
-            return Task.CompletedTask;
         }
 
         public override Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
