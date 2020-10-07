@@ -195,16 +195,6 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result.ToString());
         }
 
-        [Command("lock", "channel", "Lists all roles on the server with their IDs.")]
-        public async Task LockChannel(ICommand command)
-        {
-            var result = new StringBuilder();
-            foreach (var role in command.Guild.Roles.OrderByDescending(x => x.Position))
-                result.AppendLine($"Name: `{role.Name}` Id: `{role.Id}`");
-
-            await command.Reply(Communicator, result.ToString());
-        }
-
         [Command("roles", "Lists all roles on the server with their IDs.")]
         public async Task Roles(ICommand command)
         {
@@ -213,48 +203,6 @@ namespace DustyBot.Modules
                 result.AppendLine($"Name: `{role.Name}` Id: `{role.Id}`");
 
             await command.Reply(Communicator, result.ToString());
-        }
-
-        [Command("emotes", "Exports all emotes on the server in specified format.")]
-        [Alias("emoji")]
-        [Permissions(GuildPermission.ManageEmojis)]
-        [Parameter("Format", ParameterType.String, ParameterFlags.Optional, "output format – `json` (default), `cytube` or `text`")]
-        [Parameter("Size", ParameterType.String, ParameterFlags.Optional, "emote size (e.g. `16`, `32`, `64`, `128`, `256`, `512` or `1024`)")]
-        public async Task Emoji(ICommand command)
-        {
-            var format = command["Format"].HasValue ? command["Format"].AsString.ToLowerInvariant() : "json";
-
-            var result = new StringBuilder();
-            var sizeAppendix = command["Size"].HasValue ? $"?size={command["Size"]}" : "";
-            string extension;
-            if (format == "json" || format == "cytube")
-            {
-                var array = new JArray();
-                foreach (var emote in command.Guild.Emotes)
-                {
-                    var o = new JObject();
-                    o["name"] = $":{emote.Name}:";
-                    o["image"] = emote.Url + sizeAppendix;
-                    array.Add(o);
-                }
-
-                result.Append(JsonConvert.SerializeObject(array));
-                extension = "json";
-            }
-            else if (format == "text")
-            {
-                foreach (var emote in command.Guild.Emotes)
-                    result.AppendLine($":{emote.Name}: {emote.Url + sizeAppendix}");
-
-                extension = "txt";
-            }
-            else
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown format.");
-
-            using (var stream = new MemoryStream(Encoding.Unicode.GetBytes(result.ToString())))
-            {
-                await command.Message.Channel.SendFileAsync(stream, $"output.{extension}");
-            }
         }
 
         [Command("moddm", "Send an anonymous direct message from a moderator to a server member.", CommandFlags.Hidden)]

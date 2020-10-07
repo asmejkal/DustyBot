@@ -14,6 +14,7 @@ using DustyBot.Framework.Config;
 using DustyBot.Database.Sql;
 using MongoDB.Driver;
 using DustyBot.Framework.Utility;
+using Discord;
 
 namespace DustyBot
 {
@@ -103,12 +104,21 @@ namespace DustyBot
         {
             try
             {
+                var intents = GatewayIntents.DirectMessageReactions |
+                    GatewayIntents.DirectMessages |
+                    GatewayIntents.GuildEmojis |
+                    GatewayIntents.GuildMembers |
+                    GatewayIntents.GuildMessageReactions |
+                    GatewayIntents.GuildMessages |
+                    GatewayIntents.GuildMessageTyping |
+                    GatewayIntents.Guilds;
+
                 var clientConfig = new DiscordSocketConfig
                 {
                     MessageCacheSize = 200,
                     ConnectionTimeout = int.MaxValue,
                     ExclusiveBulkDelete = true,
-                    AlwaysDownloadUsers = true
+                    GatewayIntents = intents
                 };
                 
                 using (var client = new DiscordSocketClient(clientConfig))

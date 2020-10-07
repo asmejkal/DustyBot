@@ -111,19 +111,20 @@ namespace DustyBot.Modules
                 return;
             }
 
-            var added = ApplyTasks.TryAdd(command.GuildId, true);
+            var added = ApplyTasks.TryAdd(command.GuildId, true); // TODO: implement command rate limits properly
             if (!added)
                 throw new AbortException("Please wait a while before running this command again.");
 
             try
             {
-                string BuildProgressMessage(int processed, int total) => $"This may take a while... assigning roles to users: {processed}/{total}";
+                string BuildProgressMessage(int processed, int total) => $"This may take a while... assigning roles to users: `{processed}/{total}`";
 
                 var guild = (SocketGuild)command.Guild;
                 var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
                 var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
 
                 var processed = 0;
+                var assignments = 0;
                 var failed = 0;
                 await foreach (var batch in guild.GetUsersAsync())
                 {
@@ -133,7 +134,10 @@ namespace DustyBot.Modules
                         try
                         {
                             foreach (var role in roles.Where(x => !user.RoleIds.Contains(x.Id)))
+                            {
+                                assignments++;
                                 await user.AddRoleAsync(role);
+                            }
                         }
                         catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized || ex.HttpCode == HttpStatusCode.Forbidden)
                         {
@@ -141,15 +145,17 @@ namespace DustyBot.Modules
                         }
                         catch (Exception ex)
                         {
-                            if (failed <= 5)
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
-
                             failed++;
+                            if (failed > 20)
+                                throw new CommandException($"Something went wrong and the task was aborted. Assigned roles to {processed} users.");
+                                
+                            await Logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
                         }
-                    }
 
-                    processed += batch.Count;
-                    await progressMsg.ModifyAsync(x => x.Content = BuildProgressMessage(processed, guild.MemberCount));
+                        processed++;
+                        if ((assignments > 0 && assignments % 50 == 0) || processed % 1000 == 0)
+                            await progressMsg.ModifyAsync(x => x.Content = BuildProgressMessage(processed, guild.MemberCount));
+                    }
                 }
 
                 await progressMsg.DeleteAsync();
@@ -178,13 +184,13 @@ namespace DustyBot.Modules
                 return;
             }
 
-            var added = CheckTasks.TryAdd(command.GuildId, true);
+            var added = CheckTasks.TryAdd(command.GuildId, true); // TODO: implement command rate limits properly
             if (!added)
                 throw new AbortException("Please wait a while before running this command again.");
 
             try
             {
-                string BuildProgressMessage(int processed, int total) => $"This may take a while... checking users: {processed}/{total}";
+                string BuildProgressMessage(int processed, int total) => $"This may take a while... checking users: `{processed}/{total}`";
 
                 var guild = (SocketGuild)command.Guild;
                 var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
@@ -192,6 +198,7 @@ namespace DustyBot.Modules
 
                 var processed = 0;
                 var found = 0;
+                var shown = 0;
                 var result = new StringBuilder();
                 await foreach (var batch in guild.GetUsersAsync())
                 {
@@ -202,7 +209,13 @@ namespace DustyBot.Modules
                             continue;
 
                         found++;
-                        result.Append($"`{user.Username}#{user.Discriminator}` ");
+
+                        var username = $"`{user.Username}#{user.Discriminator}` ";
+                        if (result.Length + username.Length <= 1800)
+                        {
+                            result.Append(username);
+                            shown++;
+                        }
                     }
 
                     processed += batch.Count;
@@ -210,6 +223,9 @@ namespace DustyBot.Modules
                 }
 
                 await progressMsg.DeleteAsync();
+
+                if (found > shown)
+                    result.Append($" and **{found - shown}** more...");
 
                 if (found <= 0)
                     await command.ReplySuccess(Communicator, settings.AutoAssignRoles.Count > 1 ? "Everyone has these roles." : "Everyone has this role.");

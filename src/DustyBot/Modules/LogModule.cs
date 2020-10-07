@@ -92,6 +92,13 @@ namespace DustyBot.Modules
                 (channelIds.Count > 0 ? "set." : "disabled."));
         }
 
+        [Command("log", "names", "Sets a channel for name change logging.", CommandFlags.Hidden)]
+        [IgnoreParameters]
+        public async Task LogNames(ICommand command)
+        {
+            await command.Channel.SendMessageAsync(embed: new EmbedBuilder().WithDescription($"We're sorry, but this feature has been disabled. Find out more in the [support server]({Definitions.WebConstants.SupportServerInvite}).").Build());
+        }
+
         public override Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
         {
             TaskHelper.FireForget(async () =>

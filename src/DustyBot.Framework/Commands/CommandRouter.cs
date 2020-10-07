@@ -78,9 +78,9 @@ namespace DustyBot.Framework.Commands
                 var id = ++_commandCounter;
                 var guild = (userMessage.Channel as IGuildChannel)?.Guild;
                 if (guild != null)
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\" (id: {id}) by {message.Author.Username} ({message.Author.Id}) in #{message.Channel.Name} on {guild.Name} ({guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{message.Content}\"{(message.Attachments.Any() ? $" + {message.Attachments.Count} attachments" : "")} (id: {id}) by {message.Author.Username} ({message.Author.Id}) in #{message.Channel.Name} on {guild.Name} ({guild.Id})"));
                 else
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{_config.CommandPrefix}{commandUsage.InvokeUsage}\" (id: {id}) by {message.Author.Username} ({message.Author.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Command", $"\"{_config.CommandPrefix}{commandUsage.InvokeUsage}\"{(message.Attachments.Any() ? $" + {message.Attachments.Count} attachments" : "")} (id: {id}) by {message.Author.Username} ({message.Author.Id})"));
 
                 //Check if the channel type is valid for this command
                 if (!IsValidCommandSource(message.Channel, commandRegistration))

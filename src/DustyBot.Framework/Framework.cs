@@ -87,20 +87,7 @@ namespace DustyBot.Framework
             await Client.StartAsync();
 
             await s.WaitAsync();
-
-            TaskHelper.FireForget(async () =>
-            {
-                await Task.Delay(TimeSpan.FromMinutes(5));
-
-                var failed = Client.Guilds.Where(x => x.DownloadedMemberCount < x.MemberCount).ToList();
-                var total = Client.Guilds.Count;
-
-                if (failed.Any())
-                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Gateway", $"Failed to download {failed.Count} guilds out of {total}: {string.Join(", ", failed.Select(x => $"{x.Name} ({x.Id}) - {x.MemberCount - x.DownloadedMemberCount} missing"))}"));
-                else
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Gateway", $"All guilds were downloaded successfully."));
-            });
-
+            
             EventRouter.Start();
 
             foreach (var service in _services)
