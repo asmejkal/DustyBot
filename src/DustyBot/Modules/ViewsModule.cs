@@ -40,7 +40,7 @@ namespace DustyBot.Modules
 
         [Command("views", "Checks how releases are doing on YouTube. The releases need to be added by moderators.", CommandFlags.TypingIndicator)]
         [Parameter("SongOrCategoryName", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "select songs from a specific category or search for a song from any category")]
-        [Comment("Use without parameters to view songs from the default category.")]
+        [Comment("Use without parameters to view songs from the default category. \nUse `all` to view all songs regardless of category.")]
         public async Task Views(ICommand command)
         {
             var settings = await Settings.Read<MediaSettings>(command.GuildId);
