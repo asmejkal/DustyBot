@@ -46,9 +46,15 @@ namespace DustyBot.Modules
             var settings = await Settings.Read<MediaSettings>(command.GuildId);
             string param = string.IsNullOrWhiteSpace(command["SongOrCategoryName"]) ? null : (string)command["SongOrCategoryName"];
 
-            var comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, param, true) == 0).ToList();
-            if (comebacks.Count <= 0 && !string.IsNullOrWhiteSpace(param))
-                comebacks = settings.YouTubeComebacks.Where(x => x.Name.Search(param, true)).ToList();
+            List<ComebackInfo> comebacks;
+            if (string.Compare("all", param, true) == 0)
+                comebacks = settings.YouTubeComebacks;
+            else
+            {
+                comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, param, true) == 0).ToList();
+                if (comebacks.Count <= 0 && !string.IsNullOrWhiteSpace(param))
+                    comebacks = settings.YouTubeComebacks.Where(x => x.Name.Search(param, true)).ToList();
+            }
 
             var config = await Settings.ReadGlobal<BotConfig>();
             if (comebacks.Count <= 0)
