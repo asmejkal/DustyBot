@@ -676,7 +676,7 @@ namespace DustyBot.Modules
                         var verbs = partialCommandRegistration.PrimaryUsage.Verbs;
                         if (verbs.First() == "add")
                         {
-                            var (e, partialMessage) = await AddEventInner(partialCommand, false);
+                            var (e, partialMessage) = await AddEventInner(partialCommand, verbs.Skip(1).FirstOrDefault() == "notify");
                             message.AppendLine(partialMessage);
                             updateDates = new[] { e.Date };
                             updateTags.Add(e.Tag);
@@ -733,7 +733,7 @@ namespace DustyBot.Modules
                         message.AppendLine(resultMessage);
 
                     message.AppendLine($"An error encountered on line {lineNum}:");
-                    await command.ReplyError(Communicator, "Batch finished with errors:\n" + message.ToString());
+                    await command.Reply(Communicator, "**Batch finished with errors:**\n" + message.ToString());
                     throw;
                 }
 
