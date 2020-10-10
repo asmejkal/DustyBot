@@ -1,6 +1,7 @@
 ﻿using Discord;
 using DustyBot.Core.Async;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Utility
@@ -63,5 +64,11 @@ namespace DustyBot.Framework.Utility
             (guild.IconId?.StartsWith("a_") ?? false) ? System.IO.Path.ChangeExtension(guild.IconUrl, "gif") : null;
 
         public static string GetFullName(this IUser user) => $"{user.Username}#{user.Discriminator}";
+
+        public static bool CanUserAssign(this IRole role, IGuildUser user)
+        {
+            var userMaxPosition = user.RoleIds.Select(x => role.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
+            return role.Position < userMaxPosition;
+        }
     }
 }

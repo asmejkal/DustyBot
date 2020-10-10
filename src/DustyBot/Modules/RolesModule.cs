@@ -20,17 +20,73 @@ using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Database.Services;
+using System.Collections.Concurrent;
 
 namespace DustyBot.Modules
 {
     [Module("Roles", "Role self-assignment.")]
     class RolesModule : Module
     {
+        private class RoleStats : IDisposable
+        {
+            private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+            private readonly ILogger _logger;
+            private DateTimeOffset _updated;
+            private Dictionary<ulong, int> _data;
+            private ulong _boundGuildId;
+
+            public RoleStats(ILogger logger)
+            {
+                _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            }
+
+            public async Task<(IReadOnlyDictionary<ulong, int> Data, DateTimeOffset? WhenCached)> GetOrFillAsync(SocketGuild guild, TimeSpan maxAge)
+            {
+                if (maxAge < TimeSpan.Zero)
+                    throw new ArgumentException("Can't be negative", nameof(maxAge));
+
+                using (await _lock.ClaimAsync())
+                {
+                    if (_data != null && _updated + maxAge > DateTimeOffset.UtcNow && _boundGuildId == guild.Id)
+                        return (_data, _updated);
+
+                    _data = new Dictionary<ulong, int>();
+                    _updated = DateTimeOffset.UtcNow;
+                    _boundGuildId = guild.Id;
+
+                    foreach (var role in guild.Roles.Select(x => x.Id))
+                        _data[role] = 0;
+
+                    await foreach (var batch in guild.GetUsersAsync())
+                    {
+                        await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Fetched {batch.Count} users on guild {guild.Id} ({guild.Name})"));
+                        foreach (var user in batch)
+                        {
+                            foreach (var role in user.RoleIds)
+                            {
+                                if (_data.TryGetValue(role, out var value)) 
+                                    _data[role] = value + 1;
+
+                                // No else to track only track existing roles (sometimes Discord is stupid and keeps deleted roles on users)
+                            }
+                        }
+                    }
+
+                    return (_data, null);
+                }
+            }
+
+            public void Dispose() => _lock.Dispose();
+        }
+
+        private static readonly TimeSpan MaxRoleStatsAge = TimeSpan.FromHours(1);
+
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
         private SemaphoreSlim RoleAssignmentLock { get; } = new SemaphoreSlim(1, 1);
+        private ConcurrentDictionary<ulong, RoleStats> RoleStatsCache { get; } = new ConcurrentDictionary<ulong, RoleStats>();
 
         public RolesModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
@@ -232,12 +288,12 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, $"Alias `{command["Alias"]}` removed.");
         }
 
-        [Command("roles", "setbias", "Sets a primary-secondary bias role pair.")]
-        [Alias("role", "setbias")]
+        [Command("roles", "set", "secondary", "Sets a primary-secondary bias role pair.")]
+        [Alias("role", "set", "secondary"), Alias("role", "setbias", true), Alias("roles", "setbias", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("PrimaryRoleNameOrID", ParameterType.Role)]
         [Parameter("SecondaryRoleNameOrID", ParameterType.Role)]
-        [Comment("Marks a role as a primary bias role and links it with a secondary role. If a user already has **any** primary bias role assigned, then the bot will assign this secondary role instead. This means that the first bias role a user sets will be their primary. After that, any other bias role they assign will become secondary. They may change their primary bias by removing the primary bias and assigning a new one.\n\nIf you run:\n`{p}roles add Solar`\n`{p}roles add Wheein`\n`{p}roles setbias Solar .Solar`\n`{p}roles setbias Wheein .Wheein`\n\nThen typing this in the role channel:\n`Solar`\n`Wheein`\n\nWill result in the user having a primary `Solar` role and a secondary `.Wheein` role.")]
+        [Comment("Marks a role as a primary bias role and links it with a secondary role. If a user already has **any** primary bias role assigned, then the bot will assign this secondary role instead. This means that the first bias role a user sets will be their primary. After that, any other bias role they assign will become secondary. They may change their primary bias by removing the primary bias and assigning a new one.\n\nIf you run:\n`{p}roles add Solar`\n`{p}roles add Wheein`\n`{p}roles set secondary Solar .Solar`\n`{p}roles set secondary Wheein .Wheein`\n\nThen typing this in the role channel:\n`Solar`\n`Wheein`\n\nWill result in the user having a primary `Solar` role and a secondary `.Wheein` role.")]
         [Example("Solar .Solar")]
         public async Task SetBiasRole(ICommand command)
         {
@@ -248,6 +304,9 @@ namespace DustyBot.Modules
                 await command.ReplyError(Communicator, $"The primary and secondary roles can't be the same role.");
                 return;
             }
+
+            if (!secondary.CanUserAssign(await command.Guild.GetCurrentUserAsync()))
+                throw new CommandException($"The bot doesn't have permission to assign the secondary role to users. Please make sure the role is below the bot's highest role in the server's role list.");
 
             await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
@@ -282,18 +341,14 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.");
         }
 
-        [Command("roles", "stats", "Server roles statistics.")]
+        [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
         [Alias("role", "stats")]
-        [Parameter("all", "all", ParameterFlags.Optional, "prints stats for all roles")]
+        [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
         public async Task RolesStats(ICommand command)
         {
-            var data = new Dictionary<ulong, int>();
-            foreach (var role in command.Guild.Roles)
-                data[role.Id] = 0;
-
-            foreach (var user in await command.Guild.GetUsersAsync()) // TODO: intents
-                foreach (var role in user.RoleIds)
-                    data[role] += 1;
+            var stats = RoleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(Logger));
+            var (data, whenCached) = await stats.GetOrFillAsync((SocketGuild)command.Guild, MaxRoleStatsAge);
+            var dataAge = DateTimeOffset.UtcNow - whenCached;
 
             var pages = new PageCollection();
             const int MaxLines = 30;
@@ -308,7 +363,9 @@ namespace DustyBot.Modules
                     if (count++ % MaxLines == 0)
                         pages.Add(new EmbedBuilder().WithTitle("All roles").WithDescription(string.Empty));
 
-                    pages.Last.Embed.Description += $"**{command.Guild.Roles.First(x => x.Id == kv.Key).Name}:** {kv.Value} user{(kv.Value != 1 ? "s" : "")}\n";
+                    pages.Last.Embed.Description += $"<@&{kv.Key}> — {kv.Value} user{(kv.Value != 1 ? "s" : "")}\n";
+                    if (dataAge.HasValue)
+                        pages.Last.Embed.WithFooter(x => x.Text = $"Results from {dataAge.Value.SimpleFormat()} ago");
                 }
             }
             else
@@ -316,7 +373,7 @@ namespace DustyBot.Modules
                 var settings = await Settings.Read<RolesSettings>(command.GuildId, false);
                 if (settings == null || settings.AssignableRoles.Count <= 0)
                 {
-                    await command.Reply(Communicator, "No self-assignable roles have been set it. For statistics of all roles use `roles stats all`.");
+                    await command.Reply(Communicator, "No self-assignable roles have been set up. For statistics of all roles use `roles stats all`.");
                     return;
                 }
 
@@ -332,13 +389,15 @@ namespace DustyBot.Modules
                         continue;
 
                     if (count++ % MaxLines == 0)
-                        pages.Add(new EmbedBuilder().WithTitle("Self-assignable roles").WithDescription(string.Empty));
+                        pages.Add(new EmbedBuilder().WithTitle("Assignable roles").WithDescription(string.Empty));
 
-                    pages.Last.Embed.Description += $"**{guildRole.Name}:** {kv.Value} user{(kv.Value != 1 ? "s" : "")}\n";
-                    
+                    pages.Last.Embed.Description += $"{guildRole.Mention} — {kv.Value} user{(kv.Value != 1 ? "s" : "")}\n";
+                    if (dataAge.HasValue)
+                        pages.Last.Embed.WithFooter(x => x.Text = $"Results from {dataAge.Value.SimpleFormat()} ago");
+
                     if (role.SecondaryId != default)
                     {
-                        pages.Last.Embed.Description += $" ┕ Secondary: {data[role.SecondaryId]} users\n";
+                        pages.Last.Embed.Description += $" ┕ _Secondary_ — {data[role.SecondaryId]} users\n";
 
                         if (count % MaxLines != 0)
                             count++;
@@ -440,12 +499,8 @@ namespace DustyBot.Modules
 
         private async Task AddRole(ulong guildId, IRole role, bool checkPermissions)
         {
-            if (checkPermissions)
-            {
-                var botMaxPosition = (await role.Guild.GetCurrentUserAsync()).RoleIds.Select(x => role.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
-                if (role.Position >= botMaxPosition)
-                    throw new CommandException($"The bot doesn't have permission to assign this role to users. Please make sure the role is below the bot's highest role in the server's role list.");
-            }
+            if (checkPermissions && !role.CanUserAssign(await role.Guild.GetCurrentUserAsync()))
+                throw new CommandException($"The bot doesn't have permission to assign this role to users. Please make sure the role is below the bot's highest role in the server's role list.");
 
             var newRole = new AssignableRole();
             newRole.RoleId = role.Id;
