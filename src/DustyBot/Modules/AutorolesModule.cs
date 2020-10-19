@@ -104,6 +104,13 @@ namespace DustyBot.Modules
         [Comment("May take a while to complete.")]
         public async Task ApplyAutoRole(ICommand command)
         {
+            var guild = (SocketGuild)command.Guild;
+            if (guild.MemberCount > 20000)
+            {
+                await command.ReplyError(Communicator, "Your server is too large for this command.");
+                return;
+            }
+
             var settings = await Settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
@@ -119,7 +126,6 @@ namespace DustyBot.Modules
             {
                 string BuildProgressMessage(int processed, int total) => $"This may take a while... assigning roles to users: `{processed}/{total}`";
 
-                var guild = (SocketGuild)command.Guild;
                 var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
                 var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
 
