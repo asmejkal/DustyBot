@@ -40,7 +40,7 @@ namespace DustyBot.Modules
                 _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             }
 
-            public async Task<(IReadOnlyDictionary<ulong, int> Data, DateTimeOffset? WhenCached)> GetOrFillAsync(SocketGuild guild, TimeSpan maxAge)
+            public async Task<(IReadOnlyDictionary<ulong, int> Data, DateTimeOffset? WhenCached)> GetOrFillAsync(SocketGuild guild, TimeSpan maxAge, Func<double, Task> onProgress = null)
             {
                 if (maxAge < TimeSpan.Zero)
                     throw new ArgumentException("Can't be negative", nameof(maxAge));
@@ -57,6 +57,10 @@ namespace DustyBot.Modules
                     foreach (var role in guild.Roles.Select(x => x.Id))
                         _data[role] = 0;
 
+                    if (onProgress != null)
+                        await onProgress(0);
+
+                    var processed = 0;
                     await foreach (var batch in guild.GetUsersAsync())
                     {
                         await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Fetched {batch.Count} users on guild {guild.Id} ({guild.Name})"));
@@ -67,9 +71,13 @@ namespace DustyBot.Modules
                                 if (_data.TryGetValue(role, out var value)) 
                                     _data[role] = value + 1;
 
-                                // No else to track only track existing roles (sometimes Discord is stupid and keeps deleted roles on users)
+                                // No else to track only existing roles (sometimes Discord is stupid and keeps deleted roles on users)
                             }
                         }
+
+                        processed += batch.Count;
+                        if (onProgress != null)
+                            await onProgress((double)processed / guild.MemberCount);
                     }
 
                     return (_data, null);
@@ -140,8 +148,8 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, "Role channel has been disabled.");
         }
 
-        [Command("roles", "clearing", "Toggles automatic clearing of role channel.", CommandFlags.Synchronous)]
-        [Alias("role", "clearing")]
+        [Command("roles", "toggle", "clearing", "Toggles automatic clearing of role channel.", CommandFlags.Synchronous)]
+        [Alias("role", "toggle", "clearing", true), Alias("roles", "clearing"), Alias("role", "clearing", true)]
         [Permissions(GuildPermission.ManageMessages)]
         [Comment("Disabled by default.")]
         public async Task SetRoleChannelClearing(ICommand command)
@@ -159,6 +167,24 @@ namespace DustyBot.Modules
 
             bool result = await Settings.Modify(command.GuildId, (RolesSettings s) => s.ClearRoleChannel = !s.ClearRoleChannel);
             await command.ReplySuccess(Communicator, $"Automatic role channel clearing has been " + (result ? "enabled" : "disabled") + ".");
+        }
+
+        [Command("roles", "toggle", "persistence", "Restore self-assignable roles upon rejoining the server.")]
+        [Alias("role", "toggle", "persistence", true), Alias("roles", "persistence"), Alias("role", "persistence", true)]
+        [Permissions(GuildPermission.Administrator)]
+        [Comment("Toggle. All self-assignable roles the user had upon leaving will be reapplied if they rejoin. The feature had to be turned on when the user left for it to function.")]
+        public async Task PersistentRoles(ICommand command)
+        {
+            var selfUser = await command.Guild.GetCurrentUserAsync();
+            var newVal = await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                if (!s.PersistentAssignableRoles && selfUser.GuildPermissions.ManageRoles == false)
+                    throw new MissingBotPermissionsException(GuildPermission.ManageRoles);
+
+                return s.PersistentAssignableRoles = !s.PersistentAssignableRoles;
+            });
+
+            await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.");
         }
 
         [Command("roles", "create", "Creates a new self-assignable role.")]
@@ -323,31 +349,32 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Role `{primary.Name} ({primary.Id})` has been set as a primary bias role to `{secondary.Name} ({secondary.Id})`.");
         }
 
-        [Command("roles", "persistence", "Restore self-assignable roles upon rejoining the server.")]
-        [Alias("role", "persistence")]
-        [Permissions(GuildPermission.Administrator)]
-        [Comment("Toggle. All self-assignable roles the user had upon leaving will be reapplied if they rejoin. The feature had to be turned on when the user left for it to function.")]
-        public async Task PersistentRoles(ICommand command)
-        {
-            var selfUser = await command.Guild.GetCurrentUserAsync();
-            var newVal = await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                if (!s.PersistentAssignableRoles && selfUser.GuildPermissions.ManageRoles == false)
-                    throw new MissingBotPermissionsException(GuildPermission.ManageRoles);
-
-                return s.PersistentAssignableRoles = !s.PersistentAssignableRoles;
-            });
-                        
-            await command.ReplySuccess(Communicator, $"Self-assignable roles will {(newVal ? "now" : "no longer")} be restored for users who leave and rejoin the server.");
-        }
-
         [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
         [Alias("role", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
         public async Task RolesStats(ICommand command)
         {
+            var guild = (SocketGuild)command.Guild;
+
+            IUserMessage progressMessage = null;
+            Func<double, Task> onProgress = null;
+            if (guild.MemberCount > 5000)
+            {
+                onProgress = new Func<double, Task>(async x =>
+                {
+                    if (progressMessage == null)
+                        progressMessage = (await command.Reply(Communicator, $"Processing guild members... {Math.Ceiling(x * 100)}%")).First();
+                    else
+                        await progressMessage.ModifyAsync(m => m.Content = $"Processing guild members... {Math.Ceiling(x * 100)}%");
+                });
+            }
+
             var stats = RoleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(Logger));
-            var (data, whenCached) = await stats.GetOrFillAsync((SocketGuild)command.Guild, MaxRoleStatsAge);
+            var (data, whenCached) = await stats.GetOrFillAsync(guild, MaxRoleStatsAge, onProgress);
+
+            if (progressMessage != null)
+                await progressMessage.DeleteAsync();
+
             var dataAge = DateTimeOffset.UtcNow - whenCached;
 
             var pages = new PageCollection();
@@ -401,7 +428,7 @@ namespace DustyBot.Modules
 
                         if (count % MaxLines != 0)
                             count++;
-                    }                        
+                    }
                 }
             }
 

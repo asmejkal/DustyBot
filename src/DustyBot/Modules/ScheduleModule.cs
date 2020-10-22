@@ -296,6 +296,60 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"The `schedule` command will now display up to {(int)command["MaxEvents"]} events.");
         }
 
+        [Command("schedule", "rename", "tag", "Renames a tag for all events and calendars.", CommandFlags.TypingIndicator)]
+        [Parameter("CurrentTag", ParameterType.String, "the current tag name")]
+        [Parameter("NewTag", ParameterType.String, "the new tag name; use `" + NoneTag + "` to remove tags instead")]
+        [Example("birthday bday")]
+        [Example("birthday none")]
+        public async Task RenameScheduleTag(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var currentTag = command["CurrentTag"].AsString;
+            var newTag = command["NewTag"].AsString;
+            var remove = ScheduleSettings.CompareTag(newTag, NoneTag, true);
+            if (!remove && ReservedTags.Any(x => ScheduleSettings.CompareTag(newTag, x, true)))
+                throw new CommandException("This tag is reserved, please pick a different one.");
+
+            var countEvents = 0;
+            var countCalendars = 0;
+            var settings = await Settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var newEvents = new SortedList<ScheduleEvent>();
+                foreach (var e in s.Events)
+                {
+                    if (ScheduleSettings.CompareTag(currentTag, e.Tag, ignoreAllTag: true))
+                    {
+                        e.Tag = remove ? null : newTag;
+                        countEvents++;
+                    }
+
+                    newEvents.Add(e);
+                }
+
+                s.Events = newEvents; // We need to do it like this because the sort order can change
+                
+                foreach (var c in s.Calendars.Where(x => x.FitsTag(currentTag)))
+                {
+                    c.Tag = remove ? null : newTag;
+                    countCalendars++;
+                }
+
+                return s;
+            });
+
+            if (countEvents == 0 && countCalendars == 0)
+            {
+                await command.ReplyError(Communicator, $"Found no events or calendars with tag `{currentTag}`.");
+            }
+            else
+            {
+                var result = await RefreshCalendars(command.Guild, Enumerable.Empty<DateTime>(), new[] { currentTag, remove ? null : newTag });
+                await command.ReplySuccess(Communicator, $"Retagged {countEvents} events and {countCalendars} calendars. {result}");
+                await Service.RefreshNotifications(command.GuildId, settings);
+            }
+        }
+
         [Command("event", "add", "Adds an event to schedule.")]
         [Alias("events", "add")]
         [Parameter("Tag", ParameterType.String, ParameterFlags.Optional, "use if you want to have calendars which display only events with specific tags")]
@@ -1347,7 +1401,7 @@ namespace DustyBot.Modules
                 }
 
                 var (text, embed) = BuildCalendarMessage(calendar, settings);
-                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; });
+                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; }, new RequestOptions() {  });
                 return RefreshResult.Reason.Success;
             }
             catch (ArgumentOutOfRangeException)
