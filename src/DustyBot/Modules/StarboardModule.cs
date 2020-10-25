@@ -33,18 +33,18 @@ namespace DustyBot.Modules
         private ICommunicator Communicator { get; }
         private ISettingsService Settings { get; }
         private ILogger Logger { get; }
-        private BotConfig Config { get; }
         private IUserFetcher UserFetcher { get; }
+        private IUrlShortener UrlShortener { get; }
 
         AsyncMutexCollection<Tuple<ulong, int>> _processingMutexes = new AsyncMutexCollection<Tuple<ulong, int>>();
 
-        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUserFetcher userFetcher)
+        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
-            Config = config;
             UserFetcher = userFetcher;
+            UrlShortener = urlShortener;
         }
 
         [Command("starboard", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -652,7 +652,7 @@ namespace DustyBot.Modules
                 try
                 {
                     if (IsImageLink(a.Url))
-                        result.Add(await UrlShortener.ShortenUrl(a.Url, Config.ShortenerKey));
+                        result.Add(await UrlShortener.ShortenAsync(a.Url));
                     else
                         result.Add(a.Url);
                 }
@@ -673,7 +673,7 @@ namespace DustyBot.Modules
             if (style == StarboardStyle.Embed)
             {
                 var embed = message.Embeds.FirstOrDefault(x => x.Thumbnail.HasValue || x.Image.HasValue);
-                var attachedImage = attachments.FirstOrDefault(x => UrlShortener.IsShortenedLink(x));
+                var attachedImage = attachments.FirstOrDefault(x => UrlShortener.IsShortened(x));
                 PrintHelpers.Thumbnail thumbnail = null;
                 if (attachedImage != null)
                 {

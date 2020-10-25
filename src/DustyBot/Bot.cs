@@ -58,9 +58,6 @@ namespace DustyBot
             [Option("gcalendarkey", HelpText = "Google Calendar service account key file.")]
             public string GCalendarKey { get; set; }
 
-            [Option("shortenerkey", HelpText = "Bit.ly generic access token.")]
-            public string ShortenerKey { get; set; }
-
             [Option("lastfmkey", HelpText = "Last.fm API key.")]
             public string LastFmKey { get; set; }
 
@@ -81,6 +78,15 @@ namespace DustyBot
 
             [Option("papagoclientsecret", HelpText = "Papago client secret string.")]
             public string PapagoClientSecret { get; set; }
+
+            [Option("polrkey", HelpText = "Polr URL shortener access token.")]
+            public string PolrKey { get; set; }
+
+            [Option("polrdomain", HelpText = "Polr URL shortener site (e.g. https://dusty.link).")]
+            public string PolrDomain { get; set; }
+
+            [Option("bitlykey", HelpText = "Bit.ly generic access token (Polr preferred).")]
+            public string BitlyKey { get; set; }
         }
 
         private ICollection<IModule> _modules;
@@ -134,6 +140,15 @@ namespace DustyBot
                     //Choose communicator
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
 
+                    // URL shortener
+                    IUrlShortener shortener;
+                    if (config.PolrKey != null)
+                        shortener = new PolrShortener(config.PolrKey, config.PolrDomain);
+                    else if (config.BitlyKey != null)
+                        shortener = new BitlyShortener(config.BitlyKey);
+                    else
+                        shortener = new DefaultShortener();
+
                     // Sql services
                     var sqlConnectionString = config.SqlDbConnectionString;
                     Func<Task<ILastFmStatsService>> lastFmServiceFactory = null;
@@ -157,10 +172,10 @@ namespace DustyBot
                     components.Modules.Add(new Modules.SpotifyModule(components.Communicator, settings, spotifyAccountsService, config));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
-                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config, shortener));
                     components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
                     components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, config, userFetcher));
+                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, userFetcher, shortener));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger, config));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
                     components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, client.Rest));
@@ -223,7 +238,10 @@ namespace DustyBot
                         if (s.OwnerIDs == null || !s.OwnerIDs.Any() || string.IsNullOrWhiteSpace(s.BotToken))
                             throw new ArgumentException("Owner IDs and bot token must be specified.");
 
-                        s.CommandPrefix = string.IsNullOrWhiteSpace(opts.Prefix) ? GlobalDefinitions.DefaultPrefix : opts.Prefix;
+                        if (!string.IsNullOrEmpty(opts.Prefix))
+                            s.CommandPrefix = opts.Prefix;
+                        else if (string.IsNullOrEmpty(s.CommandPrefix))
+                            s.CommandPrefix = GlobalDefinitions.DefaultPrefix;
 
                         // Optional
                         if (opts.YouTubeKey != null)
@@ -232,9 +250,6 @@ namespace DustyBot
                         var gac = opts.GCalendarKey != null ? await GoogleHelpers.ParseServiceAccountKeyFile(opts.GCalendarKey) : null;
                         if (gac != null)
                             s.GCalendarSAC = gac;
-
-                        if (opts.ShortenerKey != null)
-                            s.ShortenerKey = opts.ShortenerKey;
 
                         if (opts.LastFmKey != null)
                             s.LastFmKey = opts.LastFmKey;
@@ -256,6 +271,15 @@ namespace DustyBot
 
                         if (opts.PapagoClientSecret != null)
                             s.PapagoClientSecret = opts.PapagoClientSecret;
+
+                        if (opts.PolrKey != null)
+                            s.PolrKey = opts.PolrKey;
+
+                        if (opts.PolrDomain != null)
+                            s.PolrDomain = opts.PolrDomain;
+
+                        if (opts.BitlyKey != null)
+                            s.BitlyKey = opts.BitlyKey;
                     });
                 }
             }

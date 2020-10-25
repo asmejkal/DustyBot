@@ -33,20 +33,22 @@ namespace DustyBot.Modules
         private const int LinkPerPostLimit = 8;
         private static readonly TimeSpan PreviewDeleteWindow = TimeSpan.FromSeconds(30);
 
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
-        public BotConfig Config { get; }
+        private ICommunicator Communicator { get; }
+        private ISettingsService Settings { get; }
+        private ILogger Logger { get; }
+        private BotConfig Config { get; }
+        private IUrlShortener UrlShortener { get; }
 
         private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
             new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
-        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
+        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUrlShortener urlShortener)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             Config = config;
+            UrlShortener = urlShortener;
         }
 
         [Command("ig", "Shows a preview of one or more Instagram posts.")]
@@ -325,7 +327,7 @@ namespace DustyBot.Modules
 
                     var embed = PrintHelpers.BuildMediaEmbed(
                         displayName, 
-                        await Task.WhenAll(media.Take(PrintHelpers.EmbedMediaCutoff).Select(x => UrlShortener.ShortenUrl(x.Url, Config.ShortenerKey))), 
+                        await Task.WhenAll(media.Take(PrintHelpers.EmbedMediaCutoff).Select(x => UrlShortener.ShortenAsync(x.Url))), 
                         url: postUrl, 
                         caption: caption, 
                         thumbnail: media.Any() ? new PrintHelpers.Thumbnail(media.First().Thumbnail, media.First().IsVideo, media.First().Url) : null,
@@ -339,7 +341,7 @@ namespace DustyBot.Modules
                 {
                     var mediaUrls = new List<string>();
                     foreach (var item in media)
-                        mediaUrls.Add(item.IsVideo ? item.Url : await UrlShortener.ShortenUrl(item.Url, Config.ShortenerKey));
+                        mediaUrls.Add(item.IsVideo ? item.Url : await UrlShortener.ShortenAsync(item.Url));
 
                     var messages = PrintHelpers.BuildMediaText(
                         $"<:ig:725481240245043220> **{displayName}**",
