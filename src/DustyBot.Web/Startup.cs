@@ -49,9 +49,9 @@ namespace DustyBot.Web
                 options.CallbackPath = new PathString("/LoginLanding");
                 options.Scope.Add("identify");
 
-                options.AuthorizationEndpoint = "https://discordapp.com/api/oauth2/authorize";
-                options.TokenEndpoint = "https://discordapp.com/api/oauth2/token";
-                options.UserInformationEndpoint = "https://discordapp.com/api/users/@me";
+                options.AuthorizationEndpoint = "https://discord.com/api/oauth2/authorize";
+                options.TokenEndpoint = "https://discord.com/api/oauth2/token";
+                options.UserInformationEndpoint = "https://discord.com/api/users/@me";
 
                 options.SaveTokens = true;
 
