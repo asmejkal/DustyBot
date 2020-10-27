@@ -200,16 +200,7 @@ namespace DustyBot.Modules
                     Task suppressionTask = null;
                     if (unquoted)
                     {
-                        if (!(await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages)
-                        {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Warning about missing permissions to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
-                            await Communicator.SendMessage(message.Channel, "Looks like Discord previews are back! \nIf you want to keep using Dusty's previews, either give it the Manage Messages permission (so it can hide the original previews) or wrap your links in `< >` braces.");
-                            return;
-                        }
-                        else
-                        {
-                            suppressionTask = TrySuppressEmbed((IUserMessage)message);
-                        }
+                        suppressionTask = TrySuppressEmbed((IUserMessage)message);
                     }
 
                     foreach (var id in ids)
@@ -388,12 +379,21 @@ namespace DustyBot.Modules
         {
             try
             {
+                var channel = (ITextChannel)message.Channel;
                 for (int i = 0; i < 12; ++i)
                 {
                     if (message.Embeds.Any() && message.Embeds.All(x => x.Title == "Login • Instagram" || x.Footer?.Text == "Instagram"))
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting default embed with attempt {i + 1} for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
-                        await message.ModifySuppressionAsync(true);
+                        if ((await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages)
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting default embed with attempt {i + 1} for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
+                            await message.ModifySuppressionAsync(true);
+                        }
+                        else
+                        {
+                            await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
+                        }
+                        
                         return;
                     }
 
