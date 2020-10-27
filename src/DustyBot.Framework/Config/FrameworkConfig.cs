@@ -8,7 +8,6 @@ namespace DustyBot.Framework.Config
     public class FrameworkConfig
     {
         public string DefaultCommandPrefix { get; }
-        public GetGuildCommandPrefixDelegate GuildCommandPrefixGetter { get; }
         public string BotToken { get; }
         public IReadOnlyList<ulong> OwnerIDs { get; }
 

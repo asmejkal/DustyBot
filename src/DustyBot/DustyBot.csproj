@@ -13,7 +13,7 @@
     <Authors>Yebafan</Authors>
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
-    <Version>3.1.0</Version>
+    <Version>3.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
