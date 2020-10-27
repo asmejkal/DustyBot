@@ -76,7 +76,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
+            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
         }
 
         [Command("schedule", "Shows upcoming events.")]
@@ -685,7 +685,6 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            var config = await Settings.ReadGlobal<BotConfig>();
             var allowedCommands = new List<CommandRegistration>()
             {
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add"),
@@ -711,16 +710,16 @@ namespace DustyBot.Modules
 
                         line = line.TrimStart();
                         if (line.StartsWith("event"))
-                            line = config.CommandPrefix + line;
-                        else if (!line.StartsWith(config.CommandPrefix + "event"))
-                            line = config.CommandPrefix + "event " + line;
+                            line = command.Prefix + line;
+                        else if (!line.StartsWith(command.Prefix + "event"))
+                            line = command.Prefix + "event " + line;
 
-                        var findResult = SocketCommand.FindLongestMatch(line, config.CommandPrefix, allowedCommands);
+                        var findResult = SocketCommand.FindLongestMatch(line, command.Prefix, allowedCommands);
                         if (findResult == null)
                             throw new IncorrectParametersCommandException($"Unknown command. Only {allowedCommands.Select(x => x.PrimaryUsage.InvokeUsage).WordJoinQuoted()} commands are allowed.");
 
                         var (partialCommandRegistration, usage) = findResult.Value;
-                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, config.CommandPrefix, UserFetcher);
+                        var parseResult = await SocketCommand.TryCreate(partialCommandRegistration, usage, new UserMessageAdapter(command.Message) { Content = line }, command.Prefix, UserFetcher);
                         if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
                             throw new IncorrectParametersCommandException("");
 

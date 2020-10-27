@@ -39,7 +39,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
+            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
         }
 
         [Command("greet", "text", "Sets a text greeting message.")]

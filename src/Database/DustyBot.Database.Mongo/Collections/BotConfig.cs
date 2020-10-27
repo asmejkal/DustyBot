@@ -7,7 +7,10 @@ namespace DustyBot.Settings
 {
     public class BotConfig : BaseGlobalSettings
     {
+        [BsonIgnore]
+        public string DefaultCommandPrefix { get => CommandPrefix; set => CommandPrefix = value; } // TODO: migrations
         public string CommandPrefix { get; set; }
+
         public string BotToken { get; set; }
         public List<ulong> OwnerIDs { get; set; } = new List<ulong>();
         public string YouTubeKey { get; set; }
@@ -23,7 +26,7 @@ namespace DustyBot.Settings
         public string PolrDomain { get; set; }
         
         [BsonIgnore]
-        public string BitlyKey { get => ShortenerKey; set => ShortenerKey = value; }
+        public string BitlyKey { get => ShortenerKey; set => ShortenerKey = value; } // TODO: migrations
         public string ShortenerKey { get; set; }
     }
 }

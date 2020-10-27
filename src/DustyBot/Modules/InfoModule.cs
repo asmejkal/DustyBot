@@ -67,7 +67,7 @@ namespace DustyBot.Modules
                 .Select(y => $"<@&{y.Id}>");
 
             embed.AddField(x => x.WithName("Account created on").WithValue($"{user.CreatedAt.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.CreatedAt).TotalDays)} days ago)"));
-            embed.AddField(x => x.WithName("Roles").WithValue(string.Join(" ", roles)));
+            embed.AddField(x => x.WithName("Roles").WithValue(roles.Any() ? string.Join(" ", roles) : "None"));
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }

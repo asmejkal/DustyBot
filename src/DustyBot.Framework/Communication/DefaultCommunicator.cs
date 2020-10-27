@@ -106,21 +106,24 @@ namespace DustyBot.Framework.Communication
         public async Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, CommandRegistration command) 
             => await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, CommandRegistration command, string explanation, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, CommandRegistration command, string explanation, string commandPrefix, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(BuildUsageString(command, Config.CommandPrefix))
+                    .WithDescription(BuildUsageString(command, commandPrefix))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
-            return new[] { await channel.SendMessageAsync(":no_entry: " + Properties.Resources.Command_IncorrectParameters + " " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
+            if (string.IsNullOrEmpty(explanation))
+                explanation = Properties.Resources.Command_IncorrectParameters;
+
+            return new[] { await channel.SendMessageAsync(":no_entry: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, CommandRegistration command, string explanation, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, CommandRegistration command, string explanation, string commandPrefix, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
-                    .WithDescription(BuildUsageString(command, Config.CommandPrefix))
+                    .WithDescription(BuildUsageString(command, commandPrefix))
                     .WithFooter(Properties.Resources.Command_UsageFooter);
 
             return new[] { await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };

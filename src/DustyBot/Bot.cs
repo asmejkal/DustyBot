@@ -15,6 +15,7 @@ using DustyBot.Database.Sql;
 using MongoDB.Driver;
 using DustyBot.Framework.Utility;
 using Discord;
+using DustyBot.Config;
 
 namespace DustyBot
 {
@@ -135,7 +136,8 @@ namespace DustyBot
 
                     //Get config
                     var config = await settings.ReadGlobal<BotConfig>();
-                    components.Config = new FrameworkConfig(config.CommandPrefix, config.BotToken, config.OwnerIDs);
+                    components.Config = new FrameworkConfig(config.DefaultCommandPrefix, config.BotToken, config.OwnerIDs);
+                    components.GuildConfigProvider = new FrameworkGuildConfigProvider(settings);
 
                     //Choose communicator
                     components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
@@ -143,11 +145,11 @@ namespace DustyBot
                     // URL shortener
                     IUrlShortener shortener;
                     if (config.PolrKey != null)
-                        shortener = new PolrShortener(config.PolrKey, config.PolrDomain);
+                        shortener = new PolrUrlShortener(config.PolrKey, config.PolrDomain);
                     else if (config.BitlyKey != null)
-                        shortener = new BitlyShortener(config.BitlyKey);
+                        shortener = new BitlyUrlShortener(config.BitlyKey);
                     else
-                        shortener = new DefaultShortener();
+                        shortener = new DefaultUrlShortener();
 
                     // Sql services
                     var sqlConnectionString = config.SqlDbConnectionString;
@@ -176,7 +178,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
                     components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, userFetcher, shortener));
-                    components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger, config));
+                    components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
                     components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, client.Rest));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
@@ -202,7 +204,7 @@ namespace DustyBot
                         stopTask = framework.StopAsync();
                     };
 
-                    await framework.Run($"{components.Config.CommandPrefix}help | {WebConstants.WebsiteShorthand}");
+                    await framework.Run($"{components.Config.DefaultCommandPrefix}help | {WebConstants.WebsiteShorthand}");
 
                     if (stopTask != null)
                         await stopTask;
@@ -239,9 +241,9 @@ namespace DustyBot
                             throw new ArgumentException("Owner IDs and bot token must be specified.");
 
                         if (!string.IsNullOrEmpty(opts.Prefix))
-                            s.CommandPrefix = opts.Prefix;
-                        else if (string.IsNullOrEmpty(s.CommandPrefix))
-                            s.CommandPrefix = GlobalDefinitions.DefaultPrefix;
+                            s.DefaultCommandPrefix = opts.Prefix;
+                        else if (string.IsNullOrEmpty(s.DefaultCommandPrefix))
+                            s.DefaultCommandPrefix = GlobalDefinitions.DefaultPrefix;
 
                         // Optional
                         if (opts.YouTubeKey != null)

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public class DefaultShortener : IUrlShortener
+    public class DefaultUrlShortener : IUrlShortener
     {
         public bool IsShortened(string url) => true;
 

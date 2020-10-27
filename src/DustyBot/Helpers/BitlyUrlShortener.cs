@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public class BitlyShortener : IUrlShortener
+    public class BitlyUrlShortener : IUrlShortener
     {
         private static readonly Regex LinkRegex = new Regex(@"http[s]?://bit.ly/\w+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly string _apiKey;
 
-        public BitlyShortener(string apiKey)
+        public BitlyUrlShortener(string apiKey)
         {
             _apiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
         }

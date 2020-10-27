@@ -187,7 +187,8 @@ namespace DustyBot.Modules
                     if (!matches.Any())
                         return;
 
-                    var commandMatch = SocketCommand.FindLongestMatch(message.Content, Config.CommandPrefix, new[] { HandledCommands.Single(x => x.PrimaryUsage.InvokeUsage == "ig") });
+                    var botSettings = await Settings.Read<BotSettings>(channel.GuildId, createIfNeeded: false);
+                    var commandMatch = SocketCommand.FindLongestMatch(message.Content, botSettings?.CommandPrefix ?? Config.DefaultCommandPrefix, new[] { HandledCommands.Single(x => x.PrimaryUsage.InvokeUsage == "ig") });
                     if (commandMatch != null)
                         return; // Don't create duplicate previews from the ig command
 

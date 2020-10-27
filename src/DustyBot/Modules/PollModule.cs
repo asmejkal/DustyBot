@@ -22,21 +22,19 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
-        public BotConfig Config { get; }
 
-        public PollModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
+        public PollModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
-            Config = config;
         }
 
         [Command("poll", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
+            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
         }
 
         [Command("poll", "Starts a poll.", CommandFlags.Synchronous)]
@@ -88,7 +86,7 @@ namespace DustyBot.Modules
             for (int i = 0; i < poll.Answers.Count; ++i)
                 description += $"`[{i + 1}]` {poll.Answers[i]}\n";
 
-            description += $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
+            description += $"\nVote with `{command.Prefix}vote answer` or `{command.Prefix}vote number`.";
 
             if (description.Length > EmbedBuilder.MaxDescriptionLength)
             {
@@ -171,11 +169,11 @@ namespace DustyBot.Modules
                             scores.Add(tokens.Where(x => answerTokens.Contains(x)).Count());
 
                         if (!scores.Any(x => x > 0))
-                            throw new UnclearParametersCommandException($"I don't recognize this answer. Try to vote with `{Config.CommandPrefix}vote answer number` instead.", false);
+                            throw new UnclearParametersCommandException($"I don't recognize this answer. Try to vote with `{command.Prefix}vote answer number` instead.", false);
 
                         var max = scores.Max();
                         if (scores.Where(x => x == max).Count() > 1)
-                            throw new UnclearParametersCommandException($"I'm not sure which answer you meant. Try to vote with `{Config.CommandPrefix}vote answer number` instead.", false);
+                            throw new UnclearParametersCommandException($"I'm not sure which answer you meant. Try to vote with `{command.Prefix}vote answer number` instead.", false);
 
                         p.Votes[command.Message.Author.Id] = scores.FindIndex(x => x == max) + 1;
                     }
@@ -214,7 +212,7 @@ namespace DustyBot.Modules
             if (poll.Anonymous && !user.GuildPermissions.ManageMessages)
                 throw new MissingPermissionsException("Results of anonymous polls can only be viewed by moderators.", GuildPermission.ManageMessages);
 
-            var description = BuildResultDescription(poll, closed);
+            var description = BuildResultDescription(poll, closed, command.Prefix);
 
             var total = poll.Results.Sum(x => x.Value);
             var embed = new EmbedBuilder()
@@ -226,7 +224,7 @@ namespace DustyBot.Modules
             return true;
         }
 
-        private string BuildResultDescription(Poll poll, bool closed)
+        private string BuildResultDescription(Poll poll, bool closed, string commandPrefix)
         {
             var description = new StringBuilder(poll.Question + "\n\n");
 
@@ -237,7 +235,7 @@ namespace DustyBot.Modules
                 { 3, ":third_place:" }
             };
 
-            var suffix = closed ? "" : $"\nVote with `{Config.CommandPrefix}vote answer` or `{Config.CommandPrefix}vote number`.";
+            var suffix = closed ? "" : $"\nVote with `{commandPrefix}vote answer` or `{commandPrefix}vote number`.";
             var ellipsis = "<:blank:517470655004803072> ...";
             int i = 0, prevScore = int.MaxValue, currentPlace = 0;
             foreach (var result in poll.Results.OrderByDescending(x => x.Value))

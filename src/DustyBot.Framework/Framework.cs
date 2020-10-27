@@ -1,22 +1,21 @@
 ﻿using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Discord;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Services;
 using System.Threading;
 using DustyBot.Framework.Logging;
-using DustyBot.Core.Async;
 using DustyBot.Framework.Utility;
+using DustyBot.Framework.Config;
 
 namespace DustyBot.Framework
 {
     /// <summary>
     /// Initialization, composition root
     /// </summary>
-    public class Framework : IModuleCollection, IServiceCollection, IDisposable
+    public sealed class Framework : IModuleCollection, IServiceCollection, IDisposable
     {
         public class Components
         {
@@ -24,6 +23,7 @@ namespace DustyBot.Framework
             public ICollection<IModule> Modules { get; } = new HashSet<IModule>();
             public ICollection<IService> Services { get; } = new HashSet<IService>();
             public Config.FrameworkConfig Config { get; set; }
+            public IFrameworkGuildConfigProvider GuildConfigProvider { get; set; }
 
             //Optional
             public Communication.ICommunicator Communicator { get; set; }
@@ -33,7 +33,8 @@ namespace DustyBot.Framework
             {
                 return (Modules.Count > 0 || Services.Count > 0) &&
                     Client != null &&
-                    Config != null;
+                    Config != null &&
+                    GuildConfigProvider != null;
             }
         }
 
@@ -74,7 +75,7 @@ namespace DustyBot.Framework
             if (components.Communicator is Communication.DefaultCommunicator defaultCommunicator)
                 EventRouter.Register(defaultCommunicator);
             
-            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config, new UserFetcher(Client.Rest)));
+            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config, components.GuildConfigProvider, new UserFetcher(Client.Rest)));
         }
 
         public async Task Run(string status = "")
@@ -109,36 +110,10 @@ namespace DustyBot.Framework
 
             _awaiter.Release();
         }
-        
-        #region IDisposable 
-
-        private bool _disposed = false;
 
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            ((IDisposable)_awaiter).Dispose();
         }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    _awaiter?.Dispose();
-                    _awaiter = null;
-                }
-
-                _disposed = true;
-            }
-        }
-
-        //~()
-        //{
-        //    Dispose(false);
-        //}
-
-        #endregion
     }
 }

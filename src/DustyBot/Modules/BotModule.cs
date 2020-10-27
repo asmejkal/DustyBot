@@ -17,6 +17,7 @@ using Discord.Net;
 using DustyBot.Core.Formatting;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
+using DustyBot.Framework.Exceptions;
 
 namespace DustyBot.Modules
 {
@@ -44,19 +45,21 @@ namespace DustyBot.Modules
             var config = await Settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
-                await command.Message.Channel.SendMessageAsync(string.Empty, embed: (await HelpBuilder.GetHelpEmbed(Settings)).Build());
+                await command.Message.Channel.SendMessageAsync(string.Empty, embed: HelpBuilder.GetHelpEmbed(command.Prefix).Build());
             }
             else
             {
                 //Try to find the command
                 var invoker = new string(command["Command"].AsString.TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
-                if (invoker.StartsWith(config.CommandPrefix))
-                    invoker = invoker.Substring(config.CommandPrefix.Length);
+                if (invoker.StartsWith(command.Prefix))
+                    invoker = invoker.Substring(command.Prefix.Length);
+                else if (invoker.StartsWith(config.DefaultCommandPrefix))
+                    invoker = invoker.Substring(config.DefaultCommandPrefix.Length);
 
                 var verbs = command["Command"].AsString.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
                 var findResult = TryFindRegistration(invoker, verbs);
                 if (findResult == null)
-                    throw new Framework.Exceptions.IncorrectParametersCommandException("This is not a recognized command.");
+                    throw new IncorrectParametersCommandException("This is not a recognized command.");
 
                 var (commandRegistration, _) = findResult.Value;
 
@@ -66,10 +69,28 @@ namespace DustyBot.Modules
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
-                embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, config.CommandPrefix)));
+                embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, command.Prefix)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
             }
+        }
+
+        [Command("prefix", "Change the command prefix on your server.")]
+        [Alias("prefix", "set")]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Prefix", ParameterType.String, "the new command prefix (default is `>`)")]
+        public async Task SetPrefix(ICommand command)
+        {
+            var prefix = command["Prefix"].AsString;
+            if (prefix.Any(x => char.IsWhiteSpace(x)))
+                throw new CommandException("The prefix must not contain spaces.");
+
+            if (prefix.Length > 5)
+                throw new CommandException("This prefix is too long.");
+
+            await Settings.Modify(command.GuildId, (BotSettings x) => x.CommandPrefix = prefix);
+
+            await command.Reply(Communicator, $"The command prefix is now `{prefix}` on this server!");
         }
 
         [Command("supporters", "See the people who help keep this bot up and running.", CommandFlags.DirectMessageAllow)]
@@ -246,7 +267,7 @@ namespace DustyBot.Modules
                         //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
                         "</p>");
 
-                    var usage = BuildWebUsageString(handledCommand, config.CommandPrefix);
+                    var usage = BuildWebUsageString(handledCommand, config.DefaultCommandPrefix);
                     if (string.IsNullOrEmpty(usage))
                         continue;
 

@@ -35,7 +35,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
+            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
         }
 
         [Command("views", "Checks how releases are doing on YouTube. The releases need to be added by moderators.", CommandFlags.TypingIndicator)]
@@ -63,7 +63,7 @@ namespace DustyBot.Modules
                 if (settings.YouTubeComebacks.Count <= 0)
                     rec = "Use the `views add` command.";
                 else
-                    rec = "Try " + GetOtherCategoriesRecommendation(settings, config, param, true) + ".";
+                    rec = "Try " + GetOtherCategoriesRecommendation(settings, param, true, command.Prefix) + ".";
 
                 await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}");
                 return;
@@ -76,7 +76,7 @@ namespace DustyBot.Modules
                 infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey)));
 
             //Compose embeds with info
-            string recommendation = "Try also: " + GetOtherCategoriesRecommendation(settings, config, param, false) + ".";
+            string recommendation = "Try also: " + GetOtherCategoriesRecommendation(settings, param, false, command.Prefix) + ".";
             foreach (var info in infos.OrderByDescending(x => x.Item2.PublishedAt))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 5 == 0)
@@ -92,14 +92,14 @@ namespace DustyBot.Modules
                 pages.Last.Embed.AddField(eab => eab.WithName($":tv: {info.Item1.Name}").WithIsInline(false).WithValue(
                     $"**Views: **{info.Item2.Views.ToString("N0", new CultureInfo("en-US"))}\n" +
                     $"**Likes: **{info.Item2.Likes.ToString("N0", new CultureInfo("en-US"))}\n" +
-                    $"**Published: **{String.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"
+                    $"**Published: **{string.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"
                     ));
             }
 
             await command.Reply(Communicator, pages);
         }
 
-        private string GetOtherCategoriesRecommendation(MediaSettings settings, BotConfig config, string category, bool useMarkdown)
+        private string GetOtherCategoriesRecommendation(MediaSettings settings, string category, bool useMarkdown, string commandPrefix)
         {
             var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
                 .Where(x => x != category)
@@ -108,11 +108,11 @@ namespace DustyBot.Modules
 
             var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
             
-            string result = isDefault ? $"{(useMarkdown ? "`" : "")}{config.CommandPrefix}views{(useMarkdown ? "`" : "")} and " : "";
+            string result = isDefault ? $"{(useMarkdown ? "`" : "")}{commandPrefix}views{(useMarkdown ? "`" : "")} and " : "";
             if (otherCategories.Any())
-                result += $"{(useMarkdown ? "`" : "")}{config.CommandPrefix}views {string.Join($", ", otherCategories)} or a song name{(useMarkdown ? "`" : "")}";
+                result += $"{(useMarkdown ? "`" : "")}{commandPrefix}views {string.Join($", ", otherCategories)} or a song name{(useMarkdown ? "`" : "")}";
             else
-                result += $"{(useMarkdown ? "`" : "")}{config.CommandPrefix}views song name{(useMarkdown ? "`" : "")}";
+                result += $"{(useMarkdown ? "`" : "")}{commandPrefix}views song name{(useMarkdown ? "`" : "")}";
 
             return result;
         }

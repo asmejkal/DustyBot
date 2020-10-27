@@ -38,6 +38,7 @@ namespace DustyBot.Modules
         [Parameter("To", LanguageRegex, ParameterType.String, "the language to translate into")]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the word or sentence you want to translate")]
         [Comment("Korean = `ko` \nJapan = `ja` \nEnglish = `en` \nChinese(Simplified) = `zh-CH` \nChinese(Traditional) = `zh-TW` \nSpanish = `es` \nFrench = `fr` \nGerman = `de` \nRussian = `ru` \nPortuguese = `pt` \nItalian = `it` \nVietnamese = `vi` \nThai = `th` \nIndonesian = `id`")]
+        [Example("ko en 사랑해")]
         public async Task Translation(ICommand command)
         {
             var config = await Settings.ReadGlobal<BotConfig>();

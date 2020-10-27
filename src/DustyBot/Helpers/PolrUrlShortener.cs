@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public class PolrShortener : IUrlShortener
+    public class PolrUrlShortener : IUrlShortener
     {
         private readonly Regex _linkRegex;
         private readonly string _apiKey;
         private readonly string _domain;
 
-        public PolrShortener(string apiKey, string domain)
+        public PolrUrlShortener(string apiKey, string domain)
         {
             _apiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
             _domain = domain ?? throw new ArgumentNullException(nameof(domain));

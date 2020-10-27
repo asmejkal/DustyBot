@@ -61,6 +61,7 @@ namespace DustyBot.Modules
                         await onProgress(0);
 
                     var processed = 0;
+                    var batches = 0;
                     await foreach (var batch in guild.GetUsersAsync())
                     {
                         await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Fetched {batch.Count} users on guild {guild.Id} ({guild.Name})"));
@@ -76,7 +77,8 @@ namespace DustyBot.Modules
                         }
 
                         processed += batch.Count;
-                        if (onProgress != null)
+                        batches++;
+                        if (onProgress != null && batches % 3 == 0)
                             await onProgress((double)processed / guild.MemberCount);
                     }
 
@@ -108,7 +110,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: await HelpBuilder.GetModuleHelpEmbed(this, Settings));
+            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
         }
 
         [Command("roles", "channel", "Sets a channel for role self-assignment.", CommandFlags.Synchronous)]
