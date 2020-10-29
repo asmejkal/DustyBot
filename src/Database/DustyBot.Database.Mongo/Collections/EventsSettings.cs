@@ -9,6 +9,7 @@ namespace DustyBot.Settings
         public Uri Image { get; set; }
         public string Body { get; set; }
         public uint? Color { get; set; }
+        public string Footer { get; set; }
 
         public GreetEmbed() { }
 
