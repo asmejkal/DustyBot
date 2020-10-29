@@ -178,7 +178,7 @@ namespace DustyBot.Modules
                 var embed = new EmbedBuilder()
                     .WithTitle(ReplacePlaceholders(settings.GreetEmbed.Title, user))
                     .WithDescription(ReplacePlaceholders(settings.GreetEmbed.Body, user))
-                    .WithThumbnailUrl(user.GetAvatarUrl(size: 512));
+                    .WithThumbnailUrl(user.GetAvatarUrl(size: 512) ?? user.GetDefaultAvatarUrl());
 
                 if (settings.GreetEmbed.Color.HasValue)
                     embed.WithColor(settings.GreetEmbed.Color.Value);
