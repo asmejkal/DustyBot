@@ -125,11 +125,12 @@ namespace DustyBot.Modules
 
             try
             {
-                await command.Message.DeleteAsync();
+                if ((await command.Guild.GetCurrentUserAsync()).GetPermissions((IGuildChannel)command.Channel).ManageMessages)
+                    await command.Message.DeleteAsync();
             }
-            catch (Discord.Net.HttpException)
+            catch (Exception ex)
             {
-                //most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
             }            
 
             await Settings.Modify(command.GuildId, (NotificationSettings s) =>
@@ -151,7 +152,7 @@ namespace DustyBot.Modules
                 KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
             });
 
-            await command.ReplySuccess(Communicator, "You will now be notified when this word is mentioned.");
+            await command.ReplySuccess(Communicator, "You will now be notified when this word is mentioned (please make sure your privacy settings allow the bot to DM you).");
         }
 
         [Command("notification", "remove", "Removes a notified word.")]
@@ -161,11 +162,12 @@ namespace DustyBot.Modules
         {
             try
             {
-                await command.Message.DeleteAsync();
+                if ((await command.Guild.GetCurrentUserAsync()).GetPermissions((IGuildChannel)command.Channel).ManageMessages)
+                    await command.Message.DeleteAsync();
             }
-            catch (Discord.Net.HttpException)
+            catch (Exception ex)
             {
-                //most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
             }
 
             var lowered = command["Word"].AsString.ToLowerInvariant();
@@ -199,8 +201,16 @@ namespace DustyBot.Modules
             foreach (var n in userNotifs)
                 result.AppendLine($"`{n.OriginalWord}` – notified `{n.TriggerCount}` times");
 
-            var dm = await command.Message.Author.GetOrCreateDMChannelAsync();
-            await dm.SendMessageAsync(result.ToString());
+            try
+            {
+                var dm = await command.Message.Author.GetOrCreateDMChannelAsync();
+                await dm.SendMessageAsync(result.ToString());
+            }
+            catch (Discord.Net.HttpException)
+            {
+                await command.ReplyError(Communicator, $"Failed to send a direct message. Please check that your privacy settings allow the bot to DM you.");
+                return;
+            }
 
             await command.ReplySuccess(Communicator, "Please check your direct messages.");
         }
