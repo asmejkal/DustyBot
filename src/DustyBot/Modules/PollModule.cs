@@ -16,7 +16,7 @@ using DustyBot.Database.Services;
 
 namespace DustyBot.Modules
 {
-    [Module("Poll", "Public polls and surveys.")]
+    [Module("Polls", "Public polls and surveys.")]
     class PollModule : Module
     {
         public ICommunicator Communicator { get; }

@@ -101,6 +101,26 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Reaction `{id}` edited!");
         }
 
+        [Command("reactions", "rename", "Changes the trigger of a reaction.")]
+        [Alias("reaction", "rename")]
+        [Parameter("IdOrTrigger", ParameterType.String, "the reaction trigger or ID from `reactions list`")]
+        [Parameter("Trigger", ParameterType.String, ParameterFlags.Remainder, "the new trigger")]
+        public async Task RenameReaction(ICommand command)
+        {
+            await AssertPrivileges(command.Author, command.GuildId);
+
+            var count = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            {
+                var reactions = FindReactions(s, command["IdOrTrigger"]);
+                foreach (var reaction in reactions)
+                    reaction.Trigger = command["Trigger"];
+
+                return reactions.Count;
+            });
+
+            await command.ReplySuccess(Communicator, $"Edited {count} reactions!");
+        }
+
         [Command("reactions", "remove", "Removes a reaction.")]
         [Alias("reaction", "remove")]
         [Parameter("IdOrTrigger", ParameterType.String, ParameterFlags.Remainder, "the reaction trigger or ID from `reactions list`")]
@@ -138,7 +158,7 @@ namespace DustyBot.Modules
             var settings = await Settings.Read<ReactionsSettings>(command.GuildId, false);
             if (settings != null)
             {
-                var pages = BuildReactionList(settings.Reactions, "Reactions", footer: $"{settings.Reactions.Count} reactions in total");
+                var pages = BuildReactionList(settings.Reactions, "All reactions", footer: $"{settings.Reactions.Count} reactions");
                 if (pages.Any())
                 {
                     await command.Reply(Communicator, pages, true);
@@ -312,11 +332,11 @@ namespace DustyBot.Modules
                     if (reaction == null)
                         return;
 
-                    await Settings.Modify(channel.GuildId, (ReactionsSettings x) => x.Reactions.First(x => x.Id == reaction.Id).TriggerCount++);
-
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Reactions", $"Triggered reaction \"{message.Content}\" (id: {reaction.Id}) for {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
 
                     await Communicator.SendMessage(channel, reaction.Value);
+
+                    await Settings.Modify(channel.GuildId, (ReactionsSettings x) => x.Reactions.First(x => x.Id == reaction.Id).TriggerCount++);
                 }
                 catch (Exception ex)
                 {
