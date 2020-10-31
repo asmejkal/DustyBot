@@ -25,24 +25,6 @@ namespace DustyBot.Modules
     [Module("Reactions", "Automatic reactions to messages and custom commands.")]
     class ReactionsModule : Module
     {
-        private class JsonReactionModel
-        {
-            public string Trigger { get; set; }
-            public string Value { get; set; }
-
-            public JsonReactionModel()
-            {
-            }
-
-            public JsonReactionModel(Reaction reaction)
-            {
-                Trigger = reaction.Trigger;
-                Value = reaction.Value;
-            }
-
-            public bool Validate() => !string.IsNullOrEmpty(Trigger) && !string.IsNullOrEmpty(Value);
-        }
-
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
@@ -68,6 +50,7 @@ namespace DustyBot.Modules
         [Alias("reaction", "add")]
         [Parameter("Trigger", ParameterType.String)]
         [Parameter("Response", ParameterType.String, ParameterFlags.Remainder)]
+        [Comment("If you add multiple reactions with the same trigger, one will be randomly chosen each time.")]
         [Example("\"hi bot\" beep boop")]
         public async Task AddReaction(ICommand command)
         {
@@ -241,56 +224,60 @@ namespace DustyBot.Modules
             using (var stream = new MemoryStream())
             using (var writer = new StreamWriter(stream))
             {
-                var reactions = settings.Reactions.Select(x => new JsonReactionModel(x));
+                var reactions = settings.Reactions.Select(x => new Dictionary<string, string>() { { x.Trigger, x.Value } });
                 writer.Write(JsonConvert.SerializeObject(reactions, Formatting.Indented));
                 writer.Flush();
                 stream.Position = 0;
 
-                await command.Channel.SendFileAsync(stream, $"Reactions-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.txt", $"Exported {settings.Reactions.Count} reactions!");
+                await command.Channel.SendFileAsync(stream, $"Reactions-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.json", $"Exported {settings.Reactions.Count} reactions!");
             }
         }
 
         [Command("reactions", "import", "Adds all reactions from a file.")]
         [Alias("reaction", "import", true)]
-        [Comment("Attach a file with reactions obtained with `reactions export`.")]
+        [Comment("Attach a file with reactions obtained with `reactions export`. Expected format: \n`[{\"trigger1\":\"value1\"},{\"trigger2\":\"value2\"}]` \n\nAlternative format (doesn't allow duplicates): \n`{\"trigger1\":\"value1\",\"trigger2\":\"value2\"}`")]
         public async Task ImportReactions(ICommand command)
         {
             await AssertPrivileges(command.Author, command.GuildId);
 
             if (!command.Message.Attachments.Any())
-                throw new IncorrectParametersCommandException("You need to attach a file with reactions obtained with `reactions export`.", false);
+                throw new IncorrectParametersCommandException("You need to attach a file with reactions obtained with `reactions export`.", true);
 
-            try
+            var attachment = command.Message.Attachments.First();
+            var request = WebRequest.CreateHttp(attachment.Url);
+            using (var response = await request.GetResponseAsync())
+            using (var stream = response.GetResponseStream())
+            using (var reader = new StreamReader(stream))
             {
-                var attachment = command.Message.Attachments.First();
-                var request = WebRequest.CreateHttp(attachment.Url);
-                using (var response = await request.GetResponseAsync())
-                using (var stream = response.GetResponseStream())
-                using (var reader = new StreamReader(stream))
+                var content = await reader.ReadToEndAsync();
+                ICollection<Dictionary<string, string>> reactions;
+                try
                 {
-                    var content = await reader.ReadToEndAsync();
-                    var reactions = JsonConvert.DeserializeObject<List<JsonReactionModel>>(content);
-                    if (reactions.Any(x => !x.Validate()))
-                    {
-                        await command.ReplyError(Communicator, "The provided file is invalid.");
-                        return;
-                    }
-
-                    await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
-                    {
-                        foreach (var reaction in reactions)
-                        {
-                            var newId = s.NextReactionId++;
-                            s.Reactions.Add(new Reaction() { Id = newId, Trigger = reaction.Trigger, Value = reaction.Value });
-                        }
-                    });
-
-                    await command.ReplySuccess(Communicator, $"Added {reactions.Count} reactions!");
+                    reactions = JsonConvert.DeserializeObject<ICollection<Dictionary<string, string>>>(content);
                 }
-            }
-            catch (JsonException)
-            {
-                await command.ReplyError(Communicator, "The provided file is invalid.");
+                catch (JsonException)
+                {
+                    try
+                    {
+                        // Try the second format
+                        reactions = new[] { JsonConvert.DeserializeObject<Dictionary<string, string>>(content) };
+                    }
+                    catch (JsonException)
+                    {
+                        throw new IncorrectParametersCommandException("The provided file is invalid.", true);
+                    }
+                }
+
+                await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+                {
+                    foreach (var reaction in reactions.SelectMany(x => x))
+                    {
+                        var newId = s.NextReactionId++;
+                        s.Reactions.Add(new Reaction() { Id = newId, Trigger = reaction.Key, Value = reaction.Value });
+                    }
+                });
+
+                await command.ReplySuccess(Communicator, $"Added {reactions.Count} reactions!");
             }
         }
 
