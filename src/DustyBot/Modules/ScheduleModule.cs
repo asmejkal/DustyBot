@@ -179,7 +179,7 @@ namespace DustyBot.Modules
             if (r == default)
                 await command.ReplySuccess(Communicator, $"Schedule management role has been disabled. Users with the Manage Messages permission can still edit the schedule.");
             else
-                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Id}` will now be allowed to manage the schedule.");
+                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Name}` (`{command["RoleNameOrID"].AsRole.Id}`) will now be allowed to manage the schedule.");
         }
 
         [Command("schedule", "set", "notifications", "Sets a channel for event notifications.")]
@@ -1423,7 +1423,7 @@ namespace DustyBot.Modules
 
                 var s = await Settings.Read<ScheduleSettings>(guildId);
                 if (s.ScheduleRole == default || !gu.RoleIds.Contains(s.ScheduleRole))
-                    throw new MissingPermissionsException("You may bypass this requirement by asking for a schedule management role.", GuildPermission.ManageMessages);
+                    throw new MissingPermissionsException("You may bypass this requirement by asking for a schedule manager role.", GuildPermission.ManageMessages);
             }
             else
                 throw new InvalidOperationException();

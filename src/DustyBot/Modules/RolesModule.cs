@@ -655,7 +655,7 @@ namespace DustyBot.Modules
 
                         try
                         {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
+                            await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
 
                             string msgContent = message.Content.Trim();
                             bool remove = false;
