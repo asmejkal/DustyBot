@@ -199,7 +199,7 @@ namespace DustyBot.Modules
             var pages = new PageCollectionBuilder();
             var place = 1;
             foreach (var reaction in stats.Take(100))
-                pages.AppendLine($"`#{place++}` **{reaction.Trigger.Truncate(30)}** – triggered {reaction.TriggerCount} time{(reaction.TriggerCount != 1 ? "s" : "")}");
+                pages.AppendLine($"`#{place++}` **{reaction.Trigger.Truncate(30)}** – triggered **{reaction.TriggerCount}** time{(reaction.TriggerCount != 1 ? "s" : "")}");
 
             var embedFactory = new Func<EmbedBuilder>(() => new EmbedBuilder()
                 .WithTitle("Reaction statistics")
