@@ -19,11 +19,12 @@ namespace DustyBot.Framework
     {
         public class Components
         {
-            public DiscordSocketClient Client { get; set; }
+            public BaseSocketClient Client { get; set; }
             public ICollection<IModule> Modules { get; } = new HashSet<IModule>();
             public ICollection<IService> Services { get; } = new HashSet<IService>();
             public Config.FrameworkConfig Config { get; set; }
             public IFrameworkGuildConfigProvider GuildConfigProvider { get; set; }
+            public IUserFetcher UserFetcher { get; set; }
 
             //Optional
             public Communication.ICommunicator Communicator { get; set; }
@@ -34,7 +35,8 @@ namespace DustyBot.Framework
                 return (Modules.Count > 0 || Services.Count > 0) &&
                     Client != null &&
                     Config != null &&
-                    GuildConfigProvider != null;
+                    GuildConfigProvider != null &&
+                    UserFetcher != null;
             }
         }
 
@@ -48,7 +50,7 @@ namespace DustyBot.Framework
         private List<IService> _services;
         public IEnumerable<IService> Services => _services;
 
-        public DiscordSocketClient Client { get; private set; }
+        public BaseSocketClient Client { get; private set; }
         public Config.FrameworkConfig Config { get; private set; }
         public Events.IEventRouter EventRouter { get; private set; }
         public ILogger Logger { get; }
@@ -75,20 +77,41 @@ namespace DustyBot.Framework
             if (components.Communicator is Communication.DefaultCommunicator defaultCommunicator)
                 EventRouter.Register(defaultCommunicator);
             
-            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config, components.GuildConfigProvider, new UserFetcher(Client.Rest)));
+            EventRouter.Register(new Commands.CommandRouter(components.Modules, components.Communicator, components.Logger, components.Config, components.GuildConfigProvider, components.UserFetcher));
         }
 
         public async Task Run(string status = "")
         {
-            var s = new SemaphoreSlim(0);
-            Client.Ready += () => Task.FromResult(s.Release());
+            var readyTaskSource = new TaskCompletionSource<bool>();
+            if (Client is DiscordShardedClient shardedClient)
+            {
+                var readyClients = new HashSet<DiscordSocketClient>();
+                shardedClient.ShardReady += x =>
+                {
+                    readyClients.Add(x);
+                    if (readyClients.Count >= shardedClient.Shards.Count)
+                        readyTaskSource.SetResult(true);
+
+                    return Task.CompletedTask;
+                };
+            }
+            else if (Client is DiscordSocketClient socketClient)
+            {
+                socketClient.Ready += () =>
+                {
+                    readyTaskSource.SetResult(true);
+                    return Task.CompletedTask;
+                };
+            }
+            else
+                throw new InvalidOperationException($"Unknown Discord client type");
 
             //Login and start client
             await Client.LoginAsync(TokenType.Bot, Config.BotToken);
             await Client.StartAsync();
 
-            await s.WaitAsync();
-            
+            await readyTaskSource.Task;
+
             EventRouter.Start();
 
             foreach (var service in _services)

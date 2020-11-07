@@ -16,6 +16,7 @@ using MongoDB.Driver;
 using DustyBot.Framework.Utility;
 using Discord;
 using DustyBot.Config;
+using Discord.Rest;
 
 namespace DustyBot
 {
@@ -128,9 +129,10 @@ namespace DustyBot
                     GatewayIntents = intents
                 };
                 
-                using (var client = new DiscordSocketClient(clientConfig))
+                using (var client = new DiscordShardedClient(clientConfig))
                 using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
                 using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(settings.DatabaseName)))
+                using (var restClient = new DiscordRestClient(new DiscordRestConfig()))
                 {
                     var components = new Framework.Framework.Components() { Client = client, Logger = logger };
 
@@ -156,7 +158,7 @@ namespace DustyBot
                     Func<Task<ILastFmStatsService>> lastFmServiceFactory = null;
                     if (!string.IsNullOrEmpty(sqlConnectionString))
                     {
-                        lastFmServiceFactory = new Func<Task<ILastFmStatsService>>(() => 
+                        lastFmServiceFactory = new Func<Task<ILastFmStatsService>>(() =>
                             Task.FromResult<ILastFmStatsService>(new LastFmStatsService(DustyBotDbContext.Create(sqlConnectionString))));
                     }
 
@@ -165,9 +167,11 @@ namespace DustyBot
                     if (!string.IsNullOrEmpty(config.TableStorageConnectionString))
                         spotifyAccountsService = new SpotifyAccountsService(config.TableStorageConnectionString);
 
-                    //Choose modules
                     var scheduleService = new Services.ScheduleService(components.Client, settings, components.Logger);
-                    var userFetcher = new UserFetcher(client.Rest);
+                    var userFetcher = new UserFetcher(restClient);
+                    components.UserFetcher = userFetcher;
+
+                    //Choose modules
                     components.Modules.Add(new Modules.BotModule(components.Communicator, settings, this, components.Client));
                     components.Modules.Add(new Modules.ScheduleModule(components.Communicator, settings, components.Logger, client, scheduleService, userFetcher));
                     components.Modules.Add(new Modules.LastFmModule(components.Communicator, settings, lastFmServiceFactory));
@@ -180,7 +184,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, userFetcher, shortener));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
-                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, client.Rest));
+                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, restClient));
                     components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, settings, components.Logger));
@@ -193,7 +197,7 @@ namespace DustyBot
                     components.Services.Add(new Services.DaumCafeService(components.Client, settings, components.Logger));
                     components.Services.Add(scheduleService);
                     _services = components.Services;
-                    
+
                     //Init framework
                     var framework = new Framework.Framework(components);
 
@@ -204,6 +208,7 @@ namespace DustyBot
                         stopTask = framework.StopAsync();
                     };
 
+                    await restClient.LoginAsync(TokenType.Bot, config.BotToken);
                     await framework.Run($"{components.Config.DefaultCommandPrefix}help | {WebConstants.WebsiteShorthand}");
 
                     if (stopTask != null)

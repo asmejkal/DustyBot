@@ -61,7 +61,7 @@ namespace DustyBot.Services
         }
 
         public ISettingsService Settings { get; }
-        public DiscordSocketClient Client { get; }
+        public BaseSocketClient Client { get; }
         public ILogger Logger { get; }
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15); //Some timezones have quarter-hour fractions
@@ -72,7 +72,7 @@ namespace DustyBot.Services
         private Timer UpdateTimer { get; set; }
         private ConcurrentDictionary<ulong, NotificationContext> Notifications { get; } = new ConcurrentDictionary<ulong, NotificationContext>();
 
-        public ScheduleService(DiscordSocketClient client, ISettingsService settings, ILogger logger)
+        public ScheduleService(BaseSocketClient client, ISettingsService settings, ILogger logger)
         {
             Settings = settings;
             Client = client;

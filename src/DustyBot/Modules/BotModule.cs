@@ -27,9 +27,9 @@ namespace DustyBot.Modules
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public IModuleCollection ModuleCollection { get; }
-        public DiscordSocketClient Client { get; }
+        public BaseSocketClient Client { get; }
 
-        public BotModule(ICommunicator communicator, ISettingsService settings, IModuleCollection moduleCollection, DiscordSocketClient client)
+        public BotModule(ICommunicator communicator, ISettingsService settings, IModuleCollection moduleCollection, BaseSocketClient client)
         {
             Communicator = communicator;
             Settings = settings;
@@ -119,7 +119,7 @@ namespace DustyBot.Modules
                 .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddField("Author", "Yeba#3517", true)
                 .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
-                .AddField("Presence", $"{Client.Guilds.Count} servers", true)
+                .AddField("Presence", $"{Client.Guilds.Count} servers" + (Client is DiscordShardedClient sc ? $"\n{sc.Shards.Count} shards" : ""), true)
                 .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
                 .AddField("Web", WebConstants.WebsiteRoot, true)

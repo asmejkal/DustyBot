@@ -23,7 +23,7 @@ namespace DustyBot.Services
         private System.Threading.Timer _timer;
 
         public ISettingsService Settings { get; }
-        public DiscordSocketClient Client { get; }
+        public BaseSocketClient Client { get; }
         public ILogger Logger { get; }
 
         public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15);
@@ -32,7 +32,7 @@ namespace DustyBot.Services
 
         Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
 
-        public DaumCafeService(DiscordSocketClient client, ISettingsService settings, ILogger logger)
+        public DaumCafeService(BaseSocketClient client, ISettingsService settings, ILogger logger)
         {
             Settings = settings;
             Client = client;

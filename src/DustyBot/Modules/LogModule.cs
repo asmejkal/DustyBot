@@ -24,9 +24,9 @@ namespace DustyBot.Modules
         private ICommunicator Communicator { get; }
         private ISettingsService Settings { get; }
         private ILogger Logger { get; }
-        private DiscordSocketClient SocketClient { get; }
+        private BaseSocketClient SocketClient { get; }
 
-        public LogModule(ICommunicator communicator, ISettingsService settings, ILogger logger, DiscordSocketClient socketClient)
+        public LogModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BaseSocketClient socketClient)
         {
             Communicator = communicator;
             Settings = settings;

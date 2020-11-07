@@ -14,9 +14,9 @@ namespace DustyBot.Framework.Logging
     {
         StreamWriter _logWriter;
         SemaphoreSlim _logWriterLock = new SemaphoreSlim(1, 1);
-        private DiscordSocketClient _client;
+        private BaseSocketClient _client;
 
-        public ConsoleLogger(DiscordSocketClient client, string logFile = "")
+        public ConsoleLogger(BaseSocketClient client, string logFile = "")
         {
             _client = client;
             _client.Log += Log;

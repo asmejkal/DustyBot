@@ -12,9 +12,9 @@ namespace DustyBot.Framework.Events
         public void Register(IEventHandler handler) => _handlers.Add(handler);
 
         private HashSet<IEventHandler> _handlers;
-        private DiscordSocketClient _client;
+        private BaseSocketClient _client;
 
-        public SocketEventRouter(IEnumerable<IEventHandler> handlers, DiscordSocketClient client)
+        public SocketEventRouter(IEnumerable<IEventHandler> handlers, BaseSocketClient client)
         {
             _handlers = new HashSet<IEventHandler>(handlers);
             _client = client;
