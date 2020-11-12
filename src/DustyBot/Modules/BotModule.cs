@@ -18,6 +18,7 @@ using DustyBot.Core.Formatting;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Modules
 {
@@ -417,6 +418,28 @@ namespace DustyBot.Modules
             }
 
             return null;
+        }
+
+        public override Task OnMessageReceived(SocketMessage message)
+        {
+            if (message.Content == $"<@{Client.CurrentUser.Id}>" || message.Content == $"<@!{Client.CurrentUser.Id}>")
+            {
+                TaskHelper.FireForget(async () =>
+                {
+                    var config = await Settings.ReadGlobal<BotConfig>();
+                    var prefix = config.DefaultCommandPrefix;
+                    if (message.Channel is SocketTextChannel guildChannel)
+                    {
+                        var guildConfig = await Settings.Read<BotSettings>(guildChannel.Guild.Id);
+                        if (!string.IsNullOrEmpty(guildConfig?.CommandPrefix))
+                            prefix = guildConfig.CommandPrefix;
+                    }
+
+                    await message.Channel.SendMessageAsync(string.Empty, embed: HelpBuilder.GetHelpEmbed(prefix, prefix != config.DefaultCommandPrefix).Build());
+                });
+            }
+
+            return Task.CompletedTask;
         }
     }
 }
