@@ -15,18 +15,19 @@ namespace DustyBot.Framework.Commands
     {
         private struct DynamicValue
         {
-            dynamic _value;
-            ParameterType _type;
+            public ParameterType Type { get; }
+
+            private dynamic _value;
 
             public DynamicValue(dynamic value, ParameterType type)
             {
                 _value = value;
-                _type = type;
+                Type = type;
             }
 
             public bool TryGet(ParameterType type, out dynamic value)
             {
-                if (_type == type)
+                if (Type == type)
                 {
                     value = _value;
                     return true;
@@ -37,8 +38,6 @@ namespace DustyBot.Framework.Commands
                     return false;
                 }
             }
-
-            public ParameterType Type => _type;
         }
 
         private class ValueCache
@@ -56,13 +55,16 @@ namespace DustyBot.Framework.Commands
             public void Remove(ParameterType type) => _data.Remove(type);
         }
 
+        private delegate bool TryParseDelegate<T>(string value, out T result);
+
         public static readonly ParameterToken Empty = new ParameterToken();
+
         private static readonly Regex MessageLinkRegex = new Regex(@"https:\/\/discord.*\.com\/channels\/\d+\/\d+\/(\d+)");
 
         public SocketGuild Guild { get; }
         public string Raw { get; } = string.Empty;
         public string LastError { get; private set; }
-        public ParameterRegistration Registration { get; set; }
+        public ParameterInfo Registration { get; set; }
         public bool HasValue => !string.IsNullOrEmpty(Raw);
         public int Begin { get; }
         public int End { get; }
@@ -79,7 +81,7 @@ namespace DustyBot.Framework.Commands
         {
         }
 
-        public ParameterToken(Token token, SocketGuild guild, IUserFetcher userFetcher)
+        internal ParameterToken(Token token, SocketGuild guild, IUserFetcher userFetcher)
         {
             Repeats.Add(this);
             Begin = token.Begin;
@@ -89,7 +91,7 @@ namespace DustyBot.Framework.Commands
             _userFetcher = userFetcher;
         }
 
-        public ParameterToken(ParameterRegistration registration, int begin, int end, string value, SocketGuild guild, IUserFetcher userFetcher)
+        internal ParameterToken(ParameterInfo registration, int begin, int end, string value, SocketGuild guild, IUserFetcher userFetcher)
         {
             Repeats.Add(this);
             Registration = registration;
@@ -324,7 +326,7 @@ namespace DustyBot.Framework.Commands
         public static explicit operator Guid? (ParameterToken token) => token.AsGuid;
         public static explicit operator Match (ParameterToken token) => token.AsRegex;
 
-        static T TryConvert<T>(ParameterToken token, ParameterType type, Func<string, T> parser)
+        private static T TryConvert<T>(ParameterToken token, ParameterType type, Func<string, T> parser)
             where T : class
         {
             dynamic result;
@@ -344,7 +346,7 @@ namespace DustyBot.Framework.Commands
             return result;
         }
 
-        static async Task<T> TryConvert<T>(ParameterToken token, ParameterType type, Func<string, Task<T>> parser)
+        private static async Task<T> TryConvert<T>(ParameterToken token, ParameterType type, Func<string, Task<T>> parser)
             where T : class
         {
             dynamic result;
@@ -364,8 +366,7 @@ namespace DustyBot.Framework.Commands
             return result;
         }
 
-        public delegate bool TryParseDelegate<T>(string value, out T result);
-        static T? TryConvert<T>(ParameterToken token, ParameterType type, TryParseDelegate<T> parser)
+        private static T? TryConvert<T>(ParameterToken token, ParameterType type, TryParseDelegate<T> parser)
             where T : struct
         {
             dynamic cache;

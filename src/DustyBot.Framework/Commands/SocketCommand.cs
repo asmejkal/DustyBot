@@ -13,7 +13,7 @@ using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Commands
 {
-    public class SocketCommand : ICommand
+    internal class SocketCommand : ICommand
     {
         public enum ParseResultType
         {
@@ -62,14 +62,14 @@ namespace DustyBot.Framework.Commands
         public ParameterToken this[int key] => GetParameter(key);
         public ParameterToken this[string name] => GetParameter(name);
 
-        public CommandRegistration Registration { get; }
-        public CommandRegistration.Usage Usage { get; }
+        public CommandInfo Registration { get; }
+        public CommandInfo.Usage Usage { get; }
 
         private List<string> _verbs = new List<string>();
         private List<ParameterToken> _tokens = new List<ParameterToken>();
         private IUserFetcher _userFetcher;
 
-        private SocketCommand(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix, IUserFetcher userFetcher)
+        private SocketCommand(CommandInfo registration, CommandInfo.Usage usage, IUserMessage message, string prefix, IUserFetcher userFetcher)
         {
             Registration = registration ?? throw new ArgumentNullException(nameof(registration));
             Usage = usage ?? throw new ArgumentNullException(nameof(usage));
@@ -78,7 +78,7 @@ namespace DustyBot.Framework.Commands
             _userFetcher = userFetcher ?? throw new ArgumentNullException(nameof(userFetcher));
         }
 
-        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandRegistration registration, CommandRegistration.Usage usage, IUserMessage message, string prefix, IUserFetcher userFetcher)
+        public static async Task<Tuple<ParseResult, ICommand>> TryCreate(CommandInfo registration, CommandInfo.Usage usage, IUserMessage message, string prefix, IUserFetcher userFetcher)
         {
             var command = new SocketCommand(registration, usage, message, prefix, userFetcher);
             return Tuple.Create(await command.TryParse(), command as ICommand);
@@ -86,7 +86,7 @@ namespace DustyBot.Framework.Commands
 
         public static string ParseInvoker(string message, string prefix) => new string(message.TakeWhile(c => !char.IsWhiteSpace(c)).Skip(prefix.Length).ToArray());
 
-        public static (CommandRegistration, CommandRegistration.Usage)? FindLongestMatch(string message, string prefix, IEnumerable<CommandRegistration> possibleRegistrations)
+        public static (CommandInfo, CommandInfo.Usage)? FindLongestMatch(string message, string prefix, IEnumerable<CommandInfo> possibleRegistrations)
         {
             var usageToRegistration = possibleRegistrations.SelectMany(x => x.EveryUsage.Select(y => (usage: y, registration: x))).ToList();
             var maxVerbs = possibleRegistrations.SelectMany(x => x.EveryUsage).Max(x => x.Verbs.Count);
@@ -162,7 +162,7 @@ namespace DustyBot.Framework.Commands
             return await TryParseParamsInner(Body.Tokenize(TextQualifiers.ToArray()).Select(x => new ParameterToken(x, Guild as SocketGuild, _userFetcher)), Registration.Parameters);
         }
         
-        private async Task<ParseResult> TryParseParamsInner(IEnumerable<ParameterToken> tokens, IEnumerable<ParameterRegistration> registrations, bool test = false)
+        private async Task<ParseResult> TryParseParamsInner(IEnumerable<ParameterToken> tokens, IEnumerable<ParameterInfo> registrations, bool test = false)
         {
             var tokensQ = new Queue<ParameterToken>(tokens);
             int count = 0;
@@ -253,7 +253,7 @@ namespace DustyBot.Framework.Commands
             return new ParseResult(ParseResultType.Success);
         }
 
-        private static async Task<bool> CheckToken(ParameterToken token, ParameterRegistration registration)
+        private static async Task<bool> CheckToken(ParameterToken token, ParameterInfo registration)
         {
             if (registration.Type == ParameterType.Regex)
                 token.Regex = new Regex(registration.Format, RegexOptions.Compiled | RegexOptions.IgnoreCase);

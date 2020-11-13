@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Discord;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Discord.WebSocket;
 
 namespace DustyBot.Framework.Utility
 {

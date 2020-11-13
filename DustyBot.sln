@@ -6,6 +6,10 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AD7BBBB3-0056-488C-A664-53AE15EA1EB7}"
+	ProjectSection(SolutionItems) = preProject
+		docker-compose.yml = docker-compose.yml
+		kibana.yml = kibana.yml
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework", "src\DustyBot.Framework\DustyBot.Framework.csproj", "{576561A9-4012-412C-95B5-C72EAEB78FF6}"
 EndProject
@@ -23,7 +27,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Shared", "_Shared", "{D4DD
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Core", "src\_Shared\DustyBot.Core\DustyBot.Core.csproj", "{BCC2AED3-F017-4C2A-9455-0EBD8ECAC6F9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Database.Mongo", "src\Database\DustyBot.Database.Mongo\DustyBot.Database.Mongo.csproj", "{F744743B-E3FC-48A7-A8FA-8F72C432C122}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Mongo", "src\Database\DustyBot.Database.Mongo\DustyBot.Database.Mongo.csproj", "{F744743B-E3FC-48A7-A8FA-8F72C432C122}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Sql", "src\Database\DustyBot.Database.Sql\DustyBot.Database.Sql.csproj", "{B1DDF073-BFA6-4DFC-BC46-25000C0B12DF}"
 EndProject
@@ -31,7 +35,7 @@ Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "DustyBot.Database.Sql.Schem
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{EA1EBF29-05E3-447A-8E74-AC9542FD0D05}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Database.TableStorage", "src\Database\DustyBot.Database.TableStorage\DustyBot.Database.TableStorage.csproj", "{1E0BF54D-018A-400E-85FB-620B27A4E44C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.TableStorage", "src\Database\DustyBot.Database.TableStorage\DustyBot.Database.TableStorage.csproj", "{1E0BF54D-018A-400E-85FB-620B27A4E44C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Tools.LiteDBMigrator", "src\Tools\DustyBot.Tools.LiteDBMigrator\DustyBot.Tools.LiteDBMigrator.csproj", "{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}"
 EndProject

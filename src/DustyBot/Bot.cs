@@ -3,27 +3,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Services;
 using CommandLine;
 using DustyBot.Helpers;
 using DustyBot.Settings;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
-using DustyBot.Framework.Config;
-using DustyBot.Database.Sql;
 using MongoDB.Driver;
 using DustyBot.Framework.Utility;
 using Discord;
-using DustyBot.Config;
-using Discord.Rest;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
+using Serilog.Sinks.Elasticsearch;
+using DustyBot.Core.Async;
+using DustyBot.Framework;
 
 namespace DustyBot
 {
     /// <summary>
     /// Initialization, composition root
     /// </summary>
-    class Bot : IModuleCollection, IServiceCollection
+    class Bot
     {
         public enum ReturnCode
         {
@@ -37,6 +37,9 @@ namespace DustyBot
         {
             [Value(0, MetaName = "MongoConnectionString", Required = true, HelpText = "MongoDb connection string for this deployment.")]
             public string MongoConnectionString { get; set; }
+
+            [Option("eslognode", HelpText = "Elastic Search node uri for structured logging.")]
+            public string ElasticSearchLogNodeUri { get; set; }
         }
 
         [Verb("configure", HelpText = "Configure the bot deployment.")]
@@ -91,12 +94,6 @@ namespace DustyBot
             public string BitlyKey { get; set; }
         }
 
-        private ICollection<IModule> _modules;
-        public IEnumerable<IModule> Modules => _modules;
-
-        private ICollection<IService> _services;
-        public IEnumerable<IService> Services => _services;
-
         static int Main(string[] args)
         {
             var result = Parser.Default.ParseArguments<RunOptions, ConfigureOptions>(args)
@@ -112,6 +109,13 @@ namespace DustyBot
         {
             try
             {
+                using var logger = new LoggerConfiguration()
+                    .WriteTo.Console()
+                    .WriteTo.Elasticsearch(opts.ElasticSearchLogNodeUri, autoRegisterTemplate: true, autoRegisterTemplateVersion: AutoRegisterTemplateVersion.ESv7)
+                    .Enrich.FromLogContext()
+                    .MinimumLevel.Information()
+                    .CreateLogger();
+
                 var intents = GatewayIntents.DirectMessageReactions |
                     GatewayIntents.DirectMessages |
                     GatewayIntents.GuildEmojis |
@@ -128,92 +132,33 @@ namespace DustyBot
                     ExclusiveBulkDelete = true,
                     GatewayIntents = intents
                 };
+
+                using var client = new DiscordSocketClient(clientConfig)
+                    .UseSerilog(logger);
+
+                using var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString);
+
+                var config = await settings.ReadGlobal<BotConfig>();
+                var readyTask = client.WaitForReady();
+                await client.LoginAsync(TokenType.Bot, config.BotToken);
+                await client.StartAsync();
+
+                await readyTask;
+
+                TaskHelper.FireForget(() => client.SetGameAsync($"{config.DefaultCommandPrefix}help | {WebConstants.WebsiteShorthand}"));
                 
-                using (var client = new DiscordShardedClient(clientConfig))
-                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
-                using (var logger = new Framework.Logging.ConsoleLogger(client, GlobalDefinitions.GetLogFile(settings.DatabaseName)))
-                using (var restClient = new DiscordRestClient(new DiscordRestConfig()))
-                {
-                    var components = new Framework.Framework.Components() { Client = client, Logger = logger };
+                using var host = new HostBuilder()
+                    .UseSerilog(logger)
+                    .ConfigureServices(x => Startup.ConfigureServices(x, client, config))
+                    .UseConsoleLifetime()
+                    .Build();
 
-                    //Get config
-                    var config = await settings.ReadGlobal<BotConfig>();
-                    components.Config = new FrameworkConfig(config.DefaultCommandPrefix, config.BotToken, config.OwnerIDs);
-                    components.GuildConfigProvider = new FrameworkGuildConfigProvider(settings);
+                await host.StartAsync();
 
-                    //Choose communicator
-                    components.Communicator = new Framework.Communication.DefaultCommunicator(components.Config, components.Logger);
+                await host.Services.GetRequiredService<IFramework>().StartAsync();
 
-                    // URL shortener
-                    IUrlShortener shortener;
-                    if (config.PolrKey != null)
-                        shortener = new PolrUrlShortener(config.PolrKey, config.PolrDomain);
-                    else if (config.BitlyKey != null)
-                        shortener = new BitlyUrlShortener(config.BitlyKey);
-                    else
-                        shortener = new DefaultUrlShortener();
+                await host.WaitForShutdownAsync();
 
-                    // Sql services
-                    var sqlConnectionString = config.SqlDbConnectionString;
-                    Func<Task<ILastFmStatsService>> lastFmServiceFactory = null;
-                    if (!string.IsNullOrEmpty(sqlConnectionString))
-                    {
-                        lastFmServiceFactory = new Func<Task<ILastFmStatsService>>(() =>
-                            Task.FromResult<ILastFmStatsService>(new LastFmStatsService(DustyBotDbContext.Create(sqlConnectionString))));
-                    }
-
-                    // Table storage services
-                    SpotifyAccountsService spotifyAccountsService = null;
-                    if (!string.IsNullOrEmpty(config.TableStorageConnectionString))
-                        spotifyAccountsService = new SpotifyAccountsService(config.TableStorageConnectionString);
-
-                    var scheduleService = new Services.ScheduleService(components.Client, settings, components.Logger);
-                    var userFetcher = new UserFetcher(restClient);
-                    components.UserFetcher = userFetcher;
-
-                    //Choose modules
-                    components.Modules.Add(new Modules.BotModule(components.Communicator, settings, this, components.Client));
-                    components.Modules.Add(new Modules.ScheduleModule(components.Communicator, settings, components.Logger, client, scheduleService, userFetcher));
-                    components.Modules.Add(new Modules.LastFmModule(components.Communicator, settings, lastFmServiceFactory));
-                    components.Modules.Add(new Modules.SpotifyModule(components.Communicator, settings, spotifyAccountsService, config));
-                    components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
-                    components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
-                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config, shortener));
-                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
-                    components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, userFetcher, shortener));
-                    components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
-                    components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, restClient));
-                    components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.AutorolesModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.RolesModule(components.Communicator, settings, components.Logger));
-                    components.Modules.Add(new Modules.AdministrationModule(components.Communicator, settings, components.Logger, client, userFetcher));
-                    components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger, client));
-                    components.Modules.Add(new Modules.InfoModule(components.Communicator, settings, components.Logger, userFetcher));
-                    _modules = components.Modules;
-
-                    //Choose services
-                    components.Services.Add(new Services.DaumCafeService(components.Client, settings, components.Logger));
-                    components.Services.Add(scheduleService);
-                    _services = components.Services;
-
-                    //Init framework
-                    var framework = new Framework.Framework(components);
-
-                    Task stopTask = null;
-                    Console.CancelKeyPress += (s, e) =>
-                    {
-                        e.Cancel = true;
-                        stopTask = framework.StopAsync();
-                    };
-
-                    await restClient.LoginAsync(TokenType.Bot, config.BotToken);
-                    await framework.Run($"{components.Config.DefaultCommandPrefix}help | {WebConstants.WebsiteShorthand}");
-
-                    if (stopTask != null)
-                        await stopTask;
-                }
             }
             catch (MongoCommandException ex) when (ex.Code == 13)
             {

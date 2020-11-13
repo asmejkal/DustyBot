@@ -11,12 +11,13 @@ using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
 using DustyBot.Core.Collections;
+using DustyBot.Framework.Logging;
 
 namespace DustyBot.Framework.Communication
 {
-    public class DefaultCommunicator : Events.EventHandler, ICommunicator
+    internal class Communicator : ICommunicator, IDisposable
     {
-        class PaginatedMessageContext
+        private sealed class PaginatedMessageContext : IDisposable
         {
             public PaginatedMessageContext(PageCollection pages, ulong messageOwner = 0, bool resend = false)
             {
@@ -51,6 +52,11 @@ namespace DustyBot.Framework.Communication
 
             public DateTime ExpirationDate { get; private set; } = DateTime.Now + PaginatedMessageLife;
             public void ExtendLife() => ExpirationDate = DateTime.Now + PaginatedMessageLife;
+
+            public void Dispose()
+            {
+                ((IDisposable)Lock).Dispose();
+            }
         }
 
         public static readonly Color ColorSuccess = Color.Green;
@@ -59,54 +65,56 @@ namespace DustyBot.Framework.Communication
         public static readonly IEmote ArrowRight = new Emoji("➡️");
         public static readonly TimeSpan PaginatedMessageLife = TimeSpan.FromHours(48);
 
-        Dictionary<ulong, PaginatedMessageContext> _paginatedMessages = new Dictionary<ulong, PaginatedMessageContext>();
-
-        public Config.FrameworkConfig Config { get; set; }
-        public Logging.ILogger Logger { get; set; }
-
         public string SuccessMarker => ":white_check_mark:";
         public string FailureMarker => ":no_entry:";
 
-        public DefaultCommunicator(Config.FrameworkConfig config, Logging.ILogger logger)
+        private readonly BaseSocketClient _client;
+        private readonly ILogger _logger;
+        private readonly Dictionary<ulong, PaginatedMessageContext> _paginatedMessages = new Dictionary<ulong, PaginatedMessageContext>();
+
+        public Communicator(BaseSocketClient client, ILogger logger)
         {
-            Config = config;
-            Logger = logger;
+            _client = client;
+            _logger = logger;
+
+            client.ReactionAdded += OnReactionAdded;
+            client.MessageDeleted += OnMessageDeleted;
         }
 
-        public async Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null) 
+        public async Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null)
             => await SendMessage(channel, SuccessMarker + " " + message.Sanitise(), embed: embed);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyError(IMessageChannel channel, string message) 
+        public async Task<ICollection<IUserMessage>> CommandReplyError(IMessageChannel channel, string message)
             => await SendMessage(channel, FailureMarker + " " + message.Sanitise());
 
-        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message) 
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message)
             => await SendMessage(channel, message);
 
-        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0) 
+        public async Task<ICollection<IUserMessage>> CommandReply(IMessageChannel channel, string message, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0)
             => await SendMessage(channel, message, chunkDecorator, maxDecoratorOverhead);
 
         public async Task CommandReply(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
             => await SendMessage(channel, pages, messageOwner, resend);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, CommandInfo command, IEnumerable<GuildPermission> missingPermissions, string message = null)
             => await CommandReplyError(channel, string.Format(Properties.Resources.Command_MissingPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)) + " " + message ?? "");
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, CommandRegistration command) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, CommandInfo command)
             => await CommandReplyError(channel, Properties.Resources.Command_MissingBotAccess);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandRegistration command) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandInfo command)
             => await CommandReplyError(channel, Properties.Resources.Command_MissingBotPermissionsUnknown);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandRegistration command, IEnumerable<GuildPermission> missingPermissions) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandInfo command, IEnumerable<GuildPermission> missingPermissions)
             => await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 
-        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions) 
+        public async Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, CommandInfo command, IEnumerable<ChannelPermission> missingPermissions)
             => await CommandReplyError(channel, string.Format(missingPermissions.Count() > 1 ? Properties.Resources.Command_MissingBotPermissionsMultiple : Properties.Resources.Command_MissingBotPermissions, missingPermissions.WordJoin(Properties.Resources.Common_WordListSeparator, Properties.Resources.Common_WordListLastSeparator)));
 
-        public async Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, CommandRegistration command) 
+        public async Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, CommandInfo command)
             => await CommandReplyError(channel, Properties.Resources.Command_NotOwner);
 
-        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, CommandRegistration command, string explanation, string commandPrefix, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, CommandInfo command, string explanation, string commandPrefix, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
@@ -119,7 +127,7 @@ namespace DustyBot.Framework.Communication
             return new[] { await channel.SendMessageAsync(":no_entry: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, CommandRegistration command, string explanation, string commandPrefix, bool showUsage = true)
+        public async Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, CommandInfo command, string explanation, string commandPrefix, bool showUsage = true)
         {
             var embed = new EmbedBuilder()
                     .WithTitle(Properties.Resources.Command_Usage)
@@ -129,12 +137,12 @@ namespace DustyBot.Framework.Communication
             return new[] { await channel.SendMessageAsync(":grey_question: " + explanation.Sanitise(), false, showUsage ? embed.Build() : null) };
         }
 
-        public async Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, CommandRegistration command) =>
+        public async Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, CommandInfo command) =>
             await CommandReplyError(channel, Properties.Resources.Command_DirectMessageOnly);
 
         public async Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel) =>
             await CommandReplyError(channel, Properties.Resources.Command_GenericFailure);
-        
+
         public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
         {
             //Set footers where applicable (only if we have more than one page or if the only page has no custom footer)
@@ -174,7 +182,69 @@ namespace DustyBot.Framework.Communication
             }
         }
 
-        public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
+        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Embed embed = null)
+        {
+            var result = new List<IUserMessage>();
+            var chunks = text.ChunkifyByLines(DiscordConfig.MaxMessageSize).ToList();
+            foreach (var chunk in chunks.SkipLast())
+                result.Add(await channel.SendMessageAsync(chunk.ToString().Sanitise()));
+
+            if (chunks.Any())
+                result.Add(await channel.SendMessageAsync(chunks.Last().ToString().Sanitise(), embed: embed));
+
+            return result;
+        }
+
+        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0)
+        {
+            if (maxDecoratorOverhead >= DiscordConfig.MaxMessageSize)
+                throw new ArgumentException($"MaxDecoratorOverhead may not exceed the message length limit, {DiscordConfig.MaxMessageSize}.");
+
+            var result = new List<IUserMessage>();
+            foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize - maxDecoratorOverhead))
+                result.Add(await channel.SendMessageAsync(chunkDecorator(chunk.ToString()).Sanitise()));
+
+            return result;
+        }
+        
+        public static string BuildUsageString(CommandInfo commandRegistration, string commandPrefix)
+        {
+            string usage = $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
+            {
+                string tmp = param.Name;
+                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                    tmp += "...";
+
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                    tmp = $"[{tmp}]";
+
+                usage += $" `{tmp}`";
+            }
+
+            string paramDescriptions = string.Empty;
+            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(commandPrefix))))
+            {
+                string tmp = $"● `{param.Name}` ‒ ";
+                if (param.Flags.HasFlag(ParameterFlags.Optional))
+                    tmp += "optional; ";
+
+                tmp += param.GetDescription(commandPrefix);
+                paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "\n" + tmp;
+            }
+
+            var examples = commandRegistration.Examples
+                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
+                .DefaultIfEmpty()
+                .Aggregate((x, y) => x + "\n" + y);
+
+            return usage +
+                (string.IsNullOrWhiteSpace(paramDescriptions) ? string.Empty : "\n\n" + paramDescriptions) +
+                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(commandPrefix)) ? string.Empty : "\n\n" + commandRegistration.GetComment(commandPrefix)) +
+                (string.IsNullOrWhiteSpace(examples) ? string.Empty : "\n\n__Examples:__\n" + examples);
+        }
+
+        private Task OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -235,23 +305,39 @@ namespace DustyBot.Framework.Communication
                             await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed?.Build(); });
                             await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
                         }
-                            
+
                         //Update context
                         context.CurrentPage = newPage;
-                        
+
                     }
                     finally
                     {
                         context.Lock.Release();
-                    }                    
+                    }
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to flip a page for PaginatedMessage.", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to flip a page for PaginatedMessage.", ex));
                 }
             });
 
             return Task.CompletedTask;
+        }
+
+        private async Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
+        {
+            try
+            {
+                lock (_paginatedMessages)
+                {
+                    if (_paginatedMessages.Remove(message.Id, out var context))
+                        context.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a deleted message from paginated messages context.", ex));
+            }
         }
 
         private async Task RemovePageReaction(IUserMessage message, IEmote emote, IUser user)
@@ -266,22 +352,7 @@ namespace DustyBot.Framework.Communication
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a reaction for PaginatedMessage.", ex));
-            }
-        }
-
-        public override async Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
-        {
-            try
-            {
-                lock (_paginatedMessages)
-                {
-                    _paginatedMessages.Remove(message.Id);
-                }
-            }
-            catch (Exception ex)
-            {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a deleted message from paginated messages context.", ex));
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a reaction for PaginatedMessage.", ex));
             }
         }
 
@@ -289,86 +360,17 @@ namespace DustyBot.Framework.Communication
         {
             lock (_paginatedMessages)
             {
-                _paginatedMessages.RemoveAll((x, y) => y.ExpirationDate < DateTime.Now);
+                foreach (var removed in _paginatedMessages.RemoveAll((x, y) => y.ExpirationDate < DateTime.Now))
+                    removed.Value.Dispose();
             }
         }
 
-        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Embed embed = null)
+        public void Dispose()
         {
-            var result = new List<IUserMessage>();
-            var chunks = text.ChunkifyByLines(DiscordConfig.MaxMessageSize).ToList();
-            foreach (var chunk in chunks.SkipLast())
-                result.Add(await channel.SendMessageAsync(chunk.ToString().Sanitise()));
+            _client.ReactionAdded -= OnReactionAdded;
+            _client.MessageDeleted -= OnMessageDeleted;
 
-            if (chunks.Any())
-                result.Add(await channel.SendMessageAsync(chunks.Last().ToString().Sanitise(), embed: embed));
-
-            return result;
-        }
-
-        public async Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0)
-        {
-            if (maxDecoratorOverhead >= DiscordConfig.MaxMessageSize)
-                throw new ArgumentException($"MaxDecoratorOverhead may not exceed the message length limit, {DiscordConfig.MaxMessageSize}.");
-                        
-            var result = new List<IUserMessage>();
-            foreach (var chunk in text.ChunkifyByLines(DiscordConfig.MaxMessageSize - maxDecoratorOverhead))
-                result.Add(await channel.SendMessageAsync(chunkDecorator(chunk.ToString()).Sanitise()));
-
-            return result;
-        }
-
-        private static async Task<IUserMessage> ReplyEmbed(IMessageChannel channel, string message, Color? color = null, string title = null, string footer = null)
-        {
-            var embed = new EmbedBuilder().WithDescription(message);
-
-            if (color != null)
-                embed.WithColor(color.Value);
-
-            if (!string.IsNullOrEmpty(title))
-                embed.WithTitle(title);
-
-            if (!string.IsNullOrEmpty(footer))
-                embed.WithFooter(footer);
-
-            return await channel.SendMessageAsync("", false, embed.Build());
-        }
-
-        public static string BuildUsageString(CommandRegistration commandRegistration, string commandPrefix)
-        {
-            string usage = $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
-            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
-            {
-                string tmp = param.Name;
-                if (param.Flags.HasFlag(ParameterFlags.Remainder))
-                    tmp += "...";
-
-                if (param.Flags.HasFlag(ParameterFlags.Optional))
-                    tmp = $"[{tmp}]";
-
-                usage += $" `{tmp}`";
-            }
-
-            string paramDescriptions = string.Empty;
-            foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden) && !string.IsNullOrWhiteSpace(x.GetDescription(commandPrefix))))
-            {
-                string tmp = $"● `{param.Name}` ‒ ";
-                if (param.Flags.HasFlag(ParameterFlags.Optional))
-                    tmp += "optional; ";
-
-                tmp += param.GetDescription(commandPrefix);
-                paramDescriptions += string.IsNullOrEmpty(paramDescriptions) ? tmp : "\n" + tmp;
-            }
-
-            var examples = commandRegistration.Examples
-                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
-                .DefaultIfEmpty()
-                .Aggregate((x, y) => x + "\n" + y);
-
-            return usage +
-                (string.IsNullOrWhiteSpace(paramDescriptions) ? string.Empty : "\n\n" + paramDescriptions) +
-                (string.IsNullOrWhiteSpace(commandRegistration.GetComment(commandPrefix)) ? string.Empty : "\n\n" + commandRegistration.GetComment(commandPrefix)) +
-                (string.IsNullOrWhiteSpace(examples) ? string.Empty : "\n\n__Examples:__\n" + examples);
+            CleanupPaginatedMessages();
         }
     }
 }

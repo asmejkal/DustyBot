@@ -1,12 +1,10 @@
 ﻿using Discord.Rest;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Utility
 {
-    public class UserFetcher : IUserFetcher
+    internal class UserFetcher : IUserFetcher
     {
         private DiscordRestClient RestClient { get; }
 

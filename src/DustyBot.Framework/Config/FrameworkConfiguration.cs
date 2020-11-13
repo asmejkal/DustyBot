@@ -1,0 +1,65 @@
+﻿using Discord.WebSocket;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules.Attributes;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+
+namespace DustyBot.Framework.Config
+{
+    internal sealed class FrameworkConfiguration : IDisposable
+    {
+        public ICollection<Type> Modules { get; }
+        public string DefaultCommandPrefix { get; }
+        public ICommunicator Communicator { get; }
+        public ILogger Logger { get; }
+        public IFrameworkGuildConfigProvider GuildConfigProvider { get; }
+        public IReadOnlyList<ulong> OwnerIDs { get; }
+        public DiscordSocketClient DiscordClient { get; }
+        public IServiceProvider ClientServiceProvider { get; }
+
+        public FrameworkConfiguration(
+            IServiceProvider clientServiceProvider,
+            string defaultCommandPrefix, 
+            IEnumerable<ulong> ownerIDs, 
+            IEnumerable<Type> modules, 
+            ICommunicator communicator,
+            ILogger logger, 
+            IFrameworkGuildConfigProvider guildConfigProvider, 
+            DiscordSocketClient discordClient)
+        {
+            ClientServiceProvider = clientServiceProvider ?? throw new ArgumentNullException(nameof(clientServiceProvider));
+
+            if (string.IsNullOrWhiteSpace(defaultCommandPrefix))
+                throw new ArgumentException(defaultCommandPrefix);
+
+            DefaultCommandPrefix = defaultCommandPrefix;
+
+            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            GuildConfigProvider = guildConfigProvider ?? throw new ArgumentNullException(nameof(guildConfigProvider));
+
+            if (!OwnerIDs.Any())
+                throw new ArgumentException(nameof(ownerIDs));
+
+            OwnerIDs = ownerIDs?.ToList() ?? throw new ArgumentNullException(nameof(ownerIDs));
+
+            Modules = modules?.ToList() ?? throw new ArgumentNullException(nameof(modules));
+
+            if (!Modules.Any())
+                throw new ArgumentException(nameof(modules));
+
+            if (Modules.Any(x => x.GetCustomAttribute<ModuleAttribute>() == null))
+                throw new ArgumentException("A registered module is missing the Module attribute.", nameof(modules));
+
+            DiscordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
+            Communicator = communicator ?? new Communicator(discordClient, logger);
+        }
+
+        public void Dispose()
+        {
+            (Communicator as Communicator)?.Dispose();
+        }
+    }
+}

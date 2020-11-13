@@ -4,23 +4,21 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using System.IO;
-using Newtonsoft.Json.Linq;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
-using Newtonsoft.Json;
 using DustyBot.Helpers;
 using System;
 using System.Collections.Generic;
 using DustyBot.Framework.Utility;
 using Discord.WebSocket;
 using DustyBot.Database.Services;
+using DustyBot.Framework.Modules.Attributes;
 
 namespace DustyBot.Modules
 {
     [Module("Mod", "Helps with server administration.")]
-    class AdministrationModule : Module
+    class AdministrationModule
     {
         private ICommunicator Communicator { get; }
         private ISettingsService Settings { get; }

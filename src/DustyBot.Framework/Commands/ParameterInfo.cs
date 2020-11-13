@@ -1,12 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace DustyBot.Framework.Commands
 {
-    public class ParameterRegistration
+    internal class ParameterInfo
     {
-        ParameterFlags _flags;
+        public static readonly ParameterInfo AlwaysMatching = new ParameterInfo()
+        {
+            Type = ParameterType.String,
+            Flags = ParameterFlags.Remainder | ParameterFlags.Optional
+        };
 
         public string Name { get; set; }
         public string Format { get; set; }
@@ -28,11 +30,13 @@ namespace DustyBot.Framework.Commands
             }
         }
 
-        public ParameterRegistration()
+        private ParameterFlags _flags;
+
+        public ParameterInfo()
         {
         }
 
-        public ParameterRegistration(ParameterRegistration o)
+        public ParameterInfo(ParameterInfo o)
         {
             _flags = o._flags;
             Name = o.Name;
@@ -41,6 +45,6 @@ namespace DustyBot.Framework.Commands
             Description = o.Description;
         }
 
-        public string GetDescription(string prefix) => Description?.Replace(CommandRegistration.PrefixWildcard, prefix);
+        public string GetDescription(string prefix) => Description?.Replace(CommandInfo.PrefixWildcard, prefix);
     }
 }

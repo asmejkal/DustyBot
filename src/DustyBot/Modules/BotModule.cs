@@ -70,7 +70,7 @@ namespace DustyBot.Modules
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
-                embed.AddField(x => x.WithName("Usage").WithValue(DefaultCommunicator.BuildUsageString(commandRegistration, command.Prefix)));
+                embed.AddField(x => x.WithName("Usage").WithValue(Communicator.BuildUsageString(commandRegistration, command.Prefix)));
 
                 await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
             }
@@ -350,7 +350,7 @@ namespace DustyBot.Modules
             return input;
         }
 
-        static string BuildWebUsageString(CommandRegistration commandRegistration, string commandPrefix)
+        static string BuildWebUsageString(CommandInfo commandRegistration, string commandPrefix)
         {
             string usage = $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
             foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
@@ -401,7 +401,7 @@ namespace DustyBot.Modules
             return result.ToString();
         }
 
-        (CommandRegistration registration, CommandRegistration.Usage usage)? TryFindRegistration(string invoker, ICollection<string> verbs)
+        (CommandInfo registration, CommandInfo.Usage usage)? TryFindRegistration(string invoker, ICollection<string> verbs)
         {
             foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
             {

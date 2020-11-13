@@ -685,7 +685,7 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            var allowedCommands = new List<CommandRegistration>()
+            var allowedCommands = new List<CommandInfo>()
             {
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add"),
                 HandledCommands.First(x => x.PrimaryUsage.InvokeUsage == "event add notify"),

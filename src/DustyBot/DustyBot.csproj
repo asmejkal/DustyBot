@@ -26,6 +26,14 @@
     <PackageReference Include="CommandLineParser" Version="2.2.1" />
     <PackageReference Include="Discord.Net" Version="2.3.0-dev-20200904.2" />
     <PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.8" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.9.10" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="3.1.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
+    <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="8.4.1" />
     <PackageReference Include="SpotifyAPI.Web" Version="5.1.1" />
   </ItemGroup>
 

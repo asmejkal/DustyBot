@@ -1,8 +1,6 @@
-﻿using System;
-
-namespace DustyBot.Framework.Config
+﻿namespace DustyBot.Framework.Config
 {
-    public class FrameworkGuildConfig
+    public sealed class FrameworkGuildConfig
     {
         public string CustomCommandPrefix { get; }
 

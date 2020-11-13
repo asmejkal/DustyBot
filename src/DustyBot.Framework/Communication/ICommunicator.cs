@@ -1,26 +1,10 @@
 ﻿using Discord;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Communication
 {
-    public class Page
-    {
-        public string Content { get; set; } = string.Empty;
-        public EmbedBuilder Embed { get; set; }
-    }
-
-    public class PageCollection : List<Page>
-    {
-        public Page Last => Count < 1 ? null : this[Count - 1];
-        public bool IsEmpty => Count <= 0;
-
-        public void Add(string content) => Add(new Page() { Content = content });
-        public void Add(EmbedBuilder embed) => Add(new Page() { Embed = embed });
-    }
-
     public interface ICommunicator
     {
         string SuccessMarker { get; }
@@ -37,15 +21,15 @@ namespace DustyBot.Framework.Communication
         Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
         //Reactions to framework events
-        Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions, string message = null);
-        Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<GuildPermission> missingPermissions);
-        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandRegistration command, IEnumerable<ChannelPermission> missingPermissions);
-        Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandRegistration command);
-        Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, string commandPrefix, bool showUsage = true);
-        Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandRegistration command, string explanation, string commandPrefix, bool showUsage = true);
-        Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandRegistration command);
+        Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandInfo command, IEnumerable<GuildPermission> missingPermissions, string message = null);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandInfo command);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandInfo command);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandInfo command, IEnumerable<GuildPermission> missingPermissions);
+        Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandInfo command, IEnumerable<ChannelPermission> missingPermissions);
+        Task<ICollection<IUserMessage>> CommandReplyNotOwner(IMessageChannel channel, Commands.CommandInfo command);
+        Task<ICollection<IUserMessage>> CommandReplyIncorrectParameters(IMessageChannel channel, Commands.CommandInfo command, string explanation, string commandPrefix, bool showUsage = true);
+        Task<ICollection<IUserMessage>> CommandReplyUnclearParameters(IMessageChannel channel, Commands.CommandInfo command, string explanation, string commandPrefix, bool showUsage = true);
+        Task<ICollection<IUserMessage>> CommandReplyDirectMessageOnly(IMessageChannel channel, Commands.CommandInfo command);
         Task<ICollection<IUserMessage>> CommandReplyGenericFailure(IMessageChannel channel);
     }
 }

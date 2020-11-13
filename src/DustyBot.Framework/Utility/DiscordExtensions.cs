@@ -1,4 +1,5 @@
 ﻿using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Async;
 using System;
 using System.Linq;
@@ -8,6 +9,18 @@ namespace DustyBot.Framework.Utility
 {
     public static class DiscordExtensions
     {
+        public static Task WaitForReady(this DiscordSocketClient client)
+        {
+            var readyTaskSource = new TaskCompletionSource<bool>();
+            client.Ready += () =>
+            {
+                readyTaskSource.SetResult(true);
+                return Task.CompletedTask;
+            };
+
+            return readyTaskSource.Task;
+        }
+
         public static void DeleteAfter(this IMessage msg, int seconds)
         {
             TaskHelper.FireForget(async () =>
