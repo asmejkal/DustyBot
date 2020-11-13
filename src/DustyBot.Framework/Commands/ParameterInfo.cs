@@ -2,7 +2,7 @@
 
 namespace DustyBot.Framework.Commands
 {
-    internal class ParameterInfo
+    public class ParameterInfo
     {
         public static readonly ParameterInfo AlwaysMatching = new ParameterInfo()
         {

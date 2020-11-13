@@ -31,7 +31,7 @@ namespace DustyBot.Framework.Commands
             }
         }
 
-        private readonly DiscordSocketClient _client;
+        private readonly BaseSocketClient _client;
         private readonly IServiceProvider _clientServiceProvider;
         private readonly ICommunicator _communicator;
         private readonly ILogger<CommandRoutingService> _logger;
@@ -59,22 +59,6 @@ namespace DustyBot.Framework.Commands
                 AddModule(module);
 
             _client.MessageReceived += OnMessageReceived;
-        }
-
-        private void AddModule(Type type)
-        {
-            var info = ModuleInfo.Create(type);
-
-            foreach (var command in info.Commands)
-            {
-                foreach (var usage in command.EveryUsage)
-                {
-                    if (!_commandsMapping.TryGetValue(usage.InvokeString.ToLowerInvariant(), out var commands))
-                        _commandsMapping.Add(usage.InvokeString.ToLowerInvariant(), commands = new List<CommandInfo>());
-
-                    commands.Add(command);
-                }
-            }
         }
 
         public async Task OnMessageReceived(SocketMessage message)
@@ -186,6 +170,20 @@ namespace DustyBot.Framework.Commands
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process potential command message.");
+            }
+        }
+
+        private void AddModule(ModuleInfo module)
+        {
+            foreach (var command in module.Commands)
+            {
+                foreach (var usage in command.EveryUsage)
+                {
+                    if (!_commandsMapping.TryGetValue(usage.InvokeString.ToLowerInvariant(), out var commands))
+                        _commandsMapping.Add(usage.InvokeString.ToLowerInvariant(), commands = new List<CommandInfo>());
+
+                    commands.Add(command);
+                }
             }
         }
 

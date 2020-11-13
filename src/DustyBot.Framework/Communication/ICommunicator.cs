@@ -20,7 +20,6 @@ namespace DustyBot.Framework.Communication
         Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Embed embed = null);
         Task<ICollection<IUserMessage>> SendMessage(IMessageChannel channel, string text, Func<string, string> chunkDecorator, int maxDecoratorOverhead = 0);
 
-        //Reactions to framework events
         Task<ICollection<IUserMessage>> CommandReplyMissingPermissions(IMessageChannel channel, Commands.CommandInfo command, IEnumerable<GuildPermission> missingPermissions, string message = null);
         Task<ICollection<IUserMessage>> CommandReplyMissingBotAccess(IMessageChannel channel, Commands.CommandInfo command);
         Task<ICollection<IUserMessage>> CommandReplyMissingBotPermissions(IMessageChannel channel, Commands.CommandInfo command);

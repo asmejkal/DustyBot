@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Framework.Commands
 {
-    internal class CommandInfo
+    public class CommandInfo
     {
         public class Usage
         {

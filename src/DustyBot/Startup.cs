@@ -18,6 +18,26 @@ namespace DustyBot
             services.AddScoped<ILogger, SerilogLogger>();
             services.AddScoped<IFrameworkGuildConfigProvider, FrameworkGuildConfigProvider>();
 
+            services.AddSingleton<AdministrationModule>();
+            services.AddSingleton<AutorolesModule>();
+            services.AddSingleton<BotModule>();
+            services.AddSingleton<CafeModule>();
+            services.AddSingleton<EventsModule>();
+            services.AddSingleton<InfoModule>();
+            services.AddSingleton<InstagramModule>();
+            services.AddSingleton<LastFmModule>();
+            services.AddSingleton<LogModule>();
+            services.AddSingleton<NotificationsModule>();
+            services.AddSingleton<PollModule>();
+            services.AddSingleton<RaidProtectionModule>();
+            services.AddSingleton<ReactionsModule>();
+            services.AddSingleton<RolesModule>();
+            services.AddSingleton<ScheduleModule>();
+            services.AddSingleton<SpotifyModule>();
+            services.AddSingleton<StarboardModule>();
+            services.AddSingleton<TranslatorModule>();
+            services.AddSingleton<ViewsModule>();
+
             services.AddFrameworkServices((provider, builder) => 
             {
                 builder.WithDiscordClient(client)
@@ -25,25 +45,7 @@ namespace DustyBot
                     .WithLogger(provider.GetRequiredService<ILogger>())
                     .WithGuildConfigProvider(provider.GetRequiredService<IFrameworkGuildConfigProvider>())
                     .AddOwners(config.OwnerIDs)
-                    .AddModule<AdministrationModule>()
-                    .AddModule<AutorolesModule>()
-                    .AddModule<BotModule>()
-                    .AddModule<CafeModule>()
-                    .AddModule<EventsModule>()
-                    .AddModule<InfoModule>()
-                    .AddModule<InstagramModule>()
-                    .AddModule<LastFmModule>()
-                    .AddModule<LogModule>()
-                    .AddModule<NotificationsModule>()
-                    .AddModule<PollModule>()
-                    .AddModule<RaidProtectionModule>()
-                    .AddModule<ReactionsModule>()
-                    .AddModule<RolesModule>()
-                    .AddModule<ScheduleModule>()
-                    .AddModule<SpotifyModule>()
-                    .AddModule<StarboardModule>()
-                    .AddModule<TranslatorModule>()
-                    .AddModule<ViewsModule>();
+                    .AddModulesFromServices(services);
             });
         }
     }

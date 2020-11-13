@@ -1,6 +1,7 @@
 ﻿using Discord.WebSocket;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
 using DustyBot.Framework.Modules.Attributes;
 using System;
 using System.Collections.Generic;
@@ -11,20 +12,20 @@ namespace DustyBot.Framework.Config
 {
     internal sealed class FrameworkConfiguration : IDisposable
     {
-        public ICollection<Type> Modules { get; }
+        public ICollection<ModuleInfo> Modules { get; }
         public string DefaultCommandPrefix { get; }
         public ICommunicator Communicator { get; }
         public ILogger Logger { get; }
         public IFrameworkGuildConfigProvider GuildConfigProvider { get; }
         public IReadOnlyList<ulong> OwnerIDs { get; }
-        public DiscordSocketClient DiscordClient { get; }
+        public BaseSocketClient DiscordClient { get; }
         public IServiceProvider ClientServiceProvider { get; }
 
         public FrameworkConfiguration(
             IServiceProvider clientServiceProvider,
             string defaultCommandPrefix, 
             IEnumerable<ulong> ownerIDs, 
-            IEnumerable<Type> modules, 
+            IEnumerable<ModuleInfo> modules, 
             ICommunicator communicator,
             ILogger logger, 
             IFrameworkGuildConfigProvider guildConfigProvider, 
@@ -49,9 +50,6 @@ namespace DustyBot.Framework.Config
 
             if (!Modules.Any())
                 throw new ArgumentException(nameof(modules));
-
-            if (Modules.Any(x => x.GetCustomAttribute<ModuleAttribute>() == null))
-                throw new ArgumentException("A registered module is missing the Module attribute.", nameof(modules));
 
             DiscordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
             Communicator = communicator ?? new Communicator(discordClient, logger);

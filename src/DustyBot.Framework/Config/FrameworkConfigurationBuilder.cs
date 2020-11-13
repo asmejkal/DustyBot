@@ -1,9 +1,13 @@
 ﻿using Discord.WebSocket;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using DustyBot.Framework.Modules.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 namespace DustyBot.Framework.Config
 {
@@ -30,6 +34,21 @@ namespace DustyBot.Framework.Config
             _modules.Add(typeof(T));
             return this;
         }
+
+        public FrameworkConfigurationBuilder AddModulesFromServices(IServiceCollection services)
+        {
+            _modules.IntersectWith(services.Where(x => x.ServiceType.GetCustomAttribute<ModuleAttribute>() != null).Select(x => x.ServiceType));
+            return this;
+        }
+
+        public FrameworkConfigurationBuilder AddModulesFromAssembly(Assembly assembly)
+        {
+            _modules.IntersectWith(assembly.GetTypes().Where(x => x.GetCustomAttribute<ModuleAttribute>() != null));
+            return this;
+        }
+
+        public FrameworkConfigurationBuilder AddModulesFromExecutingAssembly() => 
+            AddModulesFromAssembly(Assembly.GetCallingAssembly());
 
         public FrameworkConfigurationBuilder AddOwner(ulong id)
         {
@@ -75,7 +94,17 @@ namespace DustyBot.Framework.Config
 
         internal FrameworkConfiguration Build()
         {
-            return new FrameworkConfiguration(_clientServiceProvider, _defaultCommandPrefix, _ownerIDs, _modules, _communicator, _logger, _guildConfigProvider, _discordClient);
+            var modules = _modules.Select(x => ModuleInfo.Create(x));
+
+            return new FrameworkConfiguration(
+                _clientServiceProvider, 
+                _defaultCommandPrefix, 
+                _ownerIDs,
+                modules,
+                _communicator, 
+                _logger, 
+                _guildConfigProvider, 
+                _discordClient);
         }
     }
 }

@@ -20,8 +20,8 @@ namespace DustyBot.Framework
 
             services.AddSingleton<ICommunicator>(x => x.GetRequiredService<Framework>().Configuration.Communicator);
             services.AddSingleton<ILogger>(x => x.GetRequiredService<Framework>().Configuration.Logger);
-            services.AddScoped<IUserFetcher, UserFetcher>();
-            
+            services.AddScoped<IUserFetcher>(x => new UserFetcher(x.GetRequiredService<Framework>().Configuration.DiscordClient.Rest));
+
             return services;
         }
     }
