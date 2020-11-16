@@ -90,7 +90,7 @@ namespace DustyBot.Framework
                 {
                     readyClients.Add(x);
                     if (readyClients.Count >= shardedClient.Shards.Count)
-                        readyTaskSource.SetResult(true);
+                        readyTaskSource.TrySetResult(true);
 
                     return Task.CompletedTask;
                 };
