@@ -24,7 +24,8 @@ namespace DustyBot.Settings
         public string PapagoClientSecret { get; set; }
         public string PolrKey { get; set; }
         public string PolrDomain { get; set; }
-        
+        public string RotatingProxyUrl { get; set; }
+
         [BsonIgnore]
         public string BitlyKey { get => ShortenerKey; set => ShortenerKey = value; } // TODO: migrations
         public string ShortenerKey { get; set; }

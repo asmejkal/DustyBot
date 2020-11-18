@@ -24,7 +24,6 @@
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.2.1" />
-    <PackageReference Include="Discord.Net" Version="2.3.0-dev-yeba-20201118021419" />
     <PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
     <PackageReference Include="SpotifyAPI.Web" Version="5.1.1" />
   </ItemGroup>

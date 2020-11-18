@@ -89,6 +89,9 @@ namespace DustyBot
 
             [Option("bitlykey", HelpText = "Bit.ly generic access token (Polr preferred).")]
             public string BitlyKey { get; set; }
+
+            [Option("proxyurl", HelpText = "URL of a rotating proxy.")]
+            public string RotatingProxyUrl { get; set; }
         }
 
         private ICollection<IModule> _modules;
@@ -287,6 +290,9 @@ namespace DustyBot
 
                         if (opts.BitlyKey != null)
                             s.BitlyKey = opts.BitlyKey;
+
+                        if (opts.RotatingProxyUrl != null)
+                            s.RotatingProxyUrl = opts.RotatingProxyUrl;
                     });
                 }
             }

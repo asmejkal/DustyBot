@@ -20,6 +20,7 @@ using System.Collections.Concurrent;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
+using Newtonsoft.Json;
 
 namespace DustyBot.Modules
 {
@@ -92,7 +93,15 @@ namespace DustyBot.Modules
 
                     try
                     {
-                        await command.ReplyError(Communicator, "Failed to create preview.");
+                        if (ex is WebException wex && ((wex.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.TooManyRequests) || 
+                            ex is JsonReaderException jrex && jrex.LineNumber == 0 && jrex.LinePosition == 0)
+                        {
+                            await command.ReplyError(Communicator, "Failed to create preview: Instagram keeps IP banning the bot, please hold on while we work on a permanent solution. Join the support server at <https://discord.gg/mKKJFvZ> to get updates on this issue and other news.");
+                        }
+                        else
+                        {
+                            await command.ReplyError(Communicator, "Failed to create preview.");
+                        }
                     }
                     catch (Exception)
                     {
@@ -279,6 +288,16 @@ namespace DustyBot.Modules
             request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36";
             request.Referer = "https://www.instagram.com/p/{id}/";
             request.Headers.Add("Accept-Encoding", "gzip, deflate, br");
+
+            if (!string.IsNullOrEmpty(Config.RotatingProxyUrl))
+            {
+                var proxyUrl = new UriBuilder(Config.RotatingProxyUrl);
+                var proxy = new WebProxy(proxyUrl.Uri);
+                if (!string.IsNullOrEmpty(proxyUrl.UserName) && !string.IsNullOrEmpty(proxyUrl.Password))
+                    proxy.Credentials = new NetworkCredential(proxyUrl.UserName, proxyUrl.Password);
+
+                request.Proxy = proxy;
+            }
 
             using (var response = (HttpWebResponse)await request.GetResponseAsync())
             using (var gzipStream = new GZipStream(response.GetResponseStream(), CompressionMode.Decompress))
