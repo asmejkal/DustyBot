@@ -204,7 +204,7 @@ namespace DustyBot.Modules
                     .WithThumbnailUrl(user.GetAvatarUrl(size: 512) ?? user.GetDefaultAvatarUrl());
 
                 if (settings.GreetEmbed.Color.HasValue)
-                    embed.WithColor(Math.Min(settings.GreetEmbed.Color.Value, 0xfefefe)); // 0xfffffff is a special code for blank...
+                    embed.WithColor(Math.Min(settings.GreetEmbed.Color.Value, 0xfffffe)); // 0xfffffff is a special code for blank...
 
                 if (settings.GreetEmbed.Image != default)
                     embed.WithImageUrl(settings.GreetEmbed.Image.AbsoluteUri);
