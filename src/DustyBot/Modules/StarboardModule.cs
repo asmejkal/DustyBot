@@ -405,7 +405,7 @@ namespace DustyBot.Modules
                             }
                             catch (Exception ex)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} for message {cachedMessage.Id}", ex));
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
                             }
                             finally
                             {
@@ -551,7 +551,7 @@ namespace DustyBot.Modules
                             }
                             catch (Exception ex)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} for message {cachedMessage.Id}", ex));
+                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
                             }
                             finally
                             {
