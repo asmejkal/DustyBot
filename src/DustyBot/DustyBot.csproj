@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Database\DustyBot.Database.Services\DustyBot.Database.Services.csproj" />
     <ProjectReference Include="..\DustyBot.Framework\DustyBot.Framework.csproj" />
     <ProjectReference Include="..\_Shared\DustyBot.Core\DustyBot.Core.csproj" />
+    <ProjectReference Include="..\_Shared\DustyBot.LastFm\DustyBot.LastFm.csproj" />
   </ItemGroup>
 
   <ItemGroup>

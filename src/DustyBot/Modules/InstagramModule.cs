@@ -93,15 +93,7 @@ namespace DustyBot.Modules
 
                     try
                     {
-                        if (ex is WebException wex && ((wex.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.TooManyRequests) || 
-                            ex is JsonReaderException jrex && jrex.LineNumber == 0 && jrex.LinePosition == 0)
-                        {
-                            await command.ReplyError(Communicator, "Failed to create preview: Instagram keeps IP banning the bot, please hold on while we work on a permanent solution. Join the support server at <https://discord.gg/mKKJFvZ> to get updates on this issue and other news.");
-                        }
-                        else
-                        {
-                            await command.ReplyError(Communicator, "Failed to create preview.");
-                        }
+                        await command.ReplyError(Communicator, "Failed to create preview.");
                     }
                     catch (Exception)
                     {
