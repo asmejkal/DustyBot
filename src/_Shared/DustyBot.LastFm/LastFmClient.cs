@@ -343,7 +343,7 @@ namespace DustyBot.LastFm
 
                     var topTracks = Enumerable.Empty<LastFmTrack>();
                     if (topLists.Skip(1).Any())
-                        topTracks = GetTopListItems(topLists.Skip(1).First()).Select(x => new LastFmTrack(x.name, null, x.playcount));
+                        topTracks = GetTopListItems(topLists.Skip(1).First()).Select(x => new LastFmTrack(x.name, new LastFmAlbum(null, info), x.playcount));
 
                     var imageUri = string.IsNullOrEmpty(image) ? null : new Uri(image);
                     return new LastFmArtistDetail(info, imageUri, topAlbums, topTracks, albumsListened, tracksListened, playcount);
