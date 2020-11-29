@@ -25,8 +25,6 @@ namespace DustyBot.Database.Services
         Task<U> Modify<T, U>(ulong serverId, Func<T, Task<U>> action)
             where T : IServerSettings, new();
 
-        Task DeleteServer(ulong serverId);
-
         Task<T> ReadGlobal<T>()
             where T : new();
 

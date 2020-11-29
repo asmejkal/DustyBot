@@ -36,7 +36,7 @@ namespace DustyBot.Modules
         private IUserFetcher UserFetcher { get; }
         private IUrlShortener UrlShortener { get; }
 
-        AsyncMutexCollection<Tuple<ulong, int>> _processingMutexes = new AsyncMutexCollection<Tuple<ulong, int>>();
+        private KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
 
         public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener)
         {
@@ -396,20 +396,16 @@ namespace DustyBot.Modules
                         TaskHelper.FireForget(async () =>
                         {
                             //Process only one reaction at a time for each starboard, so we don't have to deal with race conditions
-                            var mutex = await _processingMutexes.GetOrCreate(Tuple.Create(textChannel.GuildId, board.Id));
-
-                            try
+                            using (await _processingMutex.ClaimAsync((textChannel.GuildId, board.Id)))
                             {
-                                await mutex.WaitAsync();
-                                await ProcessNewStar(board, textChannel, cachedMessage, reaction);
-                            }
-                            catch (Exception ex)
-                            {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
-                            }
-                            finally
-                            {
-                                mutex.Release();
+                                try
+                                {
+                                    await ProcessNewStar(board, textChannel, cachedMessage, reaction);
+                                }
+                                catch (Exception ex)
+                                {
+                                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
+                                }
                             }
                         });
                     }
@@ -541,21 +537,16 @@ namespace DustyBot.Modules
                     {
                         TaskHelper.FireForget(async () =>
                         {
-                            //Process only one reaction at a time for each starboard, so we don't have to deal with race conditions
-                            var mutex = await _processingMutexes.GetOrCreate(Tuple.Create(textChannel.GuildId, board.Id));
-
-                            try
+                            using (await _processingMutex.ClaimAsync((textChannel.GuildId, board.Id)))
                             {
-                                await mutex.WaitAsync();
-                                await ProcessRemovedStar(board, textChannel, cachedMessage, reaction);
-                            }
-                            catch (Exception ex)
-                            {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
-                            }
-                            finally
-                            {
-                                mutex.Release();
+                                try
+                                {
+                                    await ProcessRemovedStar(board, textChannel, cachedMessage, reaction);
+                                }
+                                catch (Exception ex)
+                                {
+                                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
+                                }
                             }
                         });
                     }

@@ -35,7 +35,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.TableStor
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Tools.LiteDBMigrator", "src\Tools\DustyBot.Tools.LiteDBMigrator\DustyBot.Tools.LiteDBMigrator.csproj", "{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.LastFm", "src\_Shared\DustyBot.LastFm\DustyBot.LastFm.csproj", "{1C577DEF-4CBC-4DAC-80CF-1655721517EC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.LastFm", "src\_Shared\DustyBot.LastFm\DustyBot.LastFm.csproj", "{1C577DEF-4CBC-4DAC-80CF-1655721517EC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F32C4682-C1CE-406C-89F2-51177FBCAFED}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Shared", "_Shared", "{E161C255-D3AC-4DDE-A6F8-E6977FA4E09E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Core.Tests", "tests\_Shared\DustyBot.Core.Tests\DustyBot.Core.Tests.csproj", "{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -93,6 +99,10 @@ Global
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -113,6 +123,8 @@ Global
 		{1E0BF54D-018A-400E-85FB-620B27A4E44C} = {3FAC07CE-70AB-49F9-855F-2008BE2E0463}
 		{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D} = {EA1EBF29-05E3-447A-8E74-AC9542FD0D05}
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC} = {D4DD5103-B725-4053-AF2A-5D3421940163}
+		{E161C255-D3AC-4DDE-A6F8-E6977FA4E09E} = {F32C4682-C1CE-406C-89F2-51177FBCAFED}
+		{C2F206B6-C516-40E4-AD5C-1D69FE717FBD} = {E161C255-D3AC-4DDE-A6F8-E6977FA4E09E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2E56349C-26F6-4600-B6BD-65628186ECF4}

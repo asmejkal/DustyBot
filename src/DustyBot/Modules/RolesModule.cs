@@ -24,7 +24,7 @@ using System.Collections.Concurrent;
 
 namespace DustyBot.Modules
 {
-    [Module("Roles", "Role self-assignment.")]
+    [Module("Roles", "Let users choose their own roles  – please check out the <a href=\"+ " + WebConstants.RolesGuidePath + " + \">guide</a>.")]
     class RolesModule : Module
     {
         private class RoleStats : IDisposable
@@ -95,8 +95,8 @@ namespace DustyBot.Modules
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
-        private SemaphoreSlim RoleAssignmentLock { get; } = new SemaphoreSlim(1, 1);
-        private ConcurrentDictionary<ulong, RoleStats> RoleStatsCache { get; } = new ConcurrentDictionary<ulong, RoleStats>();
+        private readonly KeyedSemaphoreSlim<ulong> _roleAssignmentUserMutex = new KeyedSemaphoreSlim<ulong>(1);
+        private readonly ConcurrentDictionary<ulong, RoleStats> _roleStatsCache = new ConcurrentDictionary<ulong, RoleStats>();
 
         public RolesModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
@@ -110,11 +110,11 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(Communicator, $"Check out the guide at <{WebConstants.RolesGuideUrl}>!");
         }
 
-        [Command("roles", "channel", "Sets a channel for role self-assignment.", CommandFlags.Synchronous)]
-        [Alias("role", "channel")]
+        [Command("roles", "set", "channel", "Sets a channel for role self-assignment.", CommandFlags.Synchronous)]
+        [Alias("roles", "channel", true), Alias("role", "channel", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Remainder)]
         public async Task SetRoleChannel(ICommand command)
@@ -135,19 +135,6 @@ namespace DustyBot.Modules
             });
                 
             await command.ReplySuccess(Communicator, "Role channel has been set.");
-        }
-
-        [Command("roles", "channel", "reset", "Disables role self-assignment.", CommandFlags.Synchronous)]
-        [Alias("role", "channel", "reset")]
-        [Permissions(GuildPermission.Administrator)]
-        public async Task Disable(ICommand command)
-        {
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                s.RoleChannel = 0;
-            });
-
-            await command.ReplySuccess(Communicator, "Role channel has been disabled.");
         }
 
         [Command("roles", "toggle", "clearing", "Toggles automatic clearing of role channel.", CommandFlags.Synchronous)]
@@ -347,7 +334,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
-        [Alias("role", "stats")]
+        [Alias("role", "stats"), Alias("bias", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
         public async Task RolesStats(ICommand command)
         {
@@ -366,7 +353,7 @@ namespace DustyBot.Modules
                 });
             }
 
-            var stats = RoleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(Logger));
+            var stats = _roleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(Logger));
             var (data, whenCached) = await stats.GetOrFillAsync(guild, MaxRoleStatsAge, onProgress);
 
             if (progressMessage != null)
@@ -430,6 +417,20 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, pages);
+        }
+
+        [Command("roles", "disable", "Disables role self-assignment.", CommandFlags.Synchronous)]
+        [Alias("roles", "channel", "reset")]
+        [Permissions(GuildPermission.Administrator)]
+        [Comment("Your configured roles will not get deleted. To enable again, use `roles set channel`.")]
+        public async Task Disable(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                s.RoleChannel = default;
+            });
+
+            await command.ReplySuccess(Communicator, "Role channel has been disabled.");
         }
 
         [Command("roles", "group", "add", "Adds one or more roles into a group.", CommandFlags.Synchronous)]
@@ -636,7 +637,7 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    using (await RoleAssignmentLock.ClaimAsync()) // To prevent race-conditions when spamming roles (would be nicer with per-guild locks)
+                    using (await _roleAssignmentUserMutex.ClaimAsync(user.Id)) // To prevent race-conditions when spamming roles
                     {
                         var settings = await Settings.Read<RolesSettings>(channel.Guild.Id, false);
                         if (settings == null || settings.RoleChannel != channel.Id)
