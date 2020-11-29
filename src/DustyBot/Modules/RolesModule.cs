@@ -12,7 +12,6 @@ using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
-using DustyBot.Helpers;
 using DustyBot.Definitions;
 using DustyBot.Framework.Exceptions;
 using System.Threading;
@@ -24,7 +23,7 @@ using System.Collections.Concurrent;
 
 namespace DustyBot.Modules
 {
-    [Module("Roles", "Let users choose their own roles  – please check out the <a href=\"+ " + WebConstants.RolesGuidePath + " + \">guide</a>.")]
+    [Module("Roles", "Let users choose their own roles  – please check out the <a href=\"" + WebConstants.RolesGuideUrl + "\">guide</a>.")]
     class RolesModule : Module
     {
         private class RoleStats : IDisposable

@@ -25,7 +25,7 @@ using Discord.WebSocket;
 namespace DustyBot.Modules
 {
     //TODO: Rework into an actual OO design
-    [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"+ " + WebConstants.ScheduleGuideUrl + " + \">guide</a>.")]
+    [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"" + WebConstants.ScheduleGuideUrl + "\">guide</a>.")]
     class ScheduleModule : Module
     {
         public static readonly Embed Guide = new EmbedBuilder()
