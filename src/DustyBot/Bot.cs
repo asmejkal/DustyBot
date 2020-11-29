@@ -17,6 +17,7 @@ using DustyBot.Framework.Utility;
 using Discord;
 using DustyBot.Config;
 using Discord.Rest;
+using DustyBot.Services;
 
 namespace DustyBot
 {
@@ -90,8 +91,11 @@ namespace DustyBot
             [Option("bitlykey", HelpText = "Bit.ly generic access token (Polr preferred).")]
             public string BitlyKey { get; set; }
 
-            [Option("proxyurl", HelpText = "URL of a rotating proxy.")]
-            public string RotatingProxyUrl { get; set; }
+            [Option("proxylisturl", HelpText = "URL of a proxy list.")]
+            public string ProxyListUrl { get; set; }
+
+            [Option("proxylisttoken", HelpText = "Token for the proxy list.")]
+            public string ProxyListToken { get; set; }
         }
 
         private ICollection<IModule> _modules;
@@ -170,9 +174,17 @@ namespace DustyBot
                     if (!string.IsNullOrEmpty(config.TableStorageConnectionString))
                         spotifyAccountsService = new SpotifyAccountsService(config.TableStorageConnectionString);
 
-                    var scheduleService = new Services.ScheduleService(components.Client, settings, components.Logger);
+                    var scheduleService = new ScheduleService(components.Client, settings, components.Logger);
                     var userFetcher = new UserFetcher(restClient);
                     components.UserFetcher = userFetcher;
+
+                    // Proxy services
+                    IProxyService proxyService = null;
+                    if (!string.IsNullOrEmpty(config.ProxyListUrl))
+                    {
+                        proxyService = new RotatingProxyService(config.ProxyListToken, new Uri(config.ProxyListUrl), new ProxyListService(settings), logger);
+                        components.Services.Add((IService)proxyService);
+                    }
 
                     //Choose modules
                     components.Modules.Add(new Modules.BotModule(components.Communicator, settings, this, components.Client));
@@ -181,7 +193,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.SpotifyModule(components.Communicator, settings, spotifyAccountsService, config));
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
-                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config, shortener));
+                    components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config, shortener, proxyService));
                     components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
                     components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, userFetcher, shortener));
@@ -197,7 +209,7 @@ namespace DustyBot
                     _modules = components.Modules;
 
                     //Choose services
-                    components.Services.Add(new Services.DaumCafeService(components.Client, settings, components.Logger));
+                    components.Services.Add(new DaumCafeService(components.Client, settings, components.Logger));
                     components.Services.Add(scheduleService);
                     _services = components.Services;
 
@@ -291,8 +303,11 @@ namespace DustyBot
                         if (opts.BitlyKey != null)
                             s.BitlyKey = opts.BitlyKey;
 
-                        if (opts.RotatingProxyUrl != null)
-                            s.RotatingProxyUrl = opts.RotatingProxyUrl;
+                        if (opts.ProxyListUrl != null)
+                            s.ProxyListUrl = opts.ProxyListUrl;
+
+                        if (opts.ProxyListToken != null)
+                            s.ProxyListToken = opts.ProxyListToken;
                     });
                 }
             }

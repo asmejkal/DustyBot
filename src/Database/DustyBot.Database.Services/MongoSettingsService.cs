@@ -249,6 +249,27 @@ namespace DustyBot.Database.Services
             }
         }
 
+        public async Task<U> ModifyGlobal<T, U>(Func<T, U> action)
+            where T : new()
+        {
+            var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
+
+            try
+            {
+                await settingsLock.WaitAsync();
+
+                var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId));
+                var result = action(settings);
+                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings);
+
+                return result;
+            }
+            finally
+            {
+                settingsLock.Release();
+            }
+        }
+
         private Task<T> CreateUser<T>(ulong userId)
             where T : IUserSettings, new()
         {

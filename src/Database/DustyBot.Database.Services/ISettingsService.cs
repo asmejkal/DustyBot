@@ -33,6 +33,9 @@ namespace DustyBot.Database.Services
         Task ModifyGlobal<T>(Action<T> action)
             where T : new();
 
+        Task<U> ModifyGlobal<T, U>(Func<T, U> action)
+            where T : new();
+
         //User settings
         Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
             where T : IUserSettings, new();

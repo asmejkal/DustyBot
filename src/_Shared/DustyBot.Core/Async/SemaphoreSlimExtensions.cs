@@ -23,5 +23,11 @@ namespace DustyBot.Core.Async
             await s.WaitAsync();
             return new LockScope(s);
         }
+
+        public static async Task<LockScope> ClaimAsync(this SemaphoreSlim s, CancellationToken ct)
+        {
+            await s.WaitAsync(ct);
+            return new LockScope(s);
+        }
     }
 }
