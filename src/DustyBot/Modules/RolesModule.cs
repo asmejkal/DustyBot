@@ -636,18 +636,18 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
+                    var settings = await Settings.Read<RolesSettings>(channel.Guild.Id, false);
+                    if (settings == null || settings.RoleChannel != channel.Id)
+                        return;
+
+                    if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Can't assign role because of missing SendMessage permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                        return;
+                    }
+
                     using (await _roleAssignmentUserMutex.ClaimAsync(user.Id)) // To prevent race-conditions when spamming roles
                     {
-                        var settings = await Settings.Read<RolesSettings>(channel.Guild.Id, false);
-                        if (settings == null || settings.RoleChannel != channel.Id)
-                            return;
-
-                        if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
-                        {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Can't assign role because of missing SendMessage permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
-                            return;
-                        }
-
                         try
                         {
                             await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
