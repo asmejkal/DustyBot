@@ -124,12 +124,12 @@ namespace DustyBot.LastFm
                 if (tracks != null && tracks.Any())
                 {
                     var nowPlaying = page == 1 && string.Compare((string)tracks[0]["@attr"]?["nowplaying"], "true", true) == 0;
-                    var result = tracks.Select(x =>
+                    var result = tracks.Select((x, i) =>
                     {
                         var uts = (long?)x["date"]?["uts"];
                         return new LastFmRecentTrack(
                             (string)x["name"],
-                            nowPlaying, 
+                            i == 0 && nowPlaying, 
                             (string)x["artist"]?["name"], 
                             (string)x["album"]?["#text"],
                             GetLargestImage(x["image"]),
@@ -183,7 +183,11 @@ namespace DustyBot.LastFm
             if (period == LastFmDataPeriod.Day)
             {
                 var tracks = await GetRecentTracks(StatsPeriodTimeMapping[period]);
-                return tracks.SkipWhile(x => x.NowPlaying).GroupBy(x => x.Artist.Id).Select(x => x.First().Artist.WithPlaycount(x.Count()));
+                return tracks
+                    .SkipWhile(x => x.NowPlaying)
+                    .GroupBy(x => x.Artist.Id)
+                    .Select(x => x.First().Artist.WithPlaycount(x.Count()))
+                    .OrderByDescending(x => x.Playcount);
             }
             else
             {
@@ -205,7 +209,11 @@ namespace DustyBot.LastFm
             if (period == LastFmDataPeriod.Day)
             {
                 var tracks = await GetRecentTracks(StatsPeriodTimeMapping[period]);
-                return tracks.SkipWhile(x => x.NowPlaying).GroupBy(x => x.Album.Id).Select(x => x.First().Album.WithPlaycount(x.Count()));
+                return tracks
+                    .SkipWhile(x => x.NowPlaying)
+                    .GroupBy(x => x.Album.Id)
+                    .Select(x => x.First().Album.WithPlaycount(x.Count()))
+                    .OrderByDescending(x => x.Playcount);
             }
             else
             {
@@ -227,7 +235,11 @@ namespace DustyBot.LastFm
             if (period == LastFmDataPeriod.Day)
             {
                 var tracks = await GetRecentTracks(StatsPeriodTimeMapping[period]);
-                return tracks.SkipWhile(x => x.NowPlaying).GroupBy(x => x.Id).Select(x => x.First().ToTrack(x.Count()));
+                return tracks
+                    .SkipWhile(x => x.NowPlaying)
+                    .GroupBy(x => x.Id)
+                    .Select(x => x.First().ToTrack(x.Count()))
+                    .OrderByDescending(x => x.Playcount);
             }
             else
             {
