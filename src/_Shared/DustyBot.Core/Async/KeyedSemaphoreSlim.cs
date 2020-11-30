@@ -67,7 +67,7 @@ namespace DustyBot.Core.Async
 
         private bool _isDisposed;
 
-        public KeyedSemaphoreSlim(int initialCount, int maxPoolSize = 20)
+        public KeyedSemaphoreSlim(int initialCount, int maxPoolSize = 100)
         {
             if (initialCount < 1)
                 throw new ArgumentException(nameof(initialCount));

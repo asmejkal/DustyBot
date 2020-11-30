@@ -77,5 +77,19 @@ namespace DustyBot.Core.Formatting
                 .OfType<Match>()
                 .Select(m => m.Value));
         }
+
+        public static string Trim(this string value, char trimChar, int occurences)
+        {
+            int begin, end;
+            for (begin = 0; begin < occurences; ++begin)
+                if (begin >= value.Length || value[begin] != trimChar)
+                    break;
+
+            for (end = value.Length - 1; end >= value.Length - occurences; --end)
+                if (end < begin || value[end] != trimChar)
+                    break;
+
+            return (begin == 0 && end == value.Length - 1) ? value : value.Substring(begin, end - begin + 1);
+        }
     }
 }

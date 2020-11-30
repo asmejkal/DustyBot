@@ -24,14 +24,12 @@ namespace DustyBot.Modules
         private ICommunicator Communicator { get; }
         private ISettingsService Settings { get; }
         private ILogger Logger { get; }
-        private BaseSocketClient SocketClient { get; }
 
-        public LogModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BaseSocketClient socketClient)
+        public LogModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
-            SocketClient = socketClient;
         }
 
         [Command("log", "help", "Shows help for this module.", CommandFlags.Hidden)]

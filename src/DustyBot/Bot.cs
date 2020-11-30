@@ -204,7 +204,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, settings, components.Logger, client, userFetcher));
-                    components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger, client));
+                    components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.InfoModule(components.Communicator, settings, components.Logger, userFetcher));
                     _modules = components.Modules;
 

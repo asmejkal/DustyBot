@@ -1,5 +1,4 @@
 using DustyBot.Core.Async;
-using System;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -93,7 +92,7 @@ namespace DustyBot.Core.Tests.Async
                 rb1.Dispose();
                 var rc1 = await tc1;
                 rc1.Dispose();
-                await Task.Delay(20);
+                await TaskHelper.YieldMany(100);
 
                 // Show that the second entry is now complete.
                 Assert.True(ta2.IsCompleted);
@@ -105,7 +104,7 @@ namespace DustyBot.Core.Tests.Async
                 ra2.Dispose();
                 var rb2 = await tb2;
                 rb2.Dispose();
-                await Task.Delay(20);
+                await TaskHelper.YieldMany(100);
 
                 // Show that the third entry is now complete.
                 Assert.True(ta3.IsCompleted);
@@ -113,7 +112,7 @@ namespace DustyBot.Core.Tests.Async
                 // Complete the third entry by disposing.
                 var ra3 = await ta3;
                 ra3.Dispose();
-                await Task.Delay(20);
+                await TaskHelper.YieldMany(100);
 
                 // Assert that each key shares a unique scope instance.
                 Assert.Same(ra1, ra2);
@@ -143,7 +142,7 @@ namespace DustyBot.Core.Tests.Async
                 rf1.Dispose();
                 var rg1 = await tg1;
                 rg1.Dispose();
-                await Task.Delay(20);
+                await TaskHelper.YieldMany(100);
 
                 if (maxPoolSize >= 3)
                 {
