@@ -300,7 +300,7 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    var channel = message.Channel as ITextChannel;
+                    var channel = message.Channel as SocketTextChannel;
                     if (channel == null)
                         return;
 
@@ -311,7 +311,10 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    var settings = await Settings.Read<ReactionsSettings>(channel.GuildId, false);
+                    if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+                        return;
+
+                    var settings = await Settings.Read<ReactionsSettings>(channel.Guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -323,7 +326,7 @@ namespace DustyBot.Modules
 
                     await Communicator.SendMessage(channel, reaction.Value);
 
-                    await Settings.Modify(channel.GuildId, (ReactionsSettings x) => x.Reactions.First(x => x.Id == reaction.Id).TriggerCount++);
+                    await Settings.Modify(channel.Guild.Id, (ReactionsSettings x) => x.Reactions.First(x => x.Id == reaction.Id).TriggerCount++);
                 }
                 catch (Exception ex)
                 {

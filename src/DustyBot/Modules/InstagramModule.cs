@@ -20,9 +20,9 @@ using System.Collections.Concurrent;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
-using Newtonsoft.Json;
 using DustyBot.Services;
 using DustyBot.Exceptions;
+using System.Diagnostics;
 
 namespace DustyBot.Modules
 {
@@ -100,7 +100,7 @@ namespace DustyBot.Modules
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {command.Author.Username} ({command.Author.Id}) on {command.Guild.Name}", ex));
 
                     if (ex is ProxiesDepletedException)
-                        await command.Reply(Communicator, $"Instagram has blocked all of Dusty's IP addresses. Please try again later. \nProxy adresses cost money, if you'd like to help us buy more, check out <{IntegrationConstants.PatreonPage}>.");
+                        await command.Reply(Communicator, $"Instagram has blocked all of Dusty's IP addresses. Please try again later.");
                     else
                         await command.ReplyError(Communicator, "Failed to create preview.");
                 }
@@ -156,13 +156,20 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"The default style for automatic Instagram previews on this server is now `{command["Style"]}`! This can be overriden by users' personal settings.");
         }
 
+        [Command("ig", "proxy", "refresh", "Refreshes the proxy list.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        public async Task RefreshProxies(ICommand command)
+        {
+            await ProxyService.ForceRefreshAsync();
+            await command.ReplySuccess(Communicator, "Done.");
+        }
+
         public override Task OnMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
-                    var channel = message.Channel as ITextChannel;
+                    var channel = message.Channel as SocketTextChannel;
                     if (channel == null)
                         return;
 
@@ -171,6 +178,9 @@ namespace DustyBot.Modules
                         return;
 
                     if (user.IsBot)
+                        return;
+
+                    if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                         return;
 
                     var userSettings = await Settings.ReadUser<UserMediaSettings>(user.Id, false);
@@ -193,7 +203,7 @@ namespace DustyBot.Modules
                     if (!matches.Any())
                         return;
 
-                    var botSettings = await Settings.Read<BotSettings>(channel.GuildId, createIfNeeded: false);
+                    var botSettings = await Settings.Read<BotSettings>(channel.Guild.Id, createIfNeeded: false);
                     var commandMatch = SocketCommand.FindLongestMatch(message.Content, botSettings?.CommandPrefix ?? Config.DefaultCommandPrefix, new[] { HandledCommands.Single(x => x.PrimaryUsage.InvokeUsage == "ig") });
                     if (commandMatch != null)
                         return; // Don't create duplicate previews from the ig command
@@ -310,8 +320,10 @@ namespace DustyBot.Modules
 
         private async Task<string> FetchPreviewAsync(string id)
         {
-            const int maxRetries = 6;
-            for (int i = 0; i < maxRetries; ++i)
+            const int maxRetries = 20;
+            TimeSpan maxWait = TimeSpan.FromSeconds(10);
+            var stopwatch = Stopwatch.StartNew();
+            for (int i = 0; i < maxRetries && stopwatch.Elapsed < maxWait; ++i)
             {
                 var proxy = await ProxyService.GetProxyAsync();
 
@@ -323,11 +335,12 @@ namespace DustyBot.Modules
                     request.Referer = "https://www.instagram.com/p/{id}/";
                     request.Headers.Add("Accept-Encoding", "gzip, deflate, br");
                     request.Proxy = proxy;
+                    request.Timeout = 8000;
 
                     using var response = (HttpWebResponse)await request.GetResponseAsync();
                     if (response.ResponseUri.AbsolutePath == "/accounts/login/")
                     {
-                        await ProxyService.BlacklistProxyAsync(proxy);
+                        await ProxyService.BlacklistProxyAsync(proxy, TimeSpan.FromHours(5));
                         await Logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to block of proxy {proxy.Address.AbsoluteUri}."));
                         continue;
                     }
@@ -337,9 +350,14 @@ namespace DustyBot.Modules
 
                     return await reader.ReadToEndAsync();
                 }
+                catch (WebException ex) when (ex.Status == WebExceptionStatus.Timeout)
+                {
+                    await ProxyService.BlacklistProxyAsync(proxy, TimeSpan.FromDays(1));
+                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to timeout of proxy {proxy.Address.AbsoluteUri}."));
+                }
                 catch (WebException ex) when ((ex.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.TooManyRequests)
                 {
-                    await ProxyService.BlacklistProxyAsync(proxy);
+                    await ProxyService.BlacklistProxyAsync(proxy, TimeSpan.FromHours(2));
                     await Logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to rate limit of proxy {proxy.Address.AbsoluteUri}."));
                 }
             }

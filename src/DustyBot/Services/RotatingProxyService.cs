@@ -18,7 +18,6 @@ namespace DustyBot.Services
     internal sealed class RotatingProxyService : BaseRecurringTaskService, IProxyService, IDisposable
     {
         private static readonly TimeSpan ProxyListRefreshPeriod = TimeSpan.FromHours(1);
-        private static readonly TimeSpan BlacklistDuration = TimeSpan.FromDays(1);
 
         private readonly string _token;
         private readonly Uri _proxyListUrl;
@@ -49,17 +48,19 @@ namespace DustyBot.Services
             return proxies[Interlocked.Increment(ref _proxyCounter) % proxies.Count];
         }
 
-        public async Task BlacklistProxyAsync(WebProxy proxy)
+        public async Task BlacklistProxyAsync(WebProxy proxy, TimeSpan duration)
         {
             using (await _proxiesLock.ClaimAsync())
             {
                 if (_proxies != null)
                     _proxies = _proxies.Remove(proxy);
 
-                await _proxyList.BlacklistProxyAsync(proxy.Address.AbsoluteUri, BlacklistDuration);
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Blacklisted proxy {proxy.Address.AbsoluteUri} until {DateTime.UtcNow + BlacklistDuration}, {_proxies.Count} proxies remaining."));
+                await _proxyList.BlacklistProxyAsync(proxy.Address.AbsoluteUri, duration);
+                await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Blacklisted proxy {proxy.Address.AbsoluteUri} until {DateTime.UtcNow + duration}, {_proxies.Count} proxies remaining."));
             }
         }
+
+        public Task ForceRefreshAsync() => ExecuteAsync(default);
 
         protected override async Task ExecuteAsync(CancellationToken ct)
         {
