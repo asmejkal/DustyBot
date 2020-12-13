@@ -1,12 +1,12 @@
 version: '3.5'
 
 services:
-    dustybotweb:
+    dustybot-web:
         build: 
             context: ../../
             dockerfile: src/DustyBot.Web/Dockerfile
-        image: dustybotweb
-        container_name: dustybotweb
+        image: dustybot-web
+        container_name: dustybot-web
         ports:
             - "80:80"
         environment:
