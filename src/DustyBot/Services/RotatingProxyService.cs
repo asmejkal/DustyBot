@@ -64,20 +64,26 @@ namespace DustyBot.Services
 
         protected override async Task ExecuteAsync(CancellationToken ct)
         {
-            var request = WebRequest.CreateHttp(_proxyListUrl);
-            request.Headers.Add("Authorization", $"Token {_token}");
-
-            using var response = await request.GetResponseAsync();
-            using var reader = new StreamReader(response.GetResponseStream());
-
-            var text = await reader.ReadToEndAsync();
-            var root = JObject.Parse(text);
-
             var proxies = new List<WebProxy>();
-            foreach (var result in (JArray)root["results"])
+            for (int i = 1; ; i++)
             {
-                var credentials = new NetworkCredential((string)result["username"], (string)result["password"]);
-                proxies.Add(new WebProxy(new UriBuilder("http", (string)result["proxy_address"]).Uri) { Credentials = credentials });
+                var request = WebRequest.CreateHttp(new UriBuilder(_proxyListUrl) { Query = $"?page={i}" }.Uri);
+                request.Headers.Add("Authorization", $"Token {_token}");
+
+                using var response = await request.GetResponseAsync();
+                using var reader = new StreamReader(response.GetResponseStream());
+
+                var text = await reader.ReadToEndAsync();
+                var root = JObject.Parse(text);
+
+                foreach (var result in (JArray)root["results"])
+                {
+                    var credentials = new NetworkCredential((string)result["username"], (string)result["password"]);
+                    proxies.Add(new WebProxy(new UriBuilder("http", (string)result["proxy_address"]).Uri) { Credentials = credentials });
+                }
+
+                if ((string)root["next"] == null)
+                    break;
             }
 
             using (await _proxiesLock.ClaimAsync(ct))
