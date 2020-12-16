@@ -21,9 +21,6 @@ namespace DustyBot.Framework.Commands
             }
             set
             {
-                if (value.HasFlag(ParameterFlags.Repeatable) && value.HasFlag(ParameterFlags.Remainder))
-                    throw new ArgumentException("Invalid flag combination.");
-
                 _flags = value;
             }
         }

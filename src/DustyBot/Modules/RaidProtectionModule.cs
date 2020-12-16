@@ -296,40 +296,6 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Rule has been reset.");
         }
 
-        [Command("raid", "protection", "rules", "migrate", "Migrates to wildcards.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
-        public async Task MigrateRulesRaidProtection(ICommand command)
-        {
-            var settings = await Settings.Read<RaidProtectionSettings>();
-            var migrations = new List<(ulong ServerId, IReadOnlyList<string> Before, IReadOnlyList<string> After)>();
-            foreach (var setting in settings)
-            {
-                await Settings.Modify(setting.ServerId, (RaidProtectionSettings x) =>
-                {
-                    if (x.PhraseBlacklistRule.Blacklist.Any())
-                    {
-                        var before = x.PhraseBlacklistRule.Blacklist;
-                        x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
-                        {
-                            Type = x.PhraseBlacklistRule.Type,
-                            Enabled = x.PhraseBlacklistRule.Enabled,
-                            Delete = x.PhraseBlacklistRule.Delete,
-                            MaxOffenseCount = x.PhraseBlacklistRule.MaxOffenseCount,
-                            OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
-                            Blacklist = x.PhraseBlacklistRule.Blacklist.Select(y => $"*{y}*").ToList()
-                        });
-
-                        migrations.Add((x.ServerId, before, x.PhraseBlacklistRule.Blacklist));
-                    }
-                });
-            }
-
-            var result = new StringBuilder($"Migrated {migrations.Count} settings:");
-            foreach (var migration in migrations)
-                result.AppendLine($"`{migration.ServerId}`: {migration.Before.WordJoinQuoted(lastSeparator: ", ")} -> {migration.After.WordJoinQuoted(lastSeparator: ", ")}");
-
-            await command.ReplySuccess(Communicator, result.ToString());
-        }
-
         public override Task OnMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>

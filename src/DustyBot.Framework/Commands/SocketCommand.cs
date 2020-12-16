@@ -177,21 +177,34 @@ namespace DustyBot.Framework.Commands
                         return new ParseResult(ParseResultType.NotEnoughParameters);
                 }
 
-                // Extend the current token in case this parameter requires a remainder
                 var token = tokensQ.Peek();
+
+                // Extend the current token in case this parameter requires a remainder
+                bool? remainderMatch = null;
                 if (param.Flags.HasFlag(ParameterFlags.Remainder))
                 {
                     string value = Body.Substring(token.Begin);
+                    ParameterToken remainder;
 
                     // Handle the case when a user surrounds the remainder with quotes (even though they don't have to)
                     if (value.Length >= 2 && TextQualifiers.Contains(value.First()) && TextQualifiers.Contains(value.Last()))
-                        token = new ParameterToken(new Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild, _userFetcher);
+                        remainder = new ParameterToken(new Token() { Begin = token.Begin + 1, End = Body.Length - 1, Value = value.Substring(1, value.Length - 2) }, token.Guild, _userFetcher);
                     else
-                        token = new ParameterToken(new Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild, _userFetcher);
+                        remainder = new ParameterToken(new Token() { Begin = token.Begin, End = Body.Length, Value = value }, token.Guild, _userFetcher);
+
+                    remainderMatch = await CheckToken(remainder, param);
+                    if (remainderMatch.Value)
+                    {
+                        token = remainder;
+                    }
+                    else if (param.Flags.HasFlag(ParameterFlags.Repeatable))
+                    {
+                        remainderMatch = null; // Give it a second chance as a repeatable parameter
+                    }
                 }
 
                 // Check if the token fits the parameter description
-                if (!await CheckToken(token, param))
+                if (!(remainderMatch ?? await CheckToken(token, param)))
                 {
                     if (param.Flags.HasFlag(ParameterFlags.Optional))
                         continue;
@@ -222,7 +235,7 @@ namespace DustyBot.Framework.Commands
                 }
 
                 // Remove the fitting token(s) from queue
-                if (param.Flags.HasFlag(ParameterFlags.Remainder))
+                if (remainderMatch ?? false)
                     tokensQ.Clear();
                 else
                     tokensQ.Dequeue();
