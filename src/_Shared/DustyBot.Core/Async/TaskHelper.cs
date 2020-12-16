@@ -34,5 +34,11 @@ namespace DustyBot.Core.Async
                     TaskContinuationOptions.OnlyOnFaulted);
             }
         }
+
+        public static async Task YieldMany(int count)
+        {
+            for (int i = 0; i < count; ++i)
+                await Task.Yield();
+        }
     }
 }

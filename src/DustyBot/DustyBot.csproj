@@ -13,18 +13,18 @@
     <Authors>Yebafan</Authors>
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
-    <Version>3.1.2</Version>
+    <Version>3.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Database\DustyBot.Database.Services\DustyBot.Database.Services.csproj" />
     <ProjectReference Include="..\DustyBot.Framework\DustyBot.Framework.csproj" />
     <ProjectReference Include="..\_Shared\DustyBot.Core\DustyBot.Core.csproj" />
+    <ProjectReference Include="..\_Shared\DustyBot.LastFm\DustyBot.LastFm.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.2.1" />
-    <PackageReference Include="Discord.Net" Version="2.3.0-dev-20200904.2" />
     <PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.8" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.8" />

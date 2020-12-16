@@ -10,6 +10,7 @@ using System;
 using Discord.WebSocket;
 using DustyBot.Framework.Utility;
 using DustyBot.Database.Services;
+using System.Text;
 
 namespace DustyBot.Modules
 {
@@ -55,19 +56,29 @@ namespace DustyBot.Modules
                 .WithTitle((string.IsNullOrEmpty(user.Nickname) ? "" : $"{user.Nickname} – ") + $"{user.Username}#{user.Discriminator}")
                 .WithUrl(avatar)
                 .WithThumbnailUrl(avatar)
-                .WithDescription(user.Status.ToString())
                 .WithFooter($"#{user.Id} • times in UTC");
 
             if (user.JoinedAt.HasValue)
-                embed.AddField(x => x.WithName("Joined the server on").WithValue($"{user.JoinedAt?.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.JoinedAt.Value).TotalDays)} days ago)"));
+                embed.AddField(x => x.WithName("Joined this server on").WithValue($"{user.JoinedAt?.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.JoinedAt.Value).TotalDays)} days ago)"));
 
-            // User RoleIds aren't ordered properly, so we have to go through guild roles
-            var roles = command.Guild.Roles.Where(x => x.Id != command.Guild.EveryoneRole.Id && user.RoleIds.Contains(x.Id))
-                .OrderByDescending(x => x.Position)
-                .Select(y => $"<@&{y.Id}>");
+            var roles = command.Guild.Roles.Where(x => x.Id != command.Guild.EveryoneRole.Id && user.RoleIds.Contains(x.Id)).ToList();
+
+            if (user.Id == command.Guild.OwnerId)
+                embed.WithDescription("Owner");
+            else
+                embed.WithDescription("Member");
+
+            var rolesBuilder = new StringBuilder();
+            foreach (var item in roles.OrderByDescending(x => x.Position).Select(y => $"<@&{y.Id}> "))
+            {
+                if (rolesBuilder.Length + item.Length > DiscordHelpers.MaxEmbedFieldLength)
+                    break;
+
+                rolesBuilder.Append(item);
+            }
 
             embed.AddField(x => x.WithName("Account created on").WithValue($"{user.CreatedAt.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.CreatedAt).TotalDays)} days ago)"));
-            embed.AddField(x => x.WithName("Roles").WithValue(roles.Any() ? string.Join(" ", roles) : "None"));
+            embed.AddField(x => x.WithName("Roles").WithValue(rolesBuilder.Length > 0 ? rolesBuilder.ToString() : "None"));
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }

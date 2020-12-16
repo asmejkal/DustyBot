@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DustyBot.Core.Formatting;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
@@ -18,18 +19,83 @@ using Discord.Rest;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Definitions;
 
 namespace DustyBot.Modules
 {
-    [Module("Raid protection", "Protects your server against raiding.")]
+    [Module("Raid protection", "Protect your server against raiders.")]
     class RaidProtectionModule : Module
     {
-        public const string MuteRoleName = "Muted";
+        private class SlidingMessageCache : ICollection<IMessage>
+        {
+            List<IMessage> _data = new List<IMessage>();
+
+            public int Count => _data.Count;
+            public bool IsReadOnly => false;
+
+            public void Add(IMessage item)
+            {
+                var i = _data.FindLastIndex(x => x.Timestamp <= item.Timestamp);
+                _data.Insert(i < 0 ? 0 : i + 1, item);
+            }
+
+            public void SlideWindow(TimeSpan windowSize)
+            {
+                var last = _data.LastOrDefault();
+                if (last != null)
+                    _data.RemoveAll(x => x.Timestamp < last.Timestamp - windowSize);
+            }
+
+            public void SlideWindow(TimeSpan windowSize, DateTimeOffset end)
+            {
+                _data.RemoveAll(x => x.Timestamp < end - windowSize);
+            }
+
+            public void Clear() => _data.Clear();
+            public bool Contains(IMessage item) => _data.Contains(item);
+            public void CopyTo(IMessage[] array, int arrayIndex) => _data.CopyTo(array, arrayIndex);
+            public IEnumerator<IMessage> GetEnumerator() => _data.GetEnumerator();
+            public bool Remove(IMessage item) => _data.Remove(item);
+            IEnumerator IEnumerable.GetEnumerator() => _data.GetEnumerator();
+        }
+
+        private abstract class BaseContext
+        {
+            public SemaphoreSlim Mutex { get; } = new SemaphoreSlim(1, 1);
+        }
+
+        private class GlobalContext : BaseContext
+        {
+            public DateTime LastCleanup { get; set; } = DateTime.MinValue;
+            public DateTime LastReport { get; set; } = DateTime.MinValue;
+            public Dictionary<ulong, GuildContext> GuildContexts { get; } = new Dictionary<ulong, GuildContext>();
+        }
+
+        private class GuildContext : BaseContext
+        {
+            public Dictionary<ulong, UserContext> UserContexts { get; } = new Dictionary<ulong, UserContext>();
+        }
+
+        private class UserContext : BaseContext
+        {
+            public Dictionary<RaidProtectionRuleType, SlidingMessageCache> Offenses { get; } = new Dictionary<RaidProtectionRuleType, SlidingMessageCache>();
+            public SlidingMessageCache ImagePosts { get; } = new SlidingMessageCache();
+            public SlidingMessageCache TextPosts { get; } = new SlidingMessageCache();
+
+            public bool Empty => Offenses.Count <= 0 && ImagePosts.Count <= 0 && TextPosts.Count <= 0;
+        }
 
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
         public DiscordRestClient RestClient { get; }
+
+        private static readonly TimeSpan MaxMessageProcessingDelay = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan CleanupTimer = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan ReportTimer = TimeSpan.FromMinutes(30);
+
+        private readonly GlobalContext _context = new GlobalContext();
 
         public RaidProtectionModule(ICommunicator communicator, ISettingsService settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
         {
@@ -66,7 +132,7 @@ namespace DustyBot.Modules
                 x.LogChannel = command["LogChannel"].AsTextChannel.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid-protection rules` to see the active rules.");
+            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid protection rules` to see the active rules.");
         }
 
         [Command("raid", "protection", "disable", "Disables raid protection.")]
@@ -87,8 +153,8 @@ namespace DustyBot.Modules
             var settings = await Settings.Read<RaidProtectionSettings>(command.GuildId);
             var result = new StringBuilder();
             result.AppendLine($"Protection **{(settings.Enabled ? "enabled" : "disabled")}**.");
-            result.AppendLine("Please contact the bot owner to modify any of these settings for your server.");
-            result.AppendLine("Phrase blacklist can be set with the `raid-protection blacklist` command.\n");
+            result.AppendLine($"Please make a request in the support server to modify any of these settings for your server (<{WebConstants.SupportServerInvite}>).");
+            result.AppendLine("Phrase blacklist can be set with the `raid protection blacklist add` command.\n");
 
             var PrintDefaultFlag = new Func<RaidProtectionRuleType, string>(x => settings.IsDefault(x) ? " (default)" : "");
             result.AppendLine($"**MassMentionsRule** - if enabled, blocks messages containing more than {settings.MassMentionsRule.MentionsLimit} mentioned users" + PrintDefaultFlag(RaidProtectionRuleType.MassMentionsRule));
@@ -106,16 +172,103 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result.ToString());
         }
 
+        [Command("raid", "protection", "blacklist", "add", "Adds one or more blacklisted phrases.")]
+        [Alias("raid-protection", "blacklist", "add", true)]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Phrases", ParameterType.String, ParameterFlags.Repeatable, "one or more phrases separated by spaces")]
+        [Comment("Use the `*` wildcard before or after the phrase to also match longer phrases. For example, `darn*` also matches `darnit`. Matching is not case sensitive.\n\n Messages that match any of these phrases will be handled according to the PhraseBlacklist rule (default: the offending message will be deleted and upon commiting 3 offenses within 5 minutes the offending user will be muted).")]
+        [Example("darn*")]
+        [Example("\"fudge nugget\" *dang")]
+        public async Task AddBlacklistRaidProtection(ICommand command)
+        {
+            const int minLength = 3;
+            const int guildLimit = 50;
+
+            var phrases = command["Phrases"].Repeats.Select(x => x.AsString).ToList();
+            var tooShort = phrases.Where(x => x.Length < minLength);
+            if (tooShort.Any())
+                throw new IncorrectParametersCommandException($"A phrase needs to be at least {minLength} characters long. The following phrases are too short: {tooShort.WordJoinQuoted()}.", false);
+
+            var added = await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            {
+                if (x.PhraseBlacklistRule.Blacklist.Count + phrases.Count > guildLimit)
+                    throw new AbortException($"You can only have up to {guildLimit} blacklisted phrases in a server.");
+
+                x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
+                {
+                    Type = x.PhraseBlacklistRule.Type,
+                    Enabled = true,
+                    Delete = x.PhraseBlacklistRule.Delete,
+                    MaxOffenseCount = x.PhraseBlacklistRule.MaxOffenseCount,
+                    OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
+                    Blacklist = x.PhraseBlacklistRule.Blacklist.Concat(phrases).Distinct().ToList()
+                });
+
+                return phrases;
+            });
+
+            await command.ReplySuccess(Communicator, $"The following phrases have been added to the blacklist: {added.WordJoinQuoted()}.");
+        }
+
+        [Command("raid", "protection", "blacklist", "remove", "Removes one or more blacklisted phrases.")]
+        [Alias("raid-protection", "blacklist", "remove", true)]
+        [Permissions(GuildPermission.Administrator)]
+        [Parameter("Phrases", ParameterType.String, ParameterFlags.Repeatable, "one or more phrases separated by spaces")]
+        [Example("darn*")]
+        [Example("\"fudge nugget\" *dang")]
+        public async Task RemoveBlacklistRaidProtection(ICommand command)
+        {
+            var phrases = command["Phrases"].Repeats.Select(x => x.AsString).ToList();
+            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            {
+                var missing = phrases.Except(x.PhraseBlacklistRule.Blacklist);
+                if (missing.Any())
+                    throw new IncorrectParametersCommandException($"Phrases {missing.WordJoinQuoted()} are not in the blacklist.", false);
+
+                var complement = x.PhraseBlacklistRule.Blacklist.Except(phrases).ToList();
+                x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
+                {
+                    Type = x.PhraseBlacklistRule.Type,
+                    Enabled = complement.Any(),
+                    Delete = x.PhraseBlacklistRule.Delete,
+                    MaxOffenseCount = x.PhraseBlacklistRule.MaxOffenseCount,
+                    OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
+                    Blacklist = complement
+                });
+            });
+
+            await command.ReplySuccess(Communicator, $"The following phrases have been removed from the blacklist: {phrases.WordJoinQuoted()}.");
+        }
+
+        [Command("raid", "protection", "blacklist", "clear", "Removes all phrases from the blacklist.")]
+        [Alias("raid-protection", "blacklist", "clear", true)]
+        [Permissions(GuildPermission.Administrator)]
+        public async Task ClearBlacklistRaidProtection(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            {
+                x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
+                {
+                    Type = x.PhraseBlacklistRule.Type,
+                    Enabled = false,
+                    Delete = x.PhraseBlacklistRule.Delete,
+                    MaxOffenseCount = x.PhraseBlacklistRule.MaxOffenseCount,
+                    OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
+                    Blacklist = new List<string>()
+                });
+            });
+
+            await command.ReplySuccess(Communicator, $"The phrase blacklist has been disabled.");
+        }
+
         [Command("raid", "protection", "rules", "set", "Modifies a raid protection rule.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
-        [Alias("raid-protection", "rules", "set")]
         [Parameter("ServerId", ParameterType.Id)]
         [Parameter("Type", ParameterType.String)]
         [Parameter("Rule", ParameterType.String, ParameterFlags.Remainder)]
         public async Task SetRulesRaidProtection(ICommand command)
         {
-            RaidProtectionRuleType type;
-            if (!Enum.TryParse(command["Type"], out type))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown rule type.");
+            if (!Enum.TryParse<RaidProtectionRuleType>(command["Type"], out var type))
+                throw new IncorrectParametersCommandException("Unknown rule type.");
 
             RaidProtectionRule newRule;
             try
@@ -124,7 +277,7 @@ namespace DustyBot.Modules
             }
             catch (Exception)
             {
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid rule.");
+                throw new IncorrectParametersCommandException("Invalid rule.");
             }
 
             await Settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.SetException(type, newRule));
@@ -132,111 +285,16 @@ namespace DustyBot.Modules
         }
 
         [Command("raid", "protection", "rules", "reset", "Resets a raid protection rule to default.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
-        [Alias("raid-protection", "rules", "reset")]
         [Parameter("ServerId", ParameterType.Id)]
         [Parameter("Type", ParameterType.String)]
         public async Task ResetRulesRaidProtection(ICommand command)
         {
-            RaidProtectionRuleType type;
-            if (!Enum.TryParse(command["Type"], out type))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Unknown rule type.");
+            if (!Enum.TryParse<RaidProtectionRuleType>(command["Type"], out var type))
+                throw new IncorrectParametersCommandException("Unknown rule type.");
 
             await Settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.ResetException(type));
             await command.ReplySuccess(Communicator, $"Rule has been reset.");
         }
-
-        [Command("raid", "protection", "blacklist", "Sets blacklisted phrases.")]
-        [Alias("raid-protection", "blacklist")]
-        [Permissions(GuildPermission.Administrator)]
-        [Parameter("Blacklist", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "blacklisted phrases, separated by colons (`,`)")]
-        [Comment("Use without parameters to disable the blacklist. Messages that contain any of these phrases will be handled according to the PhraseBlacklist rule (default: the offending message will be deleted and upon commiting 3 offenses within 5 minutes the offending user will be muted).")]
-        public async Task SetBlacklistRaidProtection(ICommand command)
-        {
-            var newList = await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
-            {
-                var phrases = command["Blacklist"].AsString.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-                x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
-                {
-                    Type = x.PhraseBlacklistRule.Type,
-                    Enabled = phrases.Count > 0,
-                    Delete = x.PhraseBlacklistRule.Delete,
-                    MaxOffenseCount = x.PhraseBlacklistRule.MaxOffenseCount,
-                    OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
-                    Blacklist = phrases
-                });
-
-                return phrases;
-            });
-
-            if (newList.Count <= 0)
-                await command.ReplySuccess(Communicator, "The phrase blacklist has been disabled.");
-            else
-                await command.ReplySuccess(Communicator, $"The phrase blacklist has been updated to the following: `{string.Join("`, `", newList)}`.");
-        }
-
-        class SlidingMessageCache : ICollection<IMessage>
-        {
-            List<IMessage> _data = new List<IMessage>();
-
-            public int Count => _data.Count;
-            public bool IsReadOnly => false;
-
-            public void Add(IMessage item)
-            {
-                var i = _data.FindLastIndex(x => x.Timestamp <= item.Timestamp);
-                _data.Insert(i < 0 ? 0 : i + 1, item);
-            }
-
-            public void SlideWindow(TimeSpan windowSize)
-            {
-                var last = _data.LastOrDefault();
-                if (last != null)
-                    _data.RemoveAll(x => x.Timestamp < last.Timestamp - windowSize);
-            }
-
-            public void SlideWindow(TimeSpan windowSize, DateTimeOffset end)
-            {
-                _data.RemoveAll(x => x.Timestamp < end - windowSize);
-            }
-
-            public void Clear() => _data.Clear();
-            public bool Contains(IMessage item) => _data.Contains(item);
-            public void CopyTo(IMessage[] array, int arrayIndex) => _data.CopyTo(array, arrayIndex);
-            public IEnumerator<IMessage> GetEnumerator() => _data.GetEnumerator();
-            public bool Remove(IMessage item) => _data.Remove(item);
-            IEnumerator IEnumerable.GetEnumerator() => _data.GetEnumerator();
-        }
-
-        abstract class BaseContext
-        {
-            public SemaphoreSlim Mutex { get; } = new SemaphoreSlim(1, 1);
-        }
-
-        class GlobalContext : BaseContext
-        {
-            public DateTime LastCleanup { get; set; } = DateTime.MinValue;
-            public DateTime LastReport { get; set; } = DateTime.MinValue;
-            public Dictionary<ulong, GuildContext> GuildContexts { get; } = new Dictionary<ulong, GuildContext>();
-        }
-
-        class GuildContext : BaseContext
-        {
-            public Dictionary<ulong, UserContext> UserContexts { get; } = new Dictionary<ulong, UserContext>();
-        }
-
-        class UserContext : BaseContext
-        {
-            public Dictionary<RaidProtectionRuleType, SlidingMessageCache> Offenses { get; } = new Dictionary<RaidProtectionRuleType, SlidingMessageCache>();
-            public SlidingMessageCache ImagePosts { get; } = new SlidingMessageCache();
-            public SlidingMessageCache TextPosts { get; } = new SlidingMessageCache();
-
-            public bool Empty => Offenses.Count <= 0 && ImagePosts.Count <= 0 && TextPosts.Count <= 0;
-        }
-
-        GlobalContext _context = new GlobalContext();
-        static readonly TimeSpan MaxMessageProcessingDelay = TimeSpan.FromMinutes(2);
-        static readonly TimeSpan CleanupTimer = TimeSpan.FromMinutes(2);
-        static readonly TimeSpan ReportTimer = TimeSpan.FromMinutes(30);
 
         public override Task OnMessageReceived(SocketMessage message)
         {
@@ -282,7 +340,7 @@ namespace DustyBot.Modules
 
                     if (settings.PhraseBlacklistRule.Enabled)
                     {
-                        if (settings.PhraseBlacklistRule.Blacklist.Any(x => message.Content.IndexOf(x, StringComparison.OrdinalIgnoreCase) >= 0))
+                        if (MatchBlacklist(message.Content, settings.PhraseBlacklistRule.Blacklist))
                         {
                             await EnforceRule(settings.PhraseBlacklistRule, new IMessage[] { message }, channel, await GetUserContext(user), user, settings.LogChannel, message.Content);
                             return;
@@ -358,7 +416,27 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        async Task CleanupContext(RaidProtectionSettings settings)
+        private bool MatchBlacklist(string message, IEnumerable<string> blacklist)
+        {
+            // TODO: inefficient
+            return blacklist.Any(x =>
+            {
+                var phrase = x.Trim('*', 1);
+                var i = message.IndexOf(phrase, StringComparison.OrdinalIgnoreCase);
+                if (i == -1)
+                    return false;
+
+                if (i > 0 && char.IsLetter(message[i - 1]) && x.First() != '*')
+                    return false; // Inside a word (prefixed) - skip
+
+                if (i + phrase.Length < message.Length && char.IsLetter(message[i + phrase.Length]) && x.Last() != '*')
+                    return false; // Inside a word (suffixed) - skip
+
+                return true;
+            });
+        }
+
+        private async Task CleanupContext(RaidProtectionSettings settings)
         {
             try
             {
@@ -431,7 +509,7 @@ namespace DustyBot.Modules
             }
         }
 
-        async Task<UserContext> GetUserContext(IGuildUser user)
+        private async Task<UserContext> GetUserContext(IGuildUser user)
         {
             GuildContext guildContext;
             try
@@ -458,7 +536,7 @@ namespace DustyBot.Modules
             return userContext;
         }
 
-        async Task EnforceRule(ReadOnlyRaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
+        private async Task EnforceRule(ReadOnlyRaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
         {
             if (rule.Delete)
                 foreach (var message in messages)

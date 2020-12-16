@@ -6,10 +6,12 @@
         public const string WebsiteShorthand = "dustybot.info";
         public const string ReferencePath = "/reference";
         public const string ScheduleGuidePath = "/schedule";
+        public const string RolesGuidePath = "/roles";
         public const string ImagesPath = "/img";
 
         public const string ReferenceUrl = WebsiteRoot + ReferencePath;
         public const string ScheduleGuideUrl = WebsiteRoot + ScheduleGuidePath;
+        public const string RolesGuideUrl = WebsiteRoot + RolesGuidePath;
         public const string ImagesFolderUrl = WebsiteRoot + ImagesPath;
         
         public const string LfIconUrl = ImagesFolderUrl + "/lf.png";

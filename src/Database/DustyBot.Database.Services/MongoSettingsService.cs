@@ -1,4 +1,4 @@
-﻿using DustyBot.Core.Collections;
+﻿using DustyBot.Core.Async;
 using DustyBot.Database.Core.Settings;
 using DustyBot.Database.Mongo.Collections.Templates;
 using DustyBot.Database.Mongo.Serializers;
@@ -8,7 +8,6 @@ using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace DustyBot.Database.Services
@@ -21,9 +20,9 @@ namespace DustyBot.Database.Services
         private IMongoDatabase _db;
 
         //TODO: a bit convoluted, split in multiple server/user objects each managing their own subset of locks and thread-safe read/modify methods
-        AsyncMutexCollection<Tuple<Type, ulong>> _serverSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
-        AsyncMutexCollection<Tuple<Type, ulong>> _userSettingsLocks = new AsyncMutexCollection<Tuple<Type, ulong>>();
-        AsyncMutexCollection<Type> _globalSettingsLocks = new AsyncMutexCollection<Type>();
+        KeyedSemaphoreSlim<(Type Type, ulong GuildId)> _serverSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong GuildId)>(1, maxPoolSize: int.MaxValue);
+        KeyedSemaphoreSlim<(Type Type, ulong UserId)> _userSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong UserId)>(1, maxPoolSize: int.MaxValue);
+        KeyedSemaphoreSlim<Type> _globalSettingsMutex = new KeyedSemaphoreSlim<Type>(1, maxPoolSize: int.MaxValue);
 
         private MongoSettingsService(IMongoClient client, IMongoDatabase db, string databaseName)
         {
@@ -64,19 +63,15 @@ namespace DustyBot.Database.Services
             return await GetDocument(id, () => Task.FromResult(new T()), createIfNeeded);
         }
 
-        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, AsyncMutexCollection<TMutexKey> locks, TMutexKey locksKey, Func<Task<T>> creator, bool createIfNeeded = true)
+        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, Func<Task<T>> creator, bool createIfNeeded = true)
         {
             var collection = _db.GetCollection<T>(typeof(T).Name);
             var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
             if (settings == null && createIfNeeded)
             {
                 //Create
-                var settingsLock = await locks.GetOrCreate(locksKey);
-
-                try
+                using (await mutex.ClaimAsync(mutexKey))
                 {
-                    await settingsLock.WaitAsync();
-
                     collection = _db.GetCollection<T>(typeof(T).Name);
                     settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
                     if (settings == null)
@@ -85,19 +80,15 @@ namespace DustyBot.Database.Services
                         await collection.InsertOneAsync(settings);
                     }
                 }
-                finally
-                {
-                    settingsLock.Release();
-                }
             }
 
             return settings;
         }
 
-        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, AsyncMutexCollection<TMutexKey> locks, TMutexKey locksKey, bool createIfNeeded = true)
+        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, bool createIfNeeded = true)
             where T : new()
         {
-            return await SafeGetDocument(id, locks, locksKey, () => Task.FromResult(new T()), createIfNeeded);
+            return await SafeGetDocument(id, mutex, mutexKey, () => Task.FromResult(new T()), createIfNeeded);
         }
 
         private Task<T> Create<T>(ulong serverId)
@@ -111,7 +102,7 @@ namespace DustyBot.Database.Services
         public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
             where T : IServerSettings, new()
         {
-            return SafeGetDocument(unchecked((long)serverId), _serverSettingsLocks, Tuple.Create(typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
+            return SafeGetDocument(unchecked((long)serverId), _serverSettingsMutex, (typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
         }
 
         public async Task<IEnumerable<T>> Read<T>()
@@ -124,128 +115,78 @@ namespace DustyBot.Database.Services
         public async Task Modify<T>(ulong serverId, Action<T> action)
             where T : IServerSettings, new()
         {
-            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
-
-            try
+            using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 action(settings);
                 await UpsertSettings(serverId, settings);
-            }
-            finally
-            {
-                settingsLock.Release();
             }
         }
 
         public async Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
             where T : IServerSettings, new()
         {
-            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
-
-            try
+            using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 var result = action(settings);
                 await UpsertSettings(serverId, settings);
 
                 return result;
             }
-            finally
-            {
-                settingsLock.Release();
-            }
         }
 
         public async Task Modify<T>(ulong serverId, Func<T, Task> action)
             where T : IServerSettings, new()
         {
-            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
-
-            try
+            using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 await action(settings);
                 await UpsertSettings(serverId, settings);
-            }
-            finally
-            {
-                settingsLock.Release();
             }
         }
 
         public async Task<U> Modify<T, U>(ulong serverId, Func<T, Task<U>> action)
             where T : IServerSettings, new()
         {
-            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), serverId));
-
-            try
+            using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
                 var result = await action(settings);
                 await UpsertSettings(serverId, settings);
 
                 return result;
             }
-            finally
-            {
-                settingsLock.Release();
-            }
-        }
-
-        public async Task DeleteServer(ulong serverId)
-        {
-            await _serverSettingsLocks.InterlockedModify(async locks =>
-            {
-                //Wait for all settings locks for this server to get released and dispose them
-                var serverLocks = locks.Where(k => k.Key.Item2 == serverId).ToList();
-                foreach (var l in serverLocks)
-                {
-                    await l.Value.WaitAsync();
-
-                    locks.Remove(l.Key);
-                    l.Value.Dispose();
-                }
-
-                //Remove all settings
-                foreach (var colName in (await _db.ListCollectionNamesAsync()).ToEnumerable())
-                {
-                    var col = _db.GetCollection<BsonDocument>(colName);
-                    await col.DeleteOneAsync(Builders<BsonDocument>.Filter.Eq("_id", unchecked((long)serverId)));
-                }
-            });
         }
 
         public async Task<T> ReadGlobal<T>()
             where T : new()
         {
-            return await SafeGetDocument<T, Type>(unchecked((long)CollectionConstants.GlobalSettingId), _globalSettingsLocks, typeof(T));
+            return await SafeGetDocument<T, Type>(unchecked((long)CollectionConstants.GlobalSettingId), _globalSettingsMutex, typeof(T));
         }
 
         public async Task ModifyGlobal<T>(Action<T> action)
             where T : new()
         {
-            var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
-
-            try
+            using (await _globalSettingsMutex.ClaimAsync(typeof(T)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId));
                 action(settings);
                 await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings);
             }
-            finally
+        }
+
+        public async Task<U> ModifyGlobal<T, U>(Func<T, U> action)
+            where T : new()
+        {
+            using (await _globalSettingsMutex.ClaimAsync(typeof(T)))
             {
-                settingsLock.Release();
+                var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId));
+                var result = action(settings);
+                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings);
+
+                return result;
             }
         }
 
@@ -260,7 +201,7 @@ namespace DustyBot.Database.Services
         public async Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
             where T : IUserSettings, new()
         {
-            return await SafeGetDocument(unchecked((long)userId), _userSettingsLocks, Tuple.Create(typeof(T), userId), () => CreateUser<T>(userId), createIfNeeded);
+            return await SafeGetDocument(unchecked((long)userId), _userSettingsMutex, (typeof(T), userId), () => CreateUser<T>(userId), createIfNeeded);
         }
 
         public async Task<IEnumerable<T>> ReadUser<T>()
@@ -273,90 +214,24 @@ namespace DustyBot.Database.Services
         public async Task ModifyUser<T>(ulong userId, Action<T> action)
             where T : IUserSettings, new()
         {
-            var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), userId));
-
-            try
+            using (await _userSettingsMutex.ClaimAsync((typeof(T), userId)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument(unchecked((long)userId), () => CreateUser<T>(userId));
                 action(settings);
                 await UpsertSettings(userId, settings);
-            }
-            finally
-            {
-                settingsLock.Release();
             }
         }
 
         public async Task<U> ModifyUser<T, U>(ulong userId, Func<T, U> action)
             where T : IUserSettings, new()
         {
-            var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), userId));
-
-            try
+            using (await _userSettingsMutex.ClaimAsync((typeof(T), userId)))
             {
-                await settingsLock.WaitAsync();
-
                 var settings = await GetDocument(unchecked((long)userId), () => CreateUser<T>(userId));
                 var result = action(settings);
                 await UpsertSettings(userId, settings);
 
                 return result;
-            }
-            finally
-            {
-                settingsLock.Release();
-            }
-        }
-
-        public async Task Set<T>(T settings)
-            where T : IServerSettings
-        {
-            var settingsLock = await _serverSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), settings.ServerId));
-
-            try
-            {
-                await settingsLock.WaitAsync();
-
-                await UpsertSettings(settings.ServerId, settings);
-            }
-            finally
-            {
-                settingsLock.Release();
-            }
-        }
-
-        public async Task SetUser<T>(T settings)
-            where T : IUserSettings
-        {
-            var settingsLock = await _userSettingsLocks.GetOrCreate(Tuple.Create(typeof(T), settings.UserId));
-
-            try
-            {
-                await settingsLock.WaitAsync();
-
-                await UpsertSettings(settings.UserId, settings);
-            }
-            finally
-            {
-                settingsLock.Release();
-            }
-        }
-
-        public async Task SetGlobal<T>(T settings)
-        {
-            var settingsLock = await _globalSettingsLocks.GetOrCreate(typeof(T));
-
-            try
-            {
-                await settingsLock.WaitAsync();
-
-                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings);
-            }
-            finally
-            {
-                settingsLock.Release();
             }
         }
 
@@ -369,14 +244,14 @@ namespace DustyBot.Database.Services
 
         public void Dispose()
         {
-            _serverSettingsLocks?.Dispose();
-            _serverSettingsLocks = null;
+            _serverSettingsMutex?.Dispose();
+            _serverSettingsMutex = null;
 
-            _userSettingsLocks?.Dispose();
-            _userSettingsLocks = null;
+            _userSettingsMutex?.Dispose();
+            _userSettingsMutex = null;
 
-            _globalSettingsLocks?.Dispose();
-            _globalSettingsLocks = null;
+            _globalSettingsMutex?.Dispose();
+            _globalSettingsMutex = null;
         }
     }
 }

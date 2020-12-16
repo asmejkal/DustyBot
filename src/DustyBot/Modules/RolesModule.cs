@@ -12,7 +12,6 @@ using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
-using DustyBot.Helpers;
 using DustyBot.Definitions;
 using DustyBot.Framework.Exceptions;
 using System.Threading;
@@ -24,7 +23,7 @@ using System.Collections.Concurrent;
 
 namespace DustyBot.Modules
 {
-    [Module("Roles", "Role self-assignment.")]
+    [Module("Roles", "Let users choose their own roles  – please check out the <a href=\"" + WebConstants.RolesGuideUrl + "\">guide</a>.")]
     class RolesModule : Module
     {
         private class RoleStats : IDisposable
@@ -95,8 +94,8 @@ namespace DustyBot.Modules
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
 
-        private SemaphoreSlim RoleAssignmentLock { get; } = new SemaphoreSlim(1, 1);
-        private ConcurrentDictionary<ulong, RoleStats> RoleStatsCache { get; } = new ConcurrentDictionary<ulong, RoleStats>();
+        private readonly KeyedSemaphoreSlim<ulong> _roleAssignmentUserMutex = new KeyedSemaphoreSlim<ulong>(1);
+        private readonly ConcurrentDictionary<ulong, RoleStats> _roleStatsCache = new ConcurrentDictionary<ulong, RoleStats>();
 
         public RolesModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
         {
@@ -110,11 +109,11 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(Communicator, $"Check out the guide at <{WebConstants.RolesGuideUrl}>!");
         }
 
-        [Command("roles", "channel", "Sets a channel for role self-assignment.", CommandFlags.Synchronous)]
-        [Alias("role", "channel")]
+        [Command("roles", "set", "channel", "Sets a channel for role self-assignment.", CommandFlags.Synchronous)]
+        [Alias("roles", "channel", true), Alias("role", "channel", true)]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("Channel", ParameterType.TextChannel, ParameterFlags.Remainder)]
         public async Task SetRoleChannel(ICommand command)
@@ -135,19 +134,6 @@ namespace DustyBot.Modules
             });
                 
             await command.ReplySuccess(Communicator, "Role channel has been set.");
-        }
-
-        [Command("roles", "channel", "reset", "Disables role self-assignment.", CommandFlags.Synchronous)]
-        [Alias("role", "channel", "reset")]
-        [Permissions(GuildPermission.Administrator)]
-        public async Task Disable(ICommand command)
-        {
-            await Settings.Modify(command.GuildId, (RolesSettings s) =>
-            {
-                s.RoleChannel = 0;
-            });
-
-            await command.ReplySuccess(Communicator, "Role channel has been disabled.");
         }
 
         [Command("roles", "toggle", "clearing", "Toggles automatic clearing of role channel.", CommandFlags.Synchronous)]
@@ -198,39 +184,45 @@ namespace DustyBot.Modules
         public async Task CreateRole(ICommand command)
         {
             var role = await command.Guild.CreateRoleAsync(command["Name"], permissions: new GuildPermissions(), isMentionable: false);
-            await AddRole(command.GuildId, role, false);
+            await AddRoles(command.GuildId, new[] { role }, false);
 
             await command.ReplySuccess(Communicator, $"A self-assignable role `{command["Name"]}` has been created. You can set a color or reorder it in the server's settings.");
         }
 
-        [Command("roles", "add", "Adds an already existing self-assignable role.")]
+        [Command("roles", "add", "Makes one or more existing roles self-assignable.")]
         [Alias("role", "add")]
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
-        [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder, "A name or ID of the self-assignable role.")]
+        [Parameter("RoleNamesOrIDs", ParameterType.Role, ParameterFlags.Repeatable | ParameterFlags.Remainder, "names or IDs of the roles you want to make self-assignable")]
         [Comment("Any user can then assign this role to themselves by typing its name or alias (without any prefix) in the channel set by the `roles channel` command. The role can be also self-removed by typing `-` followed by its name or alias (eg. `-Solar`).\n\nRoles are not case sensitive, but roles with matching casing get assigned before others.")]
         [Example("Solar")]
+        [Example("Solar Wheein \"Stream Squad\"")]
         public async Task AddRole(ICommand command)
         {
-            await AddRole(command.GuildId, command["RoleNameOrID"].AsRole, true);
+            var roles = command["RoleNamesOrIDs"].Repeats.Select(x => x.AsRole).ToList();
+            await AddRoles(command.GuildId, roles);
 
-            await command.ReplySuccess(Communicator, "Self-assignable role added.");
+            await command.ReplySuccess(Communicator, string.Format(roles.Count > 1 ? "Roles {0} are now self-assignable." : "Role {0} is now self-assignable.", roles.WordJoinQuoted()));
         }
 
-        [Command("roles", "remove", "Removes a self-assignable role.")]
+        [Command("roles", "remove", "Removes one or more self-assignable roles.")]
         [Alias("role", "remove")]
         [Permissions(GuildPermission.ManageRoles)]
-        [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
+        [Parameter("RoleNamesOrIDs", ParameterType.Role, ParameterFlags.Repeatable | ParameterFlags.Remainder, "names or IDs of the roles that will no longer be self-assignable")]
+        [Comment("Does not delete the roles.")]
         public async Task RemoveRole(ICommand command)
         {
-            bool removed = await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            var roles = command["RoleNamesOrIDs"].Repeats.Select(x => x.AsRole).ToList();
+            var removed = await Settings.Modify(command.GuildId, (RolesSettings s) =>
             {
-                return s.AssignableRoles.RemoveAll(x => x.RoleId == command[0].AsRole.Id) > 0;
+                return s.AssignableRoles.RemoveAll(x => roles.Any(y => y.Id == x.RoleId));
             });
 
-            if (!removed)
+            if (removed <= 0)
                 await command.ReplyError(Communicator, $"This role is not self-assignable.");
-            else
+            else if (removed <= 1)
                 await command.ReplySuccess(Communicator, $"Self-assignable role removed.");
+            else
+                await command.ReplySuccess(Communicator, $"Removed {removed} self-assignable roles.");
         }
 
         [Command("roles", "list", "Lists all self-assignable roles.")]
@@ -347,7 +339,7 @@ namespace DustyBot.Modules
         }
 
         [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
-        [Alias("role", "stats")]
+        [Alias("role", "stats"), Alias("bias", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
         public async Task RolesStats(ICommand command)
         {
@@ -366,7 +358,7 @@ namespace DustyBot.Modules
                 });
             }
 
-            var stats = RoleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(Logger));
+            var stats = _roleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(Logger));
             var (data, whenCached) = await stats.GetOrFillAsync(guild, MaxRoleStatsAge, onProgress);
 
             if (progressMessage != null)
@@ -432,11 +424,25 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, pages);
         }
 
+        [Command("roles", "disable", "Disables role self-assignment.", CommandFlags.Synchronous)]
+        [Alias("roles", "channel", "reset")]
+        [Permissions(GuildPermission.Administrator)]
+        [Comment("Your configured roles will not get deleted. To enable again, use `roles set channel`.")]
+        public async Task Disable(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (RolesSettings s) =>
+            {
+                s.RoleChannel = default;
+            });
+
+            await command.ReplySuccess(Communicator, "Role channel has been disabled.");
+        }
+
         [Command("roles", "group", "add", "Adds one or more roles into a group.", CommandFlags.Synchronous)]
         [Alias("role", "group", "add")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("GroupName", ParameterType.String, "name of the group")]
-        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable, "one or more roles (names or IDs) that will be added to the group")]
+        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable | ParameterFlags.Remainder, "one or more roles (names or IDs) that will be added to the group")]
         [Comment("All the provided roles must be self-assignable (added with `roles add` or `roles create`).")]
         [Example("primaries solar wheein moonbyul hwasa")]
         public async Task AddRoleGroup(ICommand command)
@@ -461,7 +467,7 @@ namespace DustyBot.Modules
         [Alias("role", "group", "remove")]
         [Permissions(GuildPermission.Administrator)]
         [Parameter("GroupName", ParameterType.String, "name of the group")]
-        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable, "one or more roles (names or IDs) that will be removed from the group")]
+        [Parameter("Roles", ParameterType.Role, ParameterFlags.Repeatable | ParameterFlags.Remainder, "one or more roles (names or IDs) that will be removed from the group")]
         [Example("primaries solar wheein moonbyul hwasa")]
         public async Task RemoveRoleGroup(ICommand command)
         {
@@ -521,23 +527,31 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Users may now assign up to `{command["Limit"].AsUInt.Value}` roles from group `{command["GroupName"]}`.");
         }
 
-        private async Task AddRole(ulong guildId, IRole role, bool checkPermissions)
+        private async Task AddRoles(ulong guildId, IEnumerable<IRole> roles, bool checkPermissions = true)
         {
-            if (checkPermissions && !role.CanUserAssign(await role.Guild.GetCurrentUserAsync()))
-                throw new CommandException($"The bot doesn't have permission to assign this role to users. Please make sure the role is below the bot's highest role in the server's role list.");
-
-            var newRole = new AssignableRole();
-            newRole.RoleId = role.Id;
+            if (checkPermissions)
+            {
+                var bot = await roles.First().Guild.GetCurrentUserAsync();
+                var invalid = roles.Where(x => !x.CanUserAssign(bot)).ToList();
+                if (invalid.Any())
+                    throw new CommandException($"The bot doesn't have permission to assign role(s) {invalid.WordJoinQuoted()} to users. Please make sure the role is below the bot's highest role in the server's role list.");
+            }
 
             await Settings.Modify(guildId, (RolesSettings s) =>
             {
-                if (s.AssignableRoles.Any(x => x.RoleId == role.Id))
-                    throw new CommandException("This role is already self-assignable.");
+                foreach (var role in roles)
+                {
+                    var newRole = new AssignableRole();
+                    newRole.RoleId = role.Id;
 
-                if (s.AssignableRoles.Any(x => x.SecondaryId == role.Id))
-                    throw new CommandException("This role is already set as a secondary to another role.");
+                    if (s.AssignableRoles.Any(x => x.RoleId == role.Id))
+                        throw new CommandException($"Role `{role.Name}` is already self-assignable.");
 
-                s.AssignableRoles.Add(newRole);
+                    if (s.AssignableRoles.Any(x => x.SecondaryId == role.Id))
+                        throw new CommandException($"Role `{role.Name}` is already set as a secondary to another role.");
+
+                    s.AssignableRoles.Add(newRole);
+                }
             });
         }
 
@@ -636,18 +650,18 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    using (await RoleAssignmentLock.ClaimAsync()) // To prevent race-conditions when spamming roles (would be nicer with per-guild locks)
+                    var settings = await Settings.Read<RolesSettings>(channel.Guild.Id, false);
+                    if (settings == null || settings.RoleChannel != channel.Id)
+                        return;
+
+                    if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                     {
-                        var settings = await Settings.Read<RolesSettings>(channel.Guild.Id, false);
-                        if (settings == null || settings.RoleChannel != channel.Id)
-                            return;
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Can't assign role because of missing SendMessage permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                        return;
+                    }
 
-                        if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
-                        {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Can't assign role because of missing SendMessage permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
-                            return;
-                        }
-
+                    using (await _roleAssignmentUserMutex.ClaimAsync(user.Id)) // To prevent race-conditions when spamming roles
+                    {
                         try
                         {
                             await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));

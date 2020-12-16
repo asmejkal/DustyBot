@@ -11,6 +11,7 @@ using DustyBot.Framework.Services;
 using System.Diagnostics;
 using System.Collections.Generic;
 using DustyBot.Database.Sql.UserDefinedTypes;
+using DustyBot.LastFm;
 
 namespace DustyBot.Services
 {
@@ -92,13 +93,13 @@ namespace DustyBot.Services
                             await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Processing Lastfm stats for user {setting.LastFmUsername} (count: {Interlocked.Increment(ref count)})."));
                             var client = new LastFmClient(setting.LastFmUsername, key);
 
-                            var topTracks = await client.GetTopTracks(LfStatsPeriod.Overall, ct: ct);
+                            var topTracks = await client.GetTopTracks(LastFmDataPeriod.Overall, ct: ct);
 
                             using (var dbService = await LastFmServiceFactory())
                             {
                                 var table = topTracks
-                                    .Where(x => !string.IsNullOrEmpty(x.UrlId) && !string.IsNullOrEmpty(x.Artist?.UrlId))
-                                    .Select(x => new SetUserTracksTable(setting.LastFmUsername, x.Playcount, x.UrlId, x.Name, x.Url, x.Artist.UrlId, x.Artist.Name, x.Artist.Url));
+                                    .Where(x => !string.IsNullOrEmpty(x.HashId) && !string.IsNullOrEmpty(x.Artist?.HashId))
+                                    .Select(x => new SetUserTracksTable(setting.LastFmUsername, x.Playcount.Value, x.HashId, x.Name, x.Url, x.Artist.HashId, x.Artist.Name, x.Artist.Url));
 
                                 await dbService.SetUserTracksAsync(table, ct);
                             }

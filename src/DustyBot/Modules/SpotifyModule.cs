@@ -13,7 +13,6 @@ using DustyBot.Framework.Utility;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Table;
 using DustyBot.Definitions;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Models;

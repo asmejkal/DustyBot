@@ -20,6 +20,9 @@ using System.Collections.Concurrent;
 using DustyBot.Definitions;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
+using DustyBot.Services;
+using DustyBot.Exceptions;
+using System.Diagnostics;
 
 namespace DustyBot.Modules
 {
@@ -38,17 +41,19 @@ namespace DustyBot.Modules
         private ILogger Logger { get; }
         private BotConfig Config { get; }
         private IUrlShortener UrlShortener { get; }
+        private IProxyService ProxyService { get; }
 
         private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
             new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
-        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUrlShortener urlShortener)
+        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUrlShortener urlShortener, IProxyService proxyService)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             Config = config;
             UrlShortener = urlShortener;
+            ProxyService = proxyService;
         }
 
         [Command("ig", "Shows a preview of one or more Instagram posts.")]
@@ -58,6 +63,10 @@ namespace DustyBot.Modules
         [Comment("You can set the default style with `ig set style`.\n\nGive the bot Manage Messages permission to also delete the original embeds (or wrap your links in `< >` braces).")]
         public async Task Instagram(ICommand command)
         {
+            var channelPermissions = (await command.Guild.GetCurrentUserAsync()).GetPermissions((ITextChannel)command.Channel);
+            if (!channelPermissions.SendMessages)
+                return;
+
             var style = InstagramPreviewStyle.None;
             if (command["Style"].HasValue)
             {
@@ -77,26 +86,23 @@ namespace DustyBot.Modules
 
             var unquoted = matches.Count > QuotedPostRegex.Matches(command["Url"]).Count;
             Task suppressionTask = null;
-            if (unquoted && (await command.Guild.GetCurrentUserAsync()).GetPermissions((ITextChannel)command.Channel).ManageMessages)
+            if (unquoted && channelPermissions.ManageMessages)
                 suppressionTask = TrySuppressEmbed(command.Message);
 
             foreach (var id in matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit))
             {
                 try
                 {
-                    await PostPreview(id, command.Channel, style, command.Author.Id);
+                    await PostPreviewAsync(id, command.Channel, style, command.Author.Id);
                 }
                 catch (Exception ex)
                 {
                     await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {command.Author.Username} ({command.Author.Id}) on {command.Guild.Name}", ex));
 
-                    try
-                    {
+                    if (ex is ProxiesDepletedException)
+                        await command.Reply(Communicator, $"Instagram has blocked all of Dusty's IP addresses. Please try again later.");
+                    else
                         await command.ReplyError(Communicator, "Failed to create preview.");
-                    }
-                    catch (Exception)
-                    {
-                    }
                 }
             }
 
@@ -150,13 +156,20 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"The default style for automatic Instagram previews on this server is now `{command["Style"]}`! This can be overriden by users' personal settings.");
         }
 
+        [Command("ig", "proxy", "refresh", "Refreshes the proxy list.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
+        public async Task RefreshProxies(ICommand command)
+        {
+            await ProxyService.ForceRefreshAsync();
+            await command.ReplySuccess(Communicator, "Done.");
+        }
+
         public override Task OnMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
-                    var channel = message.Channel as ITextChannel;
+                    var channel = message.Channel as SocketTextChannel;
                     if (channel == null)
                         return;
 
@@ -165,6 +178,9 @@ namespace DustyBot.Modules
                         return;
 
                     if (user.IsBot)
+                        return;
+
+                    if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                         return;
 
                     var userSettings = await Settings.ReadUser<UserMediaSettings>(user.Id, false);
@@ -187,7 +203,7 @@ namespace DustyBot.Modules
                     if (!matches.Any())
                         return;
 
-                    var botSettings = await Settings.Read<BotSettings>(channel.GuildId, createIfNeeded: false);
+                    var botSettings = await Settings.Read<BotSettings>(channel.Guild.Id, createIfNeeded: false);
                     var commandMatch = SocketCommand.FindLongestMatch(message.Content, botSettings?.CommandPrefix ?? Config.DefaultCommandPrefix, new[] { HandledCommands.Single(x => x.PrimaryUsage.InvokeUsage == "ig") });
                     if (commandMatch != null)
                         return; // Don't create duplicate previews from the ig command
@@ -207,7 +223,7 @@ namespace DustyBot.Modules
                     {
                         try
                         {
-                            await PostPreview(id, message.Channel, style, user.Id);
+                            await PostPreviewAsync(id, message.Channel, style, user.Id);
                         }
                         catch (Exception ex)
                         {
@@ -269,110 +285,152 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        private async Task PostPreview(string id, IMessageChannel channel, InstagramPreviewStyle style, ulong authorId)
+        private async Task PostPreviewAsync(string id, IMessageChannel channel, InstagramPreviewStyle style, ulong authorId)
+        {
+            var sent = await SendPreviewMessageAsync(await FetchPreviewAsync(id), id, channel, style);
+
+            Previews.TryAdd(sent.Last().Id, (authorId, sent));
+            try
+            {
+                await sent.Last().AddReactionAsync(EmoteConstants.ClickToRemove);
+            }
+            catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Forbidden)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to add reaction for post id {id} on {(channel as IGuildChannel)?.Guild.Name}", ex));
+            }
+
+            TaskHelper.FireForget(async () =>
+            {
+                try
+                {
+                    await Task.Delay(PreviewDeleteWindow);
+                    if (Previews.TryRemove(sent.Last().Id, out _))
+                        await sent.Last().RemoveReactionAsync(EmoteConstants.ClickToRemove, sent.Last().Author);
+                }
+                catch (Discord.Net.HttpException dex) when (dex.HttpCode == HttpStatusCode.NotFound)
+                {
+                    // Message probably deleted manually
+                }
+                catch (Exception ex)
+                {
+                    await Logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to remove delete reaction from message", ex));
+                }
+            });
+        }
+
+        private async Task<string> FetchPreviewAsync(string id)
+        {
+            const int maxRetries = 20;
+            TimeSpan maxWait = TimeSpan.FromSeconds(10);
+            var stopwatch = Stopwatch.StartNew();
+            for (int i = 0; i < maxRetries && stopwatch.Elapsed < maxWait; ++i)
+            {
+                var proxy = await ProxyService.GetProxyAsync();
+
+                try
+                {
+                    var request = WebRequest.CreateHttp($"https://www.instagram.com/graphql/query/?query_hash=505f2f2dfcfce5b99cb7ac4155cbf299&variables=%7B%22shortcode%22%3A%22{id}%22%2C%22child_comment_count%22%3A3%2C%22fetch_comment_count%22%3A40%2C%22parent_comment_count%22%3A24%2C%22has_threaded_comments%22%3Atrue%7D");
+                    request.Accept = "*/*";
+                    request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36";
+                    request.Referer = "https://www.instagram.com/p/{id}/";
+                    request.Headers.Add("Accept-Encoding", "gzip, deflate, br");
+                    request.Proxy = proxy;
+                    request.Timeout = 8000;
+
+                    using var response = (HttpWebResponse)await request.GetResponseAsync();
+                    if (response.ResponseUri.AbsolutePath == "/accounts/login/")
+                    {
+                        await ProxyService.BlacklistProxyAsync(proxy, TimeSpan.FromHours(5));
+                        await Logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to block of proxy {proxy.Address.AbsoluteUri}."));
+                        continue;
+                    }
+
+                    using var gzipStream = new GZipStream(response.GetResponseStream(), CompressionMode.Decompress);
+                    using var reader = new StreamReader(gzipStream);
+
+                    return await reader.ReadToEndAsync();
+                }
+                catch (WebException ex) when (ex.Status == WebExceptionStatus.Timeout)
+                {
+                    await ProxyService.BlacklistProxyAsync(proxy, TimeSpan.FromDays(1));
+                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to timeout of proxy {proxy.Address.AbsoluteUri}."));
+                }
+                catch (WebException ex) when ((ex.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    await ProxyService.BlacklistProxyAsync(proxy, TimeSpan.FromHours(2));
+                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to rate limit of proxy {proxy.Address.AbsoluteUri}."));
+                }
+            }
+
+            throw new TooManyRetriesException();
+        }
+
+        private async Task<ICollection<IUserMessage>> SendPreviewMessageAsync(string json, string id, IMessageChannel channel, InstagramPreviewStyle style)
         {
             if (style == InstagramPreviewStyle.None)
                 style = InstagramPreviewStyle.Embed;
 
-            var request = WebRequest.CreateHttp($"https://www.instagram.com/graphql/query/?query_hash=505f2f2dfcfce5b99cb7ac4155cbf299&variables=%7B%22shortcode%22%3A%22{id}%22%2C%22child_comment_count%22%3A3%2C%22fetch_comment_count%22%3A40%2C%22parent_comment_count%22%3A24%2C%22has_threaded_comments%22%3Atrue%7D");
-            request.Accept = "*/*";
-            request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.106 Safari/537.36";
-            request.Referer = "https://www.instagram.com/p/{id}/";
-            request.Headers.Add("Accept-Encoding", "gzip, deflate, br");
+            var root = JObject.Parse(json);
+            var mediaRoot = root["data"]?["shortcode_media"];
 
-            using (var response = (HttpWebResponse)await request.GetResponseAsync())
-            using (var gzipStream = new GZipStream(response.GetResponseStream(), CompressionMode.Decompress))
-            using (var reader = new StreamReader(gzipStream))
+            if (mediaRoot == null)
+                throw new CommandException("Failed to retrieve data.");
+
+            IEnumerable<JToken> mediaTokens;
+            if (mediaRoot["edge_sidecar_to_children"]?["edges"] is JArray subMedia)
+                mediaTokens = subMedia.Select(x => x["node"]).Where(x => x != null);
+            else
+                mediaTokens = new[] { mediaRoot };
+
+            var media = mediaTokens.Select(x => new
             {
-                var json = await reader.ReadToEndAsync();
-                var root = JObject.Parse(json);
-                var mediaRoot = root["data"]?["shortcode_media"];
+                Url = (string)((bool)x["is_video"] ? x["video_url"] : x["display_url"]),
+                IsVideo = (bool)x["is_video"],
+                Thumbnail = (string)x["display_url"]
+            });
 
-                if (mediaRoot == null)
-                    throw new CommandException("Failed to retrieve data.");
+            var postUrl = $"https://instagram.com/p/{id}/";
+            var username = (string)mediaRoot["owner"]?["username"];
+            var fullname = (string)mediaRoot["owner"]?["full_name"];
+            var caption = (string)mediaRoot["edge_media_to_caption"]?["edges"]?.FirstOrDefault()?["node"]?["text"];
+            var displayName = !string.IsNullOrWhiteSpace(fullname) ? fullname : username;
 
-                IEnumerable<JToken> mediaTokens;
-                if (mediaRoot["edge_sidecar_to_children"]?["edges"] is JArray subMedia)
-                    mediaTokens = subMedia.Select(x => x["node"]).Where(x => x != null);
-                else
-                    mediaTokens = new[] { mediaRoot };
+            var sent = new List<IUserMessage>();
+            if (style == InstagramPreviewStyle.Embed)
+            {
+                var thumbnail = (string)mediaTokens.FirstOrDefault()?["display_url"];
+                var avatar = (string)mediaRoot["owner"]?["profile_pic_url"];
+                var timestamp = DateTimeOffset.FromUnixTimeSeconds((int)mediaRoot["taken_at_timestamp"]);
 
-                var media = mediaTokens.Select(x => new
-                {
-                    Url = (string)((bool)x["is_video"] ? x["video_url"] : x["display_url"]),
-                    IsVideo = (bool)x["is_video"],
-                    Thumbnail = (string)x["display_url"]
-                });
+                var embed = PrintHelpers.BuildMediaEmbed(
+                    displayName,
+                    await Task.WhenAll(media.Take(PrintHelpers.EmbedMediaCutoff).Select(x => UrlShortener.ShortenAsync(x.Url))),
+                    url: postUrl,
+                    caption: caption,
+                    thumbnail: media.Any() ? new PrintHelpers.Thumbnail(media.First().Thumbnail, media.First().IsVideo, media.First().Url) : null,
+                    footer: $"@{username}",
+                    timestamp: timestamp,
+                    iconUrl: avatar);
 
-                var postUrl = $"https://instagram.com/p/{id}/";
-                var username = (string)mediaRoot["owner"]?["username"];
-                var fullname = (string)mediaRoot["owner"]?["full_name"];
-                var caption = (string)mediaRoot["edge_media_to_caption"]?["edges"]?.FirstOrDefault()?["node"]?["text"];
-                var displayName = !string.IsNullOrWhiteSpace(fullname) ? fullname : username;
-
-                var sent = new List<IUserMessage>();
-                if (style == InstagramPreviewStyle.Embed)
-                {
-                    var thumbnail = (string)mediaTokens.FirstOrDefault()?["display_url"];
-                    var avatar = (string)mediaRoot["owner"]?["profile_pic_url"];
-                    var timestamp = DateTimeOffset.FromUnixTimeSeconds((int)mediaRoot["taken_at_timestamp"]);
-
-                    var embed = PrintHelpers.BuildMediaEmbed(
-                        displayName, 
-                        await Task.WhenAll(media.Take(PrintHelpers.EmbedMediaCutoff).Select(x => UrlShortener.ShortenAsync(x.Url))), 
-                        url: postUrl, 
-                        caption: caption, 
-                        thumbnail: media.Any() ? new PrintHelpers.Thumbnail(media.First().Thumbnail, media.First().IsVideo, media.First().Url) : null,
-                        footer: $"@{username}", 
-                        timestamp: timestamp, 
-                        iconUrl: avatar);
-
-                    sent.Add(await channel.SendMessageAsync(embed: embed.Build()));
-                }
-                else
-                {
-                    var mediaUrls = new List<string>();
-                    foreach (var item in media)
-                        mediaUrls.Add(item.IsVideo ? item.Url : await UrlShortener.ShortenAsync(item.Url));
-
-                    var messages = PrintHelpers.BuildMediaText(
-                        $"<:ig:725481240245043220> **{displayName}**",
-                        mediaUrls,
-                        url: postUrl, 
-                        caption: caption);
-
-                    foreach (var m in messages)
-                        sent.AddRange(await Communicator.SendMessage(channel, m));
-                }
-
-                Previews.TryAdd(sent.Last().Id, (authorId, sent));
-                try
-                {
-                    await sent.Last().AddReactionAsync(EmoteConstants.ClickToRemove);
-                }
-                catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Forbidden)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to add reaction for post id {id} on {(channel as IGuildChannel)?.Guild.Name}", ex));
-                }
-
-                TaskHelper.FireForget(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(PreviewDeleteWindow);
-                        if (Previews.TryRemove(sent.Last().Id, out _))
-                            await sent.Last().RemoveReactionAsync(EmoteConstants.ClickToRemove, sent.Last().Author);
-                    }
-                    catch (Discord.Net.HttpException dex) when (dex.HttpCode == HttpStatusCode.NotFound)
-                    {
-                        // Message probably deleted manually
-                    }
-                    catch (Exception ex)
-                    {
-                        await Logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to remove delete reaction from message", ex));
-                    }
-                });
+                sent.Add(await channel.SendMessageAsync(embed: embed.Build()));
             }
+            else
+            {
+                var mediaUrls = new List<string>();
+                foreach (var item in media)
+                    mediaUrls.Add(item.IsVideo ? item.Url : await UrlShortener.ShortenAsync(item.Url));
+
+                var messages = PrintHelpers.BuildMediaText(
+                    $"<:ig:725481240245043220> **{displayName}**",
+                    mediaUrls,
+                    url: postUrl,
+                    caption: caption);
+
+                foreach (var m in messages)
+                    sent.AddRange(await Communicator.SendMessage(channel, m));
+            }
+
+            return sent;
         }
 
         private async Task TrySuppressEmbed(IUserMessage message)

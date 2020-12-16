@@ -20,13 +20,12 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Miscellaneous;
-using DustyBot.Framework.Config;
 using Discord.WebSocket;
 
 namespace DustyBot.Modules
 {
-    //TODO: Rework into a proper OO design...
-    [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"schedule\">guide</a>.")]
+    //TODO: Rework into an actual OO design
+    [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"" + WebConstants.ScheduleGuideUrl + "\">guide</a>.")]
     class ScheduleModule : Module
     {
         public static readonly Embed Guide = new EmbedBuilder()

@@ -1,0 +1,22 @@
+version: '3.5'
+
+services:
+    dustybot-web:
+        build: 
+            context: ../../
+            dockerfile: src/DustyBot.Web/Dockerfile
+        image: dustybot-web
+        container_name: dustybot-web
+        ports:
+            - "80:80"
+        environment:
+            - "ASPNETCORE_ENVIRONMENT=Development"
+            - "ASPNETCORE_URLS=http://+:80"
+            - "MainSiteUrl="
+            - "MainSiteReferenceUrl="
+            - "DiscordClientId="
+            - "DiscordClientSecret="
+            - "TableStorageConnectionString="
+            - "SpotifyClientId="
+            - "SpotifyClientSecret="
+        restart: always

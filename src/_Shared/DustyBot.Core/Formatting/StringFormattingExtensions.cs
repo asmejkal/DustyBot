@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -76,6 +77,34 @@ namespace DustyBot.Core.Formatting
             return string.Join(delimiter, Regex.Matches(value, @"(^\p{Ll}+|\p{Lu}+(?!\p{Ll})|\p{Lu}\p{Ll}+)")
                 .OfType<Match>()
                 .Select(m => m.Value));
+        }
+
+        public static string Trim(this string value, char trimChar, int occurences)
+        {
+            int begin, end;
+            for (begin = 0; begin < occurences; ++begin)
+                if (begin >= value.Length || value[begin] != trimChar)
+                    break;
+
+            for (end = value.Length - 1; end >= value.Length - occurences; --end)
+                if (end < begin || value[end] != trimChar)
+                    break;
+
+            return (begin == 0 && end == value.Length - 1) ? value : value.Substring(begin, end - begin + 1);
+        }
+
+        public static string Trim(this string value, IEnumerable<char> trimChars, int occurences)
+        {
+            int begin, end;
+            for (begin = 0; begin < occurences; ++begin)
+                if (begin >= value.Length || !trimChars.Contains(value[begin]))
+                    break;
+
+            for (end = value.Length - 1; end >= value.Length - occurences; --end)
+                if (end < begin || !trimChars.Contains(value[end]))
+                    break;
+
+            return (begin == 0 && end == value.Length - 1) ? value : value.Substring(begin, end - begin + 1);
         }
     }
 }

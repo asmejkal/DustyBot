@@ -92,6 +92,12 @@ namespace DustyBot
 
             [Option("bitlykey", HelpText = "Bit.ly generic access token (Polr preferred).")]
             public string BitlyKey { get; set; }
+
+            [Option("proxylisturl", HelpText = "URL of a proxy list.")]
+            public string ProxyListUrl { get; set; }
+
+            [Option("proxylisttoken", HelpText = "Token for the proxy list.")]
+            public string ProxyListToken { get; set; }
         }
 
         static int Main(string[] args)
@@ -232,6 +238,12 @@ namespace DustyBot
 
                         if (opts.BitlyKey != null)
                             s.BitlyKey = opts.BitlyKey;
+
+                        if (opts.ProxyListUrl != null)
+                            s.ProxyListUrl = opts.ProxyListUrl;
+
+                        if (opts.ProxyListToken != null)
+                            s.ProxyListToken = opts.ProxyListToken;
                     });
                 }
             }
