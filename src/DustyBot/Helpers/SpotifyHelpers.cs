@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public static class SpotifyHelpers
+    internal static class SpotifyHelpers
     {
         public static string BuildAuthorizationHeader(string clientId, string clientSecret) =>
             "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));

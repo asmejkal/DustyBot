@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public interface IUrlShortener
+    internal interface IUrlShortener
     {
         Task<string> ShortenAsync(string url);
         Task<ICollection<string>> ShortenAsync(IEnumerable<string> urls);

@@ -10,24 +10,26 @@ using ParameterInfo = DustyBot.Framework.Commands.ParameterInfo;
 
 namespace DustyBot.Framework.Modules
 {
-    internal class ModuleInfo
+    public class ModuleInfo
     {
+        public Type Type { get; }
         public string Name { get; }
         public string Description { get; }
         public bool Hidden { get; }
         public IEnumerable<CommandInfo> Commands { get; }
 
-        private ModuleInfo(string name, string description, bool hidden, IEnumerable<CommandInfo> commands)
+        private ModuleInfo(Type type, string name, string description, bool hidden, IEnumerable<CommandInfo> commands)
         {
+            Type = type ?? throw new ArgumentNullException(nameof(type));
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Description = description ?? throw new ArgumentNullException(nameof(description));
             Hidden = hidden;
             Commands = commands ?? throw new ArgumentNullException(nameof(commands));
         }
 
-        public static ModuleInfo Create<T>() => Create(typeof(T));
+        internal static ModuleInfo Create<T>() => Create(typeof(T));
 
-        public static ModuleInfo Create(Type type)
+        internal static ModuleInfo Create(Type type)
         {
             var module = type.GetTypeInfo();
 
@@ -66,7 +68,7 @@ namespace DustyBot.Framework.Modules
                 commands.Add(new CommandInfo(type, handler, primaryUsage, aliases, userPermissions, botPermissions, parameters, description, examples, flags, comment));
             }
 
-            return new ModuleInfo(moduleAttribute.Name, moduleAttribute.Description, moduleAttribute.Hidden, commands);
+            return new ModuleInfo(type, moduleAttribute.Name, moduleAttribute.Description, moduleAttribute.Hidden, commands);
         }
 
         private static CommandInfo.CommandHandlerDelegate BuildCommandHandler(Type type, MethodInfo method)

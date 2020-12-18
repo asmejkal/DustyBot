@@ -1,4 +1,4 @@
-﻿namespace DustyBot.Framework.Config
+﻿namespace DustyBot.Framework.Configuration
 {
     public sealed class FrameworkGuildConfig
     {

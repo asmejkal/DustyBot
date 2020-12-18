@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DustyBot.Core.Formatting;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Utility;
@@ -21,11 +20,13 @@ using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Definitions;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Raid protection", "Protect your server against raiders.")]
-    class RaidProtectionModule : Module
+    internal sealed class RaidProtectionModule : IDisposable
     {
         private class SlidingMessageCache : ICollection<IMessage>
         {
@@ -86,23 +87,29 @@ namespace DustyBot.Modules
             public bool Empty => Offenses.Count <= 0 && ImagePosts.Count <= 0 && TextPosts.Count <= 0;
         }
 
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
-        public DiscordRestClient RestClient { get; }
-
         private static readonly TimeSpan MaxMessageProcessingDelay = TimeSpan.FromMinutes(2);
         private static readonly TimeSpan CleanupTimer = TimeSpan.FromMinutes(2);
         private static readonly TimeSpan ReportTimer = TimeSpan.FromMinutes(30);
 
+        private readonly BaseSocketClient _client;
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly DiscordRestClient _restClient;
+        private readonly IFrameworkReflector _frameworkReflector;
+
         private readonly GlobalContext _context = new GlobalContext();
 
-        public RaidProtectionModule(ICommunicator communicator, ISettingsService settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
+        public RaidProtectionModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, DiscordRestClient restClient, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
-            RestClient = restClient;
+            _client = client;
+            _communicator = communicator;
+            _settings = settings;
+            _logger = logger;
+            _restClient = restClient;
+            _frameworkReflector = frameworkReflector;
+
+            _client.MessageReceived += HandleMessageReceived;
         }
 
         [Command("raid", "protection", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -110,7 +117,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("raid", "protection", "enable", "Protects the server against raids.")]
@@ -122,17 +129,17 @@ namespace DustyBot.Modules
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["LogChannel"].AsTextChannel).SendMessages)
             {
-                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            await _settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
                 x.Enabled = true;
                 x.LogChannel = command["LogChannel"].AsTextChannel.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Raid protection has been enabled. Use `raid protection rules` to see the active rules.");
+            await command.ReplySuccess($"Raid protection has been enabled. Use `raid protection rules` to see the active rules.");
         }
 
         [Command("raid", "protection", "disable", "Disables raid protection.")]
@@ -141,8 +148,8 @@ namespace DustyBot.Modules
         [Comment("Does not erase your current rules.")]
         public async Task DisableRaidProtection(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) => x.Enabled = false);
-            await command.ReplySuccess(Communicator, $"Raid protection has been disabled.");
+            await _settings.Modify(command.GuildId, (RaidProtectionSettings x) => x.Enabled = false);
+            await command.ReplySuccess($"Raid protection has been disabled.");
         }
 
         [Command("raid", "protection", "rules", "Displays active raid protection rules.")]
@@ -150,7 +157,7 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.Administrator), BotPermissions(GuildPermission.ManageRoles)]
         public async Task ListRulesRaidProtection(ICommand command)
         {
-            var settings = await Settings.Read<RaidProtectionSettings>(command.GuildId);
+            var settings = await _settings.Read<RaidProtectionSettings>(command.GuildId);
             var result = new StringBuilder();
             result.AppendLine($"Protection **{(settings.Enabled ? "enabled" : "disabled")}**.");
             result.AppendLine($"Please make a request in the support server to modify any of these settings for your server (<{WebConstants.SupportServerInvite}>).");
@@ -169,7 +176,7 @@ namespace DustyBot.Modules
             result.AppendLine($"**PhraseBlacklistRule** - if enabled, blocks messages containing any of the specified phrases" + PrintDefaultFlag(RaidProtectionRuleType.PhraseBlacklistRule));
             result.AppendLine("`" + settings.PhraseBlacklistRule + "`\n");
 
-            await command.Reply(Communicator, result.ToString());
+            await command.Reply(result.ToString());
         }
 
         [Command("raid", "protection", "blacklist", "add", "Adds one or more blacklisted phrases.")]
@@ -189,7 +196,7 @@ namespace DustyBot.Modules
             if (tooShort.Any())
                 throw new IncorrectParametersCommandException($"A phrase needs to be at least {minLength} characters long. The following phrases are too short: {tooShort.WordJoinQuoted()}.", false);
 
-            var added = await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            var added = await _settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
                 if (x.PhraseBlacklistRule.Blacklist.Count + phrases.Count > guildLimit)
                     throw new AbortException($"You can only have up to {guildLimit} blacklisted phrases in a server.");
@@ -207,7 +214,7 @@ namespace DustyBot.Modules
                 return phrases;
             });
 
-            await command.ReplySuccess(Communicator, $"The following phrases have been added to the blacklist: {added.WordJoinQuoted()}.");
+            await command.ReplySuccess($"The following phrases have been added to the blacklist: {added.WordJoinQuoted()}.");
         }
 
         [Command("raid", "protection", "blacklist", "remove", "Removes one or more blacklisted phrases.")]
@@ -219,7 +226,7 @@ namespace DustyBot.Modules
         public async Task RemoveBlacklistRaidProtection(ICommand command)
         {
             var phrases = command["Phrases"].Repeats.Select(x => x.AsString).ToList();
-            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            await _settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
                 var missing = phrases.Except(x.PhraseBlacklistRule.Blacklist);
                 if (missing.Any())
@@ -237,7 +244,7 @@ namespace DustyBot.Modules
                 });
             });
 
-            await command.ReplySuccess(Communicator, $"The following phrases have been removed from the blacklist: {phrases.WordJoinQuoted()}.");
+            await command.ReplySuccess($"The following phrases have been removed from the blacklist: {phrases.WordJoinQuoted()}.");
         }
 
         [Command("raid", "protection", "blacklist", "clear", "Removes all phrases from the blacklist.")]
@@ -245,7 +252,7 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.Administrator)]
         public async Task ClearBlacklistRaidProtection(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            await _settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
                 x.SetException(RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule()
                 {
@@ -258,7 +265,7 @@ namespace DustyBot.Modules
                 });
             });
 
-            await command.ReplySuccess(Communicator, $"The phrase blacklist has been disabled.");
+            await command.ReplySuccess($"The phrase blacklist has been disabled.");
         }
 
         [Command("raid", "protection", "rules", "set", "Modifies a raid protection rule.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
@@ -280,8 +287,8 @@ namespace DustyBot.Modules
                 throw new IncorrectParametersCommandException("Invalid rule.");
             }
 
-            await Settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.SetException(type, newRule));
-            await command.ReplySuccess(Communicator, $"Rule has been set.");
+            await _settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.SetException(type, newRule));
+            await command.ReplySuccess($"Rule has been set.");
         }
 
         [Command("raid", "protection", "rules", "reset", "Resets a raid protection rule to default.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
@@ -292,11 +299,11 @@ namespace DustyBot.Modules
             if (!Enum.TryParse<RaidProtectionRuleType>(command["Type"], out var type))
                 throw new IncorrectParametersCommandException("Unknown rule type.");
 
-            await Settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.ResetException(type));
-            await command.ReplySuccess(Communicator, $"Rule has been reset.");
+            await _settings.Modify((ulong)command["ServerId"], (RaidProtectionSettings x) => x.ResetException(type));
+            await command.ReplySuccess($"Rule has been reset.");
         }
 
-        public override Task OnMessageReceived(SocketMessage message)
+        private Task HandleMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -309,12 +316,12 @@ namespace DustyBot.Modules
                     var user = message.Author as IGuildUser;
                     if (user == null)
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Warning, "Admin", $"Raid protection: user {message.Author.Id} is not a guild user in {channel.GuildId}"));
-                        user = await RestClient.GetGuildUserAsync(channel.GuildId, message.Author.Id);
+                        await _logger.Log(new LogMessage(LogSeverity.Warning, "Admin", $"Raid protection: user {message.Author.Id} is not a guild user in {channel.GuildId}"));
+                        user = await _restClient.GetGuildUserAsync(channel.GuildId, message.Author.Id);
 
                         if (user == null)
                         {
-                            await Logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Raid protection: user {message.Author.Id} not found in guild {channel.GuildId}"));
+                            await _logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Raid protection: user {message.Author.Id} not found in guild {channel.GuildId}"));
                             return;
                         }
                     }
@@ -322,7 +329,7 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    var settings = await Settings.Read<RaidProtectionSettings>(channel.GuildId, false);
+                    var settings = await _settings.Read<RaidProtectionSettings>(channel.GuildId, false);
                     if (settings == null || !settings.Enabled)
                         return;
 
@@ -409,7 +416,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Admin", "Failed to process message for raid protection", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Admin", "Failed to process message for raid protection", ex));
                 }
             });
 
@@ -500,7 +507,7 @@ namespace DustyBot.Modules
                     foreach (var guildContext in _context.GuildContexts)
                         report.AppendLine($"{guildContext.Key} ({guildContext.Value.UserContexts.Count}) ");
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", report.ToString()));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", report.ToString()));
                 }
             }
             finally
@@ -570,17 +577,17 @@ namespace DustyBot.Modules
                     IUserMessage warningMessage;
                     if (punish)
                     {
-                        await AdministrationHelpers.Mute(user, "raid protection rule", Settings);
-                        warningMessage = (await Communicator.SendMessage(channel, $"{user.Mention} you have been muted for breaking raid protection rules. If you believe this is a mistake, please contact a moderator.")).First();
+                        await AdministrationHelpers.Mute(user, "raid protection rule", _settings);
+                        warningMessage = (await _communicator.SendMessage(channel, $"{user.Mention} you have been muted for breaking raid protection rules. If you believe this is a mistake, please contact a moderator.")).First();
                     }
                     else
-                        warningMessage = (await Communicator.SendMessage(channel, $"{user.Mention} you have broken a raid protection rule.")).First();
+                        warningMessage = (await _communicator.SendMessage(channel, $"{user.Mention} you have broken a raid protection rule.")).First();
 
                     warningMessage.DeleteAfter(8);
                 }
                 else
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Missing permissions to warn offender about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Missing permissions to warn offender about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
                 }
 
                 var logChannel = await channel.Guild.GetTextChannelAsync(logChannelId);
@@ -595,15 +602,20 @@ namespace DustyBot.Modules
                     else
                         embed.WithDescription($"**Warned user {user.Mention} for suspicious behavior:**\n" + reason).WithColor(Color.Orange);
 
-                    await logChannel.SendMessageAsync(string.Empty, embed: embed.Build());
+                    await _communicator.SendMessage(logChannel, embed.Build());
                 }
                 else
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Couldn't report about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Couldn't report about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
                 }
 
-                await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Enforced rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id}) because of {reason}"));
+                await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Enforced rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id}) because of {reason}"));
             }
+        }
+
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

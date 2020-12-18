@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using DustyBot.Core.Formatting;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
@@ -17,11 +16,13 @@ using DustyBot.Definitions;
 using DustyBot.Database.Services;
 using DustyBot.LastFm;
 using DustyBot.LastFm.Models;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Last.fm", "Show others what you're listening to.")]
-    class LastFmModule : Module
+    internal sealed class LastFmModule
     {
         private class LastFmMatch<T>
         {
@@ -61,15 +62,17 @@ namespace DustyBot.Modules
 
         private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3-?months|3-?month|3mo|6-?months|6-?month|6mo|year|y|all)$";
 
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
-        private Func<Task<ILastFmStatsService>> LastFmServiceFactory { get; }
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly Func<Task<ILastFmStatsService>> _lastFmServiceFactory;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public LastFmModule(ICommunicator communicator, ISettingsService settings, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
+        public LastFmModule(ICommunicator communicator, ISettingsService settings, Func<Task<ILastFmStatsService>> lastFmServiceFactory, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            LastFmServiceFactory = lastFmServiceFactory;
+            _communicator = communicator;
+            _settings = settings;
+            _lastFmServiceFactory = lastFmServiceFactory;
+            _frameworkReflector = frameworkReflector;
         }
 
         [Command("lf", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -77,7 +80,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("lf", "np", "Shows what song you or someone else is currently playing on Last.fm.", CommandFlags.TypingIndicator)]
@@ -90,13 +93,13 @@ namespace DustyBot.Modules
             {
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
 
-                var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
+                var client = new LastFmClient(settings.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey);
                 var topTracksTask = client.GetTopTracks(LastFmDataPeriod.Month, 100);
                 var tracks = (await client.GetRecentTracks(count: 1)).ToList();
 
                 if (!tracks.Any())
                 {
-                    await command.Reply(Communicator, GetNoScrobblesMessage((await command["User"].AsGuildUserOrName)?.Item2));
+                    await command.Reply(GetNoScrobblesMessage((await command["User"].AsGuildUserOrName)?.Item2));
                     return;
                 }
 
@@ -173,7 +176,7 @@ namespace DustyBot.Modules
                     embed.AddField(x => x.WithName("Previous").WithValue($"{FormatTrackLink(previous?.ToTrack())} by {FormatArtistLink(previous?.Artist)}"));
                 }
 
-                await command.Message.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(embed.Build());
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -185,7 +188,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -197,7 +200,7 @@ namespace DustyBot.Modules
             try
             {
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
-                var config = await Settings.ReadGlobal<BotConfig>();
+                var config = await _settings.ReadGlobal<BotConfig>();
 
                 var lfm = new LastFmClient(settings.LastFmUsername, config.LastFmKey);
                 var nowPlayingTask = lfm.GetRecentTracks(count: 1);
@@ -207,18 +210,18 @@ namespace DustyBot.Modules
                 var nowPlaying = (await nowPlayingTask).FirstOrDefault();
                 if (nowPlaying == null)
                 {
-                    await command.Reply(Communicator, GetNoScrobblesMessage((await command["User"].AsGuildUserOrName)?.Item2));
+                    await command.Reply(GetNoScrobblesMessage((await command["User"].AsGuildUserOrName)?.Item2));
                     return;
                 }
 
                 var url = await spotify.SearchTrackUrl($"{nowPlaying.Name} artist:{nowPlaying.Artist.Name}");
                 if (string.IsNullOrEmpty(url))
                 {
-                    await command.Reply(Communicator, $"Can't find this track on Spotify...");
+                    await command.Reply($"Can't find this track on Spotify...");
                     return;
                 }
 
-                await command.Reply(Communicator, $"<:sf:621852106235707392> **{user} is now listening to...**\n" + url);
+                await command.Reply($"<:sf:621852106235707392> **{user} is now listening to...**\n" + url);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.Forbidden)
             {
@@ -226,7 +229,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -256,15 +259,15 @@ namespace DustyBot.Modules
                         .WithDescription("What did you expect?")
                         .WithFooter($"Based on {FormatStatsDataPeriod(period)}");
 
-                    await command.Channel.SendMessageAsync(embed: sameEmbed.Build());
+                    await command.Reply(sameEmbed.Build());
                     return;
                 }
 
                 // Prepare data
                 var clients = new
                 {
-                    first = new LastFmClient(settings.first.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey),
-                    second = new LastFmClient(settings.second.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey)
+                    first = new LastFmClient(settings.first.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey),
+                    second = new LastFmClient(settings.second.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey)
                 };
 
                 var playcounts = new
@@ -365,7 +368,7 @@ namespace DustyBot.Modules
                     .WithName($"And only they listen to these:")
                     .WithValue(onlySecond.Any() ? onlySecond.Select(y => $"{FormatArtistLink(y.Entity, true)} ({FormatPercent(y.Score)})").WordJoin(lastSeparator: " and ") : noData));
 
-                await command.Message.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(embed.Build());
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -377,7 +380,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -389,7 +392,7 @@ namespace DustyBot.Modules
             try
             {
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
-                var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
+                var client = new LastFmClient(settings.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey);
 
                 const int NumDisplayed = 100;
                 var userInfoTask = client.GetUserInfo();
@@ -437,7 +440,7 @@ namespace DustyBot.Modules
                     return embed;
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -449,7 +452,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -463,7 +466,7 @@ namespace DustyBot.Modules
             {
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LastFmDataPeriod.Overall;
-                var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
+                var client = new LastFmClient(settings.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey);
 
                 const int NumDisplayed = 100;
                 var playcountTask = client.GetTotalPlaycount(period);
@@ -492,7 +495,7 @@ namespace DustyBot.Modules
                         .WithFooter($"{playsTotal} plays in total");
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -504,7 +507,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -518,7 +521,7 @@ namespace DustyBot.Modules
             {
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LastFmDataPeriod.Overall;
-                var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
+                var client = new LastFmClient(settings.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey);
 
                 const int NumDisplayed = 100;
                 var playcountTask = client.GetTotalPlaycount(period);
@@ -547,7 +550,7 @@ namespace DustyBot.Modules
                         .WithFooter($"{playsTotal} plays in total");
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -559,7 +562,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -573,7 +576,7 @@ namespace DustyBot.Modules
             {
                 var (settings, user) = await GetLastFmSettings(command["User"], (IGuildUser)command.Author);
                 var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LastFmDataPeriod.Overall;
-                var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
+                var client = new LastFmClient(settings.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey);
 
                 const int NumDisplayed = 100;
                 var playcountTask = client.GetTotalPlaycount(period);
@@ -602,7 +605,7 @@ namespace DustyBot.Modules
                         .WithFooter($"{playsTotal} plays in total");
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -614,7 +617,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -632,13 +635,13 @@ namespace DustyBot.Modules
                 if (period == LastFmDataPeriod.Day)
                     throw new IncorrectParametersCommandException("The `day` value can't be used with this command.", false);
 
-                var client = new LastFmClient(settings.LastFmUsername, (await Settings.ReadGlobal<BotConfig>()).LastFmKey);
+                var client = new LastFmClient(settings.LastFmUsername, (await _settings.ReadGlobal<BotConfig>()).LastFmKey);
 
                 const int NumDisplayed = 10;
                 var info = await client.GetArtistDetail(command["Artist"], period);
                 if (info == null)
                 {
-                    await command.ReplyError(Communicator, "Can't find this artist or user. Make sure you're using the same spelling as the artist's page on Last.fm.");
+                    await command.ReplyError("Can't find this artist or user. Make sure you're using the same spelling as the artist's page on Last.fm.");
                     return;
                 }
 
@@ -682,7 +685,7 @@ namespace DustyBot.Modules
                     embed.AddField("Top tracks", topList.ToString());
                 }
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(embed.Build());
             }
             catch (WebException e) when ((e.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.NotFound)
             {
@@ -694,7 +697,7 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await command.Reply(Communicator, $"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await command.Reply($"Last.fm is down (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
 
@@ -703,13 +706,13 @@ namespace DustyBot.Modules
         [Comment("Can be used in a direct message. Your username will be saved across servers.")]
         public async Task LastFmSet(ICommand command)
         {
-            await Settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
+            await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
             {
                 x.LastFmUsername = command["Username"];
                 x.Anonymous = false;
             });
 
-            await command.ReplySuccess(Communicator, $"Your Last.fm username has been set to `{command["Username"]}`.");
+            await command.ReplySuccess($"Your Last.fm username has been set to `{command["Username"]}`.");
         }
 
         [Command("lf", "set", "anonymous", "Saves your username on Last.fm, without revealing it to others.", CommandFlags.DirectMessageAllow)]
@@ -726,13 +729,13 @@ namespace DustyBot.Modules
                 //most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
             }
 
-            await Settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
+            await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
             {
                 x.LastFmUsername = command["Username"];
                 x.Anonymous = true;
             });
 
-            await command.ReplySuccess(Communicator, $"Your Last.fm username has been set.");
+            await command.ReplySuccess($"Your Last.fm username has been set.");
         }
 
         [Command("lf", "reset", "Deletes your saved Last.fm username.", CommandFlags.DirectMessageAllow)]
@@ -740,8 +743,8 @@ namespace DustyBot.Modules
         [Comment("Can be used in a direct message.")]
         public async Task LastFmUnset(ICommand command)
         {
-            await Settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) => x.LastFmUsername = null);
-            await command.ReplySuccess(Communicator, $"Your Last.fm username has been deleted.");
+            await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) => x.LastFmUsername = null);
+            await command.ReplySuccess($"Your Last.fm username has been deleted.");
         }
 
         [Command("lf", "top", "artists", "global", "Shows the top artists among all users.", CommandFlags.OwnerOnly)]
@@ -749,7 +752,7 @@ namespace DustyBot.Modules
         [Alias("lf", "topartist", "global", true), Alias("lf", "artists", "global")]
         public async Task Test(ICommand command)
         {
-            using (var dbService = await LastFmServiceFactory())
+            using (var dbService = await _lastFmServiceFactory())
             {
                 const int NumDisplayed = 100;
                 var results = await dbService.GetTopArtistsAsync(NumDisplayed, default);
@@ -771,7 +774,7 @@ namespace DustyBot.Modules
                         .WithFooter($"Top artists of all bot users");
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
         }
 
@@ -807,7 +810,7 @@ namespace DustyBot.Modules
 
         async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(IGuildUser user, bool otherUser = false)
         {
-            var settings = await Settings.ReadUser<LastFmUserSettings>(user.Id, false);
+            var settings = await _settings.ReadUser<LastFmUserSettings>(user.Id, false);
             if (settings == null || string.IsNullOrWhiteSpace(settings.LastFmUsername))
             {
                 if (otherUser)

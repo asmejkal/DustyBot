@@ -1,7 +1,6 @@
 ﻿using Discord;
 using System;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
@@ -19,23 +18,29 @@ using System.IO;
 using System.Globalization;
 using Newtonsoft.Json;
 using System.Net;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Reactions", "Automatic reactions to messages and custom commands.")]
-    class ReactionsModule : Module
+    internal sealed class ReactionsModule : IDisposable
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
-        public BotConfig Config { get; }
+        private readonly BaseSocketClient _client;
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public ReactionsModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config)
+        public ReactionsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
-            Config = config;
+            _client = client;
+            _communicator = communicator;
+            _settings = settings;
+            _logger = logger;
+            _frameworkReflector = frameworkReflector;
+
+            _client.MessageReceived += HandleMessageReceived;
         }
 
         [Command("reactions", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -43,7 +48,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("reactions", "add", "Adds a reaction.")]
@@ -56,14 +61,14 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Author, command.GuildId);
 
-            var id = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            var id = await _settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var newId = s.NextReactionId++;
                 s.Reactions.Add(new Reaction() { Id = newId, Trigger = command["Trigger"], Value = command["Response"] });
                 return newId;
             });
 
-            await command.ReplySuccess(Communicator, $"Reaction `{id}` added!");
+            await command.ReplySuccess($"Reaction `{id}` added!");
         }
 
         [Command("reactions", "edit", "Edits a reaction.")]
@@ -74,14 +79,14 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Author, command.GuildId);
 
-            var id = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            var id = await _settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var reaction = FindSingleReaction(s, command["IdOrTrigger"]);
                 reaction.Value = command["Response"];
                 return reaction.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Reaction `{id}` edited!");
+            await command.ReplySuccess($"Reaction `{id}` edited!");
         }
 
         [Command("reactions", "rename", "Changes the trigger of a reaction.")]
@@ -92,7 +97,7 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Author, command.GuildId);
 
-            var count = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            var count = await _settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var reactions = FindReactions(s, command["IdOrTrigger"]);
                 foreach (var reaction in reactions)
@@ -101,7 +106,7 @@ namespace DustyBot.Modules
                 return reactions.Count;
             });
 
-            await command.ReplySuccess(Communicator, $"Edited {count} reactions!");
+            await command.ReplySuccess($"Edited {count} reactions!");
         }
 
         [Command("reactions", "remove", "Removes a reaction.")]
@@ -111,14 +116,14 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Author, command.GuildId);
 
-            var count = await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            var count = await _settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 var reactions = FindReactions(s, command["IdOrTrigger"]);
                 s.Reactions = s.Reactions.Except(reactions).ToList();
                 return reactions.Count;
             });
             
-            await command.ReplySuccess(Communicator, $"Removed {count} reactions.");
+            await command.ReplySuccess($"Removed {count} reactions.");
         }
 
         [Command("reactions", "clear", "Removes all reactions.")]
@@ -126,30 +131,30 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.Administrator)]
         public async Task ClearReactions(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+            await _settings.Modify(command.GuildId, (ReactionsSettings s) =>
             {
                 s.Reset();
             });
 
-            await command.ReplySuccess(Communicator, "All reactions cleared.");
+            await command.ReplySuccess("All reactions cleared.");
         }
 
         [Command("reactions", "list", "Lists all reactions.")]
         [Alias("reaction", "list", true)]
         public async Task ListReactions(ICommand command)
         {
-            var settings = await Settings.Read<ReactionsSettings>(command.GuildId, false);
+            var settings = await _settings.Read<ReactionsSettings>(command.GuildId, false);
             if (settings != null)
             {
                 var pages = BuildReactionList(settings.Reactions, "All reactions", footer: $"{settings.Reactions.Count} reactions");
                 if (pages.Any())
                 {
-                    await command.Reply(Communicator, pages, true);
+                    await command.Reply(pages, true);
                     return;
                 }
             }
 
-            await command.Reply(Communicator, "No reactions have been set up on this server.");
+            await command.Reply("No reactions have been set up on this server.");
         }
 
         [Command("reactions", "search", "Shows all reactions containing a given word.")]
@@ -157,19 +162,19 @@ namespace DustyBot.Modules
         [Parameter("SearchString", ParameterType.String, ParameterFlags.Remainder, "one or more words of the trigger or response")]
         public async Task SearchReactions(ICommand command)
         {
-            var settings = await Settings.Read<ReactionsSettings>(command.GuildId, false);
+            var settings = await _settings.Read<ReactionsSettings>(command.GuildId, false);
             if (settings != null)
             {
                 var matches = settings.Reactions.Where(x => x.Trigger.Search(command["SearchString"], true) || x.Value.Search(command["SearchString"], true)).ToList();
                 var pages = BuildReactionList(matches, $"Found {matches.Count} reaction{(matches.Count != 1 ? "s" : "")}");
                 if (pages.Any())
                 {
-                    await command.Reply(Communicator, pages, true);
+                    await command.Reply(pages, true);
                     return;
                 }
             }
 
-            await command.Reply(Communicator, $"Found no reactions containing `{command["SearchString"]}`.");
+            await command.Reply($"Found no reactions containing `{command["SearchString"]}`.");
         }
 
         [Command("reactions", "stats", "Shows how many times reactions have been used.")]
@@ -177,10 +182,10 @@ namespace DustyBot.Modules
         [Parameter("IdOrTrigger", ParameterType.String, ParameterFlags.Remainder | ParameterFlags.Optional, "the reaction trigger or ID; shows all reactions if omitted")]
         public async Task ShowReactionStats(ICommand command)
         {
-            var settings = await Settings.Read<ReactionsSettings>(command.GuildId, false);
+            var settings = await _settings.Read<ReactionsSettings>(command.GuildId, false);
             if (settings == null || !settings.Reactions.Any())
             {
-                await command.Reply(Communicator, "No reactions have been set up on this server.");
+                await command.Reply("No reactions have been set up on this server.");
                 return;
             }
 
@@ -205,7 +210,7 @@ namespace DustyBot.Modules
                 .WithTitle("Reaction statistics")
                 .WithFooter($"{settings.Reactions.Count} reactions in total"));
 
-            await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+            await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
         }
 
         [Command("reactions", "export", "Exports all reactions into a file.")]
@@ -214,10 +219,10 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Author, command.GuildId);
 
-            var settings = await Settings.Read<ReactionsSettings>(command.GuildId, false);
+            var settings = await _settings.Read<ReactionsSettings>(command.GuildId, false);
             if (settings == null || !settings.Reactions.Any())
             {
-                await command.Reply(Communicator, "No reactions have been set up on this server.");
+                await command.Reply("No reactions have been set up on this server.");
                 return;
             }
 
@@ -268,7 +273,7 @@ namespace DustyBot.Modules
                     }
                 }
 
-                await Settings.Modify(command.GuildId, (ReactionsSettings s) =>
+                await _settings.Modify(command.GuildId, (ReactionsSettings s) =>
                 {
                     foreach (var reaction in reactions.SelectMany(x => x))
                     {
@@ -277,7 +282,7 @@ namespace DustyBot.Modules
                     }
                 });
 
-                await command.ReplySuccess(Communicator, $"Added {reactions.Count} reactions!");
+                await command.ReplySuccess($"Added {reactions.Count} reactions!");
             }
         }
 
@@ -287,14 +292,14 @@ namespace DustyBot.Modules
         [Comment("Users with this role will be able to manage the reactions, in addition to users with the Manage Messages privilege.\n\nUse without parameters to disable.")]
         public async Task SetManagerRole(ICommand command)
         {
-            var r = await Settings.Modify(command.GuildId, (ReactionsSettings s) => s.ManagerRole = command["RoleNameOrID"].AsRole?.Id ?? default);
+            var r = await _settings.Modify(command.GuildId, (ReactionsSettings s) => s.ManagerRole = command["RoleNameOrID"].AsRole?.Id ?? default);
             if (r == default)
-                await command.ReplySuccess(Communicator, $"Reactions manager role has been disabled. Users with the Manage Messages permission can still edit the reactions.");
+                await command.ReplySuccess($"Reactions manager role has been disabled. Users with the Manage Messages permission can still edit the reactions.");
             else
-                await command.ReplySuccess(Communicator, $"Users with role `{command["RoleNameOrID"].AsRole.Name}` (`{command["RoleNameOrID"].AsRole.Id}`) will now be allowed to manage reactions.");
+                await command.ReplySuccess($"Users with role `{command["RoleNameOrID"].AsRole.Name}` (`{command["RoleNameOrID"].AsRole.Id}`) will now be allowed to manage reactions.");
         }
 
-        public override Task OnMessageReceived(SocketMessage message)
+        private Task HandleMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -314,7 +319,7 @@ namespace DustyBot.Modules
                     if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                         return;
 
-                    var settings = await Settings.Read<ReactionsSettings>(channel.Guild.Id, false);
+                    var settings = await _settings.Read<ReactionsSettings>(channel.Guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -322,15 +327,15 @@ namespace DustyBot.Modules
                     if (reaction == null)
                         return;
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Reactions", $"Triggered reaction \"{message.Content}\" (id: {reaction.Id}) for {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Reactions", $"Triggered reaction \"{message.Content}\" (id: {reaction.Id}) for {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
 
-                    await Communicator.SendMessage(channel, reaction.Value);
+                    await _communicator.SendMessage(channel, reaction.Value);
 
-                    await Settings.Modify(channel.Guild.Id, (ReactionsSettings x) => x.Reactions.First(x => x.Id == reaction.Id).TriggerCount++);
+                    await _settings.Modify(channel.Guild.Id, (ReactionsSettings x) => x.Reactions.First(x => x.Id == reaction.Id).TriggerCount++);
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Reactions", "Failed to process reaction", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Reactions", "Failed to process reaction", ex));
                 }
             });
 
@@ -344,7 +349,7 @@ namespace DustyBot.Modules
                 if (gu.GuildPermissions.ManageMessages)
                     return;
 
-                var s = await Settings.Read<ReactionsSettings>(guildId);
+                var s = await _settings.Read<ReactionsSettings>(guildId);
                 if (s.ManagerRole == default || !gu.RoleIds.Contains(s.ManagerRole))
                     throw new MissingPermissionsException("You may bypass this requirement by asking for a reactions manager role.", GuildPermission.ManageMessages);
             }
@@ -407,6 +412,11 @@ namespace DustyBot.Modules
             }
 
             return pages;
+        }
+
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

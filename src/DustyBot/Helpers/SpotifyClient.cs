@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    class SpotifyClient
+    internal class SpotifyClient
     {
         private string ClientId { get; }
         private string ClientSecret { get; }

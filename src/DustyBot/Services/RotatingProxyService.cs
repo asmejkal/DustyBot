@@ -1,5 +1,6 @@
 ﻿using Discord;
 using DustyBot.Core.Async;
+using DustyBot.Core.Net;
 using DustyBot.Database.Services;
 using DustyBot.Exceptions;
 using DustyBot.Framework.Logging;
@@ -15,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Services
 {
-    internal sealed class RotatingProxyService : BaseRecurringTaskService, IProxyService, IDisposable
+    internal sealed class RotatingProxyService : RecurringTaskService, IProxyService, IDisposable
     {
         private static readonly TimeSpan ProxyListRefreshPeriod = TimeSpan.FromHours(1);
 
@@ -24,8 +25,8 @@ namespace DustyBot.Services
         private readonly IProxyListService _proxyList;
         private readonly ILogger _logger;
 
-        private int _proxyCounter;
         private readonly SemaphoreSlim _proxiesLock = new SemaphoreSlim(1, 1);
+        private int _proxyCounter;
         private ImmutableList<WebProxy> _proxies;
 
         public RotatingProxyService(string token, Uri proxyListUrl, IProxyListService proxyList, ILogger logger)
@@ -62,7 +63,7 @@ namespace DustyBot.Services
 
         public Task ForceRefreshAsync() => ExecuteAsync(default);
 
-        protected override async Task ExecuteAsync(CancellationToken ct)
+        protected override async Task ExecuteRecurringAsync(CancellationToken ct)
         {
             var proxies = new List<WebProxy>();
             for (int i = 1; ; i++)
@@ -70,7 +71,7 @@ namespace DustyBot.Services
                 var request = WebRequest.CreateHttp(new UriBuilder(_proxyListUrl) { Query = $"?page={i}" }.Uri);
                 request.Headers.Add("Authorization", $"Token {_token}");
 
-                using var response = await request.GetResponseAsync();
+                using var response = await request.GetResponseAsync(ct);
                 using var reader = new StreamReader(response.GetResponseStream());
 
                 var text = await reader.ReadToEndAsync();
@@ -94,10 +95,10 @@ namespace DustyBot.Services
             }
         }
 
-        protected override void Dispose(bool disposing)
+        public override void Dispose()
         {
             ((IDisposable)_proxiesLock)?.Dispose();
-            base.Dispose(disposing);
+            base.Dispose();
         }
     }
 }

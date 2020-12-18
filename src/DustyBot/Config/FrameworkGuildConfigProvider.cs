@@ -1,5 +1,5 @@
 ﻿using DustyBot.Database.Services;
-using DustyBot.Framework.Config;
+using DustyBot.Framework.Configuration;
 using DustyBot.Settings;
 using System;
 using System.Threading.Tasks;

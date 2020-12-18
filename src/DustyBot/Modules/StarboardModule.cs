@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Globalization;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Utility;
@@ -21,30 +20,39 @@ using DustyBot.Core.Formatting;
 using DustyBot.Core.Async;
 using DustyBot.Definitions;
 using System.Net;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Starboard", "Reposts the best messages as voted by users into specified channels.")]
-    class StarboardModule : Module
+    internal sealed class StarboardModule : IDisposable
     {
         private static readonly Regex LinkOnlyMessageRegex = new Regex(@"^\s*(?:(http[s]?:\/\/[^\s]+)\s*)+$", RegexOptions.Compiled);
         private static readonly Regex InstagramThumbnailRegex = new Regex(@"https?:\/\/(?:www.)?instagram.com\/p\/\w+\/media", RegexOptions.Compiled);
+        private readonly BaseSocketClient _client;
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly IUserFetcher _userFetcher;
+        private readonly IUrlShortener _urlShortener;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
-        private ILogger Logger { get; }
-        private IUserFetcher UserFetcher { get; }
-        private IUrlShortener UrlShortener { get; }
+        private readonly KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
 
-        private KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
-
-        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener)
+        public StarboardModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
-            UserFetcher = userFetcher;
-            UrlShortener = urlShortener;
+            _client = client;
+            _communicator = communicator;
+            _settings = settings;
+            _logger = logger;
+            _userFetcher = userFetcher;
+            _urlShortener = urlShortener;
+            _frameworkReflector = frameworkReflector;
+
+            _client.ReactionAdded += HandleReactionAdded;
+            _client.ReactionRemoved += HandleReactionRemoved;
+            _client.MessageDeleted += HandleMessageDeleted;
         }
 
         [Command("starboard", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -52,7 +60,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("starboard", "add", "Sets up a new starboard.")]
@@ -63,17 +71,17 @@ namespace DustyBot.Modules
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
             {
-                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
-            var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            var id = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 s.Starboards.Add(new Starboard() { Id = s.NextId, Channel = command["Channel"].AsTextChannel.Id, Style = StarboardStyle.Embed });
                 return s.NextId++;
             });
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}. Use the `starboard set ...` commands to customize it.");
+            await command.ReplySuccess($"Starboard `{id}` has been enabled in channel {command["Channel"].AsTextChannel.Mention}. Use the `starboard set ...` commands to customize it.");
         }
 
         [Command("starboard", "set", "style", "Sets the style for the starboard (embed or text).")]
@@ -87,7 +95,7 @@ namespace DustyBot.Modules
             if (!Enum.TryParse<StarboardStyle>(command["Style"], true, out var style) || !Enum.IsDefined(typeof(StarboardStyle), style))
                 throw new IncorrectParametersCommandException("Unknown style.");
 
-            var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            var id = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
                 if (board == null)
@@ -97,7 +105,7 @@ namespace DustyBot.Modules
                 return board.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now use the `{command["Style"]}` style.");
+            await command.ReplySuccess($"Starboard `{id}` will now use the `{command["Style"]}` style.");
         }
 
         [Command("starboard", "set", "emoji", "Sets one or more custom emoji for a starboard.")]
@@ -108,7 +116,7 @@ namespace DustyBot.Modules
         [Parameter("Emojis", ParameterType.String, ParameterFlags.Repeatable, "one or more emojis that will be used to star messages instead of the default :star: emoji; the first emoji will be the main one")]
         public async Task SetEmojis(ICommand command)
         {
-            var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            var id = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
                 if (board == null)
@@ -118,7 +126,7 @@ namespace DustyBot.Modules
                 return board.Id;
             });
 
-            await command.ReplySuccess(Communicator, $"Starboard `{id}` will now look for {(command["Emojis"].Repeats.Count == 1 ? "the " : "")}{command["Emojis"].Repeats.Select(x => x.AsString).WordJoin()} emoji{(command["Emojis"].Repeats.Count > 1 ? "s" : "")}.");
+            await command.ReplySuccess($"Starboard `{id}` will now look for {(command["Emojis"].Repeats.Count == 1 ? "the " : "")}{command["Emojis"].Repeats.Select(x => x.AsString).WordJoin()} emoji{(command["Emojis"].Repeats.Count > 1 ? "s" : "")}.");
         }
 
         [Command("starboard", "set", "threshold", "Sets the minimum reactions for a starboard.")]
@@ -130,7 +138,7 @@ namespace DustyBot.Modules
         {
             try
             {
-                var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+                var id = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
                 {
                     var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
                     if (board == null)
@@ -140,7 +148,7 @@ namespace DustyBot.Modules
                     return board.Id;
                 });
 
-                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now require a minimum of `{(uint)command["Threshold"]}` reactions.");
+                await command.ReplySuccess($"Starboard `{id}` will now require a minimum of `{(uint)command["Threshold"]}` reactions.");
             }
             catch (ArgumentOutOfRangeException)
             {
@@ -156,7 +164,7 @@ namespace DustyBot.Modules
         [Comment("The bot will look only in these channels for starred messages (for this particular starboard). Omit the `Channels` parameter to accept all channels.")]
         public async Task SetChannelsWhitelist(ICommand command)
         {
-            var id = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            var id = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
                 if (board == null)
@@ -171,9 +179,9 @@ namespace DustyBot.Modules
             });
 
             if (command["Channels"].HasValue)
-                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now only repost messages from {command["Channels"].Repeats.Select(x => x.AsTextChannel.Mention).WordJoin()}.");
+                await command.ReplySuccess($"Starboard `{id}` will now only repost messages from {command["Channels"].Repeats.Select(x => x.AsTextChannel.Mention).WordJoin()}.");
             else
-                await command.ReplySuccess(Communicator, $"Starboard `{id}` will now repost messages from all channels.");
+                await command.ReplySuccess($"Starboard `{id}` will now repost messages from all channels.");
         }
 
         [Command("starboard", "set", "rule", "Sets the rules for a starboard, e.g. to allow self-stars.")]
@@ -188,7 +196,7 @@ namespace DustyBot.Modules
         {
             var rule = (string)command["Rule"];
             var value = string.Compare(command["Setting"], "yes", true, GlobalDefinitions.Culture) == 0;
-            var explanation = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            var explanation = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 var board = s.Starboards.FirstOrDefault(x => x.Id == (int)command["StarboardID"]);
                 if (board == null)
@@ -213,16 +221,16 @@ namespace DustyBot.Modules
                     throw new IncorrectParametersCommandException("Unknown rule.");
             });
 
-            await command.ReplySuccess(Communicator, explanation);
+            await command.ReplySuccess(explanation);
         }
 
         [Command("starboard", "list", "Lists all active starboards.")]
         public async Task ListStarboards(ICommand command)
         {
-            var settings = await Settings.Read<StarboardSettings>(command.GuildId, false);
+            var settings = await _settings.Read<StarboardSettings>(command.GuildId, false);
             if (settings == null || settings.Starboards.Count <= 0)
             {
-                await command.Reply(Communicator, "No starboards have been set up on this server. Use `starboard add` to create a starboard.");
+                await command.Reply("No starboards have been set up on this server. Use `starboard add` to create a starboard.");
                 return;
             }
 
@@ -230,7 +238,7 @@ namespace DustyBot.Modules
             foreach (var s in settings.Starboards)
                 result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Style: `{(s.Style)}` Emojis: {string.Join(" ", s.Emojis)} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
 
-            await command.Reply(Communicator, result.ToString());
+            await command.Reply(result.ToString());
         }
 
         [Command("starboard", "remove", "Disables a starboard.")]
@@ -239,13 +247,13 @@ namespace DustyBot.Modules
         [Comment("The bot will not delete the starboard channel, but the reaction data will be lost.")]
         public async Task RemoveStarboard(ICommand command)
         {
-            var r = await Settings.Modify(command.GuildId, (StarboardSettings s) =>
+            var r = await _settings.Modify(command.GuildId, (StarboardSettings s) =>
             {
                 return s.Starboards.RemoveAll(x => x.Id == (int)command["StarboardID"]);
             });
 
             if (r > 0)
-                await command.ReplySuccess(Communicator, $"Starboard `{command["StarboardID"]}` has been disabled.");
+                await command.ReplySuccess($"Starboard `{command["StarboardID"]}` has been disabled.");
             else
                 throw new IncorrectParametersCommandException("No starboard found with this ID. Use `starboard list` to see all active starboards and their IDs.", false);
         }
@@ -253,7 +261,7 @@ namespace DustyBot.Modules
         [Command("starboard", "ranking", "Shows which users have received the most stars.")]
         public async Task StarboardRanking(ICommand command)
         {
-            var settings = await Settings.Read<StarboardSettings>(command.GuildId);
+            var settings = await _settings.Read<StarboardSettings>(command.GuildId);
 
             var data = new Dictionary<ulong, int>();
             foreach (var board in settings.Starboards)
@@ -271,7 +279,7 @@ namespace DustyBot.Modules
             int count = 0;
             foreach (var dataPair in data.OrderByDescending(x => x.Value))
             {
-                var user = await command.Guild.GetUserAsync(dataPair.Key) ?? await UserFetcher.FetchGuildUserAsync(command.Guild.Id, dataPair.Key);
+                var user = await command.Guild.GetUserAsync(dataPair.Key) ?? await _userFetcher.FetchGuildUserAsync(command.Guild.Id, dataPair.Key);
                 if (user == null)
                     continue;
 
@@ -283,7 +291,7 @@ namespace DustyBot.Modules
 
             if (count <= 0)
             {
-                await command.Reply(Communicator, "There are no users with starred messages on this server.");
+                await command.Reply("There are no users with starred messages on this server.");
                 return;
             }
 
@@ -291,13 +299,13 @@ namespace DustyBot.Modules
                 .WithTitle("Top posters")
                 .WithDescription(result.ToString());
 
-            await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build());
+            await command.Reply(embed.Build());
         }
 
         [Command("starboard", "top", "Shows the top ranked messages.")]
         public async Task StarboardTop(ICommand command)
         {
-            var settings = await Settings.Read<StarboardSettings>(command.GuildId);
+            var settings = await _settings.Read<StarboardSettings>(command.GuildId);
 
             var data = new Dictionary<(ulong channel, ulong message), int>();
             foreach (var board in settings.Starboards)
@@ -338,11 +346,11 @@ namespace DustyBot.Modules
 
             if (pages.Count <= 0)
             {
-                await command.Reply(Communicator, "There are no starred messages on this server.");
+                await command.Reply("There are no starred messages on this server.");
                 return;
             }
 
-            await command.Reply(Communicator, pages);
+            await command.Reply(pages);
         }
 
         [Command("starboard", "remove", "message", "Removes one of your own messages from starboard.")]
@@ -351,7 +359,7 @@ namespace DustyBot.Modules
         public async Task RemoveStarboardMessage(ICommand command)
         {
             var message = await command["Message"].AsGuildSelfMessage;
-            var found = await Settings.Modify(command.GuildId, (StarboardSettings x) =>
+            var found = await _settings.Modify(command.GuildId, (StarboardSettings x) =>
             {
                 foreach (var b in x.Starboards)
                 {
@@ -369,13 +377,13 @@ namespace DustyBot.Modules
             if (found)
             {
                 await message.DeleteAsync();
-                await command.Reply(Communicator, $"Removed your starred message `{message.Id}` from starboard in channel <#{message.Channel.Id}>.");
+                await command.Reply($"Removed your starred message `{message.Id}` from starboard in channel <#{message.Channel.Id}>.");
             }
             else
-                await command.Reply(Communicator, $"Can't find message `{message.Id}` in any starboard on this server. Please provide a valid message from a starboard channel (not the original message).");
+                await command.Reply($"Can't find message `{message.Id}` in any starboard on this server. Please provide a valid message from a starboard channel (not the original message).");
         }
 
-        public override Task OnReactionAdded(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
+        private Task HandleReactionAdded(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -387,7 +395,7 @@ namespace DustyBot.Modules
                     if (!(channel is ITextChannel textChannel))
                         return;
 
-                    var settings = await Settings.Read<StarboardSettings>(textChannel.GuildId, false);
+                    var settings = await _settings.Read<StarboardSettings>(textChannel.GuildId, false);
                     if (settings == null || settings.Starboards.Count <= 0)
                         return;
                     
@@ -404,7 +412,7 @@ namespace DustyBot.Modules
                                 }
                                 catch (Exception ex)
                                 {
-                                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
+                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
                                 }
                             }
                         });
@@ -412,7 +420,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a new reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a new reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
                 }
             });
 
@@ -446,14 +454,14 @@ namespace DustyBot.Modules
                 }
                 catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Missing access to read reactions in channel {channel.Id} for {message.Id} on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Missing access to read reactions in channel {channel.Id} for {message.Id} on {channel.Guild.Name} ({channel.Guild.Id})"));
                 }
             }
 
             if (!board.AllowSelfStars)
                 starrers.Remove(message.Author.Id);
 
-            var entry = await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
+            var entry = await _settings.Modify(channel.GuildId, (StarboardSettings s) =>
             {
                 var b = s.Starboards.FirstOrDefault(x => x.Id == board.Id);
                 if (b == null)
@@ -481,25 +489,25 @@ namespace DustyBot.Modules
                 //Post new
                 if (!(await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).SendMessages)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Can't post starred message because of missing permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Can't post starred message because of missing permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
                     return;
                 }
 
                 var attachments = await ProcessAttachments(message.Attachments);
                 var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), attachments, board.Style);
-                var starMessage = await starChannel.SendMessageAsync(built.Text, embed: built.Embed);
+                var starMessage = await _communicator.SendMessage(starChannel, built.Text, built.Embed);
 
-                await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
+                await _settings.Modify(channel.GuildId, (StarboardSettings s) =>
                 {
                     var b = s.Starboards.FirstOrDefault(x => x.Id == board.Id);
                     if (b != null && b.StarredMessages.TryGetValue(message.Id, out var e))
                     {
-                        e.StarboardMessage = starMessage.Id;
+                        e.StarboardMessage = starMessage.Single().Id;
                         e.Attachments = attachments;
                     }
                 });
 
-                await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"New starred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
+                await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"New starred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
             }
             else
             {
@@ -517,7 +525,7 @@ namespace DustyBot.Modules
             }
         }
 
-        public override Task OnReactionRemoved(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
+        private Task HandleReactionRemoved(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -529,7 +537,7 @@ namespace DustyBot.Modules
                     if (!(channel is ITextChannel textChannel))
                         return;
 
-                    var settings = await Settings.Read<StarboardSettings>(textChannel.GuildId, false);
+                    var settings = await _settings.Read<StarboardSettings>(textChannel.GuildId, false);
                     if (settings == null || settings.Starboards.Count <= 0)
                         return;
 
@@ -545,7 +553,7 @@ namespace DustyBot.Modules
                                 }
                                 catch (Exception ex)
                                 {
-                                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
+                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
                                 }
                             }
                         });
@@ -553,7 +561,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a removed reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a removed reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
                 }
             });
 
@@ -582,7 +590,7 @@ namespace DustyBot.Modules
             if (!board.AllowSelfStars)
                 starrers.Remove(message.Author.Id);
 
-            var entry = await Settings.Modify(channel.GuildId, (StarboardSettings s) =>
+            var entry = await _settings.Modify(channel.GuildId, (StarboardSettings s) =>
             {
                 var b = s.Starboards.FirstOrDefault(x => x.Id == board.Id);
                 if (b == null)
@@ -615,11 +623,11 @@ namespace DustyBot.Modules
                 try
                 {
                     await starMessage.DeleteAsync();
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed unstarred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed unstarred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete unstarred message {message.Id} on {channel.Guild} ({channel.GuildId})", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete unstarred message {message.Id} on {channel.Guild} ({channel.GuildId})", ex));
                 }
             }
             else
@@ -643,14 +651,14 @@ namespace DustyBot.Modules
                 try
                 {
                     if (IsImageLink(a.Url))
-                        result.Add(await UrlShortener.ShortenAsync(a.Url));
+                        result.Add(await _urlShortener.ShortenAsync(a.Url));
                     else
                         result.Add(a.Url);
                 }
                 catch (Exception ex)
                 {
                     result.Add(a.Url);
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to shorten URL {a.Url}", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to shorten URL {a.Url}", ex));
                 }
             }
 
@@ -659,12 +667,12 @@ namespace DustyBot.Modules
 
         async Task<(string Text, Embed Embed)> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments, StarboardStyle style)
         {
-            var author = await channel.Guild.GetUserAsync(message.Author.Id) ?? await UserFetcher.FetchGuildUserAsync(channel.GuildId, message.Author.Id);
+            var author = await channel.Guild.GetUserAsync(message.Author.Id) ?? await _userFetcher.FetchGuildUserAsync(channel.GuildId, message.Author.Id);
 
             if (style == StarboardStyle.Embed)
             {
                 var embed = message.Embeds.FirstOrDefault(x => x.Thumbnail.HasValue || x.Image.HasValue);
-                var attachedImage = attachments.FirstOrDefault(x => UrlShortener.IsShortened(x));
+                var attachedImage = attachments.FirstOrDefault(x => _urlShortener.IsShortened(x));
                 PrintHelpers.Thumbnail thumbnail = null;
                 if (attachedImage != null)
                 {
@@ -716,12 +724,12 @@ namespace DustyBot.Modules
                     caption: content,
                     footer: footer);
 
-                var result = await DiscordHelpers.ReplaceMentions(messages.First(), message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
+                var result = await DiscordHelpers.ReplaceMentions(messages.Single(), message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
                 return (DiscordHelpers.EscapeMentions(result), null);
             }
         }
 
-        public override Task OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
+        private Task HandleMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -733,7 +741,7 @@ namespace DustyBot.Modules
 
                     var guild = textChannel.Guild;
 
-                    var settings = await Settings.Read<StarboardSettings>(guild.Id, false);
+                    var settings = await _settings.Read<StarboardSettings>(guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -760,18 +768,18 @@ namespace DustyBot.Modules
                             try
                             {
                                 await starMessage.DeleteAsync();
-                                await Logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed deleted starred message {message.Id} in board {board.Id} on {guild.Name} ({guild.Id})"));
+                                await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed deleted starred message {message.Id} in board {board.Id} on {guild.Name} ({guild.Id})"));
                             }
                             catch (Exception ex)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete message {message.Id} on {guild.Id}", ex));
+                                await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete message {message.Id} on {guild.Id}", ex));
                             }
                         }
                     }
 
                     if (boardIds.Any())
                     {
-                        await Settings.Modify(guild.Id, (StarboardSettings s) =>
+                        await _settings.Modify(guild.Id, (StarboardSettings s) =>
                         {
                             foreach (var board in s.Starboards.Where(x => boardIds.Contains(x.Id)))
                                 board.StarredMessages.Remove(message.Id);
@@ -780,7 +788,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", "Failed to process deleted message", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", "Failed to process deleted message", ex));
                 }
             });
 
@@ -817,10 +825,17 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to resolve instagram thumbnail {baseUrl}", ex));
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to resolve instagram thumbnail {baseUrl}", ex));
             }
 
             return null;
+        }
+
+        public void Dispose()
+        {
+            _client.ReactionAdded -= HandleReactionAdded;
+            _client.ReactionRemoved -= HandleReactionRemoved;
+            _client.MessageDeleted -= HandleMessageDeleted;
         }
     }
 }

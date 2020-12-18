@@ -1,9 +1,7 @@
 ﻿using Discord;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Logging;
-using DustyBot.Framework.Modules;
 using DustyBot.Settings;
 using Newtonsoft.Json.Linq;
 using System;
@@ -13,23 +11,22 @@ using System.Text;
 using System.Threading.Tasks;
 using DustyBot.Database.Services;
 using DustyBot.Core.Formatting;
+using DustyBot.Framework.Modules.Attributes;
 
 namespace DustyBot.Modules
 {
     [Module("Translator", "Lets you translate between languages.")]
-    class TranslatorModule : Module
+    internal sealed class TranslatorModule
     {
         private const string LanguageRegex = @"^[a-zA-Z]{2}(?:-[a-zA-Z]{2})?$";
 
-        private ILogger Logger { get; }
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
 
-        public TranslatorModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
+        public TranslatorModule(ISettingsService settings, ILogger logger)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
+            _settings = settings;
+            _logger = logger;
         }
 
         [Command("translate", "Translates a piece of text.")]
@@ -41,7 +38,7 @@ namespace DustyBot.Modules
         [Example("ko en 사랑해")]
         public async Task Translation(ICommand command)
         {
-            var config = await Settings.ReadGlobal<BotConfig>();
+            var config = await _settings.ReadGlobal<BotConfig>();
 
             await command.Message.Channel.TriggerTypingAsync();
             var stringMessage = command["Message"].ToString();
@@ -77,7 +74,7 @@ namespace DustyBot.Modules
                         .WithColor(new Color(0, 206, 56))
                         .WithFooter("Powered by Papago");
 
-                    await command.Message.Channel.SendMessageAsync(string.Empty, false, embedBuilder.Build());
+                    await command.Reply(embedBuilder.Build());
                 }
             }
             catch (WebException e) when (e.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.BadRequest)
@@ -86,8 +83,8 @@ namespace DustyBot.Modules
             }
             catch (WebException e)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to reach Papago", e));
-                await command.Reply(Communicator, $"Couldn't reach Papago (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to reach Papago", e));
+                await command.Reply($"Couldn't reach Papago (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
             }
         }
     }

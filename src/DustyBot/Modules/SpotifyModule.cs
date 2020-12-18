@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
@@ -21,11 +20,13 @@ using System.Text.RegularExpressions;
 using DustyBot.Database.Services;
 using DustyBot.Core.Formatting;
 using System.Threading;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Spotify", "Show others what you're listening to on Spotify.")]
-    class SpotifyModule : Module
+    internal sealed class SpotifyModule
     {
         private static readonly IReadOnlyDictionary<string, TimeRangeType> InputStatsPeriodMapping =
             new Dictionary<string, TimeRangeType>(StringComparer.InvariantCultureIgnoreCase)
@@ -39,22 +40,20 @@ namespace DustyBot.Modules
         };
 
         private static readonly Regex SpotifyTrackIdRegex = new Regex(@"(?:https:\/\/open.spotify.com\/track\/([^?#\s]+))|(?:spotify:track:([^\s]+))");
-
         private static readonly IList<string> PitchClasses = new[] { "C", "C#" , "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-
         private const string StatsPeriodRegex = "^(?:month|mo|6months|6month|6mo|all)$";
 
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
-        private ISpotifyAccountsService AccountsService { get; }
-        private BotConfig Config { get; }
+        private readonly ISpotifyAccountsService _accountsService;
+        private readonly ICommunicator _communicator;
+        private readonly BotConfig _config;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public SpotifyModule(ICommunicator communicator, ISettingsService settings, ISpotifyAccountsService accountsService, BotConfig config)
+        public SpotifyModule(ISpotifyAccountsService accountsService, ICommunicator communicator, BotConfig config, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            AccountsService = accountsService;
-            Config = config;
+            _accountsService = accountsService;
+            _communicator = communicator;
+            _config = config;
+            _frameworkReflector = frameworkReflector;
         }
 
         [Command("sf", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -62,7 +61,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("sf", "np", "Shows a user's currently playing song.", CommandFlags.TypingIndicator)]
@@ -100,7 +99,7 @@ namespace DustyBot.Modules
                     var recents = await client.GetUsersRecentlyPlayedTracksAsync(1);
                     if (!recents.Items.Any())
                     {
-                        await command.Reply(Communicator, $"Looks like this user hasn't listened to anything recently.");
+                        await command.Reply($"Looks like this user hasn't listened to anything recently.");
                         return;
                     }
 
@@ -111,11 +110,11 @@ namespace DustyBot.Modules
                 var title = (user.Nickname ?? user.Username) + (nowPlaying ? " is now listening to..." : " last listened to...");
                 var embed = await PrepareTrackEmbed(client, track, title, analyse);
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(embed.Build());
             }
             catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+                await command.Reply($"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
         }
 
@@ -133,7 +132,7 @@ namespace DustyBot.Modules
                 FullTrack track;
                 if (!trackIdMatch.Success)
                 {
-                    var sclient = await SpotifyClient.Create(Config.SpotifyId, Config.SpotifyKey);
+                    var sclient = await SpotifyClient.Create(_config.SpotifyId, _config.SpotifyKey);
 
                     var trackId = await sclient.SearchTrackId(command["Track"]);
                     //var searchResult = await client.SearchItemsAsync($"q={command["Track"]}", SearchType.Track, 1);
@@ -154,11 +153,11 @@ namespace DustyBot.Modules
 
                 var embed = await PrepareTrackEmbed(client, track, "Track analysis", true);
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(embed.Build());
             }
             catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+                await command.Reply($"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
         }
 
@@ -227,11 +226,11 @@ namespace DustyBot.Modules
                 AddPercentageField(embed, "Energy", energy);
                 AddPercentageField(embed, "Positivity", positivity);
 
-                await command.Channel.SendMessageAsync(embed: embed.Build());
+                await command.Reply(embed.Build());
             }
             catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+                await command.Reply($"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
         }
 
@@ -275,11 +274,11 @@ namespace DustyBot.Modules
                     return embed;
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+                await command.Reply($"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
         }
 
@@ -323,11 +322,11 @@ namespace DustyBot.Modules
                     return embed;
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+                await command.Reply($"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
         }
 
@@ -370,11 +369,11 @@ namespace DustyBot.Modules
                     return embed;
                 });
 
-                await command.Reply(Communicator, pages.BuildEmbedCollection(embedFactory, 10), true);
+                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
             }
             catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
-                await command.Reply(Communicator, $"Spotify API is currently unavailable. Please try again in a few seconds.");
+                await command.Reply($"Spotify API is currently unavailable. Please try again in a few seconds.");
             }
         }
 
@@ -384,23 +383,23 @@ namespace DustyBot.Modules
         {
             try
             {
-                await AccountsService.RemoveUserAccountAsync(command.Author.Id, CancellationToken.None);
-                await command.ReplySuccess(Communicator, $"Your Spotify account has been disconnected.");
+                await _accountsService.RemoveUserAccountAsync(command.Author.Id, CancellationToken.None);
+                await command.ReplySuccess($"Your Spotify account has been disconnected.");
             }
             catch (StorageException ex) when (ex.RequestInformation.HttpStatusCode == 404)
             {
-                await command.ReplySuccess(Communicator, $"Your Spotify account is not connected.");
+                await command.ReplySuccess($"Your Spotify account is not connected.");
             }
         }
 
         private async Task<SpotifyWebAPI> GetClient(ulong userId, IMessageChannel responseChannel, bool otherUser)
         {
-            var account = await AccountsService.GetUserAccountAsync(userId, CancellationToken.None);
+            var account = await _accountsService.GetUserAccountAsync(userId, CancellationToken.None);
             if (account != null)
             {
                 try
                 {
-                    var result = await SpotifyHelpers.RefreshToken(account.RefreshToken, Config.SpotifyId, Config.SpotifyKey);
+                    var result = await SpotifyHelpers.RefreshToken(account.RefreshToken, _config.SpotifyId, _config.SpotifyKey);
                     return new SpotifyWebAPI()
                     {
                         AccessToken = result.Token,
@@ -422,13 +421,13 @@ namespace DustyBot.Modules
                 .WithAuthor(author)
                 .WithDescription((otherUser ? "This user hasn't connected their account yet." : "You have not connected your account yet.") + $" Click [here]({WebConstants.SpotifyConnectUrl}) to connect.");
 
-            await responseChannel.SendMessageAsync(embed: embed.Build());
+            await _communicator.SendMessage(responseChannel, embed.Build());
             throw new AbortException();
         }
 
         private async Task<SpotifyWebAPI> GetClient()
         {
-            var token = await SpotifyHelpers.GetClientToken(Config.SpotifyId, Config.SpotifyKey);
+            var token = await SpotifyHelpers.GetClientToken(_config.SpotifyId, _config.SpotifyKey);
             return new SpotifyWebAPI()
             {
                 AccessToken = token.Token,

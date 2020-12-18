@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Config;
+using DustyBot.Framework.Commands.Parsing;
+using DustyBot.Framework.Configuration;
 using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework
@@ -18,7 +19,8 @@ namespace DustyBot.Framework
 
         public Task StartAsync()
         {
-            _commandRoutingService = new CommandRoutingService(Configuration, new UserFetcher(Configuration.DiscordClient.Rest));
+            var userFetcher = new UserFetcher(Configuration.DiscordClient.Rest);
+            _commandRoutingService = new CommandRoutingService(Configuration, new CommandParser(userFetcher, Configuration.Communicator), userFetcher);
 
             return Task.CompletedTask;
         }

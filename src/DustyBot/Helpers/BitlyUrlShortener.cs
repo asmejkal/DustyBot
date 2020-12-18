@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public class BitlyUrlShortener : IUrlShortener
+    internal class BitlyUrlShortener : IUrlShortener
     {
         private static readonly Regex LinkRegex = new Regex(@"http[s]?://bit.ly/\w+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 

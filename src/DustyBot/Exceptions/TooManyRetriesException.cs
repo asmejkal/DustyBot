@@ -2,7 +2,7 @@
 
 namespace DustyBot.Exceptions
 {
-    public class TooManyRetriesException : Exception
+    internal class TooManyRetriesException : Exception
     {
         public TooManyRetriesException() { }
         public TooManyRetriesException(string message) : base(message) { }

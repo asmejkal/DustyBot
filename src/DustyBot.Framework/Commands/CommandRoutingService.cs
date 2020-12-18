@@ -8,10 +8,11 @@ using System.Diagnostics;
 using DustyBot.Core.Async;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Config;
+using DustyBot.Framework.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using DustyBot.Framework.Modules;
+using DustyBot.Framework.Commands.Parsing;
 
 namespace DustyBot.Framework.Commands
 {
@@ -38,13 +39,14 @@ namespace DustyBot.Framework.Commands
         private readonly string _defaultCommandPrefix;
         private readonly IEnumerable<ulong> _ownerIDs;
         private readonly IFrameworkGuildConfigProvider _guildConfigProvider;
+        private readonly ICommandParser _commandParser;
         private readonly IUserFetcher _userFetcher;
 
         private readonly Dictionary<string, List<CommandInfo>> _commandsMapping = new Dictionary<string, List<CommandInfo>>();
         private readonly object _commandsMappingLock = new object();
         private int _commandCounter = 0;
 
-        public CommandRoutingService(FrameworkConfiguration config, IUserFetcher userFetcher)
+        public CommandRoutingService(FrameworkConfiguration config, ICommandParser commandParser, IUserFetcher userFetcher)
         {
             _client = config.DiscordClient;
             _clientServiceProvider = config.ClientServiceProvider;
@@ -53,15 +55,16 @@ namespace DustyBot.Framework.Commands
             _defaultCommandPrefix = config.DefaultCommandPrefix;
             _ownerIDs = config.OwnerIDs;
             _guildConfigProvider = config.GuildConfigProvider;
+            _commandParser = commandParser;
             _userFetcher = userFetcher;
 
             foreach (var module in config.Modules)
                 AddModule(module);
 
-            _client.MessageReceived += OnMessageReceived;
+            _client.MessageReceived += HandleMessageReceived;
         }
 
-        public async Task OnMessageReceived(SocketMessage message)
+        public async Task HandleMessageReceived(SocketMessage message)
         {
             try
             {
@@ -135,15 +138,15 @@ namespace DustyBot.Framework.Commands
                 var verificationElapsed = stopwatch.Elapsed;
 
                 // Create command
-                var parseResult = await SocketCommand.TryCreate(findResult.Registration, findResult.Usage, userMessage, findResult.Prefix, _userFetcher);
-                if (parseResult.Item1.Type != SocketCommand.ParseResultType.Success)
+                var parseResult = await _commandParser.Parse(userMessage, findResult.Registration, findResult.Usage, findResult.Prefix);
+                if (parseResult.Type != CommandParseResultType.Success)
                 {
-                    string explanation = string.Empty;
-                    switch (parseResult.Item1.Type)
+                    string explanation = "";
+                    switch (parseResult.Type)
                     {
-                        case SocketCommand.ParseResultType.NotEnoughParameters: explanation = Properties.Resources.Command_NotEnoughParameters; break;
-                        case SocketCommand.ParseResultType.TooManyParameters: explanation = Properties.Resources.Command_TooManyParameters; break;
-                        case SocketCommand.ParseResultType.InvalidParameterFormat: explanation = string.Format(Properties.Resources.Command_InvalidParameterFormat, ((SocketCommand.InvalidParameterParseResult)parseResult.Item1).InvalidPosition); break;
+                        case CommandParseResultType.NotEnoughParameters: explanation = Properties.Resources.Command_NotEnoughParameters; break;
+                        case CommandParseResultType.TooManyParameters: explanation = Properties.Resources.Command_TooManyParameters; break;
+                        case CommandParseResultType.InvalidParameterFormat: explanation = string.Format(Properties.Resources.Command_InvalidParameterFormat, ((InvalidParameterCommandParseResult)parseResult).InvalidPosition); break;
                     }
 
                     _logger.LogInformation("Command {CommandId} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to incorrect parameters", id, stopwatch.Elapsed.TotalSeconds, gatewayPing.TotalSeconds);
@@ -151,12 +154,10 @@ namespace DustyBot.Framework.Commands
                     return;
                 }
 
-                var command = parseResult.Item2;
-
+                var command = new Command((SuccessCommandParseResult)parseResult, _communicator);
                 var parsingElapsed = stopwatch.Elapsed;
 
                 // Execute
-                
                 if (findResult.Registration.Flags.HasFlag(CommandFlags.Synchronous))
                 {
                     await ExecuteCommandAsync(id, findResult, command, stopwatch, verificationElapsed, parsingElapsed, gatewayPing);
@@ -202,7 +203,7 @@ namespace DustyBot.Framework.Commands
                 return null;
 
             // Check if the message contains a command invoker
-            var invoker = SocketCommand.ParseInvoker(userMessage.Content, prefix);
+            var invoker = _commandParser.ParseInvoker(userMessage.Content, prefix);
             if (string.IsNullOrEmpty(invoker))
                 return null;
 
@@ -213,7 +214,7 @@ namespace DustyBot.Framework.Commands
                 if (!_commandsMapping.TryGetValue(invoker.ToLowerInvariant(), out commandRegistrations))
                     return null;
 
-                var match = SocketCommand.FindLongestMatch(userMessage.Content, prefix, commandRegistrations);
+                var match = _commandParser.Match(userMessage.Content, prefix, commandRegistrations);
                 if (match == null)
                     return null;
 
@@ -308,7 +309,7 @@ namespace DustyBot.Framework.Commands
 
         public void Dispose()
         {
-            _client.MessageReceived -= OnMessageReceived;
+            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

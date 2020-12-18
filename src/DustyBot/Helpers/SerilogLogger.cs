@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public class SerilogLogger : ILogger
+    internal class SerilogLogger : ILogger
     {
         private Serilog.ILogger _logger;
 

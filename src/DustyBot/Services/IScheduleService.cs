@@ -1,10 +1,9 @@
-﻿using DustyBot.Framework.Services;
-using DustyBot.Settings;
+﻿using DustyBot.Settings;
 using System.Threading.Tasks;
 
 namespace DustyBot.Services
 {
-    interface IScheduleService : IService
+    internal interface IScheduleService
     {
         Task RefreshNotifications(ulong serverId, ScheduleSettings settings);
     }

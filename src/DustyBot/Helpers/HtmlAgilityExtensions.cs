@@ -5,9 +5,9 @@ using System.Xml.Linq;
 
 namespace DustyBot.Helpers
 {
-    public static class HtmlAgilityExtensions
+    internal static class HtmlAgilityExtensions
     {
-        //https://stackoverflow.com/a/30088920
+        // https://stackoverflow.com/a/30088920
         public static string ToPlainText(this HtmlAgilityPack.HtmlDocument doc) => doc.DocumentNode.ToPlainText();
 
         public static string ToPlainText(this HtmlAgilityPack.HtmlNode node)
@@ -65,7 +65,7 @@ namespace DustyBot.Helpers
             }
         }
 
-        //System.Xml.Linq part
+        // System.Xml.Linq part
         public static string ToPlainText(this IEnumerable<XNode> nodes)
         {
             var builder = new System.Text.StringBuilder();
@@ -120,7 +120,7 @@ namespace DustyBot.Helpers
             }
         }
 
-        //common part
+        // common part
         public static void Process(System.Text.StringBuilder builder, ref ToPlainTextState state, params char[] chars)
         {
             foreach (var ch in chars)

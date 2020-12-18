@@ -2,7 +2,7 @@
 
 namespace DustyBot.Exceptions
 {
-    public class ProxiesDepletedException : Exception
+    internal class ProxiesDepletedException : Exception
     {
         public ProxiesDepletedException() { }
         public ProxiesDepletedException(string message) : base(message) { }

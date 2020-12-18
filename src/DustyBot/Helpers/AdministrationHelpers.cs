@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    static class AdministrationHelpers
+    internal static class AdministrationHelpers
     {
         public const string MuteRoleName = "Muted";
 

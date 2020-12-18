@@ -3,9 +3,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Discord.WebSocket;
@@ -15,27 +13,31 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
 using System.Text;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Autoroles", "Give roles to all members automatically.")]
-    class AutorolesModule : Module
+    internal sealed class AutorolesModule : IDisposable
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
+        private readonly BaseSocketClient _client;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        private ConcurrentDictionary<ulong, bool> ApplyTasks = new ConcurrentDictionary<ulong, bool>();
-        private ConcurrentDictionary<ulong, bool> CheckTasks = new ConcurrentDictionary<ulong, bool>();
+        private readonly ConcurrentDictionary<ulong, bool> _applyTasks = new ConcurrentDictionary<ulong, bool>();
+        private readonly ConcurrentDictionary<ulong, bool> _checkTasks = new ConcurrentDictionary<ulong, bool>();
 
-        public AutorolesModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
+        public AutorolesModule(BaseSocketClient client, ISettingsService settings, ILogger logger, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
+            _client = client;
+            _settings = settings;
+            _logger = logger;
+            _frameworkReflector = frameworkReflector;
+
+            _client.UserJoined += HandleUserJoined;
         }
 
         [Command("autorole", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -43,7 +45,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("autorole", "add", "Assign a role automatically upon joining.")]
@@ -55,12 +57,12 @@ namespace DustyBot.Modules
             var botMaxPosition = (await command.Guild.GetCurrentUserAsync()).RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
             if (command["RoleNameOrID"].AsRole.Position >= botMaxPosition)
             {
-                await command.ReplyError(Communicator, $"The bot doesn't have permission to assign this role to users. Please make sure the role is below the bot's highest role in the server's role list.");
+                await command.ReplyError($"The bot doesn't have permission to assign this role to users. Please make sure the role is below the bot's highest role in the server's role list.");
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Add(command[0].AsRole.Id));
-            await command.ReplySuccess(Communicator, $"Will now assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})` to users upon joining.");
+            await _settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Add(command[0].AsRole.Id));
+            await command.ReplySuccess($"Will now assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})` to users upon joining.");
         }
 
         [Command("autorole", "remove", "Remove an automatically assigned role.")]
@@ -69,12 +71,12 @@ namespace DustyBot.Modules
         [Parameter("RoleNameOrID", ParameterType.Role, ParameterFlags.Remainder)]
         public async Task RemoveAutoRole(ICommand command)
         {
-            var removed = await Settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Remove(command[0].AsRole.Id));
+            var removed = await _settings.Modify(command.GuildId, (RolesSettings s) => s.AutoAssignRoles.Remove(command[0].AsRole.Id));
 
             if (removed)
-                await command.ReplySuccess(Communicator, $"Will no longer assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})`.");
+                await command.ReplySuccess($"Will no longer assign role `{command[0].AsRole.Name} ({command[0].AsRole.Id})`.");
             else
-                await command.ReplyError(Communicator, $"This role is not being assigned automatically.");
+                await command.ReplyError($"This role is not being assigned automatically.");
         }
 
         [Command("autorole", "list", "Lists all automatically assigned roles.")]
@@ -82,10 +84,10 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageRoles)]
         public async Task ListAutoRole(ICommand command)
         {
-            var settings = await Settings.Read<RolesSettings>(command.GuildId);
+            var settings = await _settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No automatically assigned roles have been set.");
+                await command.ReplyError("No automatically assigned roles have been set.");
                 return;
             }
 
@@ -95,7 +97,7 @@ namespace DustyBot.Modules
                 result += $"\nId: `{role}` Name: `{command.Guild.Roles.FirstOrDefault(x => x.Id == role)?.Name ?? "DOES NOT EXIST"}`";
             }
 
-            await command.Reply(Communicator, result);
+            await command.Reply(result);
         }
 
         [Command("autorole", "apply", "Assigns the current automatic roles to everyone.")]
@@ -107,18 +109,18 @@ namespace DustyBot.Modules
             var guild = (SocketGuild)command.Guild;
             if (guild.MemberCount > 20000)
             {
-                await command.ReplyError(Communicator, "Your server is too large for this command.");
+                await command.ReplyError("Your server is too large for this command.");
                 return;
             }
 
-            var settings = await Settings.Read<RolesSettings>(command.GuildId);
+            var settings = await _settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No automatically assigned roles have been set.");
+                await command.ReplyError("No automatically assigned roles have been set.");
                 return;
             }
 
-            var added = ApplyTasks.TryAdd(command.GuildId, true); // TODO: implement command rate limits properly
+            var added = _applyTasks.TryAdd(command.GuildId, true); // TODO: implement command rate limits properly
             if (!added)
                 throw new AbortException("Please wait a while before running this command again.");
 
@@ -126,7 +128,7 @@ namespace DustyBot.Modules
             {
                 string BuildProgressMessage(int processed, int total) => $"This may take a while... assigning roles to users: `{processed}/{total}`";
 
-                var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
+                var progressMsg = (await command.Reply(BuildProgressMessage(0, guild.MemberCount))).First();
                 var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
 
                 var processed = 0;
@@ -134,7 +136,7 @@ namespace DustyBot.Modules
                 var failed = 0;
                 await foreach (var batch in guild.GetUsersAsync())
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Applying autoroles {processed}/{guild.MemberCount} on server {command.Guild.Name} ({command.GuildId})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Applying autoroles {processed}/{guild.MemberCount} on server {command.Guild.Name} ({command.GuildId})"));
                     foreach (var user in batch)
                     {
                         try
@@ -155,7 +157,7 @@ namespace DustyBot.Modules
                             if (failed > 20)
                                 throw new CommandException($"Something went wrong and the task was aborted. Assigned roles to {processed} users.");
                                 
-                            await Logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
+                            await _logger.Log(new LogMessage(LogSeverity.Error, "Autoroles", $"Failed to apply autoroles {roles.Select(x => x.Id).WordJoin()} on server {command.Guild.Name} ({command.GuildId})", ex));
                         }
 
                         processed++;
@@ -165,15 +167,15 @@ namespace DustyBot.Modules
                 }
 
                 await progressMsg.DeleteAsync();
-                await command.ReplySuccess(Communicator, $"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : "."));
+                await command.ReplySuccess($"Roles have been assigned to all users" + (failed > 0 ? $" ({failed} failed)." : "."));
             }
             finally
             {
                 TaskHelper.FireForget(async () =>
                 {
                     await Task.Delay(TimeSpan.FromHours(1));
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Removing autorole apply command lock for guild {command.GuildId}"));
-                    ApplyTasks.TryRemove(command.GuildId, out _);
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Removing autorole apply command lock for guild {command.GuildId}"));
+                    _applyTasks.TryRemove(command.GuildId, out _);
                 });
             }
         }
@@ -183,14 +185,14 @@ namespace DustyBot.Modules
         [Permissions(GuildPermission.ManageRoles), BotPermissions(GuildPermission.ManageRoles)]
         public async Task CheckAutoRole(ICommand command)
         {
-            var settings = await Settings.Read<RolesSettings>(command.GuildId);
+            var settings = await _settings.Read<RolesSettings>(command.GuildId);
             if (settings.AutoAssignRoles.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No automatically assigned roles have been set.");
+                await command.ReplyError("No automatically assigned roles have been set.");
                 return;
             }
 
-            var added = CheckTasks.TryAdd(command.GuildId, true); // TODO: implement command rate limits properly
+            var added = _checkTasks.TryAdd(command.GuildId, true); // TODO: implement command rate limits properly
             if (!added)
                 throw new AbortException("Please wait a while before running this command again.");
 
@@ -199,7 +201,7 @@ namespace DustyBot.Modules
                 string BuildProgressMessage(int processed, int total) => $"This may take a while... checking users: `{processed}/{total}`";
 
                 var guild = (SocketGuild)command.Guild;
-                var progressMsg = (await command.Reply(Communicator, BuildProgressMessage(0, guild.MemberCount))).First();
+                var progressMsg = (await command.Reply(BuildProgressMessage(0, guild.MemberCount))).First();
                 var roles = command.Guild.Roles.Where(x => settings.AutoAssignRoles.Any(y => x.Id == y)).ToList();
 
                 var processed = 0;
@@ -208,7 +210,7 @@ namespace DustyBot.Modules
                 var result = new StringBuilder();
                 await foreach (var batch in guild.GetUsersAsync())
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Checking autoroles {processed}/{guild.MemberCount} on server {command.Guild.Name} ({command.GuildId})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Checking autoroles {processed}/{guild.MemberCount} on server {command.Guild.Name} ({command.GuildId})"));
                     foreach (var user in batch)
                     {
                         if (settings.AutoAssignRoles.All(x => user.RoleIds.Contains(x)))
@@ -234,28 +236,28 @@ namespace DustyBot.Modules
                     result.Append($" and **{found - shown}** more...");
 
                 if (found <= 0)
-                    await command.ReplySuccess(Communicator, settings.AutoAssignRoles.Count > 1 ? "Everyone has these roles." : "Everyone has this role.");
+                    await command.ReplySuccess(settings.AutoAssignRoles.Count > 1 ? "Everyone has these roles." : "Everyone has this role.");
                 else
-                    await command.Reply(Communicator, $"**{found}** users are missing at least one role:\n" + result.ToString());
+                    await command.Reply($"**{found}** users are missing at least one role:\n" + result.ToString());
             }
             finally
             {
                 TaskHelper.FireForget(async () =>
                 {
                     await Task.Delay(TimeSpan.FromMinutes(30));
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Removing autorole check command lock for guild {command.GuildId}"));
-                    CheckTasks.TryRemove(command.GuildId, out _);
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Autoroles", $"Removing autorole check command lock for guild {command.GuildId}"));
+                    _checkTasks.TryRemove(command.GuildId, out _);
                 });
             }
         }
 
-        public override Task OnUserJoined(SocketGuildUser guildUser)
+        private Task HandleUserJoined(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
-                    var settings = await Settings.Read<RolesSettings>(guildUser.Guild.Id, false);
+                    var settings = await _settings.Read<RolesSettings>(guildUser.Guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -266,17 +268,22 @@ namespace DustyBot.Modules
                     if (roles.Count <= 0)
                         return;
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Auto-assigning {roles.Count} role(s) to {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Auto-assigning {roles.Count} role(s) to {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
 
                     await guildUser.AddRolesAsync(roles);
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process greeting event", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process greeting event", ex));
                 }
             });
 
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _client.UserJoined -= HandleUserJoined;
         }
     }
 }

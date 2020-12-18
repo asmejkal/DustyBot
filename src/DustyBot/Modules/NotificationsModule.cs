@@ -5,9 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Globalization;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Utility;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Exceptions;
@@ -19,11 +17,13 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Notifications", "Notifies you when someone mentions a specific word.")]
-    class NotificationsModule : Module
+    internal sealed class NotificationsModule : IDisposable
     {
         //TODO: Look into multi-keyword searching algos
         //current profiling results: 16x faster than naive search (700 keywords, 2000 message length)
@@ -77,24 +77,27 @@ namespace DustyBot.Modules
         public const int MinNotificationLength = 2;
         public const int MaxNotificationLength = 50;
         public const int MaxNotificationsPerUser = 15;
-
         private static readonly TimeSpan NotificationTimeoutDelay = TimeSpan.FromSeconds(8);
 
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
-        private ILogger Logger { get; }
-        private IUserFetcher UserFetcher { get; }
+        private readonly BaseSocketClient _client;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly IUserFetcher _userFetcher;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        private Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> ActiveMessages { get; } = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();
+        private readonly Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> _activeMessages = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();
+        private readonly ConcurrentDictionary<ulong, KeywordTree> _keywordTrees = new ConcurrentDictionary<ulong, KeywordTree>();
 
-        private ConcurrentDictionary<ulong, KeywordTree> KeywordTrees { get; } = new ConcurrentDictionary<ulong, KeywordTree>();
-
-        public NotificationsModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher)
+        public NotificationsModule(BaseSocketClient client, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
-            UserFetcher = userFetcher;
+            _client = client;
+            _settings = settings;
+            _logger = logger;
+            _userFetcher = userFetcher;
+            _frameworkReflector = frameworkReflector;
+
+            _client.MessageReceived += HandleMessageReceived;
+            _client.UserIsTyping += HandleUserIsTyping;
         }
 
         [Command("notification", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -102,7 +105,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.")]
@@ -113,13 +116,13 @@ namespace DustyBot.Modules
         {
             if (command["Word"].AsString.Length < MinNotificationLength)
             {
-                await command.ReplyError(Communicator, $"A notification has to be at least {MinNotificationLength} characters long.");
+                await command.ReplyError($"A notification has to be at least {MinNotificationLength} characters long.");
                 return;
             }
 
             if (command["Word"].AsString.Length > MaxNotificationLength)
             {
-                await command.ReplyError(Communicator, $"A notification can't be longer than {MaxNotificationLength} characters.");
+                await command.ReplyError($"A notification can't be longer than {MaxNotificationLength} characters.");
                 return;
             }
 
@@ -130,10 +133,10 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
             }            
 
-            await Settings.Modify(command.GuildId, (NotificationSettings s) =>
+            await _settings.Modify(command.GuildId, (NotificationSettings s) =>
             {
                 var currentNotifs = s.Notifications.Where(x => x.User == command.Message.Author.Id).ToList();
                 if (currentNotifs.Any(x => x.LoweredWord == command["Word"].AsString.ToLowerInvariant()))
@@ -149,10 +152,10 @@ namespace DustyBot.Modules
                     OriginalWord = command["Word"]
                 });
 
-                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
+                _keywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
             });
 
-            await command.ReplySuccess(Communicator, "You will now be notified when this word is mentioned (please make sure your privacy settings allow the bot to DM you).");
+            await command.ReplySuccess("You will now be notified when this word is mentioned (please make sure your privacy settings allow the bot to DM you).");
         }
 
         [Command("notification", "remove", "Removes a notified word.")]
@@ -167,19 +170,19 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
             }
 
             var lowered = command["Word"].AsString.ToLowerInvariant();
-            await Settings.Modify(command.GuildId, (NotificationSettings s) =>
+            await _settings.Modify(command.GuildId, (NotificationSettings s) =>
             {
                 if (s.Notifications.RemoveAll(x => x.User == command.Message.Author.Id && x.LoweredWord == lowered) < 1)
                     throw new CommandException($"You don't have this word set as a notification. You can see all your notifications with `notification list`.");
 
-                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
+                _keywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
             });
 
-            await command.ReplySuccess(Communicator, "You will no longer be notified when this word is mentioned.");
+            await command.ReplySuccess("You will no longer be notified when this word is mentioned.");
         }
 
         [Command("notification", "list", "Lists all your notified words on this server.")]
@@ -187,12 +190,12 @@ namespace DustyBot.Modules
         [Comment("Sends a direct message.")]
         public async Task ListNotifications(ICommand command)
         {
-            var settings = await Settings.Read<NotificationSettings>(command.GuildId);
+            var settings = await _settings.Read<NotificationSettings>(command.GuildId);
 
             var userNotifs = settings.Notifications.Where(x => x.User == command.Message.Author.Id).ToList();
             if (userNotifs.Count <= 0)
             {
-                await command.Reply(Communicator, "You don't have any notified words on this server. Use `notification add` to add some.");
+                await command.Reply("You don't have any notified words on this server. Use `notification add` to add some.");
                 return;
             }
 
@@ -203,16 +206,15 @@ namespace DustyBot.Modules
 
             try
             {
-                var dm = await command.Message.Author.GetOrCreateDMChannelAsync();
-                await dm.SendMessageAsync(result.ToString());
+                await command.Message.Author.SendMessageAsync(result.ToString());
             }
             catch (Discord.Net.HttpException)
             {
-                await command.ReplyError(Communicator, $"Failed to send a direct message. Please check that your privacy settings allow the bot to DM you.");
+                await command.ReplyError($"Failed to send a direct message. Please check that your privacy settings allow the bot to DM you.");
                 return;
             }
 
-            await command.ReplySuccess(Communicator, "Please check your direct messages.");
+            await command.ReplySuccess("Please check your direct messages.");
         }
 
         [Command("notification", "ignore", "active", "channel", "Skip notifications from the channel you're currently active in.")]
@@ -220,17 +222,17 @@ namespace DustyBot.Modules
         [Comment("All notifications will be delayed by a small amount. If you start typing in the channel where someone triggered a notification, you won't be notified.\n\nUse this command again to disable.")]
         public async Task ToggleIgnoreActiveChannel(ICommand command)
         {
-            var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
+            var enabled = await _settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
 
-            await command.ReplySuccess(Communicator, enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
+            await command.ReplySuccess(enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 
         private void RegisterPendingNotification((ulong, ulong) key, ulong message)
         {
-            lock (ActiveMessages)
+            lock (_activeMessages)
             {
-                if (!ActiveMessages.TryGetValue(key, out var messages))
-                    ActiveMessages.Add(key, messages = new HashSet<ulong>());
+                if (!_activeMessages.TryGetValue(key, out var messages))
+                    _activeMessages.Add(key, messages = new HashSet<ulong>());
 
                 messages.Add(message);
             }
@@ -238,15 +240,15 @@ namespace DustyBot.Modules
 
         private bool TryClaimPendingNotification((ulong, ulong) key, ulong message)
         {
-            lock (ActiveMessages)
+            lock (_activeMessages)
             {
-                if (!ActiveMessages.TryGetValue(key, out var messages))
+                if (!_activeMessages.TryGetValue(key, out var messages))
                     return false;
 
                 messages.Remove(message);
 
                 if (!messages.Any())
-                    ActiveMessages.Remove(key);
+                    _activeMessages.Remove(key);
 
                 return true;
             }
@@ -254,13 +256,13 @@ namespace DustyBot.Modules
 
         private void ResetPendingNotifications(ulong user, ulong channel)
         {
-            lock (ActiveMessages)
+            lock (_activeMessages)
             {
-                ActiveMessages.Remove((user, channel));
+                _activeMessages.Remove((user, channel));
             }
         }
 
-        public override async Task OnUserIsTyping(SocketUser user, ISocketMessageChannel channel)
+        private async Task HandleUserIsTyping(SocketUser user, ISocketMessageChannel channel)
         {
             try
             {
@@ -268,11 +270,11 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process typing event", ex));
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process typing event", ex));
             }
         }
 
-        public override Task OnMessageReceived(SocketMessage message)
+        private Task HandleMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
             {
@@ -287,13 +289,13 @@ namespace DustyBot.Modules
                     if (user.IsBot)
                         return;
 
-                    var settings = await Settings.Read<NotificationSettings>(channel.Guild.Id, false);
+                    var settings = await _settings.Read<NotificationSettings>(channel.Guild.Id, false);
                     if (settings == null || settings.Notifications.Count <= 0)
                         return;
 
                     ResetPendingNotifications(user.Id, channel.Id);
 
-                    var tree = KeywordTrees.GetOrAdd(channel.Guild.Id, x => new KeywordTree(settings.Notifications));
+                    var tree = _keywordTrees.GetOrAdd(channel.Guild.Id, x => new KeywordTree(settings.Notifications));
                     var notifiedUsers = new HashSet<ulong>();
                     foreach (var (p, n) in tree.Match(message.Content))
                     {
@@ -309,7 +311,7 @@ namespace DustyBot.Modules
                         if (message.Author.Id == n.User)
                             continue; // Don't notify on self-sent messages
 
-                        var targetUser = (IGuildUser)channel.Guild.GetUser(n.User) ?? await UserFetcher.FetchGuildUserAsync(channel.Guild.Id, n.User);
+                        var targetUser = (IGuildUser)channel.Guild.GetUser(n.User) ?? await _userFetcher.FetchGuildUserAsync(channel.Guild.Id, n.User);
                         if (targetUser == null)
                             continue;
 
@@ -322,9 +324,9 @@ namespace DustyBot.Modules
                         {
                             try
                             {
-                                await Settings.Modify(channel.Guild.Id, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
+                                await _settings.Modify(channel.Guild.Id, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
 
-                                var targetUserSettings = await Settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
+                                var targetUserSettings = await _settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
                                 if (targetUserSettings?.IgnoreActiveChannel ?? false)
                                 {
                                     var messageKey = (targetUser.Id, channel.Id);
@@ -334,38 +336,43 @@ namespace DustyBot.Modules
 
                                     if (!TryClaimPendingNotification(messageKey, message.Id))
                                     {
-                                        await Logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Notification canceled for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) and message {message.Id} on {channel.Guild.Name} ({channel.Guild.Id}) in #{channel.Name} ({channel.Id})"));
+                                        await _logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Notification canceled for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) and message {message.Id} on {channel.Guild.Name} ({channel.Guild.Id}) in #{channel.Name} ({channel.Id})"));
                                         return;
                                     }
                                 }                                
 
-                                var dm = await targetUser.GetOrCreateDMChannelAsync();
                                 var footer = $"\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}";
 
                                 var embed = new EmbedBuilder()
                                     .WithAuthor(x => x.WithName(message.Author.Username).WithIconUrl(message.Author.GetAvatarUrl()))
                                     .WithDescription(message.Content.Truncate(EmbedBuilder.MaxDescriptionLength - footer.Length) + footer);
 
-                                await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
+                                await targetUser.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
                             }
                             catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50007)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Blocked DMs from {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                                await _logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Blocked DMs from {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
                             }
                             catch (Exception ex)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Failed to process notification for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})", ex));
+                                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Failed to process notification for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})", ex));
                             }
                         });
                     }
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process message", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process message", ex));
                 }
             });
 
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
+            _client.UserIsTyping -= HandleUserIsTyping;
         }
     }
 }

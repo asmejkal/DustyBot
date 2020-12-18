@@ -2,7 +2,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
@@ -12,28 +11,36 @@ using DustyBot.Helpers;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Greet & bye", "Greet & bye messages.")]
-    class EventsModule : Module
+    internal sealed class EventsModule : IDisposable
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
-
         public const string MentionPlaceholder = "{mention}";
         public const string NamePlaceholder = "{name}";
         public const string FullNamePlaceholder = "{fullname}";
         public const string IdPlaceholder = "{id}";
         public const string ServerPlaceholder = "{server}";
         public const string MemberCountPlaceholder = "{membercount}";
+        private readonly BaseSocketClient _client;
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public EventsModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
+        public EventsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
+            _client = client;
+            _communicator = communicator;
+            _settings = settings;
+            _logger = logger;
+            _frameworkReflector = frameworkReflector;
+
+            _client.UserJoined += HandleUserJoined;
+            _client.UserLeft += HandleUserLeft;
         }
 
         [Command("greet", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -41,7 +48,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("greet", "text", "Sets a text greeting message.")]
@@ -52,18 +59,18 @@ namespace DustyBot.Modules
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
             {
-                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (EventsSettings s) =>
+            await _settings.Modify(command.GuildId, (EventsSettings s) =>
             {
                 s.ResetGreet();
                 s.GreetChannel = command["Channel"].AsTextChannel.Id;
                 s.GreetMessage = command["Message"];
             });
 
-            await command.ReplySuccess(Communicator, "Greeting message set.");
+            await command.ReplySuccess("Greeting message set.");
         }
 
         [Command("greet", "embed", "Sets an embed greeting message.")]
@@ -78,11 +85,11 @@ namespace DustyBot.Modules
         {
             if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
             {
-                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
-            await Settings.Modify(command.GuildId, (EventsSettings s) =>
+            await _settings.Modify(command.GuildId, (EventsSettings s) =>
             {
                 s.ResetGreet();
                 s.GreetChannel = command["Channel"].AsTextChannel.Id;
@@ -95,7 +102,7 @@ namespace DustyBot.Modules
                     s.GreetEmbed.Image = new Uri(command.Message.Attachments.First().Url);
             });
 
-            await command.ReplySuccess(Communicator, "Greeting message set.");
+            await command.ReplySuccess("Greeting message set.");
         }
 
         [Command("greet", "embed", "set", "footer", "Customize a footer for your greet embed.")]
@@ -107,7 +114,7 @@ namespace DustyBot.Modules
         {
             var footer = command["Text"].AsString;
             var set = !string.IsNullOrEmpty(footer);
-            await Settings.Modify(command.GuildId, (EventsSettings s) =>
+            await _settings.Modify(command.GuildId, (EventsSettings s) =>
             {
                 if (s.GreetEmbed == null)
                     throw new CommandException("You have to set a greet embed first!");
@@ -115,25 +122,25 @@ namespace DustyBot.Modules
                 s.GreetEmbed.Footer = set ? footer : null;
             });
 
-            await command.ReplySuccess(Communicator, set ? "Greet embed footer has been set." : "Greet embed footer is now hidden.");
+            await command.ReplySuccess(set ? "Greet embed footer has been set." : "Greet embed footer is now hidden.");
         }
 
         [Command("greet", "disable", "Disables greeting messages.")]
         [Permissions(GuildPermission.Administrator)]
         public async Task GreetDisable(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (EventsSettings s) => s.ResetGreet());
-            await command.ReplySuccess(Communicator, "Greeting has been disabled.");
+            await _settings.Modify(command.GuildId, (EventsSettings s) => s.ResetGreet());
+            await command.ReplySuccess("Greeting has been disabled.");
         }
 
         [Command("greet", "test", "Sends a sample greet message in this channel.")]
         [Permissions(GuildPermission.Administrator)]
         public async Task GreetTest(ICommand command)
         {
-            var settings = await Settings.Read<EventsSettings>(command.GuildId, false);
+            var settings = await _settings.Read<EventsSettings>(command.GuildId, false);
             if (settings == null || settings.GreetChannel == default)
             {
-                await command.ReplyError(Communicator, "No greeting has been set.");
+                await command.ReplyError("No greeting has been set.");
                 return;
             }
 
@@ -149,13 +156,13 @@ namespace DustyBot.Modules
         {
             if (command.ParametersCount <= 0)
             {
-                await Settings.Modify(command.GuildId, (EventsSettings s) =>
+                await _settings.Modify(command.GuildId, (EventsSettings s) =>
                 {
                     s.ByeChannel = 0;
                     s.ByeMessage = string.Empty;
                 });
 
-                await command.ReplySuccess(Communicator, "Bye message has been disabled.");
+                await command.ReplySuccess("Bye message has been disabled.");
             }
             else if (command.ParametersCount >= 2)
             {
@@ -164,17 +171,17 @@ namespace DustyBot.Modules
 
                 if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
                 {
-                    await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                    await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                     return;
                 }
 
-                await Settings.Modify(command.GuildId, (EventsSettings s) =>
+                await _settings.Modify(command.GuildId, (EventsSettings s) =>
                 {
                     s.ByeChannel = command["Channel"].AsTextChannel.Id;
                     s.ByeMessage = command["Message"];
                 });
 
-                await command.ReplySuccess(Communicator, "Bye message set.");
+                await command.ReplySuccess("Bye message set.");
             }
             else
                 throw new IncorrectParametersCommandException(string.Empty);
@@ -194,7 +201,7 @@ namespace DustyBot.Modules
         {
             if (settings.GreetMessage != default)
             {
-                await Communicator.SendMessage(channel, ReplacePlaceholders(settings.GreetMessage, user));
+                await _communicator.SendMessage(channel, ReplacePlaceholders(settings.GreetMessage, user));
             }
             else if (settings.GreetEmbed != default)
             {
@@ -212,19 +219,19 @@ namespace DustyBot.Modules
                 if (!string.IsNullOrEmpty(settings.GreetEmbed.Footer))
                     embed.WithFooter(ReplacePlaceholders(settings.GreetEmbed.Footer, user));
 
-                await channel.SendMessageAsync(embed: embed.Build());
+                await _communicator.SendMessage(channel, embed.Build());
             }
             else
                 throw new InvalidOperationException("Inconsistent settings");
         }
 
-        public override Task OnUserJoined(SocketGuildUser guildUser)
+        private Task HandleUserJoined(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
-                    var settings = await Settings.Read<EventsSettings>(guildUser.Guild.Id, false);
+                    var settings = await _settings.Read<EventsSettings>(guildUser.Guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -237,30 +244,30 @@ namespace DustyBot.Modules
 
                     if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't greet user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                        await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't greet user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
                         return;
                     }
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
 
                     await Greet(channel, settings, guildUser);
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process greeting event", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process greeting event", ex));
                 }
             });
 
             return Task.CompletedTask;
         }
 
-        public override Task OnUserLeft(SocketGuildUser guildUser)
+        private Task HandleUserLeft(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
-                    var settings = await Settings.Read<EventsSettings>(guildUser.Guild.Id, false);
+                    var settings = await _settings.Read<EventsSettings>(guildUser.Guild.Id, false);
                     if (settings == null)
                         return;
 
@@ -273,21 +280,27 @@ namespace DustyBot.Modules
 
                     if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't bye user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                        await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't bye user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
                         return;
                     }
 
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Goodbyed user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
+                    await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Goodbyed user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
 
-                    await Communicator.SendMessage(channel, ReplacePlaceholders(settings.ByeMessage, guildUser));
+                    await _communicator.SendMessage(channel, ReplacePlaceholders(settings.ByeMessage, guildUser));
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process bye event", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process bye event", ex));
                 }
             });
 
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _client.UserJoined -= HandleUserJoined;
+            _client.UserLeft -= HandleUserLeft;
         }
     }
 }

@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using System.Net;
 using System.IO;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Helpers;
 using System;
@@ -14,25 +13,29 @@ using DustyBot.Framework.Utility;
 using Discord.WebSocket;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Mod", "Helps with server administration.")]
-    class AdministrationModule
+    internal sealed class AdministrationModule
     {
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
-        private ILogger Logger { get; }
-        private BaseSocketClient Client { get; }
-        private IUserFetcher UserFetcher { get; }
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly BaseSocketClient _client;
+        private readonly IUserFetcher _userFetcher;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public AdministrationModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BaseSocketClient client, IUserFetcher userFetcher)
+        public AdministrationModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BaseSocketClient client, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
-            Client = client;
-            UserFetcher = userFetcher;
+            _communicator = communicator;
+            _settings = settings;
+            _logger = logger;
+            _client = client;
+            _userFetcher = userFetcher;
+            _frameworkReflector = frameworkReflector;
         }
 
         [Command("administration", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -40,7 +43,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("say", "Sends a specified message.")]
@@ -52,7 +55,7 @@ namespace DustyBot.Modules
             var message = command["Message"].AsString ?? "";
             var channel = command["TargetChannel"].AsTextChannel;
 
-            // This is a mods-only command, but to prevent permission creep, check
+            // This is a mods-only command, but to prevent permission escalation, check
             // if there's any non-mentionable role and if the sender has a mention everyone perm
             var nonMentionableRoles = command.Message.MentionedRoleIds.Where(x => !command.Guild.GetRole(x)?.IsMentionable ?? false).ToList();
             var replaceRoleMentions = (message.ContainsEveryonePings() || nonMentionableRoles.Any()) && 
@@ -87,7 +90,7 @@ namespace DustyBot.Modules
             }
 
             if (command["TargetChannel"].AsTextChannel.Id != command.Message.Channel.Id)
-                await command.ReplySuccess(Communicator, "Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
+                await command.ReplySuccess("Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
         }
 
         [Command("edit", "Edits a message sent by the say command.")]
@@ -98,7 +101,7 @@ namespace DustyBot.Modules
         {
             var message = await command[0].AsGuildSelfMessage;
             await message.ModifyAsync(x => x.Content = command["Message"].AsString);
-            await command.ReplySuccess(Communicator, "Message edited.");
+            await command.ReplySuccess("Message edited.");
         }
 
         [Command("mute", "Mutes a server member.")]
@@ -108,13 +111,13 @@ namespace DustyBot.Modules
         public async Task Mute(ICommand command)
         {
             var user = await command["User"].AsGuildUser;
-            var permissionFails = await AdministrationHelpers.Mute(user, command["Reason"], Settings);
+            var permissionFails = await AdministrationHelpers.Mute(user, command["Reason"], _settings);
             var reply = $"User **{user.Username}#{user.DiscriminatorValue}** has been muted.";
             var fails = permissionFails.Count();
             if (fails > 0)
                 reply += $"\nℹ Couldn't mute in {fails} channel{(fails > 1 ? "s" : "")} because the bot doesn't have permission to access {(fails > 1 ? "them" : "it")}.";
             
-            await command.ReplySuccess(Communicator, reply);
+            await command.ReplySuccess(reply);
         }
 
         [Command("unmute", "Unmutes a server member.")]
@@ -124,7 +127,7 @@ namespace DustyBot.Modules
         {
             var user = await command["User"].AsGuildUser;
             await AdministrationHelpers.Unmute(user); 
-            await command.ReplySuccess(Communicator, $"User **{user.Username}#{user.DiscriminatorValue}** has been unmuted.");
+            await command.ReplySuccess($"User **{user.Username}#{user.DiscriminatorValue}** has been unmuted.");
         }
 
         [Command("ban", "Bans one or more users.")]
@@ -146,19 +149,19 @@ namespace DustyBot.Modules
             foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
             {
                 string userName;
-                var guildUser = await command.Guild.GetUserAsync(id) ?? await UserFetcher.FetchGuildUserAsync(command.GuildId, id);
+                var guildUser = await command.Guild.GetUserAsync(id) ?? await _userFetcher.FetchGuildUserAsync(command.GuildId, id);
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
                     if (userMaxRole <= guildUser.RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0))
                     {
-                        result.AppendLine($"{Communicator.FailureMarker} You can't ban user `{userName}` on this server.");
+                        result.AppendLine(_communicator.FormatFailure($"You can't ban user `{userName}` on this server."));
                         continue;
                     }
                 }
                 else
                 {
-                    var user = (IUser)Client.GetUser(id) ?? await UserFetcher.FetchUserAsync(id);
+                    var user = (IUser)_client.GetUser(id) ?? await _userFetcher.FetchUserAsync(id);
                     userName = user != null ? $"{user.GetFullName()} ({user.Id})" : id.ToString();
                 }
 
@@ -177,20 +180,20 @@ namespace DustyBot.Modules
             {
                 if (ban.Task.Exception != null && ban.Task.Exception.InnerException is Discord.Net.HttpException ex && ex.HttpCode == HttpStatusCode.Forbidden)
                 {
-                    result.AppendLine($"{Communicator.FailureMarker} Missing permissions to ban user `{ban.User}`.");
+                    result.AppendLine(_communicator.FormatFailure($"Missing permissions to ban user `{ban.User}`."));
                 }
                 else if (ban.Task.Exception != null)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Failed to ban user {ban.User}, ex: {ban.Task.Exception}"));
-                    result.AppendLine($"{Communicator.FailureMarker} Failed to ban user `{ban.User}`.");
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Failed to ban user {ban.User}, ex: {ban.Task.Exception}"));
+                    result.AppendLine(_communicator.FormatFailure($"Failed to ban user `{ban.User}`."));
                 }
                 else
                 {
-                    result.AppendLine($"{Communicator.SuccessMarker} User `{ban.User}` has been banned.");
+                    result.AppendLine(_communicator.FormatSuccess($"User `{ban.User}` has been banned."));
                 }
             }
 
-            await command.Reply(Communicator, result.ToString());
+            await command.Reply(result.ToString());
         }
 
         [Command("roles", "Lists all roles on the server with their IDs.")]
@@ -200,7 +203,7 @@ namespace DustyBot.Modules
             foreach (var role in command.Guild.Roles.OrderByDescending(x => x.Position))
                 result.AppendLine($"Name: `{role.Name}` Id: `{role.Id}`");
 
-            await command.Reply(Communicator, result.ToString());
+            await command.Reply(result.ToString());
         }
 
         [Command("moddm", "Send an anonymous direct message from a moderator to a server member.", CommandFlags.Hidden)]
@@ -214,27 +217,25 @@ namespace DustyBot.Modules
             const int userThreshold = 100;
             if (((SocketGuild)command.Guild).MemberCount < userThreshold)
             {
-                await command.ReplyError(Communicator, $"For security reasons, this command cannot be used on servers below {userThreshold} members.");
+                await command.ReplyError($"For security reasons, this command cannot be used on servers below {userThreshold} members.");
                 return;
             }
 
             var user = await command["User"].AsGuildUser;
             if (user.IsBot)
             {
-                await command.ReplyError(Communicator, $"This is a bot.");
+                await command.ReplyError($"This is a bot.");
                 return;
             }
 
-            var channel = await user.GetOrCreateDMChannelAsync();
-
             try
             {
-                await channel.SendMessageAsync($":envelope: Message from a moderator of `{command.Guild.Name}` (`{command.GuildId}`):\n\n" + command["Message"]);
-                await command.ReplySuccess(Communicator, "The user has been messaged.");
+                await user.SendMessageAsync($":envelope: Message from a moderator of `{command.Guild.Name}` (`{command.GuildId}`):\n\n" + command["Message"]);
+                await command.ReplySuccess("The user has been messaged.");
             }
             catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50007)
             {
-                await command.ReplyError(Communicator, $"Can't send direct messages to this user. They have likely disabled private messages in their privacy settings.");
+                await command.ReplyError($"Can't send direct messages to this user. They have likely disabled private messages in their privacy settings.");
             }
         }
     }

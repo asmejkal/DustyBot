@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Settings;
@@ -19,23 +18,28 @@ using DustyBot.Definitions;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Core.Async;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("Bot", "Help and bot-related commands.")]
-    class BotModule : Framework.Modules.Module
+    internal sealed class BotModule : IDisposable
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public IModuleCollection ModuleCollection { get; }
-        public BaseSocketClient Client { get; }
+        private readonly BaseSocketClient _client;
+        private readonly ICommunicator _communicator;
+        private readonly ISettingsService _settings;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public BotModule(ICommunicator communicator, ISettingsService settings, IModuleCollection moduleCollection, BaseSocketClient client)
+        public BotModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            ModuleCollection = moduleCollection;
-            Client = client;
+            _client = client;
+            _communicator = communicator;
+            _settings = settings;
+            _frameworkReflector = frameworkReflector;
+
+            _client.MessageReceived += HandleMessageReceived;
         }
 
         [Command("help", "Prints usage info.", CommandFlags.DirectMessageAllow)]
@@ -43,10 +47,10 @@ namespace DustyBot.Modules
         [Example("event add")]
         public async Task Help(ICommand command)
         {
-            var config = await Settings.ReadGlobal<BotConfig>();
+            var config = await _settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
-                await command.Message.Channel.SendMessageAsync(string.Empty, embed: HelpBuilder.GetHelpEmbed(command.Prefix).Build());
+                await command.Reply(HelpBuilder.GetHelpEmbed(command.Prefix).Build());
             }
             else
             {
@@ -70,9 +74,9 @@ namespace DustyBot.Modules
                     .WithDescription(commandRegistration.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
-                embed.AddField(x => x.WithName("Usage").WithValue(Communicator.BuildUsageString(commandRegistration, command.Prefix)));
+                embed.AddField(x => x.WithName("Usage").WithValue(_communicator.BuildCommandUsage(commandRegistration, command.Prefix)));
 
-                await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
+                await command.Reply(embed.Build());
             }
         }
 
@@ -89,15 +93,15 @@ namespace DustyBot.Modules
             if (prefix.Length > 5)
                 throw new CommandException("This prefix is too long.");
 
-            await Settings.Modify(command.GuildId, (BotSettings x) => x.CommandPrefix = prefix);
+            await _settings.Modify(command.GuildId, (BotSettings x) => x.CommandPrefix = prefix);
 
-            await command.Reply(Communicator, $"The command prefix is now `{prefix}` on this server!");
+            await command.Reply($"The command prefix is now `{prefix}` on this server!");
         }
 
         [Command("supporters", "See the people who help keep this bot up and running.", CommandFlags.DirectMessageAllow)]
         public async Task Supporters(ICommand command)
         {
-            var settings = await Settings.ReadGlobal<SupporterSettings>();
+            var settings = await _settings.ReadGlobal<SupporterSettings>();
             var result = new StringBuilder();
             result.AppendLine($":revolving_hearts: People who keep the bot up and running :revolving_hearts:");
             foreach (var supporter in settings.Supporters)
@@ -106,56 +110,56 @@ namespace DustyBot.Modules
             result.AppendLine();
             result.AppendLine($"Support the bot at <{IntegrationConstants.PatreonPage}>");
 
-            await command.Reply(Communicator, result.ToString());
+            await command.Reply(result.ToString());
         }
 
         [Command("about", "Shows information about the bot.", CommandFlags.DirectMessageAllow)]
         public async Task About(ICommand command)
         {
-            var config = await Settings.ReadGlobal<BotConfig>();
+            var config = await _settings.ReadGlobal<BotConfig>();
 
             var uptime = DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
             var embed = new EmbedBuilder()
-                .WithTitle($"{Client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
+                .WithTitle($"{_client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddField("Author", "Yeba#3517", true)
                 .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
-                .AddField("Presence", $"{Client.Guilds.Count} servers" + (Client is DiscordShardedClient sc ? $"\n{sc.Shards.Count} shards" : ""), true)
-                .AddField("Framework", "v" + typeof(Framework.Framework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
+                .AddField("Presence", $"{_client.Guilds.Count} servers" + (_client is DiscordShardedClient sc ? $"\n{sc.Shards.Count} shards" : ""), true)
+                .AddField("Framework", "v" + typeof(IFramework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
                 .AddField("Web", WebConstants.WebsiteRoot, true)
-                .WithThumbnailUrl(Client.CurrentUser.GetAvatarUrl());
+                .WithThumbnailUrl(_client.CurrentUser.GetAvatarUrl());
 
-            await command.Message.Channel.SendMessageAsync(string.Empty, false, embed.Build());
+            await command.Reply(embed.Build());
         }
 
         [Command("feedback", "Suggest a modification or report an issue.", CommandFlags.DirectMessageAllow)]
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder)]
         public async Task Feedback(ICommand command)
         {
-            var config = await Settings.ReadGlobal<BotConfig>();
+            var config = await _settings.ReadGlobal<BotConfig>();
 
             foreach (var owner in config.OwnerIDs)
             {
-                var user = (IUser)Client.GetUser(owner) ?? await Client.Rest.GetUserAsync(owner);
+                var user = (IUser)_client.GetUser(owner) ?? await _client.Rest.GetUserAsync(owner);
                 var author = command.Message.Author;
                 await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
             }
 
-            await command.ReplySuccess(Communicator, "Thank you for your feedback!");
+            await command.ReplySuccess("Thank you for your feedback!");
         }
 
         [Command("invite", "Shows a link to invite the bot to your server.", CommandFlags.DirectMessageAllow)]
         public async Task Invite(ICommand command)
         {
-            await command.Reply(Communicator, $"<https://discord.com/oauth2/authorize?client_id={Client.CurrentUser.Id}&scope=bot&permissions=8192>");
+            await command.Reply($"<https://discord.com/oauth2/authorize?client_id={_client.CurrentUser.Id}&scope=bot&permissions=8192>");
         }
 
         [Command("servers", "Lists all servers the bot is on.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         public async Task ListServers(ICommand command)
         {
             var pages = new PageCollection();
-            foreach (var guild in Client.Guilds.OrderByDescending(x => x.MemberCount))
+            foreach (var guild in _client.Guilds.OrderByDescending(x => x.MemberCount))
             {
                 if (pages.IsEmpty || pages.Last.Embed.Fields.Count % 10 == 0)
                     pages.Add(new EmbedBuilder());
@@ -165,7 +169,7 @@ namespace DustyBot.Modules
                     .WithValue($"{guild?.Id}\n{guild?.MemberCount} members"));
             }
 
-            await command.Reply(Communicator, pages, true);
+            await command.Reply(pages, true);
         }
 
         [Command("server", "global", "Shows information about a server.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -174,17 +178,17 @@ namespace DustyBot.Modules
         {
             SocketGuild guild;
             if (command["ServerNameOrId"].AsId.HasValue)
-                guild = Client.GetGuild(command["ServerNameOrId"].AsId.Value);
+                guild = _client.GetGuild(command["ServerNameOrId"].AsId.Value);
             else
-                guild = Client.Guilds.FirstOrDefault(x => x.Name == command["ServerNameOrId"]) as SocketGuild;
+                guild = _client.Guilds.FirstOrDefault(x => x.Name == command["ServerNameOrId"]) as SocketGuild;
 
             if (guild == null)
             {
-                await command.ReplyError(Communicator, "No guild with this name or ID.");
+                await command.ReplyError("No guild with this name or ID.");
                 return;
             }
 
-            var owner = (IGuildUser)guild.Owner ?? await Client.Rest.GetGuildUserAsync(guild.Id, guild.OwnerId);
+            var owner = (IGuildUser)guild.Owner ?? await _client.Rest.GetGuildUserAsync(guild.Id, guild.OwnerId);
             var embed = new EmbedBuilder()
                 .WithTitle(guild.Name)
                 .WithThumbnailUrl(guild.IconUrl)
@@ -194,7 +198,7 @@ namespace DustyBot.Modules
                 .AddField(x => x.WithIsInline(true).WithName("Members").WithValue(guild.MemberCount))
                 .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString("dd.MM.yyyy H:mm:ss UTC")));
 
-            await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build());
+            await command.Reply(embed.Build());
         }
 
         [Command("setavatar", "Changes the bot's avatar.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -217,34 +221,34 @@ namespace DustyBot.Modules
 
                 try
                 {
-                    await Client.CurrentUser.ModifyAsync(x => x.Avatar = image);
+                    await _client.CurrentUser.ModifyAsync(x => x.Avatar = image);
                 }
                 catch (RateLimitedException)
                 {
-                    await command.ReplyError(Communicator, "You are changing avatars too fast, wait a few minutes and try again.");
+                    await command.ReplyError("You are changing avatars too fast, wait a few minutes and try again.");
                     return;
                 }
             }
 
-            await command.ReplySuccess(Communicator, "Avatar was changed!");
+            await command.ReplySuccess("Avatar was changed!");
         }
 
         [Command("setname", "Changes the bot's username.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         [Parameter("NewName", ParameterType.String, ParameterFlags.Remainder)]
         public async Task SetName(ICommand command)
         {
-            await Client.CurrentUser.ModifyAsync(x => x.Username = (string)command["NewName"]);
-            await command.ReplySuccess(Communicator, "Username was changed!");
+            await _client.CurrentUser.ModifyAsync(x => x.Username = (string)command["NewName"]);
+            await command.ReplySuccess("Username was changed!");
         }
 
         [Command("help", "dump", "Generates a list of all commands.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         public async Task DumpHelp(ICommand command)
         {
-            var config = await Settings.ReadGlobal<BotConfig>();
+            var config = await _settings.ReadGlobal<BotConfig>();
             var result = new StringBuilder();
             var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 0px\">\n<h3><img class=\"feature-icon-big\" src=\"img/compass.png\"/>Quick navigation</h3>\n");
             int counter = 0;
-            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            foreach (var module in _frameworkReflector.Modules.Where(x => !x.Hidden))
             {
                 var anchor = WebConstants.GetModuleWebAnchor(module.Name);
                 preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\"><img class=\"feature-icon-small\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</a> – {module.Description}</p>");
@@ -252,7 +256,7 @@ namespace DustyBot.Modules
                 result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3><img class=\"feature-icon-big\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</h3>");
                 result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
 
-                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
+                foreach (var handledCommand in module.Commands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
                 {
                     counter++;
 
@@ -296,7 +300,7 @@ namespace DustyBot.Modules
             var messages = await command.Message.Channel.GetMessagesAsync(500).ToListAsync();
             var tasks = new List<Task>();
             var count = 0;
-            foreach (var m in messages.SelectMany(x => x).Where(x => x.Author.Id == Client.CurrentUser.Id))
+            foreach (var m in messages.SelectMany(x => x).Where(x => x.Author.Id == _client.CurrentUser.Id))
             {
                 if (++count > command["Count"].AsInt)
                     break;
@@ -313,10 +317,10 @@ namespace DustyBot.Modules
         [Parameter("Name", ParameterType.String, ParameterFlags.Remainder)]
         public async Task AddSupporter(ICommand command)
         {
-            await Settings.ModifyGlobal<SupporterSettings>(x => 
+            await _settings.ModifyGlobal<SupporterSettings>(x => 
                 x.Supporters.Insert(command["Position"].AsInt ?? x.Supporters.Count, new Supporter() { Name = command["Name"] }));
 
-            await command.ReplySuccess(Communicator, "Done!");
+            await command.ReplySuccess("Done!");
         }
 
         [Command("supporters", "remove", "Removes a supporter.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
@@ -325,9 +329,9 @@ namespace DustyBot.Modules
         public async Task RemoveSupporter(ICommand command)
         {
             int removed = 0;
-            await Settings.ModifyGlobal<SupporterSettings>(x => removed = x.Supporters.RemoveAll(y => y.Name == command["Name"]));
+            await _settings.ModifyGlobal<SupporterSettings>(x => removed = x.Supporters.RemoveAll(y => y.Name == command["Name"]));
 
-            await command.ReplySuccess(Communicator, $"Removed {removed} supporters.");
+            await command.ReplySuccess($"Removed {removed} supporters.");
         }
 
         static string Markdown(string input)
@@ -403,9 +407,9 @@ namespace DustyBot.Modules
 
         (CommandInfo registration, CommandInfo.Usage usage)? TryFindRegistration(string invoker, ICollection<string> verbs)
         {
-            foreach (var module in ModuleCollection.Modules.Where(x => !x.Hidden))
+            foreach (var module in _frameworkReflector.Modules.Where(x => !x.Hidden))
             {
-                foreach (var handledCommand in module.HandledCommands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))
+                foreach (var handledCommand in module.Commands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden)))
                 {
                     foreach (var usage in handledCommand.EveryUsage)
                     {
@@ -420,26 +424,31 @@ namespace DustyBot.Modules
             return null;
         }
 
-        public override Task OnMessageReceived(SocketMessage message)
+        private Task HandleMessageReceived(SocketMessage message)
         {
-            if (message.Content == $"<@{Client.CurrentUser.Id}>" || message.Content == $"<@!{Client.CurrentUser.Id}>")
+            if (message.Content == $"<@{_client.CurrentUser.Id}>" || message.Content == $"<@!{_client.CurrentUser.Id}>")
             {
                 TaskHelper.FireForget(async () =>
                 {
-                    var config = await Settings.ReadGlobal<BotConfig>();
+                    var config = await _settings.ReadGlobal<BotConfig>();
                     var prefix = config.DefaultCommandPrefix;
                     if (message.Channel is SocketTextChannel guildChannel)
                     {
-                        var guildConfig = await Settings.Read<BotSettings>(guildChannel.Guild.Id);
+                        var guildConfig = await _settings.Read<BotSettings>(guildChannel.Guild.Id);
                         if (!string.IsNullOrEmpty(guildConfig?.CommandPrefix))
                             prefix = guildConfig.CommandPrefix;
                     }
 
-                    await message.Channel.SendMessageAsync(string.Empty, embed: HelpBuilder.GetHelpEmbed(prefix, prefix != config.DefaultCommandPrefix).Build());
+                    await _communicator.SendMessage(message.Channel, HelpBuilder.GetHelpEmbed(prefix, prefix != config.DefaultCommandPrefix).Build());
                 });
             }
 
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

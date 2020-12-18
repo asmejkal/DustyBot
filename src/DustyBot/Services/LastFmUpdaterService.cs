@@ -2,42 +2,32 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using DustyBot.Helpers;
 using DustyBot.Framework.Logging;
 using Discord;
 using System.Threading;
 using DustyBot.Database.Services;
-using DustyBot.Framework.Services;
 using System.Diagnostics;
 using System.Collections.Generic;
 using DustyBot.Database.Sql.UserDefinedTypes;
 using DustyBot.LastFm;
+using Microsoft.Extensions.Hosting;
 
 namespace DustyBot.Services
 {
-    internal sealed class LastFmUpdaterService : IService, IDisposable
+    internal sealed class LastFmUpdaterService : BackgroundService
     {
-        private ISettingsService Settings { get; }
-        private ILogger Logger { get; }
-        private Func<Task<ILastFmStatsService>> LastFmServiceFactory { get; }
-        private CancellationTokenSource CancellationTokenSource { get; set; }
-        private Task ExecuteTask { get; set; }
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
+        private readonly Func<Task<ILastFmStatsService>> _lastFmServiceFactory;
 
         public LastFmUpdaterService(ISettingsService settings, ILogger logger, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
         {
-            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            LastFmServiceFactory = lastFmServiceFactory ?? throw new ArgumentNullException(nameof(lastFmServiceFactory));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _lastFmServiceFactory = lastFmServiceFactory ?? throw new ArgumentNullException(nameof(lastFmServiceFactory));
         }
 
-        public Task StartAsync()
-        {
-            CancellationTokenSource = new CancellationTokenSource();
-            ExecuteTask = Task.Run(() => ExecuteAsync(CancellationTokenSource.Token));
-            return Task.CompletedTask;
-        }
-
-        private async Task ExecuteAsync(CancellationToken ct)
+        protected override async Task ExecuteAsync(CancellationToken ct)
         {
             try
             {
@@ -45,7 +35,7 @@ namespace DustyBot.Services
                 {
                     try
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Starting Lastfm batch."));
+                        await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Starting Lastfm batch."));
                         await ProcessBatch(ct);
                     }
                     catch (TaskCanceledException)
@@ -53,7 +43,7 @@ namespace DustyBot.Services
                     }
                     catch (Exception ex)
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process Lastfm batch.", ex));
+                        await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process Lastfm batch.", ex));
                         await Task.Delay(TimeSpan.FromMinutes(5));
                     }
                 }
@@ -63,14 +53,14 @@ namespace DustyBot.Services
             }
             catch (Exception ex)
             {
-                await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Fatal error in service", ex));
+                await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Fatal error in service", ex));
             }
         }
 
         private async Task ProcessBatch(CancellationToken ct)
         {
-            var settings = (await Settings.ReadUser<LastFmUserSettings>()).ToList();
-            var key = (await Settings.ReadGlobal<BotConfig>()).LastFmKey;
+            var settings = (await _settings.ReadUser<LastFmUserSettings>()).ToList();
+            var key = (await _settings.ReadGlobal<BotConfig>()).LastFmKey;
             var userDelay = TimeSpan.FromHours(24) / settings.Count;
             var count = 0;
 
@@ -90,12 +80,12 @@ namespace DustyBot.Services
                     {
                         try
                         {
-                            await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Processing Lastfm stats for user {setting.LastFmUsername} (count: {Interlocked.Increment(ref count)})."));
+                            await _logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Processing Lastfm stats for user {setting.LastFmUsername} (count: {Interlocked.Increment(ref count)})."));
                             var client = new LastFmClient(setting.LastFmUsername, key);
 
                             var topTracks = await client.GetTopTracks(LastFmDataPeriod.Overall, ct: ct);
 
-                            using (var dbService = await LastFmServiceFactory())
+                            using (var dbService = await _lastFmServiceFactory())
                             {
                                 var table = topTracks
                                     .Where(x => !string.IsNullOrEmpty(x.HashId) && !string.IsNullOrEmpty(x.Artist?.HashId))
@@ -106,7 +96,7 @@ namespace DustyBot.Services
                         }
                         catch (Exception ex)
                         {
-                            await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process Lastfm stats for user {setting.LastFmUsername}.", ex));
+                            await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process Lastfm stats for user {setting.LastFmUsername}.", ex));
                         }
                         finally
                         {
@@ -123,23 +113,6 @@ namespace DustyBot.Services
 
                 await Task.WhenAll(tasks);
             }
-        }
-
-        public async Task StopAsync()
-        {
-            if (CancellationTokenSource != null && ExecuteTask != null)
-            {
-                CancellationTokenSource.Cancel();
-                await ExecuteTask;
-
-                CancellationTokenSource.Dispose();
-                CancellationTokenSource = null;
-            }
-        }
-
-        public void Dispose()
-        {
-            ((IDisposable)CancellationTokenSource)?.Dispose();
         }
     }
 

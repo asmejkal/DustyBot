@@ -10,21 +10,27 @@ using System.Net.Http;
 using HtmlAgilityPack;
 using System.IO.Compression;
 using DustyBot.Core.Security;
+using System.Threading;
+using DustyBot.Core.Net;
+using DustyBot.Helpers.DaumCafe.Exceptions;
 
-namespace DustyBot.Helpers
+namespace DustyBot.Helpers.DaumCafe
 {
     /// <summary>
     /// Daum API is dead, so we have to go the browser route...
     /// </summary>
-    public class DaumCafeSession : IDisposable
+    internal sealed class DaumCafeSession : IDisposable
     {
-        private static DaumCafeSession _anonymous = new DaumCafeSession();
-        public static DaumCafeSession Anonymous => _anonymous;
+        public static readonly DaumCafeSession Anonymous = new DaumCafeSession();
+        
+        private static Regex _metaPropertyRegex = new Regex(@"<meta\s+property=""(.+)"".+content=""(.+)"".*>", RegexOptions.Compiled);
+        private static Regex _boardLinkRegex = new Regex(@".*cafe.daum.net\/(.+)\/(\w+).*", RegexOptions.Compiled);
+        private static Regex _bbsBoardLinkRegex = new Regex(@".*cafe.daum.net\/.+\/bbs_list.+fldid=(\w+).*", RegexOptions.Compiled);
+        private static Regex _groupCodeRegex = new Regex(@"GRPCODE\s*:\s*""(.+)""", RegexOptions.Compiled);
 
-        private HttpClient _client;
-        private HttpClientHandler _handler;
-
-        private Tuple<string, SecureString> _credential;
+        private readonly HttpClient _client;
+        private readonly HttpClientHandler _handler;
+        private readonly Tuple<string, SecureString> _credential;
 
         private DaumCafeSession()
         {
@@ -33,6 +39,7 @@ namespace DustyBot.Helpers
                 UseCookies = true,
                 CookieContainer = new CookieContainer()
             };
+
             _client = new HttpClient(_handler);
         }
 
@@ -42,107 +49,47 @@ namespace DustyBot.Helpers
             _credential = Tuple.Create(user, password);
         }
 
-        public static async Task<DaumCafeSession> Create(string user, SecureString password)
+        public static async Task<DaumCafeSession> Create(string user, SecureString password, CancellationToken ct)
         {
             var instance = new DaumCafeSession(user, password);
-            await instance.Authenticate();
+            await instance.Authenticate(ct);
 
             return instance;
         }
 
-        public async Task<int> GetLastPostId(string cafeId, string boardId)
+        public async Task<int> GetLastPostId(string cafeId, string boardId, CancellationToken ct)
         {
-            return (await GetPostIds(cafeId, boardId)).DefaultIfEmpty().Max();
+            return (await GetPostIds(cafeId, boardId, ct)).DefaultIfEmpty().Max();
         }
 
-        public async Task<List<int>> GetPostIds(string cafeId, string boardId)
+        public async Task<List<int>> GetPostIds(string cafeId, string boardId, CancellationToken ct)
         {
-            var content = await _client.GetStringAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}");
+            var response = await _client.GetAsync($"https://m.cafe.daum.net/{cafeId}/{boardId}", ct);
             var result = new List<int>();
 
-            await Task.Run(() =>
+            if (!response.IsSuccessStatusCode)
+                return result;
+
+            var content = await response.Content.ReadAsStringAsync();
+            foreach (Match match in Regex.Matches(content, $"{cafeId}/{boardId}/([0-9]+)[\"\\/]"))
             {
-                foreach (Match match in Regex.Matches(content, $"{cafeId}/{boardId}/([0-9]+)[\"\\/]"))
-                {
-                    if (match.Groups.Count < 2)
-                        continue;
+                if (match.Groups.Count < 2)
+                    continue;
 
-                    int id;
-                    if (!int.TryParse(match.Groups[1].Value, out id))
-                        continue;
+                int id;
+                if (!int.TryParse(match.Groups[1].Value, out id))
+                    continue;
 
-                    result.Add(id);
-                }
-            });
+                result.Add(id);
+            }
 
             return result;
         }
 
-        public class PageBody
-        {
-            public string Subject;
-            public string Text;
-            public string ImageUrl;
-
-            public static PageBody Create(string content)
-            {
-                var result = new PageBody();
-
-                var doc = new HtmlDocument();
-                doc.LoadHtml(content);
-
-                result.Subject = doc.DocumentNode.Descendants("h3").FirstOrDefault(x => x.GetAttributeValue("class", "") == "tit_subject")?.InnerText.Trim();
-
-                var text = doc.DocumentNode.Descendants("div").FirstOrDefault(x => x.GetAttributeValue("id", "") == "article");
-                if (text != null)
-                {
-                    result.ImageUrl = text.Descendants("img").FirstOrDefault(x => x.Attributes.Contains("src"))?.GetAttributeValue("src", "").Trim();
-                    result.Text = text.ToPlainText().Trim();
-                }
-
-                return result;
-            }
-
-            public static PageBody CreateComment(string content)
-            {
-                var result = new PageBody();
-
-                var doc = new HtmlDocument();
-                doc.LoadHtml(content);
-                
-                result.Text = doc.DocumentNode.Descendants("span").FirstOrDefault(x => x.HasClass("txt_detail"))?.ToPlainText().Trim();
-                result.ImageUrl = doc.DocumentNode.Descendants("img").FirstOrDefault(x => x.HasClass("thumb_info"))?.GetAttributeValue("src", null)?.Trim().Replace("C120x120", "R640x0");
-
-                //Discord stopped embedding the scaled down links (eg. https://img1.daumcdn.net/thumb/R640x0/?fname=http://cfile277.uf.daum.net/image/99D447415BA4896424BC9D)
-                var i = result.ImageUrl?.LastIndexOf("fname=") ?? -1;
-                if (i >= 0)
-                    result.ImageUrl = result.ImageUrl.Substring(i + "fname=".Length);
-
-                //Protocol sometimes missing
-                if (result.ImageUrl?.StartsWith("//") ?? false)
-                    result.ImageUrl = "https:" + result.ImageUrl;
-
-                return result;
-            }
-        }
-
-        public class PageMetadata
-        {
-            public string RelativeUrl { get; set; }
-            public string Type { get; set; }
-            public string Title { get; set; }
-            public string ImageUrl { get; set; }
-            public string Description { get; set; }
-
-            public PageBody Body { get; set; }
-        }
-        
-        private static Regex _metaPropertyRegex = new Regex(@"<meta\s+property=""(.+)"".+content=""(.+)"".*>", RegexOptions.Compiled);
-
-        public async Task<PageMetadata> GetPageMetadata(Uri mobileUrl)
+        public async Task<DaumCafePage> GetPage(Uri mobileUrl, CancellationToken ct)
         {
             string content;
-            var response = await _client.GetAsync(mobileUrl);
+            var response = await _client.GetAsync(mobileUrl, ct);
             if (response.StatusCode == (HttpStatusCode)308)
             {
                 //Deal with the wonky 308 status code (permanent redirect) - HttpClient should redirect, but it doesn't (probably because 308 is not even in .NET docs)
@@ -155,47 +102,38 @@ namespace DustyBot.Helpers
 
             var properties = new List<Tuple<string, string>>();
 
-            await Task.Run(() =>
-            {
-                var matches = _metaPropertyRegex.Matches(content);
-                foreach (Match match in matches)
-                    properties.Add(Tuple.Create(match.Groups[1].Value, match.Groups[2].Value));
-
-            });
+            var matches = _metaPropertyRegex.Matches(content);
+            foreach (Match match in matches)
+                properties.Add(Tuple.Create(match.Groups[1].Value, match.Groups[2].Value));
             
             var url = properties.FirstOrDefault(x => x.Item1 == "og:url")?.Item2;
             if (!string.IsNullOrEmpty(url) && url.Contains("comments"))
             {
                 //Comment type board
-                return new PageMetadata()
+                return new DaumCafePage()
                 {
                     RelativeUrl = url,
                     Type = "comment",
-                    Body = PageBody.CreateComment(content)
+                    Body = DaumCafePageBody.CreateFromComment(content)
                 };
             }
             else
             {
                 //Assume regular board
-                return new PageMetadata()
+                return new DaumCafePage()
                 {
                     RelativeUrl = url,
                     Type = properties.FirstOrDefault(x => x.Item1 == "og:type")?.Item2,
                     Title = WebUtility.HtmlDecode(properties.FirstOrDefault(x => x.Item1 == "og:title")?.Item2 ?? ""),
                     ImageUrl = properties.FirstOrDefault(x => x.Item1 == "og:image")?.Item2,
                     Description = WebUtility.HtmlDecode(properties.FirstOrDefault(x => x.Item1 == "og:description")?.Item2 ?? ""),
-                    Body = PageBody.Create(content)
+                    Body = DaumCafePageBody.Create(content)
                 };
             }
         }
 
-        public async Task Authenticate()
+        public async Task Authenticate(CancellationToken ct)
         {
-            //Daum disabled the simple credential login flow for *some* reason 
-            //(3 weeks after this feature has been implemented - makes me wonder...).
-            //So now we'll have to imitate the standard no-JS browser login flow.
-            //Only the FUID input is newly required, but we'll imitate all the headers 
-            //to make this harder to distinguish from normal Chrome users, just in case... (sans the cookies)
             string fuid;
             {
                 var request = WebRequest.CreateHttp("https://logins.daum.net/accounts/signinform.do");
@@ -208,7 +146,7 @@ namespace DustyBot.Helpers
                 request.Headers["Accept-Encoding"] = "gzip, deflate, br";
                 request.Headers["Accept-Language"] = "en,cs-CZ;q=0.9,cs;q=0.8";
 
-                using (var response = (HttpWebResponse)await request.GetResponseAsync())
+                using (var response = await request.GetResponseAsync(ct))
                 using (var stream = response.GetResponseStream())
                 using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
                 using (var reader = new StreamReader(gzipStream))
@@ -249,7 +187,7 @@ namespace DustyBot.Helpers
                     await _credential.Item2.ForEach(async x => { await writer.WriteAsync((char)x); });
                 }
 
-                using (var response = (HttpWebResponse)await request.GetResponseAsync())
+                using (var response = await request.GetResponseAsync(ct))
                 {
                     //Expire old cookies
                     foreach (Cookie cookie in _handler.CookieContainer.GetCookies(new Uri("https://daum.net")))
@@ -268,12 +206,12 @@ namespace DustyBot.Helpers
             }
         }
 
-        public async Task<bool> ArePostsAccesible(string cafeId, string boardId)
+        public async Task<bool> ArePostsAccesible(string cafeId, string boardId, CancellationToken ct)
         {
             List<int> ids;
             try
             {
-                ids = await GetPostIds(cafeId, boardId);
+                ids = await GetPostIds(cafeId, boardId, ct);
             }
             catch (HttpRequestException ex)
             {
@@ -300,10 +238,6 @@ namespace DustyBot.Helpers
             return false;
         }
         
-        private static Regex _boardLinkRegex = new Regex(@".*cafe.daum.net\/(.+)\/(\w+).*", RegexOptions.Compiled);
-        private static Regex _bbsBoardLinkRegex = new Regex(@".*cafe.daum.net\/.+\/bbs_list.+fldid=(\w+).*", RegexOptions.Compiled);
-        private static Regex _groupCodeRegex = new Regex(@"GRPCODE\s*:\s*""(.+)""", RegexOptions.Compiled);
-
         public async Task<Tuple<string, string>> GetCafeAndBoardId(string boardUrl)
         {        
             //Check if we're dealing with a BBS board link...
@@ -337,63 +271,10 @@ namespace DustyBot.Helpers
             }
         }
 
-        #region IDisposable 
-
-        private bool _disposed = false;
-
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            _client.Dispose();
+            _handler.Dispose();
         }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    _client?.Dispose();
-                    _client = null;
-                }
-
-                _disposed = true;
-            }
-        }
-
-        //~()
-        //{
-        //    Dispose(false);
-        //}
-
-        #endregion
-    }
-
-    public class CountryBlockException : Exception
-    {
-        public CountryBlockException() { }
-        public CountryBlockException(string message) { }
-        public CountryBlockException(string message, Exception innerException) { }
-    }
-
-    public class LoginFailedException : ArgumentException
-    {
-        public LoginFailedException() { }
-        public LoginFailedException(string message) { }
-        public LoginFailedException(string message, Exception innerException) { }
-    }
-
-    public class InaccessibleBoardException : Exception
-    {
-        public InaccessibleBoardException() { }
-        public InaccessibleBoardException(string message) { }
-        public InaccessibleBoardException(string message, Exception innerException) { }
-    }
-
-    public class InvalidBoardLinkException : Exception
-    {
-        public InvalidBoardLinkException() { }
-        public InvalidBoardLinkException(string message) { }
-        public InvalidBoardLinkException(string message, Exception innerException) { }
     }
 }

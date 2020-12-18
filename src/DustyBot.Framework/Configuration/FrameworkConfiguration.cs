@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace DustyBot.Framework.Config
+namespace DustyBot.Framework.Configuration
 {
     internal sealed class FrameworkConfiguration : IDisposable
     {

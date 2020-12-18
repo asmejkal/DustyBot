@@ -1,33 +1,24 @@
 ﻿using Discord;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Logging;
 using DustyBot.Definitions;
 using System.Linq;
 using System;
 using Discord.WebSocket;
 using DustyBot.Framework.Utility;
-using DustyBot.Database.Services;
 using System.Text;
+using DustyBot.Framework.Modules.Attributes;
 
 namespace DustyBot.Modules
 {
     [Module("Info", "Shows various info about users and servers.")]
-    class InfoModule : Module
+    internal sealed class InfoModule
     {
-        private ICommunicator Communicator { get; }
-        private ISettingsService Settings { get; }
-        private ILogger Logger { get; }
-        private IUserFetcher UserFetcher { get; }
+        private readonly IUserFetcher _userFetcher;
 
-        public InfoModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher)
+        public InfoModule(IUserFetcher userFetcher)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
-            UserFetcher = userFetcher;
+            _userFetcher = userFetcher;
         }
 
         [Command("avatar", "Shows a big version of a user's avatar.")]
@@ -42,7 +33,7 @@ namespace DustyBot.Modules
                 .WithUrl(avatar)
                 .WithImageUrl(avatar);
 
-            await command.Channel.SendMessageAsync(embed: embed.Build());
+            await command.Reply(embed.Build());
         }
 
         [Command("user", "Shows information about a user.")]
@@ -80,7 +71,7 @@ namespace DustyBot.Modules
             embed.AddField(x => x.WithName("Account created on").WithValue($"{user.CreatedAt.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - user.CreatedAt).TotalDays)} days ago)"));
             embed.AddField(x => x.WithName("Roles").WithValue(rolesBuilder.Length > 0 ? rolesBuilder.ToString() : "None"));
 
-            await command.Channel.SendMessageAsync(embed: embed.Build());
+            await command.Reply(embed.Build());
         }
 
         [Command("server", "Shows information about the server.")]
@@ -94,7 +85,7 @@ namespace DustyBot.Modules
                 .WithThumbnailUrl(guild.GetAnimatedIconUrl() ?? guild.IconUrl)
                 .WithFooter($"#{guild.Id} • times in UTC");
 
-            var owner = (IGuildUser)guild.Owner ?? await UserFetcher.FetchGuildUserAsync(guild.Id, guild.OwnerId);
+            var owner = (IGuildUser)guild.Owner ?? await _userFetcher.FetchGuildUserAsync(guild.Id, guild.OwnerId);
             embed.AddField(x => x.WithName("Created on").WithValue($"{guild.CreatedAt.ToUniversalTime().ToString("f", GlobalDefinitions.Culture)} ({Math.Floor((DateTimeOffset.Now - guild.CreatedAt).TotalDays)} days ago)"));
             embed.AddField(x => x.WithName("Owner").WithValue($"{owner.Username}#{owner.Discriminator}"));
 
@@ -102,7 +93,7 @@ namespace DustyBot.Modules
             embed.AddField(x => x.WithName("Channels").WithValue($"{guild.TextChannels.Count()} text, {guild.VoiceChannels.Count()} voice").WithIsInline(true));
             embed.AddField(x => x.WithName("Emotes").WithValue($"{guild.Emotes.Where(y => !y.Animated).Count()} static, {guild.Emotes.Where(y => y.Animated).Count()} animated").WithIsInline(true));
 
-            await command.Channel.SendMessageAsync(embed: embed.Build());
+            await command.Reply(embed.Build());
         }
     }
 }

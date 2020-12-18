@@ -1,7 +1,7 @@
 ﻿using Discord.WebSocket;
 using DustyBot.Config;
 using DustyBot.Framework;
-using DustyBot.Framework.Config;
+using DustyBot.Framework.Configuration;
 using DustyBot.Framework.Logging;
 using DustyBot.Helpers;
 using DustyBot.Modules;

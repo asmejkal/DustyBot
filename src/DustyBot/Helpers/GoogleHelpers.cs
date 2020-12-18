@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public static class GoogleHelpers
+    internal static class GoogleHelpers
     {
         public static async Task<GoogleAccountCredentials> ParseServiceAccountKeyFile(string path)
         {

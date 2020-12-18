@@ -22,6 +22,6 @@
 
         public const string SpotifyConnectUrl = "https://connect.dustybot.info/spotify";
 
-        public static string GetModuleWebAnchor(string moduleName) => moduleName.Replace(' ', '-').ToLowerInvariant();
+        public static string GetModuleWebAnchor(string name) => name.Replace(' ', '-').ToLowerInvariant();
     }
 }

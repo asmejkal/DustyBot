@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace DustyBot.Framework.Config
+namespace DustyBot.Framework.Configuration
 {
     public interface IFrameworkGuildConfigProvider
     {

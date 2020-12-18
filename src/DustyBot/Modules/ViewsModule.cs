@@ -7,7 +7,6 @@ using System.Net;
 using System.IO;
 using System.Globalization;
 using Newtonsoft.Json.Linq;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Settings;
@@ -16,26 +15,37 @@ using System.Text.RegularExpressions;
 using DustyBot.Database.Services;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
+using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
 
 namespace DustyBot.Modules
 {
     [Module("YouTube", "Tracks your artist's comeback stats on YouTube.")]
-    class ViewsModule : Module
+    internal sealed class ViewsModule
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-
-        public ViewsModule(ICommunicator communicator, ISettingsService settings)
+        private class YoutubeInfo
         {
-            Communicator = communicator;
-            Settings = settings;
+            public ulong Views { get; set; }
+            public ulong Likes { get; set; }
+            public DateTime PublishedAt { get; set; }
+        }
+
+        private const string YouTubeLinkFormat = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
+
+        private readonly ISettingsService _settings;
+        private readonly IFrameworkReflector _frameworkReflector;
+
+        public ViewsModule(ISettingsService settings, IFrameworkReflector frameworkReflector)
+        {
+            _settings = settings;
+            _frameworkReflector = frameworkReflector;
         }
 
         [Command("views", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("views", "Checks how releases are doing on YouTube. The releases need to be added by moderators.", CommandFlags.TypingIndicator)]
@@ -43,7 +53,7 @@ namespace DustyBot.Modules
         [Comment("Use without parameters to view songs from the default category. \nUse `all` to view all songs regardless of category.")]
         public async Task Views(ICommand command)
         {
-            var settings = await Settings.Read<MediaSettings>(command.GuildId);
+            var settings = await _settings.Read<MediaSettings>(command.GuildId);
             string param = string.IsNullOrWhiteSpace(command["SongOrCategoryName"]) ? null : (string)command["SongOrCategoryName"];
 
             List<ComebackInfo> comebacks;
@@ -56,7 +66,7 @@ namespace DustyBot.Modules
                     comebacks = settings.YouTubeComebacks.Where(x => x.Name.Search(param, true)).ToList();
             }
 
-            var config = await Settings.ReadGlobal<BotConfig>();
+            var config = await _settings.ReadGlobal<BotConfig>();
             if (comebacks.Count <= 0)
             {
                 string rec;
@@ -65,7 +75,7 @@ namespace DustyBot.Modules
                 else
                     rec = "Try " + GetOtherCategoriesRecommendation(settings, param, true, command.Prefix) + ".";
 
-                await command.ReplyError(Communicator, $"No comeback info has been set for this category or song. {rec}");
+                await command.ReplyError($"No comeback info has been set for this category or song. {rec}");
                 return;
             }
 
@@ -96,28 +106,8 @@ namespace DustyBot.Modules
                     ));
             }
 
-            await command.Reply(Communicator, pages);
+            await command.Reply(pages);
         }
-
-        private string GetOtherCategoriesRecommendation(MediaSettings settings, string category, bool useMarkdown, string commandPrefix)
-        {
-            var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
-                .Where(x => x != category)
-                .Where(x => !string.IsNullOrEmpty(x))
-                .Distinct();
-
-            var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
-            
-            string result = isDefault ? $"{(useMarkdown ? "`" : "")}{commandPrefix}views{(useMarkdown ? "`" : "")} and " : "";
-            if (otherCategories.Any())
-                result += $"{(useMarkdown ? "`" : "")}{commandPrefix}views {string.Join($", ", otherCategories)} or a song name{(useMarkdown ? "`" : "")}";
-            else
-                result += $"{(useMarkdown ? "`" : "")}{commandPrefix}views song name{(useMarkdown ? "`" : "")}";
-
-            return result;
-        }
-
-        public const string YouTubeLinkFormat = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
 
         [Command("views", "add", "Adds a song.")]
         [Permissions(GuildPermission.ManageMessages)]
@@ -136,12 +126,12 @@ namespace DustyBot.Modules
                 VideoIds = new HashSet<string>(command["YouTubeLinks"].Repeats.Select(x => Enumerable.Cast<Group>(x.AsRegex.Groups).Skip(1).First(y => !string.IsNullOrEmpty(y.Value)).Value))
             };
 
-            await Settings.Modify(command.GuildId, (MediaSettings s) =>
+            await _settings.Modify(command.GuildId, (MediaSettings s) =>
             {
                 s.YouTubeComebacks.Add(info);
             });
             
-            await command.ReplySuccess(Communicator, $"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos {info.VideoIds.WordJoinQuoted()}.");
+            await command.ReplySuccess($"Song `{info.Name}` has been added{(string.IsNullOrEmpty(info.Category) ? "" : $" to category `{info.Category}`")} with videos {info.VideoIds.WordJoinQuoted()}.");
         }
 
         [Command("views", "remove", "Removes a song.")]
@@ -166,7 +156,7 @@ namespace DustyBot.Modules
             if (string.Compare(category, "default", true) == 0 || string.IsNullOrEmpty(category))
                 category = null;
 
-            var removed = await Settings.Modify(command.GuildId, (MediaSettings s) =>
+            var removed = await _settings.Modify(command.GuildId, (MediaSettings s) =>
             {
                 return s.YouTubeComebacks.RemoveAll(x =>
                 {
@@ -176,9 +166,9 @@ namespace DustyBot.Modules
             });
 
             if (removed > 0)
-                await command.ReplySuccess(Communicator, removed > 1 ? $"Removed {removed} songs." : "Song has been removed.");
+                await command.ReplySuccess(removed > 1 ? $"Removed {removed} songs." : "Song has been removed.");
             else
-                await command.ReplyError(Communicator, $"Couldn't find song with name `{name}` in category `{category ?? "default"}`.");
+                await command.ReplyError($"Couldn't find song with name `{name}` in category `{category ?? "default"}`.");
         }
 
         [Command("views", "rename", "Renames a category or song.")]
@@ -191,7 +181,7 @@ namespace DustyBot.Modules
             string originalName = string.Compare(command[0], "default", true) == 0 ? null : (string)command[0];
             string newName = string.Compare(command[1], "default", true) == 0 ? null : (string)command[1];
 
-            var result = await Settings.Modify(command.GuildId, (MediaSettings s) =>
+            var result = await _settings.Modify(command.GuildId, (MediaSettings s) =>
             {
                 int ccount = 0;
                 foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Category, originalName, true) == 0))
@@ -215,20 +205,20 @@ namespace DustyBot.Modules
 
             if (result.Item1 <= 0 && result.Item2 <= 0)
             {
-                await command.ReplyError(Communicator, $"There's no category or song matching this name.");
+                await command.ReplyError($"There's no category or song matching this name.");
                 return;
             }
 
-            await command.ReplySuccess(Communicator, (result.Item1 > 0 ? $"Moved all comebacks from `{(string)command[0]}` category. " : string.Empty) + (result.Item2 > 0 ? $"Renamed all songs named `{(string)command[0]}`. " : string.Empty));
+            await command.ReplySuccess((result.Item1 > 0 ? $"Moved all comebacks from `{(string)command[0]}` category. " : string.Empty) + (result.Item2 > 0 ? $"Renamed all songs named `{(string)command[0]}`. " : string.Empty));
         }
 
         [Command("views", "list", "Lists all songs.")]
         public async Task ListComebacks(ICommand command)
         {
-            var settings = await Settings.Read<MediaSettings>(command.GuildId, false);
+            var settings = await _settings.Read<MediaSettings>(command.GuildId, false);
             if (settings == null || settings.YouTubeComebacks.Count <= 0)
             {
-                await command.ReplyError(Communicator, "No comeback info has been set. Use the `views add` command.");
+                await command.ReplyError("No comeback info has been set. Use the `views add` command.");
                 return;
             }
 
@@ -240,17 +230,28 @@ namespace DustyBot.Modules
                     $"` IDs: `{string.Join(" ", comeback.VideoIds)}`\n";
             }
 
-            await command.Reply(Communicator, result);
+            await command.Reply(result);
         }
 
-        public class YoutubeInfo
+        private string GetOtherCategoriesRecommendation(MediaSettings settings, string category, bool useMarkdown, string commandPrefix)
         {
-            public ulong Views { get; set; }
-            public ulong Likes { get; set; }
-            public DateTime PublishedAt { get; set; }
+            var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
+                .Where(x => x != category)
+                .Where(x => !string.IsNullOrEmpty(x))
+                .Distinct();
+
+            var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
+
+            string result = isDefault ? $"{(useMarkdown ? "`" : "")}{commandPrefix}views{(useMarkdown ? "`" : "")} and " : "";
+            if (otherCategories.Any())
+                result += $"{(useMarkdown ? "`" : "")}{commandPrefix}views {string.Join($", ", otherCategories)} or a song name{(useMarkdown ? "`" : "")}";
+            else
+                result += $"{(useMarkdown ? "`" : "")}{commandPrefix}views song name{(useMarkdown ? "`" : "")}";
+
+            return result;
         }
 
-        public async Task<YoutubeInfo> GetYoutubeInfo(IEnumerable<string> ids, string youtubeKey)
+        private async Task<YoutubeInfo> GetYoutubeInfo(IEnumerable<string> ids, string youtubeKey)
         {
             string url = $"https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id={string.Join(",", ids)}&key={youtubeKey}";
 

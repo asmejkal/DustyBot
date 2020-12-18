@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {
-    public static class SerilogExtensions
+    internal static class SerilogExtensions
     {
         public static T UseSerilog<T>(this T client, ILogger logger)
             where T : BaseDiscordClient

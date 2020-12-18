@@ -8,7 +8,7 @@ using DustyBot.Core.Formatting;
 
 namespace DustyBot.Helpers
 {
-    static class PrintHelpers
+    internal static class PrintHelpers
     {
         public class Thumbnail
         {

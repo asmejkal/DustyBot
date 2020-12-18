@@ -10,12 +10,13 @@ using System.Threading;
 using System.Collections.Concurrent;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
+using Microsoft.Extensions.Hosting;
 
 namespace DustyBot.Services
 {
-    class ScheduleService : IScheduleService, IDisposable
+    internal sealed class ScheduleService : IHostedService, IScheduleService, IDisposable
     {
-        private class NotificationContext : IDisposable
+        private sealed class NotificationContext : IDisposable
         {
             public SemaphoreSlim Lock { get; } = new SemaphoreSlim(1, 1);
             public ulong ServerId { get; }
@@ -60,47 +61,50 @@ namespace DustyBot.Services
             }
         }
 
-        public ISettingsService Settings { get; }
-        public BaseSocketClient Client { get; }
-        public ILogger Logger { get; }
+        private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15); //Some timezones have quarter-hour fractions
 
-        public static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15); //Some timezones have quarter-hour fractions
+        private readonly BaseSocketClient _client;
+        private readonly ISettingsService _settings;
+        private readonly ILogger _logger;
 
-        private bool Updating { get; set; }
-        private object UpdatingLock = new object();
-
-        private Timer UpdateTimer { get; set; }
-        private ConcurrentDictionary<ulong, NotificationContext> Notifications { get; } = new ConcurrentDictionary<ulong, NotificationContext>();
+        private readonly object _updatingLock = new object();
+        private bool _updating;
+        private Timer _updateTimer;
+        private readonly ConcurrentDictionary<ulong, NotificationContext> _notifications = new ConcurrentDictionary<ulong, NotificationContext>();
 
         public ScheduleService(BaseSocketClient client, ISettingsService settings, ILogger logger)
         {
-            Settings = settings;
-            Client = client;
-            Logger = logger;
+            _client = client;
+            _settings = settings;
+            _logger = logger;
         }
 
-        public async Task StartAsync()
+        public async Task StartAsync(CancellationToken ct)
         {
             // Calendar updates
             var delay = UpdateFrequency.Minutes - (DateTime.UtcNow.Minute % UpdateFrequency.Minutes);
-            UpdateTimer = new Timer(OnUpdate, null, delay * 60000, (int)UpdateFrequency.TotalMilliseconds);
+            _updateTimer = new Timer(OnUpdate, null, delay * 60000, (int)UpdateFrequency.TotalMilliseconds);
 
             // Event notifications
-            foreach (var settings in await Settings.Read<ScheduleSettings>())
+            foreach (var settings in await _settings.Read<ScheduleSettings>())
                 await RefreshNotifications(settings.ServerId, settings);
         }
 
-        public Task StopAsync()
+        public Task StopAsync(CancellationToken ct)
         {
-            UpdateTimer?.Dispose();
-            UpdateTimer = null;
+            _updateTimer?.Dispose();
+            _updateTimer = null;
+
+            foreach (var notification in _notifications.Values)
+                notification.Disable();
+
             return Task.CompletedTask;
         }
 
         public async Task RefreshNotifications(ulong serverId, ScheduleSettings settings)
         {
             var now = DateTime.UtcNow.Add(settings.TimezoneOffset);
-            var context = Notifications.GetOrAdd(serverId, x => new NotificationContext(serverId, OnNotify));
+            var context = _notifications.GetOrAdd(serverId, x => new NotificationContext(serverId, OnNotify));
             using (await context.Lock.ClaimAsync())
             {
                 var next = settings.Events.SkipWhile(x => x.Date < now).FirstOrDefault(x => x.Notify && x.HasTime);
@@ -121,17 +125,17 @@ namespace DustyBot.Services
         {
             TaskHelper.FireForget(async () =>
             {
-                lock (UpdatingLock)
+                lock (_updatingLock)
                 {
-                    if (Updating)
+                    if (_updating)
                         return; // Skip if the previous update is still running
 
-                    Updating = true;
+                    _updating = true;
                 }
 
                 try
                 {
-                    foreach (var settings in await Settings.Read<ScheduleSettings>())
+                    foreach (var settings in await _settings.Read<ScheduleSettings>())
                     {
                         if (settings.Calendars.OfType<UpcomingScheduleCalendar>().Count() <= 0)
                             continue;
@@ -140,7 +144,7 @@ namespace DustyBot.Services
                         if (targetToday <= settings.LastUpcomingCalendarsUpdate.Date)
                             continue; //Already updated today (in target timezone)
 
-                        var guild = Client.GetGuild(settings.ServerId) as IGuild;
+                        var guild = _client.GetGuild(settings.ServerId) as IGuild;
                         if (guild == null)
                             continue;
 
@@ -152,32 +156,32 @@ namespace DustyBot.Services
                                 var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId)) as IUserMessage : null;
                                 if (message == null)
                                 {
-                                    await Settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
-                                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Service", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
+                                    await _settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
+                                    await _logger.Log(new LogMessage(LogSeverity.Warning, "Service", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
                                     continue;
                                 }
 
                                 var (text, embed) = Modules.ScheduleModule.BuildCalendarMessage(calendar, settings);
                                 await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; });
 
-                                await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Updated calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId})."));
+                                await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Updated calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId})."));
                             }
                             catch (Exception ex)
                             {
-                                await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to update calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId}).", ex));
+                                await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to update calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId}).", ex));
                             }
                         }
 
-                        await Settings.Modify(guild.Id, (ScheduleSettings s) => s.LastUpcomingCalendarsUpdate = targetToday);
+                        await _settings.Modify(guild.Id, (ScheduleSettings s) => s.LastUpcomingCalendarsUpdate = targetToday);
                     }
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Service", "Failed to update calendars.", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Service", "Failed to update calendars.", ex));
                 }
                 finally
                 {
-                    Updating = false;
+                    _updating = false;
                 }
             });
         }
@@ -189,7 +193,7 @@ namespace DustyBot.Services
                 try
                 {
                     var (serverId, _) = ((ulong, int))state;
-                    if (!Notifications.TryGetValue(serverId, out var context))
+                    if (!_notifications.TryGetValue(serverId, out var context))
                         return;
 
                     using (await context.Lock.ClaimAsync())
@@ -197,17 +201,17 @@ namespace DustyBot.Services
                         if (!context.ValidateCallback(state))
                             return; // Old timer (can happen due to timer race conditions)
 
-                        var settings = await Settings.Read<ScheduleSettings>(serverId, false);
+                        var settings = await _settings.Read<ScheduleSettings>(serverId, false);
                         if (settings == null)
                         {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Settings for server {serverId} not found."));
+                            await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Settings for server {serverId} not found."));
                             return;
                         }
 
-                        var guild = Client.GetGuild(serverId) as IGuild;
+                        var guild = _client.GetGuild(serverId) as IGuild;
                         if (guild == null)
                         {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Server {serverId} not found."));
+                            await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Server {serverId} not found."));
                             return;
                         }
 
@@ -229,11 +233,11 @@ namespace DustyBot.Services
                                         .WithDescription($"{(e.HasLink ? DiscordHelpers.BuildMarkdownUri(e.Description, e.Link) : e.Description)} is now on!");
 
                                     await channel.SendMessageAsync(role != null ? $"{role.Mention} " : "", embed: embed.Build());
-                                    await Logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Notified event {e.Description} ({e.Date}, TZ: {settings.TimezoneOffset}, ID: {e.Id}) on {guild.Name} ({guild.Id})."));
+                                    await _logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Notified event {e.Description} ({e.Date}, TZ: {settings.TimezoneOffset}, ID: {e.Id}) on {guild.Name} ({guild.Id})."));
                                 }
                                 catch (Exception ex)
                                 {
-                                    await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to notify event {e.Description} ({e.Id}) on {guild.Name} ({guild.Id}).", ex));
+                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to notify event {e.Description} ({e.Id}) on {guild.Name} ({guild.Id}).", ex));
                                 }
                             }
                         }
@@ -251,35 +255,18 @@ namespace DustyBot.Services
                 }
                 catch (Exception ex)
                 {
-                    await Logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process event notifications.", ex));
+                    await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process event notifications.", ex));
                 }
             });
         }
-
-        #region IDisposable 
-
-        private bool _disposed = false;
-                
+       
         public void Dispose()
         {
-            Dispose(true);
-        }
-                
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    UpdateTimer?.Dispose();
-                    UpdateTimer = null;
-                }
-                
-                _disposed = true;
-            }
-        }
+            _updateTimer?.Dispose();
+            _updateTimer = null;
 
-        #endregion
+            foreach (var notification in _notifications.Values)
+                notification.Dispose();
+        }
     }
-
 }

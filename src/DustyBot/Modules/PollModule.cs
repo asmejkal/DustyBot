@@ -4,37 +4,38 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using DustyBot.Helpers;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Database.Services;
+using DustyBot.Definitions;
+using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Modules.Attributes;
 
 namespace DustyBot.Modules
 {
     [Module("Polls", "Public polls and surveys.")]
-    class PollModule : Module
+    internal sealed class PollModule
     {
-        public ICommunicator Communicator { get; }
-        public ISettingsService Settings { get; }
-        public ILogger Logger { get; }
+        private readonly ISettingsService _settings;
+        private readonly ICommunicator _communicator;
+        private readonly IFrameworkReflector _frameworkReflector;
 
-        public PollModule(ICommunicator communicator, ISettingsService settings, ILogger logger)
+        public PollModule(ISettingsService settings, ICommunicator communicator, IFrameworkReflector frameworkReflector)
         {
-            Communicator = communicator;
-            Settings = settings;
-            Logger = logger;
+            _settings = settings;
+            _communicator = communicator;
+            _frameworkReflector = frameworkReflector;
         }
 
         [Command("poll", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
+            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("poll", "Starts a poll.", CommandFlags.Synchronous)]
@@ -60,13 +61,13 @@ namespace DustyBot.Modules
             var permissions = (await command.Guild.GetCurrentUserAsync()).GetPermissions(channel);
             if (!permissions.SendMessages)
             {
-                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
             if (anonymous && !permissions.ManageMessages)
             {
-                await command.ReplyError(Communicator, $"The poll is anonymous but the bot can't delete messages in this channel. Please set the correct guild or channel permissions (Manage Messages).");
+                await command.ReplyError($"The poll is anonymous but the bot can't delete messages in this channel. Please set the correct guild or channel permissions (Manage Messages).");
                 return;
             }
 
@@ -75,9 +76,9 @@ namespace DustyBot.Modules
             poll.Answers.Add(command["Answer2"]);
             poll.Answers.AddRange(command["MoreAnswers"].Repeats.Select(x => x.AsString));
 
-            if ((await Settings.Read<PollSettings>(command.GuildId)).Polls.Any(x => x.Channel == channelId))
+            if ((await _settings.Read<PollSettings>(command.GuildId)).Polls.Any(x => x.Channel == channelId))
             {
-                await command.ReplyError(Communicator, "There is already a poll running in this channel. End it before starting a new one.");
+                await command.ReplyError("There is already a poll running in this channel. End it before starting a new one.");
                 return;
             }
 
@@ -90,7 +91,7 @@ namespace DustyBot.Modules
 
             if (description.Length > EmbedBuilder.MaxDescriptionLength)
             {
-                await command.ReplyError(Communicator, "This poll is too long (there are too many answers are they are too long to display).");
+                await command.ReplyError("This poll is too long (there are too many answers are they are too long to display).");
                 return;
             }
 
@@ -99,10 +100,10 @@ namespace DustyBot.Modules
                 .WithDescription(description)
                 .WithFooter("You may vote again to change your answer");
 
-            await channel.SendMessageAsync(string.Empty, false, embed.Build());
+            await _communicator.SendMessage(channel, embed.Build());
 
             //Add to settings
-            bool added = await Settings.Modify(command.GuildId, (PollSettings s) =>
+            bool added = await _settings.Modify(command.GuildId, (PollSettings s) =>
             {
                 if (s.Polls.Any(x => x.Channel == channelId))
                     throw new Exception("Unexpected race condition - poll already running.");
@@ -112,7 +113,7 @@ namespace DustyBot.Modules
             });
 
             if (command.Message.Channel.Id != poll.Channel)
-                await command.ReplySuccess(Communicator, "Poll started!");
+                await command.ReplySuccess("Poll started!");
         }
 
         [Command("poll", "end", "Ends a poll and announces results.")]
@@ -128,7 +129,7 @@ namespace DustyBot.Modules
             if (!result)
                 return;
 
-            await Settings.Modify(command.GuildId, (PollSettings s) => s.Polls.RemoveAll(x => x.Channel == channelId) > 0);
+            await _settings.Modify(command.GuildId, (PollSettings s) => s.Polls.RemoveAll(x => x.Channel == channelId) > 0);
         }
 
         [Command("poll", "results", "Checks results of a running poll.")]
@@ -148,7 +149,7 @@ namespace DustyBot.Modules
         [Example("yes")]
         public async Task Vote(ICommand command)
         {
-            var poll = await Settings.Modify(command.GuildId, (PollSettings s) =>
+            var poll = await _settings.Modify(command.GuildId, (PollSettings s) =>
             {
                 var p = s.Polls.FirstOrDefault(x => x.Channel == command.Message.Channel.Id);
                 if (p != null)
@@ -183,10 +184,10 @@ namespace DustyBot.Modules
             });
             
             if (poll == null)
-                await command.ReplyError(Communicator, "There is no poll running in this channel.");
+                await command.ReplyError("There is no poll running in this channel.");
             else
             {
-                var confMessage = await command.ReplySuccess(Communicator, $"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.");
+                var confMessage = await command.ReplySuccess($"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.");
                 if (poll.Anonymous)
                 {
                     await command.Message.DeleteAsync();
@@ -197,11 +198,11 @@ namespace DustyBot.Modules
 
         private async Task<bool> PrintPollResults(ICommand command, bool closed, ulong channelId, ITextChannel resultsChannel)
         {
-            var settings = await Settings.Read<PollSettings>(command.GuildId);
+            var settings = await _settings.Read<PollSettings>(command.GuildId);
             var poll = settings.Polls.FirstOrDefault(x => x.Channel == channelId);
             if (poll == null)
             {
-                await command.ReplyError(Communicator, $"No poll is currently running in the specified channel.");
+                await command.ReplyError($"No poll is currently running in the specified channel.");
                 return false;
             }
 
@@ -219,8 +220,8 @@ namespace DustyBot.Modules
                 .WithTitle(closed ? "Poll closed!" : "Poll results")
                 .WithDescription(description)
                 .WithFooter($"{total} vote{(total != 1 ? "s" : "")} total");
-            
-            await resultsChannel.SendMessageAsync(string.Empty, false, embed.Build());
+
+            await _communicator.SendMessage(resultsChannel, embed.Build());
             return true;
         }
 
@@ -236,7 +237,7 @@ namespace DustyBot.Modules
             };
 
             var suffix = closed ? "" : $"\nVote with `{commandPrefix}vote answer` or `{commandPrefix}vote number`.";
-            var ellipsis = "<:blank:517470655004803072> ...";
+            var ellipsis = $"{EmoteConstants.Blank.Name} ...";
             int i = 0, prevScore = int.MaxValue, currentPlace = 0;
             foreach (var result in poll.Results.OrderByDescending(x => x.Value))
             {
@@ -244,7 +245,7 @@ namespace DustyBot.Modules
                 currentPlace = prevScore == result.Value ? currentPlace : i; //Place vote ties in the same placemenet
                 prevScore = result.Value;
 
-                var line = $"{(emotes.ContainsKey(currentPlace) && result.Value > 0 ? emotes[currentPlace] : "<:blank:517470655004803072>")} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
+                var line = $"{(emotes.ContainsKey(currentPlace) && result.Value > 0 ? emotes[currentPlace] : EmoteConstants.Blank.Name)} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";
                 if (description.Length + suffix.Length + line.Length + ellipsis.Length < EmbedBuilder.MaxDescriptionLength)
                 {
                     description.Append(line);
