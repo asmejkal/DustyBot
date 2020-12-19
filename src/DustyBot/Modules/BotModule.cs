@@ -21,6 +21,7 @@ using DustyBot.Core.Async;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -45,7 +46,7 @@ namespace DustyBot.Modules
         [Command("help", "Prints usage info.", CommandFlags.DirectMessageAllow)]
         [Parameter("Command", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "show usage of a specific command")]
         [Example("event add")]
-        public async Task Help(ICommand command)
+        public async Task Help(ICommand command, ILogger logger)
         {
             var config = await _settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)

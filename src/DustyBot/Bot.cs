@@ -117,7 +117,15 @@ namespace DustyBot
             {
                 using var logger = new LoggerConfiguration()
                     .WriteTo.Console()
-                    .WriteTo.Elasticsearch(opts.ElasticSearchLogNodeUri, autoRegisterTemplate: true, autoRegisterTemplateVersion: AutoRegisterTemplateVersion.ESv7)
+                    .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(opts.ElasticSearchLogNodeUri))
+                    {
+                        IndexFormat = "dustybot-{0:yyyy-MM-dd}",
+                        AutoRegisterTemplate = true,
+                        AutoRegisterTemplateVersion = AutoRegisterTemplateVersion.ESv7,
+                        DetectElasticsearchVersion = true,
+                        RegisterTemplateFailure = RegisterTemplateRecovery.FailSink,
+                        EmitEventFailure = EmitEventFailureHandling.ThrowException
+                    })
                     .Enrich.FromLogContext()
                     .MinimumLevel.Information()
                     .CreateLogger();

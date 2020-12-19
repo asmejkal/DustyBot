@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Commands.Parsing;
 using System.Threading;
+using DustyBot.Core.Logging;
 
 namespace DustyBot.Framework.Commands
 {
@@ -97,92 +98,7 @@ namespace DustyBot.Framework.Commands
                     if (findResult == null)
                         return;
 
-                    var stopwatch = Stopwatch.StartNew();
-                    var gatewayPing = DateTimeOffset.UtcNow - message.Timestamp;
-
-                    // Log; don't log command content for non-guild channels, since these commands are usually meant to be private
-                    var id = ++_commandCounter;
-                    var guild = (userMessage.Channel as IGuildChannel)?.Guild;
-                    if (guild != null)
-                        _logger.LogInformation("Command \"{MessageContent}\" with {MessageAttachmentCount} attachments (id: {CommandId}) by {AuthorUsername} ({AuthorId}) in #{ChannelName} on {GuildName} ({GuildId})", message.Content, message.Attachments.Count, id, message.Author.Username, message.Author.Id, message.Channel.Name, guild.Name, guild.Id);
-                    else
-                        _logger.LogInformation("Command \"{Command}\" with {MessageAttachmentCount} attachments (id: {CommandId}) by {AuthorUsername} ({AuthorId})", findResult.Prefix + findResult.Usage.InvokeUsage, message.Attachments.Count, id, message.Author.Username, message.Author.Id);
-
-                    // Check if the channel type is valid for this command
-                    if (!IsValidCommandSource(message.Channel, findResult.Registration))
-                    {
-                        _logger.LogInformation("Command {CommandId} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to invalid channel type", id, stopwatch.Elapsed.TotalSeconds, gatewayPing.TotalSeconds);
-
-                        if (message.Channel is ITextChannel && findResult.Registration.Flags.HasFlag(CommandFlags.DirectMessageOnly))
-                            await _communicator.CommandReplyDirectMessageOnly(message.Channel, findResult.Registration);
-
-                        return;
-                    }
-
-                    // Check owner
-                    if (findResult.Registration.Flags.HasFlag(CommandFlags.OwnerOnly) && !_ownerIDs.Contains(message.Author.Id))
-                    {
-                        _logger.LogInformation("Command {CommandId} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to the user not being an owner", id, stopwatch.Elapsed.TotalSeconds, gatewayPing.TotalSeconds);
-                        await _communicator.CommandReplyNotOwner(message.Channel, findResult.Registration);
-                        return;
-                    }
-
-                    // Check guild permisssions
-                    if (userMessage.Channel is IGuildChannel guildChannel)
-                    {
-                        // User
-                        var guildUser = message.Author as IGuildUser;
-                        var missingPermissions = findResult.Registration.UserPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
-                        if (missingPermissions.Any())
-                        {
-                            _logger.LogInformation("Command {CommandId} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to missing user permissions", id, stopwatch.Elapsed.TotalSeconds, gatewayPing.TotalSeconds);
-                            await _communicator.CommandReplyMissingPermissions(message.Channel, findResult.Registration, missingPermissions);
-                            return;
-                        }
-
-                        // Bot
-                        var selfUser = await guild.GetCurrentUserAsync();
-                        var missingBotPermissions = findResult.Registration.BotPermissions.Where(x => !selfUser.GuildPermissions.Has(x));
-                        if (missingBotPermissions.Any())
-                        {
-                            _logger.LogInformation("Command {CommandId} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to missing bot permissions", id, stopwatch.Elapsed.TotalSeconds, gatewayPing.TotalSeconds);
-                            await _communicator.CommandReplyMissingBotPermissions(message.Channel, findResult.Registration, missingBotPermissions);
-                            return;
-                        }
-                    }
-
-                    var verificationElapsed = stopwatch.Elapsed;
-
-                    // Create command
-                    var parseResult = await _commandParser.Parse(userMessage, findResult.Registration, findResult.Usage, findResult.Prefix);
-                    if (parseResult.Type != CommandParseResultType.Success)
-                    {
-                        string explanation = "";
-                        switch (parseResult.Type)
-                        {
-                            case CommandParseResultType.NotEnoughParameters: explanation = Properties.Resources.Command_NotEnoughParameters; break;
-                            case CommandParseResultType.TooManyParameters: explanation = Properties.Resources.Command_TooManyParameters; break;
-                            case CommandParseResultType.InvalidParameterFormat: explanation = string.Format(Properties.Resources.Command_InvalidParameterFormat, ((InvalidParameterCommandParseResult)parseResult).InvalidPosition); break;
-                        }
-
-                        _logger.LogInformation("Command {CommandId} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to incorrect parameters", id, stopwatch.Elapsed.TotalSeconds, gatewayPing.TotalSeconds);
-                        await _communicator.CommandReplyIncorrectParameters(message.Channel, findResult.Registration, explanation, findResult.Prefix);
-                        return;
-                    }
-
-                    var command = new Command((SuccessCommandParseResult)parseResult, _communicator);
-                    var parsingElapsed = stopwatch.Elapsed;
-
-                    // Execute
-                    if (findResult.Registration.Flags.HasFlag(CommandFlags.Synchronous))
-                    {
-                        await ExecuteCommandAsync(id, findResult, command, stopwatch, verificationElapsed, parsingElapsed, gatewayPing);
-                    }
-                    else
-                    {
-                        TaskHelper.FireForget(() => ExecuteCommandAsync(id, findResult, command, stopwatch, verificationElapsed, parsingElapsed, gatewayPing),
-                            x => _logger.LogError(x, "Uncaught exception while handling command."));
-                    }
+                    await HandleCommand(userMessage, findResult);
                 }
                 catch (Exception ex)
                 {
@@ -191,6 +107,115 @@ namespace DustyBot.Framework.Commands
             });
 
             return Task.CompletedTask;
+        }
+
+        private async Task HandleCommand(SocketUserMessage message, CommandRegistrationFindResult findResult)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var gatewayDelay = DateTimeOffset.UtcNow - message.Timestamp;
+
+            var counter = Interlocked.Increment(ref _commandCounter);
+            var guild = (message.Channel as IGuildChannel)?.Guild;
+
+            var correlationIds = new Dictionary<string, object>()
+            {
+                { "CommandId", Guid.NewGuid() },
+                { "AuthorId", message.Author.Id },
+                { "AuthorUsername", message.Author.Username },
+                { "ChannelId", message.Channel.Id },
+                { "ChannelName", message.Channel.Name }
+            };
+
+            if (guild != null)
+            {
+                correlationIds.Add("GuildId", guild.Id);
+                correlationIds.Add("GuildName", guild.Name);
+            }
+
+            using (_logger.BeginScope(correlationIds))
+            {
+                // Don't log command content for non-guild channels, since these commands are usually meant to be private
+                if (guild != null)
+                    _logger.LogInformation("Command {MessageContent} with {MessageAttachmentCount} attachments (nr: {CommandCounter}) by {AuthorUsername} ({AuthorId}) in #{ChannelName} on {GuildName} ({GuildId})", message.Content, message.Attachments.Count, counter, message.Author.Username, message.Author.Id, message.Channel.Name, guild.Name, guild.Id);
+                else 
+                    _logger.LogInformation("Command {MessageContentRedacted} with {MessageAttachmentCount} attachments (nr: {CommandCounter}) by {AuthorUsername} ({AuthorId})", findResult.Prefix + findResult.Usage.InvokeUsage, message.Attachments.Count, counter, message.Author.Username, message.Author.Id);
+
+                // Check if the channel type is valid for this command
+                if (!IsValidCommandSource(message.Channel, findResult.Registration))
+                {
+                    _logger.LogInformation("Command {CommandCounter} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to invalid channel type", counter, stopwatch.Elapsed.TotalSeconds, gatewayDelay.TotalSeconds);
+
+                    if (message.Channel is ITextChannel && findResult.Registration.Flags.HasFlag(CommandFlags.DirectMessageOnly))
+                        await _communicator.CommandReplyDirectMessageOnly(message.Channel, findResult.Registration);
+
+                    return;
+                }
+
+                // Check owner
+                if (findResult.Registration.Flags.HasFlag(CommandFlags.OwnerOnly) && !_ownerIDs.Contains(message.Author.Id))
+                {
+                    _logger.LogInformation("Command {CommandCounter} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to the user not being an owner", counter, stopwatch.Elapsed.TotalSeconds, gatewayDelay.TotalSeconds);
+                    await _communicator.CommandReplyNotOwner(message.Channel, findResult.Registration);
+                    return;
+                }
+
+                // Check guild permisssions
+                if (message.Channel is IGuildChannel guildChannel)
+                {
+                    // User
+                    var guildUser = message.Author as IGuildUser;
+                    var missingPermissions = findResult.Registration.UserPermissions.Where(x => !guildUser.GuildPermissions.Has(x));
+                    if (missingPermissions.Any())
+                    {
+                        _logger.LogInformation("Command {CommandCounter} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to missing user permissions", counter, stopwatch.Elapsed.TotalSeconds, gatewayDelay.TotalSeconds);
+                        await _communicator.CommandReplyMissingPermissions(message.Channel, findResult.Registration, missingPermissions);
+                        return;
+                    }
+
+                    // Bot
+                    var selfUser = await guild.GetCurrentUserAsync();
+                    var missingBotPermissions = findResult.Registration.BotPermissions.Where(x => !selfUser.GuildPermissions.Has(x));
+                    if (missingBotPermissions.Any())
+                    {
+                        _logger.LogInformation("Command {CommandCounter} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to missing bot permissions", counter, stopwatch.Elapsed.TotalSeconds, gatewayDelay.TotalSeconds);
+                        await _communicator.CommandReplyMissingBotPermissions(message.Channel, findResult.Registration, missingBotPermissions);
+                        return;
+                    }
+                }
+
+                var verificationElapsed = stopwatch.Elapsed;
+
+                // Create command
+                var parseResult = await _commandParser.Parse(message, findResult.Registration, findResult.Usage, findResult.Prefix);
+                if (parseResult.Type != CommandParseResultType.Success)
+                {
+                    string explanation = "";
+                    switch (parseResult.Type)
+                    {
+                        case CommandParseResultType.NotEnoughParameters: explanation = Properties.Resources.Command_NotEnoughParameters; break;
+                        case CommandParseResultType.TooManyParameters: explanation = Properties.Resources.Command_TooManyParameters; break;
+                        case CommandParseResultType.InvalidParameterFormat: explanation = string.Format(Properties.Resources.Command_InvalidParameterFormat, ((InvalidParameterCommandParseResult)parseResult).InvalidPosition); break;
+                    }
+
+                    _logger.LogInformation("Command {CommandCounter} rejected in {TotalElapsed:F3}s (g: {GatewayElapsed:F3}s) due to incorrect parameters", counter, stopwatch.Elapsed.TotalSeconds, gatewayDelay.TotalSeconds);
+                    await _communicator.CommandReplyIncorrectParameters(message.Channel, findResult.Registration, explanation, findResult.Prefix);
+                    return;
+                }
+
+                var command = new Command((SuccessCommandParseResult)parseResult, _communicator);
+                var parsingElapsed = stopwatch.Elapsed;
+
+                // Execute
+                if (findResult.Registration.Flags.HasFlag(CommandFlags.Synchronous))
+                {
+                    await ExecuteCommandAsync(counter, correlationIds, findResult, command, stopwatch, verificationElapsed, parsingElapsed, gatewayDelay);
+                }
+                else
+                {
+                    TaskHelper.FireForget(() => ExecuteCommandAsync(counter, correlationIds, findResult, command, stopwatch, verificationElapsed, parsingElapsed, gatewayDelay),
+                        x => _logger.LogError(x, "Uncaught exception while handling command."));
+                }
+            }
         }
 
         private void AddModule(ModuleInfo module)
@@ -253,7 +278,7 @@ namespace DustyBot.Framework.Commands
             return false;
         }
 
-        private async Task ExecuteCommandAsync(int id, CommandRegistrationFindResult findResult, ICommand command, Stopwatch stopwatch, TimeSpan verificationElapsed, TimeSpan parsingElapsed, TimeSpan gatewayPing)
+        private async Task ExecuteCommandAsync(int counter, Dictionary<string, object> correlationIds, CommandRegistrationFindResult findResult, ICommand command, Stopwatch stopwatch, TimeSpan verificationElapsed, TimeSpan parsingElapsed, TimeSpan gatewayPing)
         {
             IDisposable typingState = null;
             if (findResult.Registration.Flags.HasFlag(CommandFlags.TypingIndicator))
@@ -265,7 +290,12 @@ namespace DustyBot.Framework.Commands
                 using (var scope = _clientServiceProvider.CreateScope())
                 {
                     var module = scope.ServiceProvider.GetRequiredService(findResult.Registration.ModuleType);
-                    await findResult.Registration.Handler(module, command);
+                    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(findResult.Registration.ModuleType);
+
+                    using (logger.BeginScope(correlationIds))
+                    {
+                        await findResult.Registration.Handler.Invoke(module, command, logger);
+                    }
                 }
 
                 result = CommandResult.Succeeded;
@@ -313,7 +343,7 @@ namespace DustyBot.Framework.Commands
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Exception encountered while processing command {Command} (id: {CommandId}) in module {Module}", findResult.Registration.PrimaryUsage.InvokeUsage, id, findResult.Registration.ModuleType);
+                _logger.LogError(ex, "Exception encountered while processing command {Command} (nr: {CommandCounter}) in module {Module}", findResult.Registration.PrimaryUsage.InvokeUsage, counter, findResult.Registration.ModuleType);
                 await _communicator.CommandReplyGenericFailure(command.Message.Channel);
             }
             finally
@@ -323,7 +353,7 @@ namespace DustyBot.Framework.Commands
             }
 
             var totalElapsed = stopwatch.Elapsed;
-            _logger.LogInformation("Command {CommandId} {Result} in {TotalElapsed:F3}s (v: {VerificationElapsed:F3}s, p: {ParsingElapsed:F3}s, e: {ExecutionElapsed:F3}s, g: {GatewayDelay:F3}s)", id, result, totalElapsed.TotalSeconds, verificationElapsed.TotalSeconds, (parsingElapsed - verificationElapsed).TotalSeconds, (totalElapsed - parsingElapsed).TotalSeconds, gatewayPing.TotalSeconds);
+            _logger.LogInformation("Command {CommandCounter} {Result} in {TotalElapsed:F3}s (v: {VerificationElapsed:F3}s, p: {ParsingElapsed:F3}s, e: {ExecutionElapsed:F3}s, g: {GatewayDelay:F3}s)", counter, result, totalElapsed.TotalSeconds, verificationElapsed.TotalSeconds, (parsingElapsed - verificationElapsed).TotalSeconds, (totalElapsed - parsingElapsed).TotalSeconds, gatewayPing.TotalSeconds);
         }
 
         public void Dispose()

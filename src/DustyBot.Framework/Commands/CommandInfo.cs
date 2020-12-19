@@ -1,4 +1,5 @@
 ﻿using Discord;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,7 +25,7 @@ namespace DustyBot.Framework.Commands
             }
         }
 
-        public delegate Task CommandHandlerDelegate(object module, ICommand command);
+        public delegate Task CommandHandlerDelegate(object module, ICommand command, ILogger logger);
 
         public const string PrefixWildcard = "{p}";
 
