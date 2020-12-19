@@ -2,6 +2,7 @@
 using Discord.WebSocket;
 using DustyBot.Core.Async;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -15,6 +16,22 @@ namespace DustyBot.Framework.Utility
             client.Ready += () =>
             {
                 readyTaskSource.SetResult(true);
+                return Task.CompletedTask;
+            };
+
+            return readyTaskSource.Task;
+        }
+
+        public static Task WaitForReady(this DiscordShardedClient client)
+        {
+            var readyTaskSource = new TaskCompletionSource<bool>();
+            var readyClients = new HashSet<DiscordSocketClient>();
+            client.ShardReady += x =>
+            {
+                readyClients.Add(x);
+                if (readyClients.Count >= client.Shards.Count)
+                    readyTaskSource.TrySetResult(true);
+
                 return Task.CompletedTask;
             };
 

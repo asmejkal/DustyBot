@@ -87,9 +87,7 @@ namespace DustyBot.Modules
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
         private readonly ILogger _logger;
-        private readonly BaseSocketClient _client;
         private readonly IScheduleService _service;
-        private readonly IUserFetcher _userFetcher;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly ICommandParser _commandParser;
 
@@ -97,18 +95,14 @@ namespace DustyBot.Modules
             ICommunicator communicator, 
             ISettingsService settings, 
             ILogger logger, 
-            BaseSocketClient client, 
-            IScheduleService service, 
-            IUserFetcher userFetcher,
+            IScheduleService service,
             IFrameworkReflector frameworkReflector,
             ICommandParser commandParser)
         {
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
-            _client = client;
             _service = service;
-            _userFetcher = userFetcher;
             _frameworkReflector = frameworkReflector;
             _commandParser = commandParser;
         }

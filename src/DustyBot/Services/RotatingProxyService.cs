@@ -1,9 +1,11 @@
 ﻿using Discord;
 using DustyBot.Core.Async;
 using DustyBot.Core.Net;
+using DustyBot.Core.Services;
 using DustyBot.Database.Services;
 using DustyBot.Exceptions;
 using DustyBot.Framework.Logging;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -23,19 +25,19 @@ namespace DustyBot.Services
         private readonly string _token;
         private readonly Uri _proxyListUrl;
         private readonly IProxyListService _proxyList;
-        private readonly ILogger _logger;
+        private readonly ILogger<RotatingProxyService> _logger;
 
         private readonly SemaphoreSlim _proxiesLock = new SemaphoreSlim(1, 1);
         private int _proxyCounter;
         private ImmutableList<WebProxy> _proxies;
 
-        public RotatingProxyService(string token, Uri proxyListUrl, IProxyListService proxyList, ILogger logger)
-            : base(ProxyListRefreshPeriod, logger)
+        public RotatingProxyService(string token, Uri proxyListUrl, IProxyListService proxyList, ILogger<RotatingProxyService> logger, ITimerAwaiter timerAwaiter, IServiceProvider services)
+            : base(ProxyListRefreshPeriod, timerAwaiter, services, logger)
         {
             _token = token ?? throw new ArgumentNullException(nameof(token));
             _proxyListUrl = proxyListUrl ?? throw new ArgumentNullException(nameof(proxyListUrl));
             _proxyList = proxyList ?? throw new ArgumentNullException(nameof(proxyList));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _logger = logger;
         }
 
         public async Task<WebProxy> GetProxyAsync()
@@ -57,13 +59,13 @@ namespace DustyBot.Services
                     _proxies = _proxies.Remove(proxy);
 
                 await _proxyList.BlacklistProxyAsync(proxy.Address.AbsoluteUri, duration);
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Blacklisted proxy {proxy.Address.AbsoluteUri} until {DateTime.UtcNow + duration}, {_proxies.Count} proxies remaining."));
+                _logger.LogInformation("Blacklisted proxy {Proxy} until {Date}, {Remaining} proxies remaining.", proxy.Address.AbsoluteUri, DateTime.UtcNow + duration, _proxies.Count);
             }
         }
 
         public Task ForceRefreshAsync() => ExecuteAsync(default);
 
-        protected override async Task ExecuteRecurringAsync(CancellationToken ct)
+        protected override async Task ExecuteRecurringAsync(IServiceProvider provider, int executionCount, CancellationToken ct)
         {
             var proxies = new List<WebProxy>();
             for (int i = 1; ; i++)
@@ -91,7 +93,7 @@ namespace DustyBot.Services
             {
                 var blacklist = await _proxyList.GetBlacklistAsync();
                 _proxies = proxies.Where(x => !blacklist.Any(y => y.Address == x.Address.AbsoluteUri)).ToImmutableList();
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Downloaded proxies ({proxies.Count - _proxies.Count} blacklisted): {string.Join(", ", proxies.Select(x => x.Address))}"));
+                _logger.LogInformation("Downloaded proxies ({BlacklistCount} blacklisted): {ProxyList}", proxies.Count - _proxies.Count, string.Join(", ", proxies.Select(x => x.Address)));
             }
         }
 

@@ -1,42 +1,62 @@
 ﻿using Discord.WebSocket;
 using DustyBot.Config;
+using DustyBot.Core.Services;
+using DustyBot.Database.Services;
+using DustyBot.Database.Sql;
 using DustyBot.Framework;
 using DustyBot.Framework.Configuration;
 using DustyBot.Framework.Logging;
 using DustyBot.Helpers;
 using DustyBot.Modules;
+using DustyBot.Services;
 using DustyBot.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace DustyBot
 {
     internal static class Startup
     {
-        public static void ConfigureServices(IServiceCollection services, DiscordSocketClient client, BotConfig config)
+        public static void ConfigureServices(IServiceCollection services, BaseSocketClient client, BotConfig config, string mongoConnectionString)
         {
             services.AddSingleton(client);
             services.AddScoped<ILogger, SerilogLogger>();
             services.AddScoped<IFrameworkGuildConfigProvider, FrameworkGuildConfigProvider>();
+            services.AddTransient<ITimerAwaiter, TimerAwaiter>();
 
-            services.AddSingleton<AdministrationModule>();
+            // Database
+            services.AddSingleton<ISettingsService>(x => new MongoSettingsService(mongoConnectionString));
+            services.AddScoped<IProxyListService, ProxyListService>();
+            services.AddScoped<ISpotifyAccountsService>(x => new SpotifyAccountsService(config.TableStorageConnectionString));
+            services.AddTransient(x => DustyBotDbContext.Create(config.SqlDbConnectionString));
+            services.AddScoped<Func<ILastFmStatsService>>(x => () => ActivatorUtilities.CreateInstance<LastFmStatsService>(x));
+
+            // Services
+            services.AddHostedService<DaumCafeService>();
+            services.AddHostedApiService<IScheduleService, ScheduleService>();
+            services.AddHostedApiService<IProxyService, RotatingProxyService>(x =>
+                ActivatorUtilities.CreateInstance<RotatingProxyService>(x, config.ProxyListToken, new Uri(config.ProxyListUrl)));
+
+            // Modules
+            services.AddScoped<AdministrationModule>();
             services.AddSingleton<AutorolesModule>();
             services.AddSingleton<BotModule>();
-            services.AddSingleton<CafeModule>();
+            services.AddScoped<CafeModule>();
             services.AddSingleton<EventsModule>();
-            services.AddSingleton<InfoModule>();
+            services.AddScoped<InfoModule>();
             services.AddSingleton<InstagramModule>();
-            services.AddSingleton<LastFmModule>();
+            services.AddScoped<LastFmModule>();
             services.AddSingleton<LogModule>();
             services.AddSingleton<NotificationsModule>();
-            services.AddSingleton<PollModule>();
+            services.AddScoped<PollModule>();
             services.AddSingleton<RaidProtectionModule>();
             services.AddSingleton<ReactionsModule>();
             services.AddSingleton<RolesModule>();
-            services.AddSingleton<ScheduleModule>();
-            services.AddSingleton<SpotifyModule>();
+            services.AddScoped<ScheduleModule>();
+            services.AddScoped<SpotifyModule>();
             services.AddSingleton<StarboardModule>();
-            services.AddSingleton<TranslatorModule>();
-            services.AddSingleton<ViewsModule>();
+            services.AddScoped<TranslatorModule>();
+            services.AddScoped<ViewsModule>();
 
             services.AddFrameworkServices((provider, builder) => 
             {

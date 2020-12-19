@@ -13,6 +13,8 @@ using DustyBot.Core.Formatting;
 using System.Threading;
 using DustyBot.Helpers.DaumCafe;
 using DustyBot.Helpers.DaumCafe.Exceptions;
+using DustyBot.Core.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Services
 {
@@ -22,26 +24,26 @@ namespace DustyBot.Services
         private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15);
 
         private readonly ISettingsService _settings;
+        private readonly ILogger<DaumCafeService> _logger;
         private readonly BaseSocketClient _client;
-        private readonly ILogger _logger;
 
         private readonly Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
 
-        public DaumCafeService(BaseSocketClient client, ISettingsService settings, ILogger logger)
-            : base(UpdateFrequency, logger)
+        public DaumCafeService(BaseSocketClient client, ISettingsService settings, ILogger<DaumCafeService> logger, ITimerAwaiter timerAwaiter, IServiceProvider services)
+            : base(UpdateFrequency, timerAwaiter, services, logger, UpdateFrequency)
         {
             _settings = settings;
-            _client = client;
             _logger = logger;
+            _client = client;
         }
 
-        protected override async Task ExecuteRecurringAsync(CancellationToken ct)
+        protected override async Task ExecuteRecurringAsync(IServiceProvider provider, int executionCount, CancellationToken ct)
         {
             var stopwatch = Stopwatch.StartNew();
 
             try
             {
-                await _logger.Log(new LogMessage(LogSeverity.Debug, "Service", "Updating Daum Cafe feeds."));
+                _logger.LogInformation("Updating Daum Cafe feeds.");
 
                 foreach (var settings in await _settings.Read<MediaSettings>())
                 {
@@ -63,17 +65,17 @@ namespace DustyBot.Services
                         }
                         catch (Exception ex)
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to update Daum Cafe feed {feed.Id} ({feed.CafeId}/{feed.BoardId}) on server {settings.ServerId}.", ex));
+                            _logger.LogError(ex, "Failed to update Daum Cafe feed {FeedId} ({CafeId}/{BoardId}) on server {ServerId}.", feed.Id, feed.CafeId, feed.BoardId, settings.ServerId);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Service", "Failed to update Daum Cafe feeds.", ex));
+                _logger.LogError(ex, "Failed to update Daum Cafe feeds.");
             }
 
-            await _logger.Log(new LogMessage(LogSeverity.Debug, "Service", $"Finished updating Daum Cafe feeds in {stopwatch.Elapsed}."));        
+            _logger.LogInformation("Finished updating Daum Cafe feeds in {Elapsed}.", stopwatch.Elapsed);        
         }
 
         async Task UpdateFeed(DaumCafeFeed feed, ulong serverId, CancellationToken ct)
@@ -130,7 +132,7 @@ namespace DustyBot.Services
             if (lastPostId <= feed.LastPostId)
                 return;
 
-            await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Updating feed {feed.CafeId}/{feed.BoardId}" + (lastPostId - currentPostId > 1 ? $", found {lastPostId - currentPostId} new posts ({currentPostId + 1} to {lastPostId})" : $" (post {lastPostId})") + $" on {guild.Name}"));
+            _logger.LogInformation("Updating feed {CafeId}/{BoardId} found {PostCount} new posts ({FirstPostId} to {LastPostId}) on {ServerName} ({ServerId})", feed.CafeId, feed.BoardId, lastPostId - currentPostId, currentPostId + 1, lastPostId, guild.Name, guild.Id);
 
             while (lastPostId > currentPostId)
             {
@@ -138,7 +140,7 @@ namespace DustyBot.Services
 
                 if (!guild.CurrentUser.GetPermissions(channel).SendMessages)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Can't update Cafe feed because of permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    _logger.LogInformation("Can't update Cafe feed because of permissions in #{ChannelName} ({ChannelId}) on {ServerName} ({ServerId})", channel.Name, channel.Id, channel.Guild.Name, channel.Guild.Id);
                     currentPostId = lastPostId;
                     break;
                 }
@@ -200,7 +202,7 @@ namespace DustyBot.Services
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Warning, "Service", $"Failed to create Daum Cafe post preview for {mobileUrl}.", ex));
+                _logger.LogWarning(ex, "Failed to create Daum Cafe post preview for {PostUri}.", mobileUrl);
             }
 
             return Tuple.Create(text, embed);

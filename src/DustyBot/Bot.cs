@@ -139,12 +139,13 @@ namespace DustyBot
                     GatewayIntents = intents
                 };
 
-                using var client = new DiscordSocketClient(clientConfig)
+                using var client = new DiscordShardedClient(clientConfig)
                     .UseSerilog(logger);
 
-                using var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString);
+                BotConfig config;
+                using (var settings = new MongoSettingsService(opts.MongoConnectionString))
+                    config = await settings.ReadGlobal<BotConfig>();
 
-                var config = await settings.ReadGlobal<BotConfig>();
                 var readyTask = client.WaitForReady();
                 await client.LoginAsync(TokenType.Bot, config.BotToken);
                 await client.StartAsync();
@@ -155,16 +156,15 @@ namespace DustyBot
                 
                 using var host = new HostBuilder()
                     .UseSerilog(logger)
-                    .ConfigureServices(x => Startup.ConfigureServices(x, client, config))
+                    .ConfigureServices(x => Startup.ConfigureServices(x, client, config, opts.MongoConnectionString))
                     .UseConsoleLifetime()
                     .Build();
 
                 await host.StartAsync();
 
-                await host.Services.GetRequiredService<IFramework>().StartAsync();
+                await host.Services.GetRequiredService<IFramework>().StartAsync(default);
 
                 await host.WaitForShutdownAsync();
-
             }
             catch (MongoCommandException ex) when (ex.Code == 13)
             {
@@ -182,7 +182,7 @@ namespace DustyBot
         {
             try
             {
-                using (var settings = await MongoSettingsService.CreateAsync(opts.MongoConnectionString))
+                using (var settings = new MongoSettingsService(opts.MongoConnectionString))
                 {
                     await settings.ModifyGlobal(async (BotConfig s) =>
                     {

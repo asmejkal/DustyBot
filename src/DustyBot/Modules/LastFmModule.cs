@@ -62,14 +62,12 @@ namespace DustyBot.Modules
 
         private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3-?months|3-?month|3mo|6-?months|6-?month|6mo|year|y|all)$";
 
-        private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly Func<Task<ILastFmStatsService>> _lastFmServiceFactory;
+        private readonly Func<ILastFmStatsService> _lastFmServiceFactory;
         private readonly IFrameworkReflector _frameworkReflector;
 
-        public LastFmModule(ICommunicator communicator, ISettingsService settings, Func<Task<ILastFmStatsService>> lastFmServiceFactory, IFrameworkReflector frameworkReflector)
+        public LastFmModule(ISettingsService settings, Func<ILastFmStatsService> lastFmServiceFactory, IFrameworkReflector frameworkReflector)
         {
-            _communicator = communicator;
             _settings = settings;
             _lastFmServiceFactory = lastFmServiceFactory;
             _frameworkReflector = frameworkReflector;
@@ -752,7 +750,7 @@ namespace DustyBot.Modules
         [Alias("lf", "topartist", "global", true), Alias("lf", "artists", "global")]
         public async Task Test(ICommand command)
         {
-            using (var dbService = await _lastFmServiceFactory())
+            using (var dbService = _lastFmServiceFactory())
             {
                 const int NumDisplayed = 100;
                 var results = await dbService.GetTopArtistsAsync(NumDisplayed, default);

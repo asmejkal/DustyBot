@@ -2,11 +2,9 @@
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
-using DustyBot.Framework.Modules.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 namespace DustyBot.Framework.Configuration
 {
@@ -28,8 +26,8 @@ namespace DustyBot.Framework.Configuration
             IEnumerable<ModuleInfo> modules, 
             ICommunicator communicator,
             ILogger logger, 
-            IFrameworkGuildConfigProvider guildConfigProvider, 
-            DiscordSocketClient discordClient)
+            IFrameworkGuildConfigProvider guildConfigProvider,
+            BaseSocketClient discordClient)
         {
             ClientServiceProvider = clientServiceProvider ?? throw new ArgumentNullException(nameof(clientServiceProvider));
 
@@ -41,10 +39,10 @@ namespace DustyBot.Framework.Configuration
             Logger = logger ?? throw new ArgumentNullException(nameof(logger));
             GuildConfigProvider = guildConfigProvider ?? throw new ArgumentNullException(nameof(guildConfigProvider));
 
+            OwnerIDs = ownerIDs?.ToList() ?? throw new ArgumentNullException(nameof(ownerIDs));
+
             if (!OwnerIDs.Any())
                 throw new ArgumentException(nameof(ownerIDs));
-
-            OwnerIDs = ownerIDs?.ToList() ?? throw new ArgumentNullException(nameof(ownerIDs));
 
             Modules = modules?.ToList() ?? throw new ArgumentNullException(nameof(modules));
 
@@ -52,7 +50,7 @@ namespace DustyBot.Framework.Configuration
                 throw new ArgumentException(nameof(modules));
 
             DiscordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
-            Communicator = communicator ?? new Communicator(discordClient, logger);
+            Communicator = communicator;
         }
 
         public void Dispose()

@@ -1,33 +1,35 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using DustyBot.Framework.Commands;
-using DustyBot.Framework.Commands.Parsing;
 using DustyBot.Framework.Configuration;
-using DustyBot.Framework.Utility;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DustyBot.Framework
 {
     internal sealed class Framework : IFramework
     {
         internal FrameworkConfiguration Configuration { get; }
-
-        private CommandRoutingService _commandRoutingService;
+        internal IServiceProvider ServiceProvider { get; }
 
         internal Framework(FrameworkConfiguration configuration)
         {
             Configuration = configuration;
+
+            var services = new ServiceCollection();
+            Startup.ConfigureServices(services, configuration, this);
+            ServiceProvider = services.BuildServiceProvider();
         }
 
-        public Task StartAsync()
+        public Task StartAsync(CancellationToken ct)
         {
-            var userFetcher = new UserFetcher(Configuration.DiscordClient.Rest);
-            _commandRoutingService = new CommandRoutingService(Configuration, new CommandParser(userFetcher, Configuration.Communicator), userFetcher);
-
-            return Task.CompletedTask;
+            var commandService = ServiceProvider.GetRequiredService<CommandRoutingService>();
+            return commandService.StartAsync(ct);
         }
 
         public void Dispose()
         {
-            _commandRoutingService?.Dispose();
+            ((IDisposable)ServiceProvider)?.Dispose();
             Configuration.Dispose();
         }
     }

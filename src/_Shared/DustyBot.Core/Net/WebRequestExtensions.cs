@@ -19,9 +19,7 @@ namespace DustyBot.Core.Net
                 catch (WebException ex)
                 {
                     if (ex.Status == WebExceptionStatus.RequestCanceled && ct.IsCancellationRequested)
-                    {
                         throw new OperationCanceledException(ex.Message, ex, ct);
-                    }
 
                     throw;
                 }

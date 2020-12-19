@@ -16,31 +16,26 @@ namespace DustyBot.Database.Services
     {
         public string DatabaseName { get; }
 
-        private IMongoClient _client;
         private IMongoDatabase _db;
 
-        //TODO: a bit convoluted, split in multiple server/user objects each managing their own subset of locks and thread-safe read/modify methods
         KeyedSemaphoreSlim<(Type Type, ulong GuildId)> _serverSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong GuildId)>(1, maxPoolSize: int.MaxValue);
         KeyedSemaphoreSlim<(Type Type, ulong UserId)> _userSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong UserId)>(1, maxPoolSize: int.MaxValue);
         KeyedSemaphoreSlim<Type> _globalSettingsMutex = new KeyedSemaphoreSlim<Type>(1, maxPoolSize: int.MaxValue);
 
-        private MongoSettingsService(IMongoClient client, IMongoDatabase db, string databaseName)
-        {
-            _client = client;
-            _db = db;
-            DatabaseName = databaseName;
-        }
-
-        public static Task<MongoSettingsService> CreateAsync(string connectionString)
+        static MongoSettingsService()
         {
             BsonSerializer.RegisterSerializer(DateTimeSerializer.LocalInstance);
             BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
             BsonSerializer.RegisterSerializer(new SecureStringSerializer());
+        }
 
+        public MongoSettingsService(string connectionString)
+        {
             var url = MongoUrl.Create(connectionString);
             var client = new MongoClient(url);
-            var db = client.GetDatabase(url.DatabaseName);
-            return Task.FromResult(new MongoSettingsService(client, db, url.DatabaseName));
+            _db = client.GetDatabase(url.DatabaseName);
+
+            DatabaseName = url.DatabaseName;
         }
 
         private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)

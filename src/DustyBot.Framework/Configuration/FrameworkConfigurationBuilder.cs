@@ -21,7 +21,7 @@ namespace DustyBot.Framework.Configuration
         private ICommunicator _communicator;
         private ILogger _logger;
         private IFrameworkGuildConfigProvider _guildConfigProvider;
-        private DiscordSocketClient _discordClient;
+        private BaseSocketClient _discordClient;
 
         public FrameworkConfigurationBuilder(IServiceProvider clientServiceProvider)
         {
@@ -37,13 +37,13 @@ namespace DustyBot.Framework.Configuration
 
         public FrameworkConfigurationBuilder AddModulesFromServices(IServiceCollection services)
         {
-            _modules.IntersectWith(services.Where(x => x.ServiceType.GetCustomAttribute<ModuleAttribute>() != null).Select(x => x.ServiceType));
+            _modules.UnionWith(services.Where(x => x.ServiceType.GetCustomAttribute<ModuleAttribute>() != null).Select(x => x.ServiceType));
             return this;
         }
 
         public FrameworkConfigurationBuilder AddModulesFromAssembly(Assembly assembly)
         {
-            _modules.IntersectWith(assembly.GetTypes().Where(x => x.GetCustomAttribute<ModuleAttribute>() != null));
+            _modules.UnionWith(assembly.GetTypes().Where(x => x.GetCustomAttribute<ModuleAttribute>() != null));
             return this;
         }
 
@@ -58,7 +58,7 @@ namespace DustyBot.Framework.Configuration
 
         public FrameworkConfigurationBuilder AddOwners(IEnumerable<ulong> ids)
         {
-            _ownerIDs.IntersectWith(ids);
+            _ownerIDs.UnionWith(ids);
             return this;
         }
 
@@ -86,7 +86,7 @@ namespace DustyBot.Framework.Configuration
             return this;
         }
 
-        public FrameworkConfigurationBuilder WithDiscordClient(DiscordSocketClient discordClient)
+        public FrameworkConfigurationBuilder WithDiscordClient(BaseSocketClient discordClient)
         {
             _discordClient = discordClient;
             return this;

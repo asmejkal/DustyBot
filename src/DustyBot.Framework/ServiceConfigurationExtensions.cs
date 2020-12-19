@@ -19,14 +19,16 @@ namespace DustyBot.Framework
                 configure(x, builder);
                 return new Framework(builder.Build());
             });
-            
-            services.AddSingleton<ICommunicator>(x => x.GetRequiredService<Framework>().Configuration.Communicator);
-            services.AddSingleton<ILogger>(x => x.GetRequiredService<Framework>().Configuration.Logger);
-            services.AddScoped<ICommandParser>(x => new CommandParser(x.GetRequiredService<IUserFetcher>(), x.GetRequiredService<Framework>().Configuration.Communicator));
-            services.AddScoped<IUserFetcher>(x => new UserFetcher(x.GetRequiredService<Framework>().Configuration.DiscordClient.Rest));
-            services.AddScoped<IFrameworkReflector>(x => new FrameworkReflector(x.GetRequiredService<Framework>().Configuration));
+
+            services.AddSingleton(x => ProxyFromFrameworkServices<ICommunicator>(x));
+            services.AddScoped(x => ProxyFromFrameworkServices<ICommandParser>(x));
+            services.AddScoped(x => ProxyFromFrameworkServices<IUserFetcher>(x));
+            services.AddScoped(x => ProxyFromFrameworkServices<IFrameworkReflector>(x));
 
             return services;
         }
+
+        private static T ProxyFromFrameworkServices<T>(IServiceProvider provider) =>
+                ((Framework)provider.GetRequiredService<IFramework>()).ServiceProvider.GetRequiredService<T>(); // TODO
     }
 }
