@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Logging;
 using System.Linq;
 using System;
 using Discord.WebSocket;
@@ -25,6 +24,8 @@ using System.Diagnostics;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using DustyBot.Framework.Commands.Parsing;
+using Microsoft.Extensions.Logging;
+using DustyBot.Framework.Logging;
 
 namespace DustyBot.Modules
 {
@@ -41,7 +42,7 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<InstagramModule> _logger;
         private readonly BotConfig _config;
         private readonly IUrlShortener _urlShortener;
         private readonly IProxyService _proxyService;
@@ -55,7 +56,7 @@ namespace DustyBot.Modules
             BaseSocketClient client, 
             ICommunicator communicator, 
             ISettingsService settings, 
-            ILogger logger, 
+            ILogger<InstagramModule> logger, 
             BotConfig config, 
             IUrlShortener urlShortener, 
             IProxyService proxyService, 
@@ -89,7 +90,7 @@ namespace DustyBot.Modules
         [Parameter("Style", "^(none|embed|text)$", ParameterType.String, ParameterFlags.Optional, "use `embed` or `text` (displays text with all images)")]
         [Parameter("Url", ParameterType.String, ParameterFlags.Remainder, "one or more links (max 8)")]
         [Comment("You can set the default style with `ig set style`.\n\nGive the bot Manage Messages permission to also delete the original embeds (or wrap your links in `< >` braces).")]
-        public async Task Instagram(ICommand command)
+        public async Task Instagram(ICommand command, ILogger logger)
         {
             var channelPermissions = (await command.Guild.GetCurrentUserAsync()).GetPermissions((ITextChannel)command.Channel);
             if (!channelPermissions.SendMessages)
@@ -125,7 +126,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {command.Author.Username} ({command.Author.Id}) on {command.Guild.Name}", ex));
+                    logger.LogWarning(ex, "Failed to create preview for post {InstagramPostId}", id);
 
                     if (ex is ProxiesDepletedException)
                         await command.Reply($"Instagram has blocked all of Dusty's IP addresses. Please try again later.");
@@ -239,7 +240,8 @@ namespace DustyBot.Modules
                     var unquoted = matches.Count > QuotedPostRegex.Matches(message.Content).Count;
 
                     var ids = matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit).ToList();
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Creating previews of {ids.Count} posts{(unquoted ? " [unquoted]" : "")} ({string.Join(" ", ids)}) for user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
+                    var logger = _logger.WithScope(message);
+                    logger.LogInformation("Creating previews of {Count} posts (unquoted: {IsUnquoted}) - {InstagramPostIds}", ids.Count, unquoted, ids);
 
                     Task suppressionTask = null;
                     if (unquoted)
@@ -255,7 +257,7 @@ namespace DustyBot.Modules
                         }
                         catch (Exception ex)
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}", ex));
+                            logger.LogWarning(ex, "Failed to create preview for post {InstagramPostId}", id);
                         }
                     }
 
@@ -264,7 +266,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to process message", ex));
+                    _logger.WithScope(message).LogError(ex, "Failed to process message");
                 }
             });
 
@@ -291,7 +293,7 @@ namespace DustyBot.Modules
 
                     try
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting post preview for user {reaction.User.Value.Username} ({reaction.User.Value.Id})."));
+                        _logger.WithScope(reaction.User.Value).WithScope(channel).LogInformation("Deleting Instagram post preview");
                         foreach (var m in context.Messages)
                             await m.DeleteAsync();
                     }
@@ -306,7 +308,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to process preview delete reaction.", ex));
+                    _logger.WithScope(channel, message.Id).LogError(ex, "Failed to process preview delete reaction");
                 }
             });
 
@@ -324,7 +326,7 @@ namespace DustyBot.Modules
             }
             catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Forbidden)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to add reaction for post id {id} on {(channel as IGuildChannel)?.Guild.Name}", ex));
+                _logger.WithScope(sent.Last()).LogInformation("Missing permissions to add reaction for post id {InstagramPostId}", id);
             }
 
             TaskHelper.FireForget(async () =>
@@ -341,7 +343,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Instagram", "Failed to remove delete reaction from message", ex));
+                    _logger.WithScope(sent.Last()).LogError(ex, "Failed to remove delete reaction from message");
                 }
             });
         }
@@ -369,7 +371,7 @@ namespace DustyBot.Modules
                     if (response.ResponseUri.AbsolutePath == "/accounts/login/")
                     {
                         await _proxyService.BlacklistProxyAsync(proxy, TimeSpan.FromHours(5));
-                        await _logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to block of proxy {proxy.Address.AbsoluteUri}."));
+                        _logger.LogWarning("Retrying request due to block of proxy {AbsoluteUri}", proxy.Address.AbsoluteUri);
                         continue;
                     }
 
@@ -381,12 +383,12 @@ namespace DustyBot.Modules
                 catch (WebException ex) when (ex.Status == WebExceptionStatus.Timeout)
                 {
                     await _proxyService.BlacklistProxyAsync(proxy, TimeSpan.FromDays(1));
-                    await _logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to timeout of proxy {proxy.Address.AbsoluteUri}."));
+                    _logger.LogWarning("Retrying request due to timeout of proxy {AbsoluteUri}", proxy.Address.AbsoluteUri);
                 }
                 catch (WebException ex) when ((ex.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     await _proxyService.BlacklistProxyAsync(proxy, TimeSpan.FromHours(2));
-                    await _logger.Log(new LogMessage(LogSeverity.Warning, "Instagram", $"Retrying request due to rate limit of proxy {proxy.Address.AbsoluteUri}."));
+                    _logger.LogWarning("Retrying request due to rate limit of proxy {AbsoluteUri}", proxy.Address.AbsoluteUri);
                 }
             }
 
@@ -472,12 +474,12 @@ namespace DustyBot.Modules
                     {
                         if ((await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages)
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting default embed with attempt {i + 1} for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
+                            _logger.WithScope(message).LogInformation("Deleting default embed with attempt {AttemptCount}", i + 1);
                             await message.ModifySuppressionAsync(true);
                         }
                         else
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}"));
+                            _logger.WithScope(message).LogInformation("Missing permissions to delete default embed");
                         }
                         
                         return;
@@ -488,11 +490,11 @@ namespace DustyBot.Modules
             }
             catch (Discord.Net.HttpException ex) when (ex.HttpCode == HttpStatusCode.Forbidden)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Missing permissions to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}", ex));
+                _logger.WithScope(message).LogInformation("Missing permissions to delete default embed");
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Instagram", $"Failed to delete default embed for {message.Author.Username} ({message.Author.Id}) on {(message.Channel as IGuildChannel)?.Guild.Name}", ex));
+                _logger.WithScope(message).LogError(ex, "Failed to delete default embed");
             }
         }
 

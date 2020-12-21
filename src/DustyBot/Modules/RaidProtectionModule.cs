@@ -22,6 +22,7 @@ using DustyBot.Framework.Exceptions;
 using DustyBot.Definitions;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -94,13 +95,13 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<RaidProtectionModule> _logger;
         private readonly DiscordRestClient _restClient;
         private readonly IFrameworkReflector _frameworkReflector;
 
         private readonly GlobalContext _context = new GlobalContext();
 
-        public RaidProtectionModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, DiscordRestClient restClient, IFrameworkReflector frameworkReflector)
+        public RaidProtectionModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<RaidProtectionModule> logger, DiscordRestClient restClient, IFrameworkReflector frameworkReflector)
         {
             _client = client;
             _communicator = communicator;
@@ -315,16 +316,7 @@ namespace DustyBot.Modules
 
                     var user = message.Author as IGuildUser;
                     if (user == null)
-                    {
-                        await _logger.Log(new LogMessage(LogSeverity.Warning, "Admin", $"Raid protection: user {message.Author.Id} is not a guild user in {channel.GuildId}"));
-                        user = await _restClient.GetGuildUserAsync(channel.GuildId, message.Author.Id);
-
-                        if (user == null)
-                        {
-                            await _logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Raid protection: user {message.Author.Id} not found in guild {channel.GuildId}"));
-                            return;
-                        }
-                    }
+                        return;
 
                     if (user.IsBot)
                         return;
@@ -416,7 +408,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Admin", "Failed to process message for raid protection", ex));
+                    _logger.WithScope(message).LogError(ex, "Failed to process message for raid protection");
                 }
             });
 
@@ -502,12 +494,8 @@ namespace DustyBot.Modules
                 if (_context.LastReport < now - ReportTimer)
                 {
                     _context.LastReport = now;
-                    var report = new StringBuilder();
-                    report.AppendLine($"Raid protection status - {_context.GuildContexts.Count} guild contexts: ");
-                    foreach (var guildContext in _context.GuildContexts)
-                        report.AppendLine($"{guildContext.Key} ({guildContext.Value.UserContexts.Count}) ");
-
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", report.ToString()));
+                    _logger.LogInformation("Raid protection status: {RaidProtectionGuildContextCount} guild contexts, {RaidProtectionUserContextCount} user contexts", 
+                        _context.GuildContexts.Count, _context.GuildContexts.Aggregate(0, (x, y) => x + y.Value.UserContexts.Count));
                 }
             }
             finally
@@ -571,6 +559,7 @@ namespace DustyBot.Modules
                     userContext.Mutex.Release();
                 }
 
+                var logger = _logger.WithScope(user);
                 var currentUser = await channel.Guild.GetCurrentUserAsync();
                 if (currentUser.GetPermissions(channel).SendMessages)
                 {
@@ -587,7 +576,7 @@ namespace DustyBot.Modules
                 }
                 else
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Missing permissions to warn offender about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    logger.LogInformation("Missing permissions to warn offender about rule {RaidProtectionRuleType}, punished: {Punished}", rule.Type, punish);
                 }
 
                 var logChannel = await channel.Guild.GetTextChannelAsync(logChannelId);
@@ -606,10 +595,10 @@ namespace DustyBot.Modules
                 }
                 else
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Couldn't report about rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    logger.LogInformation("Couldn't report about rule {RaidProtectionRuleType}, punished: {Punished}", rule.Type, punish);
                 }
 
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Enforced rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id}) because of {reason}"));
+                logger.LogInformation("Enforced rule {RaidProtectionRuleType}, punished: {Punished}, reason: {RaidProtectionReason}", rule.Type, punish, reason);
             }
         }
 

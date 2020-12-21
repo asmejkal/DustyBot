@@ -15,6 +15,7 @@ using DustyBot.Database.Services;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -23,16 +24,14 @@ namespace DustyBot.Modules
     {
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
         private readonly BaseSocketClient _client;
         private readonly IUserFetcher _userFetcher;
         private readonly IFrameworkReflector _frameworkReflector;
 
-        public AdministrationModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BaseSocketClient client, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
+        public AdministrationModule(ICommunicator communicator, ISettingsService settings, BaseSocketClient client, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
         {
             _communicator = communicator;
             _settings = settings;
-            _logger = logger;
             _client = client;
             _userFetcher = userFetcher;
             _frameworkReflector = frameworkReflector;
@@ -138,14 +137,14 @@ namespace DustyBot.Modules
         [Example("raiders 318911554194243585 318903497502228482")]
         [Example("troll 7 @Troll")]
         [Example("\"picture spam\" @Spammer")]
-        public async Task Ban(ICommand command)
+        public async Task Ban(ICommand command, ILogger logger)
         {
             if (command["Users"].Repeats.Count > 10)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("The maximum number of bans per command is 10.", false);
 
             var userMaxRole = ((IGuildUser)command.Author).RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
             var result = new StringBuilder();
-            var bans = new Dictionary<ulong, (Task Task, string User)>();
+            var bans = new Dictionary<ulong, (Task Task, string User, ulong UserId)>();
             foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
             {
                 string userName;
@@ -165,7 +164,7 @@ namespace DustyBot.Modules
                     userName = user != null ? $"{user.GetFullName()} ({user.Id})" : id.ToString();
                 }
 
-                bans[id] = (command.Guild.AddBanAsync(id, Math.Min(command["DeleteDays"].AsInt ?? 0, 7), command["Reason"].HasValue ? command["Reason"].AsString : null), userName);
+                bans[id] = (command.Guild.AddBanAsync(id, Math.Min(command["DeleteDays"].AsInt ?? 0, 7), command["Reason"].HasValue ? command["Reason"].AsString : null), userName, id);
             }
 
             try
@@ -184,7 +183,7 @@ namespace DustyBot.Modules
                 }
                 else if (ban.Task.Exception != null)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Admin", $"Failed to ban user {ban.User}, ex: {ban.Task.Exception}"));
+                    logger.LogError(ban.Task.Exception, "Failed to ban user {TargetUserId}", ban.UserId);
                     result.AppendLine(_communicator.FormatFailure($"Failed to ban user `{ban.User}`."));
                 }
                 else

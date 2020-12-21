@@ -48,7 +48,7 @@ namespace DustyBot.Core.Services
                 while (!stoppingToken.IsCancellationRequested)
                 {
                     var count = Interlocked.Increment(ref executionCount);
-                    _logger.LogInformation("Executing timed task of service {Service}, count: {ExecutionCount}.", GetType().Name, executionCount);
+                    _logger.LogInformation("Executing timed task of service {ServiceType}, count: {ExecutionCount}", GetType().Name, executionCount);
 
                     try
                     {
@@ -59,7 +59,7 @@ namespace DustyBot.Core.Services
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to execute timed task of service {Service}, count: {ExecutionCount}.", GetType().Name, executionCount);
+                        _logger.LogError(ex, "Failed to execute timed task of service {ServiceType}, count: {ExecutionCount}", GetType().Name, executionCount);
                     }
                     finally
                     {
@@ -76,7 +76,7 @@ namespace DustyBot.Core.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Timer service fatal failure.");
+                _logger.LogError(ex, "Timer service fatal failure");
             }
         }
 

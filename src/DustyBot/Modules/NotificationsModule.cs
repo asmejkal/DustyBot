@@ -19,6 +19,7 @@ using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -81,14 +82,14 @@ namespace DustyBot.Modules
 
         private readonly BaseSocketClient _client;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<NotificationsModule> _logger;
         private readonly IUserFetcher _userFetcher;
         private readonly IFrameworkReflector _frameworkReflector;
 
         private readonly Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> _activeMessages = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();
         private readonly ConcurrentDictionary<ulong, KeywordTree> _keywordTrees = new ConcurrentDictionary<ulong, KeywordTree>();
 
-        public NotificationsModule(BaseSocketClient client, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
+        public NotificationsModule(BaseSocketClient client, ISettingsService settings, ILogger<NotificationsModule> logger, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
         {
             _client = client;
             _settings = settings;
@@ -112,7 +113,7 @@ namespace DustyBot.Modules
         [Alias("notifications", "add", true), Alias("notif", "add"), Alias("noti", "add")]
         [Alias("notifications", true), Alias("notification"), Alias("notif"), Alias("noti")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "when this word is mentioned in this server you will receive a notification")]
-        public async Task AddNotification(ICommand command)
+        public async Task AddNotification(ICommand command, ILogger logger)
         {
             if (command["Word"].AsString.Length < MinNotificationLength)
             {
@@ -133,7 +134,7 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
+                logger.LogError(ex, "Failed to delete notification add message");
             }            
 
             await _settings.Modify(command.GuildId, (NotificationSettings s) =>
@@ -161,7 +162,7 @@ namespace DustyBot.Modules
         [Command("notification", "remove", "Removes a notified word.")]
         [Alias("notifications", "remove", true), Alias("notif", "remove"), Alias("noti", "remove")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "a word you don't want to be notified on anymore")]
-        public async Task RemoveNotification(ICommand command)
+        public async Task RemoveNotification(ICommand command, ILogger logger)
         {
             try
             {
@@ -170,7 +171,7 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
+                logger.LogError(ex, "Failed to delete notification remove message");
             }
 
             var lowered = command["Word"].AsString.ToLowerInvariant();
@@ -262,7 +263,7 @@ namespace DustyBot.Modules
             }
         }
 
-        private async Task HandleUserIsTyping(SocketUser user, ISocketMessageChannel channel)
+        private Task HandleUserIsTyping(SocketUser user, ISocketMessageChannel channel)
         {
             try
             {
@@ -270,8 +271,10 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process typing event", ex));
+                _logger.WithScope(channel).LogError(ex, "Failed to process typing event");
             }
+
+            return Task.CompletedTask;
         }
 
         private Task HandleMessageReceived(SocketMessage message)
@@ -336,7 +339,7 @@ namespace DustyBot.Modules
 
                                     if (!TryClaimPendingNotification(messageKey, message.Id))
                                     {
-                                        await _logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Notification canceled for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) and message {message.Id} on {channel.Guild.Name} ({channel.Guild.Id}) in #{channel.Name} ({channel.Id})"));
+                                        _logger.WithScope(message).WithScope(targetUser).LogInformation("Notification canceled");
                                         return;
                                     }
                                 }                                
@@ -351,18 +354,18 @@ namespace DustyBot.Modules
                             }
                             catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50007)
                             {
-                                await _logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Blocked DMs from {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                                _logger.WithScope(message).WithScope(targetUser).LogInformation("Couldn't send notification due to blocked DMs by the user");
                             }
                             catch (Exception ex)
                             {
-                                await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", $"Failed to process notification for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) on {channel.Guild.Name} ({channel.Guild.Id})", ex));
+                                _logger.WithScope(message).WithScope(targetUser).LogError(ex, "Failed to process notification");
                             }
                         });
                     }
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to process message", ex));
+                    _logger.WithScope(message).LogError(ex, "Failed to process potential notification message");
                 }
             });
 

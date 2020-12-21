@@ -2,6 +2,7 @@
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +14,7 @@ namespace DustyBot.Framework.Configuration
         public ICollection<ModuleInfo> Modules { get; }
         public string DefaultCommandPrefix { get; }
         public ICommunicator Communicator { get; }
-        public ILogger Logger { get; }
+        public Action<ILoggingBuilder> LoggingConfiguration { get; }
         public IFrameworkGuildConfigProvider GuildConfigProvider { get; }
         public IReadOnlyList<ulong> OwnerIDs { get; }
         public BaseSocketClient DiscordClient { get; }
@@ -25,7 +26,7 @@ namespace DustyBot.Framework.Configuration
             IEnumerable<ulong> ownerIDs, 
             IEnumerable<ModuleInfo> modules, 
             ICommunicator communicator,
-            ILogger logger, 
+            Action<ILoggingBuilder> loggingConfiguration, 
             IFrameworkGuildConfigProvider guildConfigProvider,
             BaseSocketClient discordClient)
         {
@@ -36,7 +37,7 @@ namespace DustyBot.Framework.Configuration
 
             DefaultCommandPrefix = defaultCommandPrefix;
 
-            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            LoggingConfiguration = loggingConfiguration ?? throw new ArgumentNullException(nameof(loggingConfiguration));
             GuildConfigProvider = guildConfigProvider ?? throw new ArgumentNullException(nameof(guildConfigProvider));
 
             OwnerIDs = ownerIDs?.ToList() ?? throw new ArgumentNullException(nameof(ownerIDs));

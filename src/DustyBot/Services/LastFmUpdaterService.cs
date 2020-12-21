@@ -11,16 +11,17 @@ using System.Collections.Generic;
 using DustyBot.Database.Sql.UserDefinedTypes;
 using DustyBot.LastFm;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Services
 {
     internal sealed class LastFmUpdaterService : BackgroundService
     {
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<LastFmUpdaterService> _logger;
         private readonly Func<Task<ILastFmStatsService>> _lastFmServiceFactory;
 
-        public LastFmUpdaterService(ISettingsService settings, ILogger logger, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
+        public LastFmUpdaterService(ISettingsService settings, ILogger<LastFmUpdaterService> logger, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -35,25 +36,27 @@ namespace DustyBot.Services
                 {
                     try
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Starting Lastfm batch."));
+                        _logger.LogInformation("Starting Lastfm batch");
                         await ProcessBatch(ct);
                     }
-                    catch (TaskCanceledException)
+                    catch (OperationCanceledException)
                     {
+                        // Stopping
                     }
                     catch (Exception ex)
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process Lastfm batch.", ex));
+                        _logger.LogError(ex, "Failed to process Lastfm batch");
                         await Task.Delay(TimeSpan.FromMinutes(5));
                     }
                 }
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
+                // Stopping
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Fatal error in service", ex));
+                _logger.LogError(ex, "Fatal error in service");
             }
         }
 
@@ -80,7 +83,8 @@ namespace DustyBot.Services
                     {
                         try
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Processing Lastfm stats for user {setting.LastFmUsername} (count: {Interlocked.Increment(ref count)})."));
+                            var countSnapshot = Interlocked.Increment(ref count);
+                            _logger.LogInformation("Processing Lastfm stats for user {LastFmUsername} ({" + LogFields.UserId +"}) (count: {Count})", setting.LastFmUsername, setting.UserId, countSnapshot);
                             var client = new LastFmClient(setting.LastFmUsername, key);
 
                             var topTracks = await client.GetTopTracks(LastFmDataPeriod.Overall, ct: ct);
@@ -96,7 +100,7 @@ namespace DustyBot.Services
                         }
                         catch (Exception ex)
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process Lastfm stats for user {setting.LastFmUsername}.", ex));
+                            _logger.LogError(ex, "Failed to process Lastfm stats for user {LastFmUsername} ({" + LogFields.UserId + "})", setting.LastFmUsername, setting.UserId);
                         }
                         finally
                         {

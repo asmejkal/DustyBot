@@ -13,6 +13,7 @@ using DustyBot.Core.Async;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -28,10 +29,10 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<EventsModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
 
-        public EventsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IFrameworkReflector frameworkReflector)
+        public EventsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<EventsModule> logger, IFrameworkReflector frameworkReflector)
         {
             _client = client;
             _communicator = communicator;
@@ -242,19 +243,20 @@ namespace DustyBot.Modules
                     if (channel == null)
                         return;
 
+                    var logger = _logger.WithScope(channel).WithScope(guildUser);
                     if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't greet user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                        logger.LogInformation("Can't greet user because of missing permissions");
                         return;
                     }
 
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Greeting user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
+                    logger.LogInformation("Greeting user");
 
                     await Greet(channel, settings, guildUser);
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process greeting event", ex));
+                    _logger.WithScope(guildUser).LogError(ex, "Failed to process greeting event");
                 }
             });
 
@@ -278,19 +280,20 @@ namespace DustyBot.Modules
                     if (channel == null)
                         return;
 
+                    var logger = _logger.WithScope(channel).WithScope(guildUser);
                     if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Can't bye user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                        logger.LogInformation("Can't bye user because of missing permissions");
                         return;
                     }
 
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Events", $"Goodbyed user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
+                    logger.LogInformation("Goodbyed user");
 
                     await _communicator.SendMessage(channel, ReplacePlaceholders(settings.ByeMessage, guildUser));
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to process bye event", ex));
+                    _logger.WithScope(guildUser).LogError(ex, "Failed to process bye event");
                 }
             });
 

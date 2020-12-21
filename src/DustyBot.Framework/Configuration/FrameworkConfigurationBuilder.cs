@@ -4,6 +4,7 @@ using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
 using DustyBot.Framework.Modules.Attributes;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +20,7 @@ namespace DustyBot.Framework.Configuration
         private string _defaultCommandPrefix;
         private HashSet<ulong> _ownerIDs = new HashSet<ulong>();
         private ICommunicator _communicator;
-        private ILogger _logger;
+        private Action<ILoggingBuilder> _loggingConfiguration;
         private IFrameworkGuildConfigProvider _guildConfigProvider;
         private BaseSocketClient _discordClient;
 
@@ -74,9 +75,9 @@ namespace DustyBot.Framework.Configuration
             return this;
         }
 
-        public FrameworkConfigurationBuilder WithLogger(ILogger logger)
+        public FrameworkConfigurationBuilder ConfigureLogging(Action<ILoggingBuilder> loggingConfiguration)
         {
-            _logger = logger;
+            _loggingConfiguration = loggingConfiguration;
             return this;
         }
 
@@ -102,7 +103,7 @@ namespace DustyBot.Framework.Configuration
                 _ownerIDs,
                 modules,
                 _communicator, 
-                _logger, 
+                _loggingConfiguration, 
                 _guildConfigProvider, 
                 _discordClient);
         }

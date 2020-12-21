@@ -59,7 +59,7 @@ namespace DustyBot.Services
                     _proxies = _proxies.Remove(proxy);
 
                 await _proxyList.BlacklistProxyAsync(proxy.Address.AbsoluteUri, duration);
-                _logger.LogInformation("Blacklisted proxy {Proxy} until {Date}, {Remaining} proxies remaining.", proxy.Address.AbsoluteUri, DateTime.UtcNow + duration, _proxies.Count);
+                _logger.LogInformation("Blacklisted proxy {Proxy} until {Date}, {Remaining} proxies remaining", proxy.Address.AbsoluteUri, DateTime.UtcNow + duration, _proxies.Count);
             }
         }
 

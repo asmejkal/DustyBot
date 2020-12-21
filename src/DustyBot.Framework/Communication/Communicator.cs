@@ -12,6 +12,7 @@ using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
 using DustyBot.Core.Collections;
 using DustyBot.Framework.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Framework.Communication
 {
@@ -69,10 +70,10 @@ namespace DustyBot.Framework.Communication
         public const string QuestionMarker = "\u2754";
 
         private readonly BaseSocketClient _client;
-        private readonly ILogger _logger;
+        private readonly ILogger<Communicator> _logger;
         private readonly Dictionary<ulong, PaginatedMessageContext> _paginatedMessages = new Dictionary<ulong, PaginatedMessageContext>();
 
-        public Communicator(BaseSocketClient client, ILogger logger)
+        public Communicator(BaseSocketClient client, ILogger<Communicator> logger)
         {
             _client = client;
             _logger = logger;
@@ -335,14 +336,14 @@ namespace DustyBot.Framework.Communication
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to flip a page for PaginatedMessage.", ex));
+                    _logger.WithScope(channel, message.Id).LogError(ex, "Failed to flip a page for PaginatedMessage");
                 }
             });
 
             return Task.CompletedTask;
         }
 
-        private async Task HandleMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
+        private Task HandleMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
         {
             try
             {
@@ -354,8 +355,10 @@ namespace DustyBot.Framework.Communication
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a deleted message from paginated messages context.", ex));
+                _logger.WithScope(channel, message.Id).LogError(ex, "Failed to remove a deleted message from paginated messages context");
             }
+
+            return Task.CompletedTask;
         }
 
         private async Task RemovePageReaction(IUserMessage message, IEmote emote, IUser user)
@@ -370,7 +373,7 @@ namespace DustyBot.Framework.Communication
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Communicator", "Failed to remove a reaction for PaginatedMessage.", ex));
+                _logger.WithScope(message).LogError(ex, "Failed to remove a reaction for PaginatedMessage.");
             }
         }
 

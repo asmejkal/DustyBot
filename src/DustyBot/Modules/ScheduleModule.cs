@@ -23,6 +23,7 @@ using Discord.WebSocket;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using DustyBot.Framework.Commands.Parsing;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -86,15 +87,15 @@ namespace DustyBot.Modules
 
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<ScheduleModule> _logger;
         private readonly IScheduleService _service;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly ICommandParser _commandParser;
 
         public ScheduleModule(
             ICommunicator communicator, 
-            ISettingsService settings, 
-            ILogger logger, 
+            ISettingsService settings,
+            ILogger<ScheduleModule> logger, 
             IScheduleService service,
             IFrameworkReflector frameworkReflector,
             ICommandParser commandParser)
@@ -1321,7 +1322,7 @@ namespace DustyBot.Modules
         [Command("calendar", "delete", "Deletes a calendar.")]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to display all active calendars and their message IDs")]
         [Comment("Deleting a calendar doesn't delete any events.")]
-        public async Task DeleteCalendar(ICommand command)
+        public async Task DeleteCalendar(ICommand command, ILogger logger)
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
@@ -1351,7 +1352,7 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Schedule", $"Failed to remove calendar message {removed.MessageId} in channel {removed.ChannelId} on {command.Guild.Name} ({command.GuildId}).", ex));
+                logger.LogError(ex, "Failed to remove calendar message {TargetMessageId}", removed.MessageId);
             }
 
             await command.ReplySuccess($"Calendar has been deleted.");
@@ -1559,7 +1560,7 @@ namespace DustyBot.Modules
                 if (message == null)
                 {
                     await _settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
-                    await _logger.Log(new LogMessage(LogSeverity.Warning, "Schedule", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
+                    _logger.WithScope(guild).LogInformation("Removed deleted calendar {CalendarMessageId}", calendar.MessageId);
                     return RefreshResult.Reason.Removed;
                 }
 
@@ -1573,7 +1574,7 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Schedule", $"Failed to update calendar {calendar.MessageId} on {guild.Name} ({guild.Id})", ex));
+                _logger.WithScope(guild).LogError(ex, "Failed to update calendar {CalendarMessageId}", calendar.MessageId);
                 return RefreshResult.Reason.Error;
             }
         }

@@ -43,7 +43,7 @@ namespace DustyBot.Services
 
             try
             {
-                _logger.LogInformation("Updating Daum Cafe feeds.");
+                _logger.LogInformation("Updating Daum Cafe feeds");
 
                 foreach (var settings in await _settings.Read<MediaSettings>())
                 {
@@ -65,17 +65,17 @@ namespace DustyBot.Services
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Failed to update Daum Cafe feed {FeedId} ({CafeId}/{BoardId}) on server {ServerId}.", feed.Id, feed.CafeId, feed.BoardId, settings.ServerId);
+                            _logger.LogError(ex, "Failed to update Daum Cafe feed {FeedId} ({CafeId}/{BoardId}) on server {" + LogFields.GuildId + "}", feed.Id, feed.CafeId, feed.BoardId, settings.ServerId);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to update Daum Cafe feeds.");
+                _logger.LogError(ex, "Failed to update Daum Cafe feeds");
             }
 
-            _logger.LogInformation("Finished updating Daum Cafe feeds in {Elapsed}.", stopwatch.Elapsed);        
+            _logger.LogInformation("Finished updating Daum Cafe feeds in {TotalElapsed}", stopwatch.Elapsed);        
         }
 
         async Task UpdateFeed(DaumCafeFeed feed, ulong serverId, CancellationToken ct)
@@ -87,6 +87,8 @@ namespace DustyBot.Services
             var channel = guild.GetTextChannel(feed.TargetChannel);
             if (channel == null)
                 return;
+
+            var logger = _logger.WithScope(channel);
 
             //Choose a session
             DaumCafeSession session;
@@ -132,7 +134,7 @@ namespace DustyBot.Services
             if (lastPostId <= feed.LastPostId)
                 return;
 
-            _logger.LogInformation("Updating feed {CafeId}/{BoardId} found {PostCount} new posts ({FirstPostId} to {LastPostId}) on {ServerName} ({ServerId})", feed.CafeId, feed.BoardId, lastPostId - currentPostId, currentPostId + 1, lastPostId, guild.Name, guild.Id);
+            logger.LogInformation("Updating feed {CafeId}/{BoardId} found {PostCount} new posts ({FirstPostId} to {LastPostId})", feed.CafeId, feed.BoardId, lastPostId - currentPostId, currentPostId + 1, lastPostId, guild.Name, guild.Id);
 
             while (lastPostId > currentPostId)
             {
@@ -140,7 +142,7 @@ namespace DustyBot.Services
 
                 if (!guild.CurrentUser.GetPermissions(channel).SendMessages)
                 {
-                    _logger.LogInformation("Can't update Cafe feed because of permissions in #{ChannelName} ({ChannelId}) on {ServerName} ({ServerId})", channel.Name, channel.Id, channel.Guild.Name, channel.Guild.Id);
+                    logger.LogInformation("Can't update Cafe feed because of permissions");
                     currentPostId = lastPostId;
                     break;
                 }
@@ -202,7 +204,7 @@ namespace DustyBot.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to create Daum Cafe post preview for {PostUri}.", mobileUrl);
+                _logger.LogWarning(ex, "Failed to create Daum Cafe post preview for {PostUri}", mobileUrl);
             }
 
             return Tuple.Create(text, embed);

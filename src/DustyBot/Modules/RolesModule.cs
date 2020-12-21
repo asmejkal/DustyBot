@@ -20,6 +20,7 @@ using DustyBot.Core.Formatting;
 using DustyBot.Database.Services;
 using System.Collections.Concurrent;
 using DustyBot.Framework.Modules.Attributes;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -63,7 +64,7 @@ namespace DustyBot.Modules
                     var batches = 0;
                     await foreach (var batch in guild.GetUsersAsync())
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Fetched {batch.Count} users on guild {guild.Id} ({guild.Name})"));
+                        _logger.LogInformation("Fetched {Count} users", batch.Count);
                         foreach (var user in batch)
                         {
                             foreach (var role in user.RoleIds)
@@ -347,7 +348,7 @@ namespace DustyBot.Modules
         [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
         [Alias("role", "stats"), Alias("bias", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
-        public async Task RolesStats(ICommand command)
+        public async Task RolesStats(ICommand command, ILogger logger)
         {
             var guild = (SocketGuild)command.Guild;
 
@@ -364,7 +365,7 @@ namespace DustyBot.Modules
                 });
             }
 
-            var stats = _roleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(_logger));
+            var stats = _roleStatsCache.GetOrAdd(command.GuildId, x => new RoleStats(logger));
             var (data, whenCached) = await stats.GetOrFillAsync(guild, MaxRoleStatsAge, onProgress);
 
             if (progressMessage != null)
@@ -581,7 +582,7 @@ namespace DustyBot.Modules
                     if (roles.Count <= 0)
                         return;
 
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Saving {roles.Count} roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+                    _logger.WithScope(guildUser).LogInformation("Saving {Count} roles for leaving user");
 
                     await _settings.Modify(guildUser.Guild.Id, (RolesSettings x) =>
                     {
@@ -592,7 +593,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Roles", $"Failed to save persistent roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}", ex));
+                    _logger.WithScope(guildUser).LogError(ex, "Failed to potentially save persistent roles for leaving user");
                 }
             });
 
@@ -623,7 +624,7 @@ namespace DustyBot.Modules
 
                     var roles = intersected.Select(x => guildUser.Guild.Roles.FirstOrDefault(y => x == y.Id)).Where(x => x != null).ToList();
 
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Restoring {roles.Count} roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}"));
+                    _logger.WithScope(guildUser).LogInformation("Restoring {Count} roles", roles.Count);
 
                     if (roles.Count > 0)
                         await guildUser.AddRolesAsync(roles);
@@ -632,7 +633,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Roles", $"Failed to save persistent roles for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name}", ex));
+                    _logger.WithScope(guildUser).LogError(ex, "Failed to potentially restore persistent roles");
                 }
             });
 
@@ -660,9 +661,10 @@ namespace DustyBot.Modules
                     if (settings == null || settings.RoleChannel != channel.Id)
                         return;
 
+                    var logger = _logger.WithScope(message);
                     if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"Can't assign role because of missing SendMessage permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                        logger.LogInformation("Can't assign role because of missing SendMessage permissions");
                         return;
                     }
 
@@ -670,7 +672,7 @@ namespace DustyBot.Modules
                     {
                         try
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Info, "Roles", $"\"{message.Content}\" by {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                            logger.LogInformation("Received role channel message {MessageContent}");
 
                             string msgContent = message.Content.Trim();
                             bool remove = false;
@@ -815,7 +817,7 @@ namespace DustyBot.Modules
                         }
                         catch (Exception ex)
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Error, "Roles", "Failed to assign roles", ex));
+                            logger.LogError(ex, "Failed to assign roles");
                             await _communicator.CommandReplyGenericFailure(message.Channel);
                         }
                         finally
@@ -827,7 +829,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Roles", "Failed to process message", ex));
+                    _logger.WithScope(message).LogError(ex, "Failed to process potential role assignment message");
                 }
             });
 

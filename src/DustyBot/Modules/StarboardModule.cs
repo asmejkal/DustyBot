@@ -22,6 +22,7 @@ using DustyBot.Definitions;
 using System.Net;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -33,14 +34,14 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<StarboardModule> _logger;
         private readonly IUserFetcher _userFetcher;
         private readonly IUrlShortener _urlShortener;
         private readonly IFrameworkReflector _frameworkReflector;
 
         private readonly KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
 
-        public StarboardModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener, IFrameworkReflector frameworkReflector)
+        public StarboardModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<StarboardModule> logger, IUserFetcher userFetcher, IUrlShortener urlShortener, IFrameworkReflector frameworkReflector)
         {
             _client = client;
             _communicator = communicator;
@@ -412,7 +413,7 @@ namespace DustyBot.Modules
                                 }
                                 catch (Exception ex)
                                 {
-                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process new star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
+                                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process new star in board {StarboardId}", board.Id);
                                 }
                             }
                         });
@@ -420,7 +421,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a new reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
+                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process a potential new starboard reaction");
                 }
             });
 
@@ -439,6 +440,8 @@ namespace DustyBot.Modules
             if (message == null)
                 return;
 
+            var logger = _logger.WithScope(message);
+
             if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || message.Author.IsBot)
                 return;
 
@@ -454,7 +457,7 @@ namespace DustyBot.Modules
                 }
                 catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Missing access to read reactions in channel {channel.Id} for {message.Id} on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    logger.LogInformation("Missing access to read reactions in channel");
                 }
             }
 
@@ -489,7 +492,7 @@ namespace DustyBot.Modules
                 //Post new
                 if (!(await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).SendMessages)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Can't post starred message because of missing permissions in #{channel.Name} ({channel.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    logger.LogInformation("Can't post starred message because of missing permissions in {TargetChannelName} ({TargetChannelId})", starChannel.Name, starChannel.Id);
                     return;
                 }
 
@@ -507,7 +510,7 @@ namespace DustyBot.Modules
                     }
                 });
 
-                await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"New starred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
+                logger.LogInformation("New starred message in board {StarboardId}", board.Id);
             }
             else
             {
@@ -553,7 +556,7 @@ namespace DustyBot.Modules
                                 }
                                 catch (Exception ex)
                                 {
-                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process removed star in board {board.Id} on {textChannel.Guild.Name} ({textChannel.Guild.Id}) for message {cachedMessage.Id}", ex));
+                                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process removed star in board {StarboardId}", board.Id);
                                 }
                             }
                         });
@@ -561,7 +564,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to process a removed reaction for message {cachedMessage.Id} on {(channel as ITextChannel)?.GuildId}", ex));
+                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process a potential removed starboard reaction");
                 }
             });
 
@@ -576,6 +579,8 @@ namespace DustyBot.Modules
             var message = await cachedMessage.GetOrDownloadAsync();
             if (message == null)
                 return;
+
+            var logger = _logger.WithScope(message);
 
             if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || message.Author.IsBot)
                 return;
@@ -623,11 +628,11 @@ namespace DustyBot.Modules
                 try
                 {
                     await starMessage.DeleteAsync();
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed unstarred message {message.Id} in board {board.Id} on {channel.Guild.Name} ({channel.GuildId})"));
+                    logger.LogInformation("Removed unstarred message in board {StarboardId}", board.Id);
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete unstarred message {message.Id} on {channel.Guild} ({channel.GuildId})", ex));
+                    logger.LogError(ex, "Failed to delete unstarred message in board {StarboardId}", board.Id);
                 }
             }
             else
@@ -658,7 +663,7 @@ namespace DustyBot.Modules
                 catch (Exception ex)
                 {
                     result.Add(a.Url);
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to shorten URL {a.Url}", ex));
+                    _logger.LogError(ex, "Failed to shorten URL {UrlString}", a.Url);
                 }
             }
 
@@ -768,11 +773,11 @@ namespace DustyBot.Modules
                             try
                             {
                                 await starMessage.DeleteAsync();
-                                await _logger.Log(new LogMessage(LogSeverity.Info, "Starboard", $"Removed deleted starred message {message.Id} in board {board.Id} on {guild.Name} ({guild.Id})"));
+                                _logger.WithScope(channel, message.Id).LogInformation("Removed starboard message due to source deletion");
                             }
                             catch (Exception ex)
                             {
-                                await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to delete message {message.Id} on {guild.Id}", ex));
+                                _logger.WithScope(channel, message.Id).LogError(ex, "Failed to remove starboard message with a deleted source");
                             }
                         }
                     }
@@ -788,7 +793,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", "Failed to process deleted message", ex));
+                    _logger.WithScope(channel, message.Id).LogError(ex, "Failed to process deleted message");
                 }
             });
 
@@ -825,7 +830,7 @@ namespace DustyBot.Modules
             }
             catch (Exception ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Starboard", $"Failed to resolve instagram thumbnail {baseUrl}", ex));
+                _logger.LogError(ex, "Failed to resolve instagram thumbnail {UrlString}", baseUrl);
             }
 
             return null;

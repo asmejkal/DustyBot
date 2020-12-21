@@ -17,6 +17,7 @@ using Serilog;
 using Serilog.Sinks.Elasticsearch;
 using DustyBot.Core.Async;
 using DustyBot.Framework;
+using Serilog.Formatting.Compact;
 
 namespace DustyBot
 {
@@ -116,7 +117,7 @@ namespace DustyBot
             try
             {
                 using var logger = new LoggerConfiguration()
-                    .WriteTo.Console()
+                    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
                     .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(opts.ElasticSearchLogNodeUri))
                     {
                         IndexFormat = "dustybot-{0:yyyy-MM-dd}",

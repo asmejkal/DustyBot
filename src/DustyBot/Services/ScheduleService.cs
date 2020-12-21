@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Services
 {
@@ -65,14 +66,14 @@ namespace DustyBot.Services
 
         private readonly BaseSocketClient _client;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<ScheduleService> _logger;
 
         private readonly object _updatingLock = new object();
         private bool _updating;
         private Timer _updateTimer;
         private readonly ConcurrentDictionary<ulong, NotificationContext> _notifications = new ConcurrentDictionary<ulong, NotificationContext>();
 
-        public ScheduleService(BaseSocketClient client, ISettingsService settings, ILogger logger)
+        public ScheduleService(BaseSocketClient client, ISettingsService settings, ILogger<ScheduleService> logger)
         {
             _client = client;
             _settings = settings;
@@ -148,6 +149,7 @@ namespace DustyBot.Services
                         if (guild == null)
                             continue;
 
+                        var logger = _logger.WithScope(guild);
                         foreach (var calendar in settings.Calendars.OfType<UpcomingScheduleCalendar>())
                         {
                             try
@@ -157,18 +159,18 @@ namespace DustyBot.Services
                                 if (message == null)
                                 {
                                     await _settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
-                                    await _logger.Log(new LogMessage(LogSeverity.Warning, "Service", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
+                                    logger.LogInformation("Removed deleted calendar {CalendarMessageId}", calendar.MessageId);
                                     continue;
                                 }
 
                                 var (text, embed) = Modules.ScheduleModule.BuildCalendarMessage(calendar, settings);
                                 await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; });
 
-                                await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Updated calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId})."));
+                                logger.LogInformation("Updated calendar {CalendarMessageId}", calendar.MessageId);
                             }
                             catch (Exception ex)
                             {
-                                await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to update calendar {calendar.MessageId} on {guild.Name} ({settings.ServerId}).", ex));
+                                logger.LogError(ex, "Failed to update calendar {CalendarMessageId}", calendar.MessageId);
                             }
                         }
 
@@ -177,7 +179,7 @@ namespace DustyBot.Services
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Service", "Failed to update calendars.", ex));
+                    _logger.LogError(ex, "Failed to update calendars");
                 }
                 finally
                 {
@@ -201,17 +203,18 @@ namespace DustyBot.Services
                         if (!context.ValidateCallback(state))
                             return; // Old timer (can happen due to timer race conditions)
 
-                        var settings = await _settings.Read<ScheduleSettings>(serverId, false);
-                        if (settings == null)
-                        {
-                            await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Settings for server {serverId} not found."));
-                            return;
-                        }
-
                         var guild = _client.GetGuild(serverId) as IGuild;
                         if (guild == null)
                         {
-                            await _logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Server {serverId} not found."));
+                            _logger.LogInformation("Server {" + LogFields.GuildId + "} not found", serverId);
+                            return;
+                        }
+
+                        var logger = _logger.WithScope(guild);
+                        var settings = await _settings.Read<ScheduleSettings>(serverId, false);
+                        if (settings == null)
+                        {
+                            logger.LogWarning("Settings for server not found");
                             return;
                         }
 
@@ -233,11 +236,11 @@ namespace DustyBot.Services
                                         .WithDescription($"{(e.HasLink ? DiscordHelpers.BuildMarkdownUri(e.Description, e.Link) : e.Description)} is now on!");
 
                                     await channel.SendMessageAsync(role != null ? $"{role.Mention} " : "", embed: embed.Build());
-                                    await _logger.Log(new LogMessage(LogSeverity.Verbose, "Service", $"Notified event {e.Description} ({e.Date}, TZ: {settings.TimezoneOffset}, ID: {e.Id}) on {guild.Name} ({guild.Id})."));
+                                    logger.LogInformation("Notified event {ScheduleEventDescription} ({ScheduleEventDate}, TZ: {ScheduleTimezone}, ID: {ScheduleEventId})", e.Description, e.Date, settings.TimezoneOffset, e.Id);
                                 }
                                 catch (Exception ex)
                                 {
-                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to notify event {e.Description} ({e.Id}) on {guild.Name} ({guild.Id}).", ex));
+                                    logger.LogError(ex, "Failed to notify event {ScheduleEventDescription} ({ScheduleEventId})", e.Description, e.Id);
                                 }
                             }
                         }
@@ -255,7 +258,7 @@ namespace DustyBot.Services
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Service", $"Failed to process event notifications.", ex));
+                    _logger.LogError(ex, "Failed to process event notifications");
                 }
             });
         }

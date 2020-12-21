@@ -1,7 +1,6 @@
 ﻿using Discord;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Framework.Logging;
 using DustyBot.Settings;
 using Newtonsoft.Json.Linq;
 using System;
@@ -12,6 +11,7 @@ using System.Threading.Tasks;
 using DustyBot.Database.Services;
 using DustyBot.Core.Formatting;
 using DustyBot.Framework.Modules.Attributes;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -21,12 +21,10 @@ namespace DustyBot.Modules
         private const string LanguageRegex = @"^[a-zA-Z]{2}(?:-[a-zA-Z]{2})?$";
 
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
 
-        public TranslatorModule(ISettingsService settings, ILogger logger)
+        public TranslatorModule(ISettingsService settings)
         {
             _settings = settings;
-            _logger = logger;
         }
 
         [Command("translate", "Translates a piece of text.")]
@@ -36,7 +34,7 @@ namespace DustyBot.Modules
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the word or sentence you want to translate")]
         [Comment("Korean = `ko` \nJapan = `ja` \nEnglish = `en` \nChinese(Simplified) = `zh-CH` \nChinese(Traditional) = `zh-TW` \nSpanish = `es` \nFrench = `fr` \nGerman = `de` \nRussian = `ru` \nPortuguese = `pt` \nItalian = `it` \nVietnamese = `vi` \nThai = `th` \nIndonesian = `id`")]
         [Example("ko en 사랑해")]
-        public async Task Translation(ICommand command)
+        public async Task Translation(ICommand command, ILogger logger)
         {
             var config = await _settings.ReadGlobal<BotConfig>();
 
@@ -77,14 +75,14 @@ namespace DustyBot.Modules
                     await command.Reply(embedBuilder.Build());
                 }
             }
-            catch (WebException e) when (e.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.BadRequest)
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.BadRequest)
             {
                 throw new IncorrectParametersCommandException("Unsupported language combination.");
             }
-            catch (WebException e)
+            catch (WebException ex)
             {
-                await _logger.Log(new LogMessage(LogSeverity.Error, "Events", "Failed to reach Papago", e));
-                await command.Reply($"Couldn't reach Papago (error {(e.Response as HttpWebResponse)?.StatusCode.ToString() ?? e.Status.ToString()}). Please try again in a few seconds.");
+                logger.LogError(ex, "Failed to reach Papago");
+                await command.Reply($"Couldn't reach Papago (error {(ex.Response as HttpWebResponse)?.StatusCode.ToString() ?? ex.Status.ToString()}). Please try again in a few seconds.");
             }
         }
     }

@@ -11,6 +11,7 @@ using DustyBot.Modules;
 using DustyBot.Services;
 using DustyBot.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 using System;
 
 namespace DustyBot
@@ -20,7 +21,7 @@ namespace DustyBot
         public static void ConfigureServices(IServiceCollection services, BaseSocketClient client, BotConfig config, string mongoConnectionString)
         {
             services.AddSingleton(client);
-            services.AddScoped<ILogger, SerilogLogger>();
+            services.AddSingleton(config);
             services.AddScoped<IFrameworkGuildConfigProvider, FrameworkGuildConfigProvider>();
             services.AddTransient<ITimerAwaiter, TimerAwaiter>();
 
@@ -62,7 +63,7 @@ namespace DustyBot
             {
                 builder.WithDiscordClient(client)
                     .WithDefaultPrefix(config.DefaultCommandPrefix)
-                    .WithLogger(provider.GetRequiredService<ILogger>())
+                    .ConfigureLogging(x => x.AddSerilog(provider.GetRequiredService<ILogger>()))
                     .WithGuildConfigProvider(provider.GetRequiredService<IFrameworkGuildConfigProvider>())
                     .AddOwners(config.OwnerIDs)
                     .AddModulesFromServices(services);

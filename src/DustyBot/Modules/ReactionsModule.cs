@@ -20,6 +20,7 @@ using Newtonsoft.Json;
 using System.Net;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -29,10 +30,10 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<ReactionsModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
 
-        public ReactionsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IFrameworkReflector frameworkReflector)
+        public ReactionsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<ReactionsModule> logger, IFrameworkReflector frameworkReflector)
         {
             _client = client;
             _communicator = communicator;
@@ -327,7 +328,7 @@ namespace DustyBot.Modules
                     if (reaction == null)
                         return;
 
-                    await _logger.Log(new LogMessage(LogSeverity.Info, "Reactions", $"Triggered reaction \"{message.Content}\" (id: {reaction.Id}) for {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name} ({channel.Guild.Id})"));
+                    _logger.WithScope(message).LogInformation("Triggered reaction {ReactionTrigger} (id: {ReactionId})", message.Content, reaction.Id);
 
                     await _communicator.SendMessage(channel, reaction.Value);
 
@@ -335,7 +336,7 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Reactions", "Failed to process reaction", ex));
+                    _logger.WithScope(message).LogError(ex, "Failed to process potential reaction trigger");
                 }
             });
 

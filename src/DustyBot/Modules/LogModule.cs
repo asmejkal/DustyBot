@@ -16,6 +16,7 @@ using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -25,10 +26,10 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
-        private readonly ILogger _logger;
+        private readonly ILogger<LogModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
 
-        public LogModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger, IFrameworkReflector frameworkReflector)
+        public LogModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<LogModule> logger, IFrameworkReflector frameworkReflector)
         {
             _client = client;
             _communicator = communicator;
@@ -140,7 +141,7 @@ namespace DustyBot.Modules
 
                     if (!guild.CurrentUser.GetPermissions(eventChannel).SendMessages)
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted message on {guild.Name} ({guild.Id}) because of missing permissions"));
+                        _logger.WithScope(userMessage).LogInformation("Didn't log deleted message because of missing permissions");
                         return;
                     }
 
@@ -150,7 +151,7 @@ namespace DustyBot.Modules
                     var filter = settings.EventMessageDeletedFilter;
                     try
                     {
-                        if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(userMessage.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(3)))
+                        if (!string.IsNullOrWhiteSpace(filter) && Regex.IsMatch(userMessage.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(3)))
                             return;
                     }
                     catch (ArgumentException)
@@ -164,11 +165,11 @@ namespace DustyBot.Modules
                         return;
                     }
 
-                    await LogSingleMessage(userMessage, guild, textChannel, eventChannel);
+                    await LogSingleMessage(userMessage, textChannel, eventChannel);
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to process deleted message", ex));
+                    _logger.WithScope(channel, message.Id).LogError(ex, "Failed to process deleted message");
                 }
             });
 
@@ -211,9 +212,10 @@ namespace DustyBot.Modules
                     if (eventChannel == null)
                         return;
 
+                    var logger = _logger.WithScope(channel);
                     if (!guild.CurrentUser.GetPermissions(eventChannel).SendMessages)
                     {
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted messages on {guild.Name} ({guild.Id}) because of missing permissions"));
+                        logger.LogInformation("Didn't log bulk deleted messages because of missing permissions");
                         return;
                     }
 
@@ -226,7 +228,7 @@ namespace DustyBot.Modules
                     {
                         foreach (var message in messages)
                         {
-                            if (!String.IsNullOrWhiteSpace(filter) && Regex.IsMatch(message.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(3)))
+                            if (!string.IsNullOrWhiteSpace(filter) && Regex.IsMatch(message.Content, filter, RegexOptions.None, TimeSpan.FromSeconds(3)))
                                 continue;
 
                             var sb = new StringBuilder();
@@ -244,11 +246,11 @@ namespace DustyBot.Modules
                             {
                                 try
                                 {
-                                    await LogSingleMessage(message, guild, textChannel, eventChannel);
+                                    await LogSingleMessage(message, textChannel, eventChannel);
                                 }
                                 catch (Exception ex)
                                 {
-                                    await _logger.Log(new LogMessage(LogSeverity.Error, "Log", "Failed to log single deleted message in a bulk delete", ex));
+                                    logger.WithScope(message).LogError(ex, "Failed to log single deleted message in a bulk delete");
                                 }
 
                                 continue;
@@ -262,17 +264,17 @@ namespace DustyBot.Modules
                     catch (ArgumentException)
                     {
                         await _communicator.SendMessage(eventChannel, "Failed to log a deleted message because your message filter regex is malformed.");
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted messages on {guild.Name} ({guild.Id}) because the message filter regex is malformed"));
+                        logger.LogInformation("Didn't log bulk deleted messages because the message filter regex is malformed");
                         return;
                     }
                     catch (RegexMatchTimeoutException)
                     {
                         await _communicator.SendMessage(eventChannel, "Failed to log a deleted message because your message filter regex takes too long to evaluate.");
-                        await _logger.Log(new LogMessage(LogSeverity.Info, "Log", $"Didn't log deleted messages on {guild.Name} ({guild.Id}) because the message filter regex took to long to evaluate"));
+                        logger.LogInformation("Didn't log bulk deleted messages because the message filter regex took too long to evaluate");
                         return;
                     }
 
-                    await _logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging {logs.Count} deleted messages on {guild.Name} ({guild.Id})"));
+                    logger.LogInformation("Logging {Count} deleted messages", logs.Count);
 
                     var embed = new EmbedBuilder();
                     var delimiter = "\n\n";
@@ -298,16 +300,16 @@ namespace DustyBot.Modules
                 }
                 catch (Exception ex)
                 {
-                    await _logger.Log(new LogMessage(LogSeverity.Error, "Log", $"Failed to process deleted messages on {(channel as ITextChannel)?.GuildId}", ex));
+                    _logger.WithScope(channel).LogError(ex, "Failed to process deleted messages");
                 }
             });
 
             return Task.CompletedTask;
         }
 
-        private async Task LogSingleMessage(IUserMessage userMessage, IGuild guild, ITextChannel textChannel, IMessageChannel eventChannel)
+        private async Task LogSingleMessage(IUserMessage userMessage, ITextChannel textChannel, IMessageChannel eventChannel)
         {
-            await _logger.Log(new LogMessage(LogSeverity.Verbose, "Log", $"Logging deleted message from {userMessage.Author.Username} on {guild.Name}"));
+            _logger.WithScope(userMessage).LogInformation("Logging deleted message");
             var preface = $"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n";
             var embed = new EmbedBuilder()
                 .WithDescription(preface + userMessage.Content.Truncate(EmbedBuilder.MaxDescriptionLength - preface.Length))
