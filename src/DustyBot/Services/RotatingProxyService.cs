@@ -79,7 +79,7 @@ namespace DustyBot.Services
                 foreach (var result in (JArray)root["results"])
                 {
                     var credentials = new NetworkCredential((string)result["username"], (string)result["password"]);
-                    proxies.Add(new WebProxy(new UriBuilder("http", (string)result["proxy_address"]).Uri) { Credentials = credentials });
+                    proxies.Add(new WebProxy(new UriBuilder("http", (string)result["proxy_address"], (int?)result["ports"]?["http"] ?? 80).Uri) { Credentials = credentials });
                 }
 
                 if ((string)root["next"] == null)
