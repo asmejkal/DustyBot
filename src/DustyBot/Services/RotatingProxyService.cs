@@ -1,4 +1,5 @@
 ﻿using Discord;
+using DustyBot.Configuration;
 using DustyBot.Core.Async;
 using DustyBot.Core.Net;
 using DustyBot.Core.Services;
@@ -6,6 +7,7 @@ using DustyBot.Database.Services;
 using DustyBot.Exceptions;
 using DustyBot.Framework.Logging;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -31,11 +33,11 @@ namespace DustyBot.Services
         private int _proxyCounter;
         private ImmutableList<WebProxy> _proxies;
 
-        public RotatingProxyService(string token, Uri proxyListUrl, IProxyListService proxyList, ILogger<RotatingProxyService> logger, ITimerAwaiter timerAwaiter, IServiceProvider services)
+        public RotatingProxyService(IOptions<IntegrationOptions> options, IProxyListService proxyList, ILogger<RotatingProxyService> logger, ITimerAwaiter timerAwaiter, IServiceProvider services)
             : base(ProxyListRefreshPeriod, timerAwaiter, services, logger)
         {
-            _token = token ?? throw new ArgumentNullException(nameof(token));
-            _proxyListUrl = proxyListUrl ?? throw new ArgumentNullException(nameof(proxyListUrl));
+            _token = options.Value.ProxyListToken ?? throw new ArgumentNullException();
+            _proxyListUrl = new Uri(options.Value.ProxyListUrl ?? throw new ArgumentNullException());
             _proxyList = proxyList ?? throw new ArgumentNullException(nameof(proxyList));
             _logger = logger;
         }

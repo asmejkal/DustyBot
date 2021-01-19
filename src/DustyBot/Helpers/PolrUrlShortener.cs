@@ -1,4 +1,6 @@
-﻿using System;
+﻿using DustyBot.Configuration;
+using Microsoft.Extensions.Options;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,11 +16,11 @@ namespace DustyBot.Helpers
         private readonly string _apiKey;
         private readonly string _domain;
 
-        public PolrUrlShortener(string apiKey, string domain)
+        public PolrUrlShortener(IOptions<IntegrationOptions> options)
         {
-            _apiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
-            _domain = domain ?? throw new ArgumentNullException(nameof(domain));
-            _linkRegex = new Regex(domain + @"\/[^/?&#]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            _apiKey = options.Value.PolrKey ?? throw new ArgumentNullException();
+            _domain = options.Value.PolrDomain ?? throw new ArgumentNullException();
+            _linkRegex = new Regex(options.Value.PolrDomain + @"\/[^/?&#]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         }
 
         public bool IsShortened(string url) => _linkRegex.IsMatch(url);

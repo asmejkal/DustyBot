@@ -22,6 +22,7 @@ using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework;
 using DustyBot.Framework.Reflection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DustyBot.Modules
 {
@@ -32,21 +33,22 @@ namespace DustyBot.Modules
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly WebsiteWalker _websiteWalker;
 
-        public BotModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, IFrameworkReflector frameworkReflector)
+        public BotModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, IFrameworkReflector frameworkReflector, WebsiteWalker websiteWalker)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _frameworkReflector = frameworkReflector;
-
+            _websiteWalker = websiteWalker;
             _client.MessageReceived += HandleMessageReceived;
         }
 
         [Command("help", "Prints usage info.", CommandFlags.DirectMessageAllow)]
         [Parameter("Command", ParameterType.String, ParameterFlags.Optional | ParameterFlags.Remainder, "show usage of a specific command")]
         [Example("event add")]
-        public async Task Help(ICommand command, ILogger logger)
+        public async Task Help(ICommand command)
         {
             var config = await _settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
@@ -128,7 +130,7 @@ namespace DustyBot.Modules
                 .AddField("Presence", $"{_client.Guilds.Count} servers" + (_client is DiscordShardedClient sc ? $"\n{sc.Shards.Count} shards" : ""), true)
                 .AddField("Framework", "v" + typeof(IFramework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
-                .AddField("Web", WebConstants.WebsiteRoot, true)
+                .AddField("Web", _websiteWalker.Root, true)
                 .WithThumbnailUrl(_client.CurrentUser.GetAvatarUrl());
 
             await command.Reply(embed.Build());
@@ -251,7 +253,7 @@ namespace DustyBot.Modules
             int counter = 0;
             foreach (var module in _frameworkReflector.Modules.Where(x => !x.Hidden))
             {
-                var anchor = WebConstants.GetModuleWebAnchor(module.Name);
+                var anchor = WebsiteWalker.GetModuleWebAnchor(module.Name);
                 preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\"><img class=\"feature-icon-small\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</a> – {module.Description}</p>");
 
                 result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3><img class=\"feature-icon-big\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</h3>");

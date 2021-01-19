@@ -152,7 +152,7 @@ namespace DustyBot.Modules
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
-                    if (userMaxRole <= guildUser.RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0))
+                    if (command.Guild.OwnerId != command.Author.Id && userMaxRole <= guildUser.RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0))
                     {
                         result.AppendLine(_communicator.FormatFailure($"You can't ban user `{userName}` on this server."));
                         continue;

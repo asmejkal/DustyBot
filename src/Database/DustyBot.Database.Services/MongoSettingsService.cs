@@ -2,6 +2,8 @@
 using DustyBot.Database.Core.Settings;
 using DustyBot.Database.Mongo.Collections.Templates;
 using DustyBot.Database.Mongo.Serializers;
+using DustyBot.Database.Services.Configuration;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -29,9 +31,9 @@ namespace DustyBot.Database.Services
             BsonSerializer.RegisterSerializer(new SecureStringSerializer());
         }
 
-        public MongoSettingsService(string connectionString)
+        public MongoSettingsService(IOptions<DatabaseOptions> options)
         {
-            var url = MongoUrl.Create(connectionString);
+            var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
             var client = new MongoClient(url);
             _db = client.GetDatabase(url.DatabaseName);
 

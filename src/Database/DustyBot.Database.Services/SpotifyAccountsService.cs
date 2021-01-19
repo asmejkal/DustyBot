@@ -1,5 +1,7 @@
-﻿using DustyBot.Database.TableStorage.Tables;
+﻿using DustyBot.Database.Services.Configuration;
+using DustyBot.Database.TableStorage.Tables;
 using DustyBot.Database.TableStorage.Utility;
+using Microsoft.Extensions.Options;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System.Linq;
@@ -12,9 +14,9 @@ namespace DustyBot.Database.Services
     {
         private CloudTable Table { get; }
 
-        public SpotifyAccountsService(string connectionString)
+        public SpotifyAccountsService(IOptions<DatabaseOptions> options)
         {
-            var storageAccount = CloudStorageAccount.Parse(connectionString);
+            var storageAccount = CloudStorageAccount.Parse(options.Value.TableStorageConnectionString);
             var storageClient = storageAccount.CreateCloudTableClient();
             Table = storageClient.GetTableReference(SpotifyAccount.TableName);
         }

@@ -4,7 +4,7 @@ using DustyBot.Settings;
 using System;
 using System.Threading.Tasks;
 
-namespace DustyBot.Config
+namespace DustyBot.Configuration
 {
     public class FrameworkGuildConfigProvider : IFrameworkGuildConfigProvider
     {

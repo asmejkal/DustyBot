@@ -351,7 +351,7 @@ namespace DustyBot.Modules
         private async Task<string> FetchPreviewAsync(string id)
         {
             const int maxRetries = 20;
-            TimeSpan maxWait = TimeSpan.FromSeconds(10);
+            var maxWait = TimeSpan.FromSeconds(10);
             var stopwatch = Stopwatch.StartNew();
             for (int i = 0; i < maxRetries && stopwatch.Elapsed < maxWait; ++i)
             {

@@ -10,7 +10,21 @@ namespace DustyBot.Framework.Utility
 {
     public static class DiscordExtensions
     {
-        public static Task WaitForReady(this DiscordSocketClient client)
+        public static async Task StartReadyAsync(this DiscordSocketClient client)
+        {
+            var readyTask = client.WaitForReadyAsync();
+            await client.StartAsync();
+            await readyTask;
+        }
+
+        public static async Task StartReadyAsync(this DiscordShardedClient client)
+        {
+            var readyTask = client.WaitForReadyAsync();
+            await client.StartAsync();
+            await readyTask;
+        }
+
+        public static Task WaitForReadyAsync(this DiscordSocketClient client)
         {
             var readyTaskSource = new TaskCompletionSource<bool>();
             client.Ready += () =>
@@ -22,9 +36,10 @@ namespace DustyBot.Framework.Utility
             return readyTaskSource.Task;
         }
 
-        public static Task WaitForReady(this DiscordShardedClient client)
+        public static Task WaitForReadyAsync(this DiscordShardedClient client)
         {
             var readyTaskSource = new TaskCompletionSource<bool>();
+
             var readyClients = new HashSet<DiscordSocketClient>();
             client.ShardReady += x =>
             {
