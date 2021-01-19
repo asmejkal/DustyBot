@@ -12,6 +12,5 @@
         public string PolrDomain { get; set; }
         public string ProxyListUrl { get; set; }
         public string ProxyListToken { get; set; }
-        public string BitlyKey { get; set; }
     }
 }

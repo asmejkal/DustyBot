@@ -21,8 +21,9 @@ using DustyBot.Core.Async;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework;
 using DustyBot.Framework.Reflection;
-using Microsoft.Extensions.Logging;
+using Markdig;
 using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
@@ -34,14 +35,29 @@ namespace DustyBot.Modules
         private readonly ISettingsService _settings;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly WebsiteWalker _websiteWalker;
+        private readonly IOptions<WebOptions> _webOptions;
+        private readonly IOptions<BotOptions> _botOptions;
+        private readonly HelpBuilder _helpBuilder;
 
-        public BotModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, IFrameworkReflector frameworkReflector, WebsiteWalker websiteWalker)
+        public BotModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            IFrameworkReflector frameworkReflector, 
+            WebsiteWalker websiteWalker,
+            IOptions<WebOptions> webOptions,
+            IOptions<BotOptions> botOptions,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _frameworkReflector = frameworkReflector;
             _websiteWalker = websiteWalker;
+            _webOptions = webOptions;
+            _botOptions = botOptions;
+            _helpBuilder = helpBuilder;
+
             _client.MessageReceived += HandleMessageReceived;
         }
 
@@ -50,10 +66,9 @@ namespace DustyBot.Modules
         [Example("event add")]
         public async Task Help(ICommand command)
         {
-            var config = await _settings.ReadGlobal<BotConfig>();
             if (command.ParametersCount <= 0)
             {
-                await command.Reply(HelpBuilder.GetHelpEmbed(command.Prefix).Build());
+                await command.Reply(_helpBuilder.GetHelpEmbed(command.Prefix).Build());
             }
             else
             {
@@ -61,8 +76,8 @@ namespace DustyBot.Modules
                 var invoker = new string(command["Command"].AsString.TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
                 if (invoker.StartsWith(command.Prefix))
                     invoker = invoker.Substring(command.Prefix.Length);
-                else if (invoker.StartsWith(config.DefaultCommandPrefix))
-                    invoker = invoker.Substring(config.DefaultCommandPrefix.Length);
+                else if (invoker.StartsWith(_botOptions.Value.DefaultCommandPrefix))
+                    invoker = invoker.Substring(_botOptions.Value.DefaultCommandPrefix.Length);
 
                 var verbs = command["Command"].AsString.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
                 var findResult = TryFindRegistration(invoker, verbs);
@@ -111,7 +126,7 @@ namespace DustyBot.Modules
                 result.AppendLine($"{supporter.Name}");
 
             result.AppendLine();
-            result.AppendLine($"Support the bot at <{IntegrationConstants.PatreonPage}>");
+            result.AppendLine($"Support the bot at <{_webOptions.Value.PatreonUrl}>");
 
             await command.Reply(result.ToString());
         }
@@ -119,14 +134,12 @@ namespace DustyBot.Modules
         [Command("about", "Shows information about the bot.", CommandFlags.DirectMessageAllow)]
         public async Task About(ICommand command)
         {
-            var config = await _settings.ReadGlobal<BotConfig>();
-
             var uptime = DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
             var embed = new EmbedBuilder()
                 .WithTitle($"{_client.CurrentUser.Username} (DustyBot v{typeof(Bot).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version})")
                 .AddField("Author", "Yeba#3517", true)
-                .AddField("Owners", string.Join("\n", config.OwnerIDs), true)
+                .AddField("Owner", string.Join("\n", _botOptions.Value.OwnerID), true)
                 .AddField("Presence", $"{_client.Guilds.Count} servers" + (_client is DiscordShardedClient sc ? $"\n{sc.Shards.Count} shards" : ""), true)
                 .AddField("Framework", "v" + typeof(IFramework).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version, true)
                 .AddField("Uptime", $"{(uptime.Days > 0 ? $"{uptime.Days}d " : "") + (uptime.Hours > 0 ? $"{uptime.Hours}h " : "") + $"{uptime.Minutes}min "}", true)
@@ -140,16 +153,11 @@ namespace DustyBot.Modules
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder)]
         public async Task Feedback(ICommand command)
         {
-            var config = await _settings.ReadGlobal<BotConfig>();
+            var user = (IUser)_client.GetUser(_botOptions.Value.OwnerID) ?? await _client.Rest.GetUserAsync(_botOptions.Value.OwnerID);
+            var author = command.Message.Author;
+            await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
 
-            foreach (var owner in config.OwnerIDs)
-            {
-                var user = (IUser)_client.GetUser(owner) ?? await _client.Rest.GetUserAsync(owner);
-                var author = command.Message.Author;
-                await user.SendMessageAsync($"Suggestion from **{author.Username}#{author.Discriminator}** ({author.Id}) on **{command.Guild.Name}**:\n\n" + command["Message"]);
-            }
-
-            await command.ReplySuccess("Thank you for your feedback!");
+            await command.ReplySuccess("Thank you for your suggestion!");
         }
 
         [Command("invite", "Shows a link to invite the bot to your server.", CommandFlags.DirectMessageAllow)]
@@ -247,17 +255,17 @@ namespace DustyBot.Modules
         [Command("help", "dump", "Generates a list of all commands.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
         public async Task DumpHelp(ICommand command)
         {
-            var config = await _settings.ReadGlobal<BotConfig>();
             var result = new StringBuilder();
             var preface = new StringBuilder("<div class=\"row\"><div class=\"col-lg-12 section-heading\" style=\"margin-bottom: 0px\">\n<h3><img class=\"feature-icon-big\" src=\"img/compass.png\"/>Quick navigation</h3>\n");
             int counter = 0;
             foreach (var module in _frameworkReflector.Modules.Where(x => !x.Hidden))
             {
                 var anchor = WebsiteWalker.GetModuleWebAnchor(module.Name);
-                preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\"><img class=\"feature-icon-small\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</a> – {module.Description}</p>");
+                var description = ConvertToHtml(ReplacePlaceholders(module.Description));
+                preface.AppendLine($"<p class=\"text-muted\"><a href=\"#{anchor}\"><img class=\"feature-icon-small\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</a> – {description}</p>");
 
                 result.AppendLine($"<div class=\"row\"><div class=\"col-lg-12\"><a class=\"anchor\" id=\"{anchor}\"></a><h3><img class=\"feature-icon-big\" src=\"img/modules/{module.Name}.png\"/>{module.Name}</h3>");
-                result.AppendLine($"<p class=\"text-muted\">{module.Description}</p>");
+                result.AppendLine($"<p class=\"text-muted\">{description}</p>");
 
                 foreach (var handledCommand in module.Commands.Where(x => !x.Flags.HasFlag(CommandFlags.Hidden) && !x.Flags.HasFlag(CommandFlags.OwnerOnly)))
                 {
@@ -275,7 +283,7 @@ namespace DustyBot.Modules
                         //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
                         "</p>");
 
-                    var usage = BuildWebUsageString(handledCommand, config.DefaultCommandPrefix);
+                    var usage = BuildWebUsageString(handledCommand, _botOptions.Value.DefaultCommandPrefix);
                     if (string.IsNullOrEmpty(usage))
                         continue;
 
@@ -337,27 +345,22 @@ namespace DustyBot.Modules
             await command.ReplySuccess($"Removed {removed} supporters.");
         }
 
-        static string Markdown(string input)
+        private string ReplacePlaceholders(string input)
         {
-            bool inside = false;
-            input = input.Split('`').Aggregate((x, y) => x + ((inside = !inside) ? "<span class=\"param\">" : "</span>") + y);
-
-            inside = false;
-            input = input.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
-
-            inside = false;
-            input = input.Split(new string[] { "*" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<i>" : "</i>") + y);
-
-            inside = false;
-            input = input.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
-            
-            input = input.Replace("\r\n", "<br/>");
-            input = input.Replace("\n", "<br/>");
-
-            return input;
+            return input.Replace(HelpPlaceholders.RolesGuideLink, _websiteWalker.RolesGuideUrl)
+                .Replace(HelpPlaceholders.ScheduleGuideLink, _websiteWalker.ScheduleGuideUrl);
         }
 
-        static string BuildWebUsageString(CommandInfo commandRegistration, string commandPrefix)
+        private static string ConvertToHtml(string input)
+        {
+            return Markdown.ToHtml(input)
+                .Replace("<code>", "<span class=\"param\">")
+                .Replace("</code>", "</span>")
+                .Replace("\r\n", "<br/>")
+                .Replace("\n", "<br/>");
+        }
+
+        private static string BuildWebUsageString(CommandInfo commandRegistration, string commandPrefix)
         {
             string usage = $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage}";
             foreach (var param in commandRegistration.Parameters.Where(x => !x.Flags.HasFlag(ParameterFlags.Hidden)))
@@ -388,15 +391,15 @@ namespace DustyBot.Modules
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "<br/>" + y);
 
-            var result = new StringBuilder($"<span class=\"usagecode\">{Markdown(usage)}</span>");
+            var result = new StringBuilder($"<span class=\"usagecode\">{ConvertToHtml(usage)}</span>");
             if (paramDescriptions.Length > 0)
-                result.Append("<br/><br/>" + Markdown(paramDescriptions.ToString()));
+                result.Append("<br/><br/>" + ConvertToHtml(paramDescriptions.ToString()));
 
             if (!string.IsNullOrWhiteSpace(commandRegistration.GetComment(commandPrefix)))
-                result.Append("<br/><br/>" + Markdown(commandRegistration.GetComment(commandPrefix)));
+                result.Append("<br/><br/>" + ConvertToHtml(commandRegistration.GetComment(commandPrefix)));
 
             if (!string.IsNullOrWhiteSpace(examples))
-                result.Append("<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");
+                result.Append("<br/><br/><u>Examples:</u><br/><code>" + ConvertToHtml(examples) + "</code>");
 
             if (commandRegistration.Aliases.Any(x => !x.Hidden))
             {
@@ -408,7 +411,7 @@ namespace DustyBot.Modules
             return result.ToString();
         }
 
-        (CommandInfo registration, CommandInfo.Usage usage)? TryFindRegistration(string invoker, ICollection<string> verbs)
+        private (CommandInfo registration, CommandInfo.Usage usage)? TryFindRegistration(string invoker, ICollection<string> verbs)
         {
             foreach (var module in _frameworkReflector.Modules.Where(x => !x.Hidden))
             {
@@ -433,8 +436,7 @@ namespace DustyBot.Modules
             {
                 TaskHelper.FireForget(async () =>
                 {
-                    var config = await _settings.ReadGlobal<BotConfig>();
-                    var prefix = config.DefaultCommandPrefix;
+                    var prefix = _botOptions.Value.DefaultCommandPrefix;
                     if (message.Channel is SocketTextChannel guildChannel)
                     {
                         var guildConfig = await _settings.Read<BotSettings>(guildChannel.Guild.Id);
@@ -442,7 +444,7 @@ namespace DustyBot.Modules
                             prefix = guildConfig.CommandPrefix;
                     }
 
-                    await _communicator.SendMessage(message.Channel, HelpBuilder.GetHelpEmbed(prefix, prefix != config.DefaultCommandPrefix).Build());
+                    await _communicator.SendMessage(message.Channel, _helpBuilder.GetHelpEmbed(prefix, prefix != _botOptions.Value.DefaultCommandPrefix).Build());
                 });
             }
 

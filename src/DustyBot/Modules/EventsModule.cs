@@ -26,19 +26,28 @@ namespace DustyBot.Modules
         public const string IdPlaceholder = "{id}";
         public const string ServerPlaceholder = "{server}";
         public const string MemberCountPlaceholder = "{membercount}";
+
         private readonly BaseSocketClient _client;
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
         private readonly ILogger<EventsModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
-        public EventsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<EventsModule> logger, IFrameworkReflector frameworkReflector)
+        public EventsModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            ILogger<EventsModule> logger, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
 
             _client.UserJoined += HandleUserJoined;
             _client.UserLeft += HandleUserLeft;
@@ -49,7 +58,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("greet", "text", "Sets a text greeting message.")]

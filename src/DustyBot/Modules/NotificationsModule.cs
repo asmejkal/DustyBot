@@ -23,7 +23,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
-    [Module("Notifications", "Notifies you when someone mentions a specific word.")]
+    [Module("Notifications", "Get notified when someone mentions a specific word.")]
     internal sealed class NotificationsModule : IDisposable
     {
         //TODO: Look into multi-keyword searching algos
@@ -85,17 +85,25 @@ namespace DustyBot.Modules
         private readonly ILogger<NotificationsModule> _logger;
         private readonly IUserFetcher _userFetcher;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
         private readonly Dictionary<(ulong userId, ulong channelId), HashSet<ulong>> _activeMessages = new Dictionary<(ulong userId, ulong channelId), HashSet<ulong>>();
         private readonly ConcurrentDictionary<ulong, KeywordTree> _keywordTrees = new ConcurrentDictionary<ulong, KeywordTree>();
 
-        public NotificationsModule(BaseSocketClient client, ISettingsService settings, ILogger<NotificationsModule> logger, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
+        public NotificationsModule(
+            BaseSocketClient client, 
+            ISettingsService settings, 
+            ILogger<NotificationsModule> logger, 
+            IUserFetcher userFetcher, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _settings = settings;
             _logger = logger;
             _userFetcher = userFetcher;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
 
             _client.MessageReceived += HandleMessageReceived;
             _client.UserIsTyping += HandleUserIsTyping;
@@ -106,7 +114,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.")]

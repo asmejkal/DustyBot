@@ -27,14 +27,22 @@ namespace DustyBot.Modules
         private readonly BaseSocketClient _client;
         private readonly IUserFetcher _userFetcher;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
-        public AdministrationModule(ICommunicator communicator, ISettingsService settings, BaseSocketClient client, IUserFetcher userFetcher, IFrameworkReflector frameworkReflector)
+        public AdministrationModule(
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            BaseSocketClient client, 
+            IUserFetcher userFetcher, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _communicator = communicator;
             _settings = settings;
             _client = client;
             _userFetcher = userFetcher;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
         }
 
         [Command("administration", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -42,7 +50,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("say", "Sends a specified message.")]

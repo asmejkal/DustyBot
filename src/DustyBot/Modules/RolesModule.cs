@@ -21,10 +21,11 @@ using DustyBot.Database.Services;
 using System.Collections.Concurrent;
 using DustyBot.Framework.Modules.Attributes;
 using Microsoft.Extensions.Logging;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
-    [Module("Roles", "Let users choose their own roles  – please check out the <a href=\"" + WebConstants.RolesGuideUrl + "\">guide</a>.")]
+    [Module("Roles", "Let users choose their own roles – please check out the [guide](" + HelpPlaceholders.RolesGuideLink + ").")]
     internal sealed class RolesModule : IDisposable
     {
         private class RoleStats : IDisposable
@@ -95,16 +96,23 @@ namespace DustyBot.Modules
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
         private readonly ILogger _logger;
-
+        private readonly WebsiteWalker _websiteWalker;
+        
         private readonly KeyedSemaphoreSlim<ulong> _roleAssignmentUserMutex = new KeyedSemaphoreSlim<ulong>(1);
         private readonly ConcurrentDictionary<ulong, RoleStats> _roleStatsCache = new ConcurrentDictionary<ulong, RoleStats>();
 
-        public RolesModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger logger)
+        public RolesModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            ILogger<RolesModule> logger, 
+            WebsiteWalker websiteWalker)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
+            _websiteWalker = websiteWalker;
 
             _client.MessageReceived += HandleMessageReceived;
             _client.UserJoined += HandleUserJoined;
@@ -116,7 +124,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply($"Check out the guide at <{WebConstants.RolesGuideUrl}>!");
+            await command.Reply($"Check out the guide at <{_websiteWalker.RolesGuideUrl}>!");
         }
 
         [Command("roles", "set", "channel", "Sets a channel for role self-assignment.", CommandFlags.Synchronous)]

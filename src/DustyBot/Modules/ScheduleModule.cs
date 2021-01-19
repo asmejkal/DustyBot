@@ -19,7 +19,6 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Miscellaneous;
-using Discord.WebSocket;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using DustyBot.Framework.Commands.Parsing;
@@ -27,7 +26,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
-    [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"" + WebConstants.ScheduleGuideUrl + "\">guide</a>.")]
+    [Module("Schedule", "Helps with tracking upcoming events – please check out the [guide](" + HelpPlaceholders.ScheduleGuideLink + ").")]
     internal sealed class ScheduleModule
     {
         private class RefreshResult
@@ -91,6 +90,8 @@ namespace DustyBot.Modules
         private readonly IScheduleService _service;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly ICommandParser _commandParser;
+        private readonly WebsiteWalker _websiteWalker;
+        private readonly HelpBuilder _helpBuilder;
 
         public ScheduleModule(
             ICommunicator communicator, 
@@ -98,7 +99,9 @@ namespace DustyBot.Modules
             ILogger<ScheduleModule> logger, 
             IScheduleService service,
             IFrameworkReflector frameworkReflector,
-            ICommandParser commandParser)
+            ICommandParser commandParser,
+            WebsiteWalker websiteWalker,
+            HelpBuilder helpBuilder)
         {
             _communicator = communicator;
             _settings = settings;
@@ -106,6 +109,8 @@ namespace DustyBot.Modules
             _service = service;
             _frameworkReflector = frameworkReflector;
             _commandParser = commandParser;
+            _websiteWalker = websiteWalker;
+            _helpBuilder = helpBuilder;
         }
 
         [Command("schedule", "help", "Shows a usage guide.", CommandFlags.Hidden)]
@@ -114,7 +119,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task ScheduleHelp(ICommand command)
         {
-            await command.Reply($"Check out the quickstart guide at <{WebConstants.ScheduleGuideUrl}>!");
+            await command.Reply($"Check out the quickstart guide at <{_websiteWalker.ScheduleGuideUrl}>!");
         }
 
         [Command("event", "Shows help for this module.", CommandFlags.Hidden)]
@@ -122,7 +127,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("schedule", "Shows upcoming events.")]
@@ -132,7 +137,7 @@ namespace DustyBot.Modules
             var settings = await _settings.Read<ScheduleSettings>(command.GuildId, false);
             if (settings == null || settings.Events.Count <= 0)
             {
-                await command.ReplyError($"No events to display on this server. To set up a schedule check out the guide at <{WebConstants.ScheduleGuideUrl}>.");
+                await command.ReplyError($"No events to display on this server. To set up a schedule check out the guide at <{_websiteWalker.ScheduleGuideUrl}>.");
                 return;
             }
 

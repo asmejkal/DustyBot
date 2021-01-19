@@ -26,10 +26,12 @@ using DustyBot.Framework.Reflection;
 using DustyBot.Framework.Commands.Parsing;
 using Microsoft.Extensions.Logging;
 using DustyBot.Framework.Logging;
+using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
-    [Module("Instagram", "Helps with Instagram post previews.")]
+    [Module("Instagram", "Show previews for your Instagram links.")]
     internal sealed class InstagramModule : IDisposable
     {
         private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";
@@ -43,12 +45,12 @@ namespace DustyBot.Modules
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
         private readonly ILogger<InstagramModule> _logger;
-        private readonly BotConfig _config;
+        private readonly IOptions<BotOptions> _botOptions;
         private readonly IUrlShortener _urlShortener;
         private readonly IProxyService _proxyService;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly ICommandParser _commandParser;
-
+        private readonly HelpBuilder _helpBuilder;
         private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
             new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
@@ -57,21 +59,23 @@ namespace DustyBot.Modules
             ICommunicator communicator, 
             ISettingsService settings, 
             ILogger<InstagramModule> logger, 
-            BotConfig config, 
+            IOptions<BotOptions> botOptions,
             IUrlShortener urlShortener, 
             IProxyService proxyService, 
             IFrameworkReflector frameworkReflector,
-            ICommandParser commandParser)
+            ICommandParser commandParser,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
-            _config = config;
+            _botOptions = botOptions;
             _urlShortener = urlShortener;
             _proxyService = proxyService;
             _frameworkReflector = frameworkReflector;
             _commandParser = commandParser;
+            _helpBuilder = helpBuilder;
 
             _client.MessageReceived += HandleMessageReceived;
             _client.ReactionAdded += HandleReactionAdded;
@@ -82,7 +86,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("ig", "Shows a preview of one or more Instagram posts.")]
@@ -234,7 +238,7 @@ namespace DustyBot.Modules
 
                     var botSettings = await _settings.Read<BotSettings>(channel.Guild.Id, createIfNeeded: false);
                     var command = _frameworkReflector.GetModuleInfo(GetType()).Commands.First(x => x.PrimaryUsage.InvokeUsage == "ig");
-                    if (_commandParser.Match(message.Content, botSettings?.CommandPrefix ?? _config.DefaultCommandPrefix, new[] { command }) != null)
+                    if (_commandParser.Match(message.Content, botSettings?.CommandPrefix ?? _botOptions.Value.DefaultCommandPrefix, new[] { command }) != null)
                         return; // Don't create duplicate previews from the ig command
 
                     var unquoted = matches.Count > QuotedPostRegex.Matches(message.Content).Count;

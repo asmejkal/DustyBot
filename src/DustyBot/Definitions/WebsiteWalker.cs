@@ -27,6 +27,8 @@ namespace DustyBot.Definitions
         public string SpotifyIconUrl => ImagesFolderUrl + "/sf.png";
         public string InstagramIconUrl => ImagesFolderUrl + "/ig.png";
 
+        public string SpotifyConnectUrl => _options.Value.SpotifyConnectUrl;
+
         public static string GetModuleWebAnchor(string name) => name.Replace(' ', '-').ToLowerInvariant();
     }
 }

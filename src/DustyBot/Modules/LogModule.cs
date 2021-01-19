@@ -20,7 +20,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
-    [Module("Log", "Provides logging of server events.")]
+    [Module("Log", "Log deleted messages and other events.")]
     internal sealed class LogModule : IDisposable
     {
         private readonly BaseSocketClient _client;
@@ -28,14 +28,22 @@ namespace DustyBot.Modules
         private readonly ISettingsService _settings;
         private readonly ILogger<LogModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
-        public LogModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<LogModule> logger, IFrameworkReflector frameworkReflector)
+        public LogModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            ILogger<LogModule> logger, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
 
             _client.MessageDeleted += HandleMessageDeleted;
             _client.MessagesBulkDeleted += HandleMessagesBulkDeleted;
@@ -46,7 +54,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("log", "messages", "Sets a channel for logging of deleted messages.")]
@@ -97,13 +105,6 @@ namespace DustyBot.Modules
 
             await command.ReplySuccess("A channel filter for logging of deleted messages has been " + 
                 (channelIds.Count > 0 ? "set." : "disabled."));
-        }
-
-        [Command("log", "names", "Sets a channel for name change logging.", CommandFlags.Hidden)]
-        [IgnoreParameters]
-        public async Task LogNames(ICommand command)
-        {
-            await command.Reply(new EmbedBuilder().WithDescription($"We're sorry, but this feature has been disabled. Find out more in the [support server]({Definitions.WebConstants.SupportServerInvite}).").Build());
         }
 
         private Task HandleMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)

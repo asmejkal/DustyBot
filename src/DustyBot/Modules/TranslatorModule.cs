@@ -12,19 +12,23 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Formatting;
 using DustyBot.Framework.Modules.Attributes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
-    [Module("Translator", "Lets you translate between languages.")]
+    [Module("Translator", "Translate text to different languages.")]
     internal sealed class TranslatorModule
     {
         private const string LanguageRegex = @"^[a-zA-Z]{2}(?:-[a-zA-Z]{2})?$";
 
         private readonly ISettingsService _settings;
+        private readonly IOptions<IntegrationOptions> _integrationOptions;
 
-        public TranslatorModule(ISettingsService settings)
+        public TranslatorModule(ISettingsService settings, IOptions<IntegrationOptions> integrationOptions)
         {
             _settings = settings;
+            _integrationOptions = integrationOptions;
         }
 
         [Command("translate", "Translates a piece of text.")]
@@ -34,10 +38,8 @@ namespace DustyBot.Modules
         [Parameter("Message", ParameterType.String, ParameterFlags.Remainder, "the word or sentence you want to translate")]
         [Comment("Korean = `ko` \nJapan = `ja` \nEnglish = `en` \nChinese(Simplified) = `zh-CH` \nChinese(Traditional) = `zh-TW` \nSpanish = `es` \nFrench = `fr` \nGerman = `de` \nRussian = `ru` \nPortuguese = `pt` \nItalian = `it` \nVietnamese = `vi` \nThai = `th` \nIndonesian = `id`")]
         [Example("ko en 사랑해")]
-        public async Task Translation(ICommand command, ILogger logger)
+        public async Task Translate(ICommand command, ILogger logger)
         {
-            var config = await _settings.ReadGlobal<BotConfig>();
-
             await command.Message.Channel.TriggerTypingAsync();
             var stringMessage = command["Message"].ToString();
             var firstLang = command["From"].ToString();
@@ -50,8 +52,8 @@ namespace DustyBot.Modules
                 var request = WebRequest.CreateHttp("https://openapi.naver.com/v1/papago/n2mt");
                 request.Method = "POST";
                 request.ContentType = "application/x-www-form-urlencoded";
-                request.Headers.Add("X-Naver-Client-Id", config.PapagoClientId);
-                request.Headers.Add("X-Naver-Client-Secret", config.PapagoClientSecret);
+                request.Headers.Add("X-Naver-Client-Id", _integrationOptions.Value.PapagoClientId);
+                request.Headers.Add("X-Naver-Client-Secret", _integrationOptions.Value.PapagoClientSecret);
                 request.ContentLength = byteDataParams.Length;
                 using (var st = request.GetRequestStream())
                 {

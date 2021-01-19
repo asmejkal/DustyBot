@@ -27,16 +27,23 @@ namespace DustyBot.Modules
         private readonly ISettingsService _settings;
         private readonly ILogger<AutorolesModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
         private readonly ConcurrentDictionary<ulong, bool> _applyTasks = new ConcurrentDictionary<ulong, bool>();
         private readonly ConcurrentDictionary<ulong, bool> _checkTasks = new ConcurrentDictionary<ulong, bool>();
 
-        public AutorolesModule(BaseSocketClient client, ISettingsService settings, ILogger<AutorolesModule> logger, IFrameworkReflector frameworkReflector)
+        public AutorolesModule(
+            BaseSocketClient client, 
+            ISettingsService settings, 
+            ILogger<AutorolesModule> logger, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _settings = settings;
             _logger = logger;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
 
             _client.UserJoined += HandleUserJoined;
         }
@@ -46,7 +53,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("autorole", "add", "Assign a role automatically upon joining.")]

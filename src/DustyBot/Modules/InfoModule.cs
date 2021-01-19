@@ -11,7 +11,7 @@ using DustyBot.Framework.Modules.Attributes;
 
 namespace DustyBot.Modules
 {
-    [Module("Info", "Shows various info about users and servers.")]
+    [Module("Info", "Find various info about users and servers.")]
     internal sealed class InfoModule
     {
         private readonly IUserFetcher _userFetcher;

@@ -26,7 +26,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
-    [Module("Starboard", "Reposts the best messages as voted by users into specified channels.")]
+    [Module("Starboard", "Repost the best messages as voted by users into specified channels.")]
     internal sealed class StarboardModule : IDisposable
     {
         private static readonly Regex LinkOnlyMessageRegex = new Regex(@"^\s*(?:(http[s]?:\/\/[^\s]+)\s*)+$", RegexOptions.Compiled);
@@ -38,10 +38,18 @@ namespace DustyBot.Modules
         private readonly IUserFetcher _userFetcher;
         private readonly IUrlShortener _urlShortener;
         private readonly IFrameworkReflector _frameworkReflector;
-
+        private readonly HelpBuilder _helpBuilder;
         private readonly KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
 
-        public StarboardModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<StarboardModule> logger, IUserFetcher userFetcher, IUrlShortener urlShortener, IFrameworkReflector frameworkReflector)
+        public StarboardModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            ILogger<StarboardModule> logger, 
+            IUserFetcher userFetcher, 
+            IUrlShortener urlShortener, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _communicator = communicator;
@@ -50,6 +58,7 @@ namespace DustyBot.Modules
             _userFetcher = userFetcher;
             _urlShortener = urlShortener;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
 
             _client.ReactionAdded += HandleReactionAdded;
             _client.ReactionRemoved += HandleReactionRemoved;
@@ -61,7 +70,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("starboard", "add", "Sets up a new starboard.")]

@@ -22,6 +22,8 @@ using DustyBot.Core.Formatting;
 using System.Threading;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
@@ -45,15 +47,25 @@ namespace DustyBot.Modules
 
         private readonly ISpotifyAccountsService _accountsService;
         private readonly ICommunicator _communicator;
-        private readonly BotConfig _config;
+        private readonly IOptions<IntegrationOptions> _integrationOptions;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly WebsiteWalker _websiteWalker;
+        private readonly HelpBuilder _helpBuilder;
 
-        public SpotifyModule(ISpotifyAccountsService accountsService, ICommunicator communicator, BotConfig config, IFrameworkReflector frameworkReflector)
+        public SpotifyModule(
+            ISpotifyAccountsService accountsService, 
+            ICommunicator communicator, 
+            IOptions<IntegrationOptions> integrationOptions, 
+            IFrameworkReflector frameworkReflector,
+            WebsiteWalker websiteWalker,
+            HelpBuilder helpBuilder)
         {
             _accountsService = accountsService;
             _communicator = communicator;
-            _config = config;
+            _integrationOptions = integrationOptions;
             _frameworkReflector = frameworkReflector;
+            _websiteWalker = websiteWalker;
+            _helpBuilder = helpBuilder;
         }
 
         [Command("sf", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -61,7 +73,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("sf", "np", "Shows a user's currently playing song.", CommandFlags.TypingIndicator)]
@@ -132,7 +144,7 @@ namespace DustyBot.Modules
                 FullTrack track;
                 if (!trackIdMatch.Success)
                 {
-                    var sclient = await SpotifyClient.Create(_config.SpotifyId, _config.SpotifyKey);
+                    var sclient = await SpotifyClient.Create(_integrationOptions.Value.SpotifyId, _integrationOptions.Value.SpotifyKey);
 
                     var trackId = await sclient.SearchTrackId(command["Track"]);
                     //var searchResult = await client.SearchItemsAsync($"q={command["Track"]}", SearchType.Track, 1);
@@ -198,7 +210,7 @@ namespace DustyBot.Modules
                 var avgTempo = Math.Round(features.AudioFeatures.Average(x => x.Tempo));
 
                 var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(WebConstants.SpotifyIconUrl)
+                    .WithIconUrl(_websiteWalker.SpotifyIconUrl)
                     .WithName($"{user.Nickname ?? user.Username}'s listening habits {FormatStatsPeriod(period)}");
 
                 var embed = new EmbedBuilder()
@@ -264,7 +276,7 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                        .WithIconUrl(WebConstants.SpotifyIconUrl)
+                        .WithIconUrl(_websiteWalker.SpotifyIconUrl)
                         .WithName($"{user.Nickname ?? user.Username} last listened to...");
 
                     var embed = new EmbedBuilder()
@@ -310,7 +322,7 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                        .WithIconUrl(WebConstants.SpotifyIconUrl)
+                        .WithIconUrl(_websiteWalker.SpotifyIconUrl)
                         .WithName($"{user.Nickname ?? user.Username}'s top artists {FormatStatsPeriod(period)}");
 
                     var embed = new EmbedBuilder()
@@ -358,7 +370,7 @@ namespace DustyBot.Modules
                 var embedFactory = new Func<EmbedBuilder>(() =>
                 {
                     var author = new EmbedAuthorBuilder()
-                        .WithIconUrl(WebConstants.SpotifyIconUrl)
+                        .WithIconUrl(_websiteWalker.SpotifyIconUrl)
                         .WithName($"{user.Nickname ?? user.Username}'s top tracks {FormatStatsPeriod(period)}");
 
                     var embed = new EmbedBuilder()
@@ -399,7 +411,7 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    var result = await SpotifyHelpers.RefreshToken(account.RefreshToken, _config.SpotifyId, _config.SpotifyKey);
+                    var result = await SpotifyHelpers.RefreshToken(account.RefreshToken, _integrationOptions.Value.SpotifyId, _integrationOptions.Value.SpotifyKey);
                     return new SpotifyWebAPI()
                     {
                         AccessToken = result.Token,
@@ -414,12 +426,12 @@ namespace DustyBot.Modules
 
             var author = new EmbedAuthorBuilder()
                     .WithName(otherUser ? "Account not connected" : "Connect your Spotify")
-                    .WithUrl(WebConstants.SpotifyConnectUrl)
-                    .WithIconUrl(WebConstants.SpotifyIconUrl);
+                    .WithUrl(_websiteWalker.SpotifyConnectUrl)
+                    .WithIconUrl(_websiteWalker.SpotifyIconUrl);
 
             var embed = new EmbedBuilder()
                 .WithAuthor(author)
-                .WithDescription((otherUser ? "This user hasn't connected their account yet." : "You have not connected your account yet.") + $" Click [here]({WebConstants.SpotifyConnectUrl}) to connect.");
+                .WithDescription((otherUser ? "This user hasn't connected their account yet." : "You have not connected your account yet.") + $" Click [here]({_websiteWalker.SpotifyConnectUrl}) to connect.");
 
             await _communicator.SendMessage(responseChannel, embed.Build());
             throw new AbortException();
@@ -427,7 +439,7 @@ namespace DustyBot.Modules
 
         private async Task<SpotifyWebAPI> GetClient()
         {
-            var token = await SpotifyHelpers.GetClientToken(_config.SpotifyId, _config.SpotifyKey);
+            var token = await SpotifyHelpers.GetClientToken(_integrationOptions.Value.SpotifyId, _integrationOptions.Value.SpotifyKey);
             return new SpotifyWebAPI()
             {
                 AccessToken = token.Token,
@@ -519,7 +531,7 @@ namespace DustyBot.Modules
             description.AppendLine($"On {FormatLink(track.Album.Name, track.Album.ExternalUrls, false)}");
 
             var author = new EmbedAuthorBuilder()
-                .WithIconUrl(WebConstants.SpotifyIconUrl)
+                .WithIconUrl(_websiteWalker.SpotifyIconUrl)
                 .WithName(title);
 
             var embed = new EmbedBuilder()

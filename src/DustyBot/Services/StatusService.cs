@@ -1,6 +1,5 @@
 ﻿using Discord.WebSocket;
 using DustyBot.Configuration;
-using DustyBot.Definitions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Threading;
@@ -10,18 +9,20 @@ namespace DustyBot.Services
 {
     internal class StatusService : BackgroundService
     {
-        private readonly IOptions<BotOptions> _options;
         private readonly BaseSocketClient _client;
+        private readonly IOptions<BotOptions> _botOptions;
+        private readonly IOptions<WebOptions> _webOptions;
 
-        public StatusService(IOptions<BotOptions> options, BaseSocketClient client)
+        public StatusService(BaseSocketClient client, IOptions<BotOptions> botOptions, IOptions<WebOptions> webOptions)
         {
-            _options = options;
             _client = client;
+            _botOptions = botOptions;
+            _webOptions = webOptions;
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            return _client.SetGameAsync($"{_options.Value.DefaultCommandPrefix}help | {WebConstants.WebsiteShorthand}");
+            return _client.SetGameAsync($"{_botOptions.Value.DefaultCommandPrefix}help | {_webOptions.Value.WebsiteShorthand}");
         }
     }
 }

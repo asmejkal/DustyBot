@@ -21,11 +21,13 @@ namespace DustyBot.Modules
 
         private readonly ISettingsService _settings;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
-        public CafeModule(ISettingsService settings, IFrameworkReflector frameworkReflector)
+        public CafeModule(ISettingsService settings, IFrameworkReflector frameworkReflector, HelpBuilder helpBuilder)
         {
             _settings = settings;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
         }
 
         [Command("cafe", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -33,7 +35,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("cafe", "add", "Adds a Daum Cafe board feed.", CommandFlags.TypingIndicator)]

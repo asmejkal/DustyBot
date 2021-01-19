@@ -84,6 +84,7 @@ namespace DustyBot
 
             // Miscellaneous
             services.AddScoped<IUrlShortener, PolrUrlShortener>();
+            services.AddScoped<HelpBuilder>();
             services.AddScoped<WebsiteWalker>();
             services.AddScoped<ITimerAwaiter, TimerAwaiter>();
         }

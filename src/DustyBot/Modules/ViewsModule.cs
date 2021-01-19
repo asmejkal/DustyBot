@@ -17,10 +17,12 @@ using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
-    [Module("YouTube", "Tracks your artist's comeback stats on YouTube.")]
+    [Module("YouTube", "Track your artist's comeback stats on YouTube.")]
     internal sealed class ViewsModule
     {
         private class YoutubeInfo
@@ -34,18 +36,26 @@ namespace DustyBot.Modules
 
         private readonly ISettingsService _settings;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly IOptions<IntegrationOptions> _integrationOptions;
+        private readonly HelpBuilder _helpBuilder;
 
-        public ViewsModule(ISettingsService settings, IFrameworkReflector frameworkReflector)
+        public ViewsModule(
+            ISettingsService settings, 
+            IFrameworkReflector frameworkReflector, 
+            IOptions<IntegrationOptions> integrationOptions, 
+            HelpBuilder helpBuilder)
         {
             _settings = settings;
             _frameworkReflector = frameworkReflector;
+            _integrationOptions = integrationOptions;
+            _helpBuilder = helpBuilder;
         }
 
         [Command("views", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("views", "Checks how releases are doing on YouTube. The releases need to be added by moderators.", CommandFlags.TypingIndicator)]
@@ -66,7 +76,6 @@ namespace DustyBot.Modules
                     comebacks = settings.YouTubeComebacks.Where(x => x.Name.Search(param, true)).ToList();
             }
 
-            var config = await _settings.ReadGlobal<BotConfig>();
             if (comebacks.Count <= 0)
             {
                 string rec;
@@ -83,7 +92,7 @@ namespace DustyBot.Modules
             var pages = new PageCollection();
             var infos = new List<Tuple<ComebackInfo, YoutubeInfo>>();
             foreach (var comeback in comebacks)
-                infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, config.YouTubeKey)));
+                infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, _integrationOptions.Value.YouTubeKey)));
 
             //Compose embeds with info
             string recommendation = "Try also: " + GetOtherCategoriesRecommendation(settings, param, false, command.Prefix) + ".";

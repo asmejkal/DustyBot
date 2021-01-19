@@ -12,6 +12,8 @@ using DustyBot.Database.Sql.UserDefinedTypes;
 using DustyBot.LastFm;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Services
 {
@@ -20,12 +22,18 @@ namespace DustyBot.Services
         private readonly ISettingsService _settings;
         private readonly ILogger<LastFmUpdaterService> _logger;
         private readonly Func<Task<ILastFmStatsService>> _lastFmServiceFactory;
+        private readonly IOptions<IntegrationOptions> _integrationOptions;
 
-        public LastFmUpdaterService(ISettingsService settings, ILogger<LastFmUpdaterService> logger, Func<Task<ILastFmStatsService>> lastFmServiceFactory)
+        public LastFmUpdaterService(
+            ISettingsService settings, 
+            ILogger<LastFmUpdaterService> logger, 
+            Func<Task<ILastFmStatsService>> lastFmServiceFactory,
+            IOptions<IntegrationOptions> integrationOptions)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _lastFmServiceFactory = lastFmServiceFactory ?? throw new ArgumentNullException(nameof(lastFmServiceFactory));
+            _integrationOptions = integrationOptions;
         }
 
         protected override async Task ExecuteAsync(CancellationToken ct)
@@ -63,7 +71,7 @@ namespace DustyBot.Services
         private async Task ProcessBatch(CancellationToken ct)
         {
             var settings = (await _settings.ReadUser<LastFmUserSettings>()).ToList();
-            var key = (await _settings.ReadGlobal<BotConfig>()).LastFmKey;
+            var key = _integrationOptions.Value.LastFmKey;
             var userDelay = TimeSpan.FromHours(24) / settings.Count;
             var count = 0;
 

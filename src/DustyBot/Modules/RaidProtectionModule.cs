@@ -19,10 +19,11 @@ using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Definitions;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
@@ -98,10 +99,20 @@ namespace DustyBot.Modules
         private readonly ILogger<RaidProtectionModule> _logger;
         private readonly DiscordRestClient _restClient;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
+        private readonly IOptions<WebOptions> _webOptions;
 
         private readonly GlobalContext _context = new GlobalContext();
 
-        public RaidProtectionModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<RaidProtectionModule> logger, DiscordRestClient restClient, IFrameworkReflector frameworkReflector)
+        public RaidProtectionModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            ILogger<RaidProtectionModule> logger, 
+            DiscordRestClient restClient, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder,
+            IOptions<WebOptions> webOptions)
         {
             _client = client;
             _communicator = communicator;
@@ -109,6 +120,8 @@ namespace DustyBot.Modules
             _logger = logger;
             _restClient = restClient;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
+            _webOptions = webOptions;
 
             _client.MessageReceived += HandleMessageReceived;
         }
@@ -118,7 +131,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("raid", "protection", "enable", "Protects the server against raids.")]
@@ -161,7 +174,7 @@ namespace DustyBot.Modules
             var settings = await _settings.Read<RaidProtectionSettings>(command.GuildId);
             var result = new StringBuilder();
             result.AppendLine($"Protection **{(settings.Enabled ? "enabled" : "disabled")}**.");
-            result.AppendLine($"Please make a request in the support server to modify any of these settings for your server (<{WebConstants.SupportServerInvite}>).");
+            result.AppendLine($"Please make a request in the support server to modify any of these settings for your server (<{_webOptions.Value.SupportServerInvite}>).");
             result.AppendLine("Phrase blacklist can be set with the `raid protection blacklist add` command.\n");
 
             var PrintDefaultFlag = new Func<RaidProtectionRuleType, string>(x => settings.IsDefault(x) ? " (default)" : "");

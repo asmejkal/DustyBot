@@ -17,25 +17,27 @@ using DustyBot.Framework.Modules.Attributes;
 
 namespace DustyBot.Modules
 {
-    [Module("Polls", "Public polls and surveys.")]
+    [Module("Polls", "Create public polls.")]
     internal sealed class PollModule
     {
         private readonly ISettingsService _settings;
         private readonly ICommunicator _communicator;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
-        public PollModule(ISettingsService settings, ICommunicator communicator, IFrameworkReflector frameworkReflector)
+        public PollModule(ISettingsService settings, ICommunicator communicator, IFrameworkReflector frameworkReflector, HelpBuilder helpBuilder)
         {
             _settings = settings;
             _communicator = communicator;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
         }
 
         [Command("poll", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("poll", "Starts a poll.", CommandFlags.Synchronous)]

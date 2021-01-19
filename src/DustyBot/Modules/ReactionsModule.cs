@@ -32,14 +32,22 @@ namespace DustyBot.Modules
         private readonly ISettingsService _settings;
         private readonly ILogger<ReactionsModule> _logger;
         private readonly IFrameworkReflector _frameworkReflector;
+        private readonly HelpBuilder _helpBuilder;
 
-        public ReactionsModule(BaseSocketClient client, ICommunicator communicator, ISettingsService settings, ILogger<ReactionsModule> logger, IFrameworkReflector frameworkReflector)
+        public ReactionsModule(
+            BaseSocketClient client, 
+            ICommunicator communicator, 
+            ISettingsService settings, 
+            ILogger<ReactionsModule> logger, 
+            IFrameworkReflector frameworkReflector,
+            HelpBuilder helpBuilder)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
             _frameworkReflector = frameworkReflector;
+            _helpBuilder = helpBuilder;
 
             _client.MessageReceived += HandleMessageReceived;
         }
@@ -49,7 +57,7 @@ namespace DustyBot.Modules
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
-            await command.Reply(HelpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
+            await command.Reply(_helpBuilder.GetModuleHelpEmbed(_frameworkReflector.GetModuleInfo(GetType()).Name, command.Prefix));
         }
 
         [Command("reactions", "add", "Adds a reaction.")]
