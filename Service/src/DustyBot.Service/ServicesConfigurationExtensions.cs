@@ -1,6 +1,7 @@
 ﻿using System;
 using Discord;
 using Discord.WebSocket;
+using DustyBot.Core.Miscellaneous;
 using DustyBot.Core.Services;
 using DustyBot.Database.Services;
 using DustyBot.Database.Services.Configuration;
@@ -88,6 +89,7 @@ namespace DustyBot
             services.AddScoped<HelpBuilder>();
             services.AddScoped<WebsiteWalker>();
             services.AddScoped<ITimerAwaiter, TimerAwaiter>();
+            services.AddScoped<ITimeProvider, TimeProvider>();
         }
 
         public static void ConfigureBotLogging(this LoggerConfiguration configuration, IOptions<LoggingOptions> options)
