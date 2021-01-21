@@ -68,6 +68,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Services.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Service.Tests", "Service\tests\DustyBot.Service.Tests\DustyBot.Service.Tests.csproj", "{DDE7C6A6-1389-4359-B213-4331963AF116}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Framework.Tests", "Framework\tests\DustyBot.Framework.Tests\DustyBot.Framework.Tests.csproj", "{02A78073-20EE-40BA-B2D3-E480DA06C87C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -132,6 +134,10 @@ Global
 		{DDE7C6A6-1389-4359-B213-4331963AF116}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DDE7C6A6-1389-4359-B213-4331963AF116}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DDE7C6A6-1389-4359-B213-4331963AF116}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -161,6 +167,7 @@ Global
 		{CD68D15D-96B0-4EAA-86C2-75B407649BDC} = {65E4199F-3E2E-41E3-AEE8-70DE7D6ACB5C}
 		{E93FACA2-34E4-48DC-B503-85E5E9F66AD8} = {34B121D7-919C-48FF-A9B7-CD56BB7AA11B}
 		{DDE7C6A6-1389-4359-B213-4331963AF116} = {39158906-7BB5-45F5-BB10-5770F483B1BD}
+		{02A78073-20EE-40BA-B2D3-E480DA06C87C} = {D684F7FA-9964-4A70-8D89-393ACD5CCE56}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2E56349C-26F6-4600-B6BD-65628186ECF4}
