@@ -1,13 +1,9 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections.Templates;
+using DustyBot.Database.Mongo.Models;
 
-namespace DustyBot.Settings
+namespace DustyBot.Database.Mongo.Collections
 {
-    public class Supporter
-    {
-        public string Name { get; set; }
-    }
-
     public class SupporterSettings : BaseGlobalSettings
     {
         public List<Supporter> Supporters { get; set; } = new List<Supporter>();

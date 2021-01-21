@@ -83,12 +83,16 @@ namespace DustyBot.Core.Formatting
         {
             int begin, end;
             for (begin = 0; begin < occurences; ++begin)
+            {
                 if (begin >= value.Length || value[begin] != trimChar)
                     break;
+            }
 
             for (end = value.Length - 1; end >= value.Length - occurences; --end)
+            {
                 if (end < begin || value[end] != trimChar)
                     break;
+            }
 
             return (begin == 0 && end == value.Length - 1) ? value : value.Substring(begin, end - begin + 1);
         }
@@ -97,12 +101,16 @@ namespace DustyBot.Core.Formatting
         {
             int begin, end;
             for (begin = 0; begin < occurences; ++begin)
+            {
                 if (begin >= value.Length || !trimChars.Contains(value[begin]))
                     break;
+            }
 
             for (end = value.Length - 1; end >= value.Length - occurences; --end)
+            {
                 if (end < begin || !trimChars.Contains(value[end]))
                     break;
+            }
 
             return (begin == 0 && end == value.Length - 1) ? value : value.Substring(begin, end - begin + 1);
         }

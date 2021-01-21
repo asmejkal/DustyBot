@@ -1,18 +1,19 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Logging;
-using DustyBot.Settings;
-using Discord.WebSocket;
-using DustyBot.Helpers;
-using DustyBot.Database.Services;
-using DustyBot.Core.Async;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
@@ -194,7 +195,15 @@ namespace DustyBot.Modules
                 await command.ReplySuccess("Bye message set.");
             }
             else
+            {
                 throw new IncorrectParametersCommandException(string.Empty);
+            }
+        }
+
+        public void Dispose()
+        {
+            _client.UserJoined -= HandleUserJoined;
+            _client.UserLeft -= HandleUserLeft;
         }
 
         private string ReplacePlaceholders(string message, SocketGuildUser user)
@@ -232,7 +241,9 @@ namespace DustyBot.Modules
                 await _communicator.SendMessage(channel, embed.Build());
             }
             else
+            {
                 throw new InvalidOperationException("Inconsistent settings");
+            }
         }
 
         private Task HandleUserJoined(SocketGuildUser guildUser)
@@ -307,12 +318,6 @@ namespace DustyBot.Modules
             });
 
             return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
-            _client.UserJoined -= HandleUserJoined;
-            _client.UserLeft -= HandleUserLeft;
         }
     }
 }

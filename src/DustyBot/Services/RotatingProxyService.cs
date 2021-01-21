@@ -1,15 +1,4 @@
-﻿using Discord;
-using DustyBot.Configuration;
-using DustyBot.Core.Async;
-using DustyBot.Core.Net;
-using DustyBot.Core.Services;
-using DustyBot.Database.Services;
-using DustyBot.Exceptions;
-using DustyBot.Framework.Logging;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -17,6 +6,15 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using DustyBot.Configuration;
+using DustyBot.Core.Async;
+using DustyBot.Core.Net;
+using DustyBot.Core.Services;
+using DustyBot.Database.Services;
+using DustyBot.Exceptions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Services
 {
@@ -67,6 +65,12 @@ namespace DustyBot.Services
 
         public Task ForceRefreshAsync() => ExecuteAsync(default);
 
+        public override void Dispose()
+        {
+            ((IDisposable)_proxiesLock)?.Dispose();
+            base.Dispose();
+        }
+
         protected override async Task ExecuteRecurringAsync(IServiceProvider provider, int executionCount, CancellationToken ct)
         {
             var proxies = new List<WebProxy>();
@@ -97,12 +101,6 @@ namespace DustyBot.Services
                 _proxies = proxies.Where(x => !blacklist.Any(y => y.Address == x.Address.AbsoluteUri)).ToImmutableList();
                 _logger.LogInformation("Downloaded proxies ({BlacklistCount} blacklisted): {ProxyList}", proxies.Count - _proxies.Count, string.Join(", ", proxies.Select(x => x.Address)));
             }
-        }
-
-        public override void Dispose()
-        {
-            ((IDisposable)_proxiesLock)?.Dispose();
-            base.Dispose();
         }
     }
 }

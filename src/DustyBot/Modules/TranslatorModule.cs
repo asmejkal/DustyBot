@@ -1,19 +1,18 @@
-﻿using Discord;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
-using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using DustyBot.Database.Services;
+using Discord;
+using DustyBot.Configuration;
 using DustyBot.Core.Formatting;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Modules.Attributes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {

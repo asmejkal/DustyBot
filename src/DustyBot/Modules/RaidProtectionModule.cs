@@ -1,29 +1,30 @@
-﻿using Discord;
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using DustyBot.Core.Formatting;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Settings;
-using Discord.WebSocket;
 using System.Threading;
-using DustyBot.Framework.Logging;
-using System.Collections;
-using DustyBot.Helpers;
+using System.Threading.Tasks;
+using Discord;
 using Discord.Rest;
-using DustyBot.Database.Services;
+using Discord.WebSocket;
+using DustyBot.Configuration;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
+using DustyBot.Core.Formatting;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
@@ -32,7 +33,7 @@ namespace DustyBot.Modules
     {
         private class SlidingMessageCache : ICollection<IMessage>
         {
-            List<IMessage> _data = new List<IMessage>();
+            private List<IMessage> _data = new List<IMessage>();
 
             public int Count => _data.Count;
             public bool IsReadOnly => false;
@@ -177,17 +178,17 @@ namespace DustyBot.Modules
             result.AppendLine($"Please make a request in the support server to modify any of these settings for your server (<{_webOptions.Value.SupportServerInvite}>).");
             result.AppendLine("Phrase blacklist can be set with the `raid protection blacklist add` command.\n");
 
-            var PrintDefaultFlag = new Func<RaidProtectionRuleType, string>(x => settings.IsDefault(x) ? " (default)" : "");
-            result.AppendLine($"**MassMentionsRule** - if enabled, blocks messages containing more than {settings.MassMentionsRule.MentionsLimit} mentioned users" + PrintDefaultFlag(RaidProtectionRuleType.MassMentionsRule));
+            var printDefaultFlag = new Func<RaidProtectionRuleType, string>(x => settings.IsDefault(x) ? " (default)" : "");
+            result.AppendLine($"**MassMentionsRule** - if enabled, blocks messages containing more than {settings.MassMentionsRule.MentionsLimit} mentioned users" + printDefaultFlag(RaidProtectionRuleType.MassMentionsRule));
             result.AppendLine("`" + settings.MassMentionsRule + "`\n");
 
-            result.AppendLine($"**TextSpamRule** - if enabled, blocks more than {settings.TextSpamRule.Threshold} messages sent in {settings.TextSpamRule.Window.TotalSeconds} seconds by one user" + PrintDefaultFlag(RaidProtectionRuleType.TextSpamRule));
+            result.AppendLine($"**TextSpamRule** - if enabled, blocks more than {settings.TextSpamRule.Threshold} messages sent in {settings.TextSpamRule.Window.TotalSeconds} seconds by one user" + printDefaultFlag(RaidProtectionRuleType.TextSpamRule));
             result.AppendLine("`" + settings.TextSpamRule + "`\n");
 
-            result.AppendLine($"**ImageSpamRule** - if enabled, blocks more than {settings.ImageSpamRule.Threshold} images sent in {settings.ImageSpamRule.Window.TotalSeconds} seconds by one user" + PrintDefaultFlag(RaidProtectionRuleType.ImageSpamRule));
+            result.AppendLine($"**ImageSpamRule** - if enabled, blocks more than {settings.ImageSpamRule.Threshold} images sent in {settings.ImageSpamRule.Window.TotalSeconds} seconds by one user" + printDefaultFlag(RaidProtectionRuleType.ImageSpamRule));
             result.AppendLine("`" + settings.ImageSpamRule + "`\n");
 
-            result.AppendLine($"**PhraseBlacklistRule** - if enabled, blocks messages containing any of the specified phrases" + PrintDefaultFlag(RaidProtectionRuleType.PhraseBlacklistRule));
+            result.AppendLine($"**PhraseBlacklistRule** - if enabled, blocks messages containing any of the specified phrases" + printDefaultFlag(RaidProtectionRuleType.PhraseBlacklistRule));
             result.AppendLine("`" + settings.PhraseBlacklistRule + "`\n");
 
             await command.Reply(result.ToString());
@@ -317,6 +318,11 @@ namespace DustyBot.Modules
             await command.ReplySuccess($"Rule has been reset.");
         }
 
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
+        }
+
         private Task HandleMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
@@ -372,7 +378,7 @@ namespace DustyBot.Modules
                             if ((string.IsNullOrEmpty(message.Content) && message.Attachments.Count > 0) ||
                                 (!string.IsNullOrEmpty(message.Content) && Uri.IsWellFormedUriString(message.Content.Trim(), UriKind.Absolute)))
                             {
-                                //Image post
+                                // Image post
                                 appliedRule = settings.ImageSpamRule;
                                 if (settings.ImageSpamRule.Enabled)
                                 {
@@ -388,7 +394,7 @@ namespace DustyBot.Modules
                             }
                             else
                             {
-                                //Text post
+                                // Text post
                                 appliedRule = settings.TextSpamRule;
                                 if (settings.TextSpamRule.Enabled)
                                 {
@@ -415,7 +421,7 @@ namespace DustyBot.Modules
                         }
                     }
 
-                    //Cleanup
+                    // Cleanup
                     if (_context.LastCleanup < DateTime.UtcNow - CleanupTimer)
                         await CleanupContext(settings);
                 }
@@ -452,7 +458,7 @@ namespace DustyBot.Modules
         {
             try
             {
-                //Guild contexts
+                // Guild contexts
                 await _context.Mutex.WaitAsync();
 
                 DateTime now = DateTime.UtcNow;
@@ -466,7 +472,7 @@ namespace DustyBot.Modules
                 {
                     try
                     {
-                        //User contexts
+                        // User contexts
                         await guildContext.Value.Mutex.WaitAsync();
                         foreach (var userContext in guildContext.Value.UserContexts.ToList())
                         {
@@ -508,7 +514,8 @@ namespace DustyBot.Modules
                 {
                     _context.LastReport = now;
                     _logger.LogInformation("Raid protection status: {RaidProtectionGuildContextCount} guild contexts, {RaidProtectionUserContextCount} user contexts", 
-                        _context.GuildContexts.Count, _context.GuildContexts.Aggregate(0, (x, y) => x + y.Value.UserContexts.Count));
+                        _context.GuildContexts.Count, 
+                        _context.GuildContexts.Aggregate(0, (x, y) => x + y.Value.UserContexts.Count));
                 }
             }
             finally
@@ -547,8 +554,10 @@ namespace DustyBot.Modules
         private async Task EnforceRule(ReadOnlyRaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
         {
             if (rule.Delete)
+            {
                 foreach (var message in messages)
                     TaskHelper.FireForget(async () => await message.DeleteAsync());
+            }
 
             if (rule.MaxOffenseCount > 0 && rule.OffenseWindow > TimeSpan.FromSeconds(0))
             {
@@ -583,7 +592,9 @@ namespace DustyBot.Modules
                         warningMessage = (await _communicator.SendMessage(channel, $"{user.Mention} you have been muted for breaking raid protection rules. If you believe this is a mistake, please contact a moderator.")).First();
                     }
                     else
+                    {
                         warningMessage = (await _communicator.SendMessage(channel, $"{user.Mention} you have broken a raid protection rule.")).First();
+                    }
 
                     warningMessage.DeleteAfter(8);
                 }
@@ -613,11 +624,6 @@ namespace DustyBot.Modules
 
                 logger.LogInformation("Enforced rule {RaidProtectionRuleType}, punished: {Punished}, reason: {RaidProtectionReason}", rule.Type, punish, reason);
             }
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

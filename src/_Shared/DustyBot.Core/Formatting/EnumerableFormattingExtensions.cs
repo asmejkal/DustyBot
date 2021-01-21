@@ -3,7 +3,7 @@ using System.Text;
 
 namespace DustyBot.Core.Formatting
 {
-    public static class EnumerableExtensions
+    public static class EnumerableFormattingExtensions
     {
         public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = ", and ")
         {

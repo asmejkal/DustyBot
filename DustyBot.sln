@@ -7,6 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{35BF85A1-4CF
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AD7BBBB3-0056-488C-A664-53AE15EA1EB7}"
 	ProjectSection(SolutionItems) = preProject
+		CodeAnalysis.ruleset = CodeAnalysis.ruleset
 		docker-compose.yml = docker-compose.yml
 		kibana.yml = kibana.yml
 	EndProjectSection
@@ -33,11 +34,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Sql", "sr
 EndProject
 Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "DustyBot.Database.Sql.Schema", "src\Database\DustyBot.Database.Sql.Schema\DustyBot.Database.Sql.Schema.sqlproj", "{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{EA1EBF29-05E3-447A-8E74-AC9542FD0D05}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.TableStorage", "src\Database\DustyBot.Database.TableStorage\DustyBot.Database.TableStorage.csproj", "{1E0BF54D-018A-400E-85FB-620B27A4E44C}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Tools.LiteDBMigrator", "src\Tools\DustyBot.Tools.LiteDBMigrator\DustyBot.Tools.LiteDBMigrator.csproj", "{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.LastFm", "src\_Shared\DustyBot.LastFm\DustyBot.LastFm.csproj", "{1C577DEF-4CBC-4DAC-80CF-1655721517EC}"
 EndProject
@@ -45,7 +42,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F32C4682
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Shared", "_Shared", "{E161C255-D3AC-4DDE-A6F8-E6977FA4E09E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Core.Tests", "tests\_Shared\DustyBot.Core.Tests\DustyBot.Core.Tests.csproj", "{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Core.Tests", "tests\_Shared\DustyBot.Core.Tests\DustyBot.Core.Tests.csproj", "{C2F206B6-C516-40E4-AD5C-1D69FE717FBD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -95,10 +92,6 @@ Global
 		{1E0BF54D-018A-400E-85FB-620B27A4E44C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1E0BF54D-018A-400E-85FB-620B27A4E44C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1E0BF54D-018A-400E-85FB-620B27A4E44C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -123,9 +116,7 @@ Global
 		{F744743B-E3FC-48A7-A8FA-8F72C432C122} = {3FAC07CE-70AB-49F9-855F-2008BE2E0463}
 		{B1DDF073-BFA6-4DFC-BC46-25000C0B12DF} = {3FAC07CE-70AB-49F9-855F-2008BE2E0463}
 		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C} = {3FAC07CE-70AB-49F9-855F-2008BE2E0463}
-		{EA1EBF29-05E3-447A-8E74-AC9542FD0D05} = {35BF85A1-4CF7-45B9-906B-0779AD9D0DBB}
 		{1E0BF54D-018A-400E-85FB-620B27A4E44C} = {3FAC07CE-70AB-49F9-855F-2008BE2E0463}
-		{F7B1EFBB-DB7E-478C-A810-3BA274DFCD7D} = {EA1EBF29-05E3-447A-8E74-AC9542FD0D05}
 		{1C577DEF-4CBC-4DAC-80CF-1655721517EC} = {D4DD5103-B725-4053-AF2A-5D3421940163}
 		{E161C255-D3AC-4DDE-A6F8-E6977FA4E09E} = {F32C4682-C1CE-406C-89F2-51177FBCAFED}
 		{C2F206B6-C516-40E4-AD5C-1D69FE717FBD} = {E161C255-D3AC-4DDE-A6F8-E6977FA4E09E}

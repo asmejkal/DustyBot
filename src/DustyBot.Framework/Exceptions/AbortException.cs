@@ -1,5 +1,5 @@
-﻿using DustyBot.Framework.Communication;
-using System;
+﻿using System;
+using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Exceptions
 {

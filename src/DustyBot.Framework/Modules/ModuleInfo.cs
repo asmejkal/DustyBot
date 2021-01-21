@@ -1,12 +1,12 @@
-﻿using Discord;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Modules.Attributes;
-using Microsoft.Extensions.Logging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using Discord;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Modules.Attributes;
+using Microsoft.Extensions.Logging;
 using ParameterInfo = DustyBot.Framework.Commands.ParameterInfo;
 
 namespace DustyBot.Framework.Modules
@@ -38,7 +38,7 @@ namespace DustyBot.Framework.Modules
             if (moduleAttribute == null)
                 throw new ArgumentException($"Type {type} is not a module.");
 
-            //Command attributes
+            // Command attributes
             var commands = new List<CommandInfo>();
             foreach (var method in module.GetMethods())
             {
@@ -46,13 +46,13 @@ namespace DustyBot.Framework.Modules
                 if (commandAttribute == null)
                     continue;
 
-                //Required
+                // Required
                 var handler = BuildCommandHandler(type, method);
                 var primaryUsage = new CommandInfo.Usage(commandAttribute.InvokeString, commandAttribute.Verbs);
                 var description = commandAttribute.Description;
                 var flags = commandAttribute.Flags;
 
-                //Optional
+                // Optional
                 List<ParameterInfo> parameters;
                 if (method.GetCustomAttribute<IgnoreParametersAttribute>() != null)
                     parameters = new List<ParameterInfo>() { ParameterInfo.AlwaysMatching };

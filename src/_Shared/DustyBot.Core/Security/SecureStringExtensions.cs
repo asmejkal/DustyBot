@@ -66,7 +66,8 @@ namespace DustyBot.Core.Security
 
         public static SecureString ToSecureString(this string unsecureString)
         {
-            if (unsecureString == null) throw new ArgumentNullException("unsecureString");
+            if (unsecureString == null) 
+                throw new ArgumentNullException("unsecureString");
 
             return unsecureString.Aggregate(new SecureString(), AppendChar, MakeReadOnly);
         }

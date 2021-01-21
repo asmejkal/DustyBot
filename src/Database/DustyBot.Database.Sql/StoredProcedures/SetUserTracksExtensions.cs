@@ -1,9 +1,9 @@
-﻿using DustyBot.Database.Sql.UserDefinedTypes;
-using DustyBot.Database.Sql.StoredProcedures.Utility;
-using StoredProcedureEFCore;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using DustyBot.Database.Sql.StoredProcedures.Utility;
+using DustyBot.Database.Sql.UserDefinedTypes;
+using StoredProcedureEFCore;
 
 namespace DustyBot.Database.Sql.StoredProcedures
 {

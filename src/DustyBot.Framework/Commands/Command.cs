@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Commands.Parsing;
+using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Commands
 {

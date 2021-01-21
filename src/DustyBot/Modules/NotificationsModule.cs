@@ -1,24 +1,25 @@
-﻿using Discord;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Globalization;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
+using Discord;
 using Discord.WebSocket;
-using System.Collections.Concurrent;
-using DustyBot.Helpers;
-using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
@@ -26,8 +27,7 @@ namespace DustyBot.Modules
     [Module("Notifications", "Get notified when someone mentions a specific word.")]
     internal sealed class NotificationsModule : IDisposable
     {
-        //TODO: Look into multi-keyword searching algos
-        //current profiling results: 16x faster than naive search (700 keywords, 2000 message length)
+        // TODO: Use Aho-Corasick (though it does not offer much better performance over this solution)
         public class KeywordTree
         {
             private class Node
@@ -66,8 +66,10 @@ namespace DustyBot.Modules
                             break;
 
                         if (current.Notifications != null)
+                        {
                             foreach (var n in current.Notifications)
                                 result.Add((i, n));
+                        }
                     }
                 }
 
@@ -236,6 +238,12 @@ namespace DustyBot.Modules
             await command.ReplySuccess(enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
+            _client.UserIsTyping -= HandleUserIsTyping;
+        }
+
         private void RegisterPendingNotification((ulong, ulong) key, ulong message)
         {
             lock (_activeMessages)
@@ -378,12 +386,6 @@ namespace DustyBot.Modules
             });
 
             return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
-            _client.UserIsTyping -= HandleUserIsTyping;
         }
     }
 }

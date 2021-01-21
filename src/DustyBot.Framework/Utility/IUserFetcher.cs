@@ -1,5 +1,5 @@
-﻿using Discord.Rest;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using Discord.Rest;
 
 namespace DustyBot.Framework.Utility
 {

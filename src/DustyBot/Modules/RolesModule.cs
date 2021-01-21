@@ -1,27 +1,28 @@
-﻿using Discord;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Net;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Settings;
-using Discord.WebSocket;
-using DustyBot.Definitions;
-using DustyBot.Framework.Exceptions;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
 using DustyBot.Database.Services;
-using System.Collections.Concurrent;
+using DustyBot.Definitions;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
-using Microsoft.Extensions.Logging;
+using DustyBot.Framework.Utility;
 using DustyBot.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
 {
@@ -198,7 +199,7 @@ namespace DustyBot.Modules
         [Example("Solar")]
         public async Task CreateRole(ICommand command)
         {
-            var role = await command.Guild.CreateRoleAsync(command["Name"], permissions: new GuildPermissions(), isMentionable: false);
+            var role = await command.Guild.CreateRoleAsync(command["Name"], permissions: new GuildPermissions(0), isMentionable: false);
             await AddRoles(command.GuildId, new[] { role }, false);
 
             await command.ReplySuccess($"A self-assignable role `{command["Name"]}` has been created. You can set a color or reorder it in the server's settings.");
@@ -542,6 +543,13 @@ namespace DustyBot.Modules
             await command.ReplySuccess($"Users may now assign up to `{command["Limit"].AsUInt.Value}` roles from group `{command["GroupName"]}`.");
         }
 
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
+            _client.UserJoined -= HandleUserJoined;
+            _client.UserLeft -= HandleUserLeft;
+        }
+
         private async Task AddRoles(ulong guildId, IEnumerable<IRole> roles, bool checkPermissions = true)
         {
             if (checkPermissions)
@@ -754,7 +762,6 @@ namespace DustyBot.Modules
                                             }
                                         }
                                     }
-
                                 }
                             }
 
@@ -762,10 +769,10 @@ namespace DustyBot.Modules
                             var removeRoles = new List<ulong>();
                             if (roleAar.SecondaryId != 0)
                             {
-                                //Bias role (more complex logic)
+                                // Bias role (more complex logic)
                                 if (remove)
                                 {
-                                    //Remove also secondary
+                                    // Remove also secondary
                                     removeRoles.Add(roleAar.RoleId);
                                     removeRoles.Add(roleAar.SecondaryId);
                                 }
@@ -773,29 +780,31 @@ namespace DustyBot.Modules
                                 {
                                     var primaryRoles = settings.AssignableRoles.Where(x => x.SecondaryId != 0);
 
-                                    //If the user doesn't have the primary already
+                                    // If the user doesn't have the primary already
                                     if (!user.RoleIds.Any(x => x == roleAar.RoleId))
                                     {
-                                        //Check if user has any primary role
+                                        // Check if user has any primary role
                                         if (user.RoleIds.Any(x => primaryRoles.Any(y => y.RoleId == x)))
                                         {
-                                            //Assign secondary
+                                            // Assign secondary
                                             addRoles.Add(roleAar.SecondaryId);
                                         }
                                         else
                                         {
-                                            //Assign primary and delete secondary
+                                            // Assign primary and delete secondary
                                             addRoles.Add(roleAar.RoleId);
                                             removeRoles.Add(roleAar.SecondaryId);
                                         }
                                     }
                                     else
-                                        removeRoles.Add(roleAar.SecondaryId); //Try to remove secondary just in case (cleanup)
+                                    {
+                                        removeRoles.Add(roleAar.SecondaryId); // Try to remove secondary just in case (cleanup)
+                                    }
                                 }
                             }
                             else
                             {
-                                //Regular role
+                                // Regular role
                                 if (remove)
                                     removeRoles.Add(roleAar.RoleId);
                                 else
@@ -842,13 +851,6 @@ namespace DustyBot.Modules
             });
 
             return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
-            _client.UserJoined -= HandleUserJoined;
-            _client.UserLeft -= HandleUserLeft;
         }
     }
 }

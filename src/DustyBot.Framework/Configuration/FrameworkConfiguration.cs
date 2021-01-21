@@ -1,11 +1,11 @@
-﻿using Discord.WebSocket;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Discord.WebSocket;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace DustyBot.Framework.Configuration
 {

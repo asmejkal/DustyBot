@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
+using DustyBot.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using DustyBot.Web.Models;
 
 namespace DustyBot.Web.Controllers
 {
@@ -22,7 +19,6 @@ namespace DustyBot.Web.Controllers
         {
             return RedirectPermanent(Environment.GetEnvironmentVariable("MainSiteUrl"));
         }
-
 
         public IActionResult Spotify()
         {

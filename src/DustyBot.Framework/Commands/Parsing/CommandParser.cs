@@ -1,15 +1,15 @@
-﻿using Discord;
-using Discord.WebSocket;
-using DustyBot.Core.Collections;
-using DustyBot.Core.Parsing;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Collections;
+using DustyBot.Core.Parsing;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Commands.Parsing
 {
@@ -44,7 +44,7 @@ namespace DustyBot.Framework.Commands.Parsing
                     return (registration, usage);
 
                 if (split.Length < usage.Verbs.Count + 1)
-                    continue; //Not enough verbs in the message
+                    continue; // Not enough verbs in the message
 
                 bool match = true;
                 for (int i = 0; i < usage.Verbs.Count; ++i)
@@ -65,17 +65,17 @@ namespace DustyBot.Framework.Commands.Parsing
 
         public async Task<CommandParseResult> Parse(IUserMessage message, CommandInfo registration, CommandInfo.Usage usage, string prefix)
         {
-            //Prefix
+            // Prefix
             var content = message.Content;
             if (!content.StartsWith(prefix))
                 return new CommandParseResult(CommandParseResultType.InvalidPrefix);
 
-            //Invoker
+            // Invoker
             var invoker = ParseInvoker(content, prefix);
             if (string.IsNullOrEmpty(invoker) || string.Compare(invoker, usage.InvokeString, true) != 0)
                 return new CommandParseResult(CommandParseResultType.InvalidInvoker);
 
-            //Verbs
+            // Verbs
             var verbs = new List<string>();
             var split = content.Split(new char[0], usage.Verbs.Count + 2 /* (invoker and body) */, StringSplitOptions.RemoveEmptyEntries);
             if (usage.HasVerbs)

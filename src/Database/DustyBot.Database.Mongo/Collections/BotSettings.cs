@@ -1,6 +1,6 @@
 ﻿using DustyBot.Database.Mongo.Collections.Templates;
 
-namespace DustyBot.Settings
+namespace DustyBot.Database.Mongo.Collections
 {
     public class BotSettings : BaseServerSettings
     {

@@ -1,21 +1,21 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Settings;
-using Discord.WebSocket;
 using System.Text.RegularExpressions;
-using DustyBot.Framework.Logging;
-using DustyBot.Helpers;
-using DustyBot.Database.Services;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
@@ -105,6 +105,12 @@ namespace DustyBot.Modules
 
             await command.ReplySuccess("A channel filter for logging of deleted messages has been " + 
                 (channelIds.Count > 0 ? "set." : "disabled."));
+        }
+
+        public void Dispose()
+        {
+            _client.MessageDeleted -= HandleMessageDeleted;
+            _client.MessagesBulkDeleted -= HandleMessagesBulkDeleted;
         }
 
         private Task HandleMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
@@ -320,12 +326,6 @@ namespace DustyBot.Modules
                 embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
 
             await _communicator.SendMessage(eventChannel, embed.Build());
-        }
-
-        public void Dispose()
-        {
-            _client.MessageDeleted -= HandleMessageDeleted;
-            _client.MessagesBulkDeleted -= HandleMessagesBulkDeleted;
         }
     }
 }

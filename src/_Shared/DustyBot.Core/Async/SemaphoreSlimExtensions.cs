@@ -8,7 +8,7 @@ namespace DustyBot.Core.Async
     {
         public class LockScope : IDisposable
         {
-            private SemaphoreSlim Semaphore {get;}
+            private SemaphoreSlim Semaphore { get; }
 
             public LockScope(SemaphoreSlim semaphore)
             {

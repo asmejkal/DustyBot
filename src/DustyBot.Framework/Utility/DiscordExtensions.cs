@@ -1,10 +1,10 @@
-﻿using Discord;
-using Discord.WebSocket;
-using DustyBot.Core.Async;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Framework.Utility
 {
@@ -80,7 +80,7 @@ namespace DustyBot.Framework.Utility
                     }
                     catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50001)
                     {
-                        //Missing access
+                        // Missing access
                     }
                 }
             }

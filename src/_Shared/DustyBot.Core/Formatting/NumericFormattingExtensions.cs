@@ -10,7 +10,8 @@ namespace DustyBot.Core.Formatting
 
         public static string ToEnglishOrdinal(this int num)
         {
-            if (num <= 0) return num.ToString();
+            if (num <= 0) 
+                return num.ToString();
 
             switch (num % 100)
             {
@@ -65,6 +66,7 @@ namespace DustyBot.Core.Formatting
                 numStr = num / 1000000000d;
                 suffix = "B";
             }
+
             return numStr.ToString("#.##") + suffix;
         }
     }

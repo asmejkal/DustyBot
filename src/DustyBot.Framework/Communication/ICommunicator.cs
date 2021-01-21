@@ -1,8 +1,8 @@
-﻿using Discord;
-using DustyBot.Framework.Commands;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Discord;
+using DustyBot.Framework.Commands;
 
 namespace DustyBot.Framework.Communication
 {

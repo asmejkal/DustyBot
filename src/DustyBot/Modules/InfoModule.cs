@@ -1,13 +1,13 @@
-﻿using Discord;
-using System.Threading.Tasks;
-using DustyBot.Framework.Commands;
-using DustyBot.Definitions;
+﻿using System;
 using System.Linq;
-using System;
-using Discord.WebSocket;
-using DustyBot.Framework.Utility;
 using System.Text;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Definitions;
+using DustyBot.Framework.Commands;
 using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Modules
 {

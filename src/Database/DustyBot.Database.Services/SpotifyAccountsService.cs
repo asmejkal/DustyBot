@@ -1,12 +1,12 @@
-﻿using DustyBot.Database.Services.Configuration;
+﻿using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using DustyBot.Database.Services.Configuration;
 using DustyBot.Database.TableStorage.Tables;
 using DustyBot.Database.TableStorage.Utility;
 using Microsoft.Extensions.Options;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DustyBot.Database.Services
 {

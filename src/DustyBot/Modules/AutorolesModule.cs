@@ -1,21 +1,20 @@
-﻿using Discord;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Net;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Logging;
-using DustyBot.Settings;
-using Discord.WebSocket;
-using DustyBot.Helpers;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Database.Services;
-using DustyBot.Core.Async;
-using DustyBot.Core.Formatting;
+﻿using System;
 using System.Collections.Concurrent;
+using System.Linq;
+using System.Net;
 using System.Text;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
@@ -259,6 +258,11 @@ namespace DustyBot.Modules
             }
         }
 
+        public void Dispose()
+        {
+            _client.UserJoined -= HandleUserJoined;
+        }
+
         private Task HandleUserJoined(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
@@ -287,11 +291,6 @@ namespace DustyBot.Modules
             });
 
             return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
-            _client.UserJoined -= HandleUserJoined;
         }
     }
 }

@@ -1,27 +1,13 @@
-﻿using Discord;
+﻿using System;
+using System.Collections.Generic;
+using Discord;
 using DustyBot.Core.Logging;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
 
 namespace DustyBot.Framework.Logging
 {
     public static class LoggerExtensions
     {
-        internal static ILogger WithCommandScope(this ILogger logger, IMessage message, Guid commandId)
-        {
-            var correlationIds = new Dictionary<string, object>();
-            correlationIds.Add(LogFields.CommandId, commandId);
-            FillMessage(correlationIds, message);
-            FillUser(correlationIds, message.Author);
-            FillChannel(correlationIds, message.Channel);
-
-            if (message.Channel is IGuildChannel guildChannel)
-                FillGuild(correlationIds, guildChannel.Guild);
-
-            return logger.WithScope(correlationIds);
-        }
-
         public static ILogger WithScope(this ILogger logger, IMessage message)
         {
             var correlationIds = new Dictionary<string, object>();
@@ -73,6 +59,20 @@ namespace DustyBot.Framework.Logging
         {
             var correlationIds = new Dictionary<string, object>();
             FillGuild(correlationIds, guild);
+
+            return logger.WithScope(correlationIds);
+        }
+
+        internal static ILogger WithCommandScope(this ILogger logger, IMessage message, Guid commandId)
+        {
+            var correlationIds = new Dictionary<string, object>();
+            correlationIds.Add(LogFields.CommandId, commandId);
+            FillMessage(correlationIds, message);
+            FillUser(correlationIds, message.Author);
+            FillChannel(correlationIds, message.Channel);
+
+            if (message.Channel is IGuildChannel guildChannel)
+                FillGuild(correlationIds, guildChannel.Guild);
 
             return logger.WithScope(correlationIds);
         }

@@ -1,8 +1,8 @@
-﻿using Discord;
-using DustyBot.Core.Formatting;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Discord;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Framework.Communication
 {

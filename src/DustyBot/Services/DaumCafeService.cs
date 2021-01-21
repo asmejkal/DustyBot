@@ -1,19 +1,20 @@
-﻿using Discord.WebSocket;
-using DustyBot.Settings;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Formatting;
+using DustyBot.Core.Services;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Utility;
-using Discord;
-using System.Diagnostics;
-using DustyBot.Database.Services;
-using DustyBot.Core.Formatting;
-using System.Threading;
 using DustyBot.Helpers.DaumCafe;
 using DustyBot.Helpers.DaumCafe.Exceptions;
-using DustyBot.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Services
@@ -78,7 +79,7 @@ namespace DustyBot.Services
             _logger.LogInformation("Finished updating Daum Cafe feeds in {TotalElapsed}", stopwatch.Elapsed);        
         }
 
-        async Task UpdateFeed(DaumCafeFeed feed, ulong serverId, CancellationToken ct)
+        private async Task UpdateFeed(DaumCafeFeed feed, ulong serverId, CancellationToken ct)
         {
             var guild = _client.GetGuild(serverId);
             if (guild == null)
@@ -90,7 +91,7 @@ namespace DustyBot.Services
 
             var logger = _logger.WithScope(channel);
 
-            //Choose a session
+            // Choose a session
             DaumCafeSession session;
             if (feed.CredentialId != Guid.Empty)
             {
@@ -109,15 +110,19 @@ namespace DustyBot.Services
                     }
                 }
                 else
+                {
                     session = dateSession.Item2;
+                }
             }
             else
+            {
                 session = DaumCafeSession.Anonymous;
+            }
 
-            //Get last post ID
+            // Get last post ID
             var lastPostId = await session.GetLastPostId(feed.CafeId, feed.BoardId, ct);
 
-            //If new feed -> just store the last post ID and return
+            // If new feed -> just store the last post ID and return
             if (feed.LastPostId < 0)
             {
                 await _settings.Modify<MediaSettings>(serverId, s =>
@@ -175,7 +180,7 @@ namespace DustyBot.Services
             return embedBuilder.Build();
         }
 
-        public async Task<Tuple<string, Embed>> CreatePreview(DaumCafeSession session, string cafeId, string boardId, int postId, CancellationToken ct)
+        private async Task<Tuple<string, Embed>> CreatePreview(DaumCafeSession session, string cafeId, string boardId, int postId, CancellationToken ct)
         {
             var mobileUrl = $"http://m.cafe.daum.net/{cafeId}/{boardId}/{postId}";
             var desktopUrl = $"http://cafe.daum.net/{cafeId}/{boardId}/{postId}";
@@ -210,5 +215,4 @@ namespace DustyBot.Services
             return Tuple.Create(text, embed);
         }
     }
-
 }

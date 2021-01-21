@@ -1,19 +1,18 @@
-﻿using DustyBot.Settings;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using DustyBot.Framework.Logging;
-using Discord;
-using System.Threading;
-using DustyBot.Database.Services;
-using System.Diagnostics;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using DustyBot.Configuration;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
 using DustyBot.Database.Sql.UserDefinedTypes;
+using DustyBot.Framework.Logging;
 using DustyBot.LastFm;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
 
 namespace DustyBot.Services
 {
@@ -92,7 +91,7 @@ namespace DustyBot.Services
                         try
                         {
                             var countSnapshot = Interlocked.Increment(ref count);
-                            _logger.LogInformation("Processing Lastfm stats for user {LastFmUsername} ({" + LogFields.UserId +"}) (count: {Count})", setting.LastFmUsername, setting.UserId, countSnapshot);
+                            _logger.LogInformation("Processing Lastfm stats for user {LastFmUsername} ({" + LogFields.UserId + "}) (count: {Count})", setting.LastFmUsername, setting.UserId, countSnapshot);
                             var client = new LastFmClient(setting.LastFmUsername, key);
 
                             var topTracks = await client.GetTopTracks(LastFmDataPeriod.Overall, ct: ct);
@@ -127,5 +126,4 @@ namespace DustyBot.Services
             }
         }
     }
-
 }

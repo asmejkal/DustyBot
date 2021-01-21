@@ -1,7 +1,7 @@
-﻿using DustyBot.Core.Security;
+﻿using System.Security;
+using DustyBot.Core.Security;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
-using System.Security;
 
 namespace DustyBot.Database.Mongo.Serializers
 {

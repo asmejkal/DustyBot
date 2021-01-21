@@ -1,27 +1,28 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Globalization;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using Discord.WebSocket;
+using System.Linq;
+using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
-using DustyBot.Database.Services;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
-using DustyBot.Core.Async;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
 using DustyBot.Definitions;
-using System.Net;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
@@ -228,7 +229,9 @@ namespace DustyBot.Modules
                     return $"Reposts in starboard `{board.Id}` will {(value ? "now" : "no longer")} be kept if the original message is deleted.";
                 }
                 else
+                {
                     throw new IncorrectParametersCommandException("Unknown rule.");
+                }
             });
 
             await command.ReplySuccess(explanation);
@@ -246,7 +249,7 @@ namespace DustyBot.Modules
 
             var result = new StringBuilder();
             foreach (var s in settings.Starboards)
-                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Style: `{(s.Style)}` Emojis: {string.Join(" ", s.Emojis)} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
+                result.AppendLine($"ID: `{s.Id}` Channel: <#{s.Channel}> Style: `{s.Style}` Emojis: {string.Join(" ", s.Emojis)} Threshold: `{s.Threshold}` Linked channels: {(s.ChannelsWhitelist.Count > 0 ? string.Join(" ", s.ChannelsWhitelist.Select(x => "<#" + x + ">")) : "`all`")}");
 
             await command.Reply(result.ToString());
         }
@@ -390,7 +393,16 @@ namespace DustyBot.Modules
                 await command.Reply($"Removed your starred message `{message.Id}` from starboard in channel <#{message.Channel.Id}>.");
             }
             else
+            {
                 await command.Reply($"Can't find message `{message.Id}` in any starboard on this server. Please provide a valid message from a starboard channel (not the original message).");
+            }
+        }
+
+        public void Dispose()
+        {
+            _client.ReactionAdded -= HandleReactionAdded;
+            _client.ReactionRemoved -= HandleReactionRemoved;
+            _client.MessageDeleted -= HandleMessageDeleted;
         }
 
         private Task HandleReactionAdded(Cacheable<IUserMessage, ulong> cachedMessage, ISocketMessageChannel channel, SocketReaction reaction)
@@ -413,7 +425,7 @@ namespace DustyBot.Modules
                     {
                         TaskHelper.FireForget(async () =>
                         {
-                            //Process only one reaction at a time for each starboard, so we don't have to deal with race conditions
+                            // Process only one reaction at a time for each starboard, so we don't have to deal with race conditions
                             using (await _processingMutex.ClaimAsync((textChannel.GuildId, board.Id)))
                             {
                                 try
@@ -437,7 +449,7 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        public async Task ProcessNewStar(Starboard board, ITextChannel channel, Cacheable<IUserMessage, ulong> cachedMessage, SocketReaction reaction)
+        private async Task ProcessNewStar(Starboard board, ITextChannel channel, Cacheable<IUserMessage, ulong> cachedMessage, SocketReaction reaction)
         {
             if (!board.Emojis.Contains(reaction.Emote.GetFullName()))
                 return;
@@ -498,7 +510,7 @@ namespace DustyBot.Modules
 
             if (entry.StarboardMessage == default)
             {
-                //Post new
+                // Post new
                 if (!(await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).SendMessages)
                 {
                     logger.LogInformation("Can't post starred message because of missing permissions in {TargetChannelName} ({TargetChannelId})", starChannel.Name, starChannel.Id);
@@ -523,10 +535,10 @@ namespace DustyBot.Modules
             }
             else
             {
-                //Update
+                // Update
                 var starMessage = await starChannel.GetMessageAsync(entry.StarboardMessage) as IUserMessage;
                 if (starMessage == null)
-                    return; //Probably got deleted from starboard
+                    return; // Probably got deleted from starboard
 
                 var built = await BuildStarMessage(message, channel, starrers.Count, board.Emojis.First(), entry.Attachments, board.Style);
                 await starMessage.ModifyAsync(x => 
@@ -580,7 +592,7 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        public async Task ProcessRemovedStar(Starboard board, ITextChannel channel, Cacheable<IUserMessage, ulong> cachedMessage, SocketReaction reaction)
+        private async Task ProcessRemovedStar(Starboard board, ITextChannel channel, Cacheable<IUserMessage, ulong> cachedMessage, SocketReaction reaction)
         {
             if (!board.Emojis.Contains(reaction.Emote.GetFullName()))
                 return;
@@ -630,7 +642,7 @@ namespace DustyBot.Modules
 
             var starMessage = await starChannel.GetMessageAsync(entry.StarboardMessage) as IUserMessage;
             if (starMessage == null)
-                return; //Probably got deleted from starboard
+                return; // Probably got deleted from starboard
 
             if (starrers.Count <= 0 && !board.KeepUnstarred)
             {
@@ -679,7 +691,7 @@ namespace DustyBot.Modules
             return result;
         }
 
-        async Task<(string Text, Embed Embed)> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments, StarboardStyle style)
+        private async Task<(string Text, Embed Embed)> BuildStarMessage(IUserMessage message, ITextChannel channel, int starCount, string emote, List<string> attachments, StarboardStyle style)
         {
             var author = await channel.Guild.GetUserAsync(message.Author.Id) ?? await _userFetcher.FetchGuildUserAsync(channel.GuildId, message.Author.Id);
 
@@ -843,13 +855,6 @@ namespace DustyBot.Modules
             }
 
             return null;
-        }
-
-        public void Dispose()
-        {
-            _client.ReactionAdded -= HandleReactionAdded;
-            _client.ReactionRemoved -= HandleReactionRemoved;
-            _client.MessageDeleted -= HandleMessageDeleted;
         }
     }
 }

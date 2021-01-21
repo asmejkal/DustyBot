@@ -1,5 +1,5 @@
-﻿using DustyBot.Settings;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using DustyBot.Database.Mongo.Collections;
 
 namespace DustyBot.Services
 {

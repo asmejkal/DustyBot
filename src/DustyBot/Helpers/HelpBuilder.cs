@@ -1,9 +1,9 @@
-﻿using Discord;
+﻿using System.Text;
+using Discord;
 using DustyBot.Configuration;
 using DustyBot.Definitions;
 using DustyBot.Framework.Utility;
 using Microsoft.Extensions.Options;
-using System.Text;
 
 namespace DustyBot.Helpers
 {

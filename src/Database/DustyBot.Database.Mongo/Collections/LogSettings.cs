@@ -1,7 +1,7 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections.Templates;
 
-namespace DustyBot.Settings
+namespace DustyBot.Database.Mongo.Collections
 {
     public class LogSettings : BaseServerSettings
     {

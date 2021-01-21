@@ -1,49 +1,48 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Discord;
+using DustyBot.Configuration;
+using DustyBot.Core.Formatting;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Framework.Utility;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using Microsoft.WindowsAzure.Storage;
-using DustyBot.Definitions;
-using SpotifyAPI.Web;
-using SpotifyAPI.Web.Models;
-using SpotifyAPI.Web.Enums;
-using System.Text.RegularExpressions;
-using DustyBot.Database.Services;
-using DustyBot.Core.Formatting;
-using System.Threading;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
+using Microsoft.WindowsAzure.Storage;
+using SpotifyAPI.Web;
+using SpotifyAPI.Web.Enums;
+using SpotifyAPI.Web.Models;
 
 namespace DustyBot.Modules
 {
     [Module("Spotify", "Show others what you're listening to on Spotify.")]
     internal sealed class SpotifyModule
     {
+        private const string StatsPeriodRegex = "^(?:month|mo|6months|6month|6mo|all)$";
+        private static readonly Regex SpotifyTrackIdRegex = new Regex(@"(?:https:\/\/open.spotify.com\/track\/([^?#\s]+))|(?:spotify:track:([^\s]+))");
+        private static readonly IList<string> PitchClasses = new[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+
         private static readonly IReadOnlyDictionary<string, TimeRangeType> InputStatsPeriodMapping =
             new Dictionary<string, TimeRangeType>(StringComparer.InvariantCultureIgnoreCase)
         {
-            { "month", TimeRangeType.ShortTerm },
-            { "mo", TimeRangeType.ShortTerm },
-            { "6months", TimeRangeType.MediumTerm },
-            { "6month", TimeRangeType.MediumTerm },
-            { "6mo", TimeRangeType.MediumTerm },
-            { "all", TimeRangeType.LongTerm }
+                    { "month", TimeRangeType.ShortTerm },
+                    { "mo", TimeRangeType.ShortTerm },
+                    { "6months", TimeRangeType.MediumTerm },
+                    { "6month", TimeRangeType.MediumTerm },
+                    { "6mo", TimeRangeType.MediumTerm },
+                    { "all", TimeRangeType.LongTerm }
         };
-
-        private static readonly Regex SpotifyTrackIdRegex = new Regex(@"(?:https:\/\/open.spotify.com\/track\/([^?#\s]+))|(?:spotify:track:([^\s]+))");
-        private static readonly IList<string> PitchClasses = new[] { "C", "C#" , "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-        private const string StatsPeriodRegex = "^(?:month|mo|6months|6month|6mo|all)$";
 
         private readonly ISpotifyAccountsService _accountsService;
         private readonly ICommunicator _communicator;
@@ -147,12 +146,9 @@ namespace DustyBot.Modules
                     var sclient = await SpotifyClient.Create(_integrationOptions.Value.SpotifyId, _integrationOptions.Value.SpotifyKey);
 
                     var trackId = await sclient.SearchTrackId(command["Track"]);
-                    //var searchResult = await client.SearchItemsAsync($"q={command["Track"]}", SearchType.Track, 1);
-                    //if (!searchResult.Tracks.Items.Any())
                     if (trackId == null)
                         throw new AbortException($"Search for track `{command["Track"]}` returned no results. Consider passing a Spotify link instead.");
 
-                    //track = searchResult.Tracks.Items.First();
                     track = await client.GetTrackAsync(trackId);
                 }
                 else
@@ -420,7 +416,7 @@ namespace DustyBot.Modules
                 }
                 catch (WebException ex) when ((ex.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.BadRequest)
                 {
-
+                    // Failed to connect, fall through
                 }
             }
 
@@ -464,10 +460,10 @@ namespace DustyBot.Modules
             return "**" + string.Join("**, **", artists.Select(x => FormatLink(x.Name, x.ExternalUrls))) + "**";
         }
 
-        TimeRangeType ParseStatsPeriod(string input)
+        private TimeRangeType ParseStatsPeriod(string input)
             => InputStatsPeriodMapping.TryGetValue(input, out var result) ? result : throw new IncorrectParametersCommandException("Invalid time period.");
 
-        string FormatStatsPeriod(TimeRangeType period)
+        private string FormatStatsPeriod(TimeRangeType period)
         {
             switch (period)
             {
@@ -478,12 +474,13 @@ namespace DustyBot.Modules
             }
         }
 
-        string FormatPercent(double value) => $"{Math.Round(value * 100)}%";
+        private string FormatPercent(double value) => $"{Math.Round(value * 100)}%";
 
-        string BuildProgressBar(double value)
+        private string BuildProgressBar(double value)
         {
             var builder = new StringBuilder();
             double i;
+
             // Added invisible \ufeff characters to trick mobile into using small emoji versions...
             for (i = 0; i < value; i += 0.2)
                 builder.Append(":green_square: \ufeff");
@@ -494,7 +491,7 @@ namespace DustyBot.Modules
             return builder.ToString();
         }
 
-        string ApproximateClassicalTempo(int bpm)
+        private string ApproximateClassicalTempo(int bpm)
         {
             if (bpm < 40)
                 return "Grave";
@@ -516,12 +513,12 @@ namespace DustyBot.Modules
                 return "Prestissimo";
         }
 
-        string PrintKey(int pitchClass, int mode) => $"{PitchClasses[pitchClass]} " + (mode == 1 ? "major" : "minor");
+        private string PrintKey(int pitchClass, int mode) => $"{PitchClasses[pitchClass]} " + (mode == 1 ? "major" : "minor");
 
-        void AddPercentageField(EmbedBuilder embed, string name, double value)
+        private void AddPercentageField(EmbedBuilder embed, string name, double value)
                 => embed.AddField(x => x.WithIsInline(true).WithName($"{name} [{FormatPercent(value)}]").WithValue(BuildProgressBar(value)));
 
-        void AddBarField(EmbedBuilder embed, string title, double value)
+        private void AddBarField(EmbedBuilder embed, string title, double value)
                 => embed.AddField(x => x.WithIsInline(true).WithName($"{title}").WithValue(BuildProgressBar(value)));
 
         private async Task<EmbedBuilder> PrepareTrackEmbed(SpotifyWebAPI client, FullTrack track, string title, bool analyse)

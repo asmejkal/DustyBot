@@ -1,25 +1,25 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
+using Discord;
+using DustyBot.Configuration;
 using DustyBot.Core.Formatting;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Framework.Utility;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using DustyBot.Definitions;
-using DustyBot.Database.Services;
-using DustyBot.LastFm;
-using DustyBot.LastFm.Models;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
+using DustyBot.LastFm;
+using DustyBot.LastFm.Models;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
@@ -41,6 +41,8 @@ namespace DustyBot.Modules
             }
         }
 
+        private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3-?months|3-?month|3mo|6-?months|6-?month|6mo|year|y|all)$";
+
         private static readonly Dictionary<string, LastFmDataPeriod> InputStatsPeriodMapping =
             new Dictionary<string, LastFmDataPeriod>(StringComparer.InvariantCultureIgnoreCase)
         {
@@ -61,8 +63,6 @@ namespace DustyBot.Modules
             { "year", LastFmDataPeriod.Year },
             { "all", LastFmDataPeriod.Overall }
         };
-
-        private const string StatsPeriodRegex = "^(?:day|week|w|month|mo|3-?months|3-?month|3mo|6-?months|6-?month|6mo|year|y|all)$";
 
         private readonly ISettingsService _settings;
         private readonly Func<ILastFmStatsService> _lastFmServiceFactory;
@@ -737,7 +737,7 @@ namespace DustyBot.Modules
             }
             catch (Discord.Net.HttpException)
             {
-                //most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
+                // Most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
             }
 
             await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
@@ -789,10 +789,10 @@ namespace DustyBot.Modules
             }
         }
 
-        string FormatArtistLink(LastFmArtist artist, bool trim = false) 
+        private string FormatArtistLink(LastFmArtist artist, bool trim = false) 
             => FormatLink(artist?.Name ?? "Unknown", artist?.Url, trim);
 
-        string FormatAlbumLink(LastFmAlbum album, bool trim = false)
+        private string FormatAlbumLink(LastFmAlbum album, bool trim = false)
         {
             if (!string.IsNullOrEmpty(album?.Url))
                 return FormatLink(album?.Name ?? "Unknown", album?.Url, trim);
@@ -800,26 +800,26 @@ namespace DustyBot.Modules
                 return FormatLink(album?.Name ?? "Unknown", album?.Artist?.Url, trim); // Just for the formatting...
         }
 
-        string FormatTrackLink(LastFmTrack track, bool trim = false)
+        private string FormatTrackLink(LastFmTrack track, bool trim = false)
             => FormatLink(track?.Name ?? "Unknown", track?.Url, trim);
 
-        string FormatLink(string text, string url, bool trim = false)
+        private string FormatLink(string text, string url, bool trim = false)
             => DiscordHelpers.BuildMarkdownUri(text.Truncate(trim ? 22 : int.MaxValue), url);
 
-        static string FormatPercent(double value)
+        private static string FormatPercent(double value)
         {
             value *= 100;
             if (value <= 0)
                 return "0%";
             else if (value < 0.1)
-                return $"<{(0.1).ToString("0.0", GlobalDefinitions.Culture)}%";
+                return $"<{0.1.ToString("0.0", GlobalDefinitions.Culture)}%";
             else if (value < 1)
                 return $"{value.ToString("0.0", GlobalDefinitions.Culture)}%";
             else
                 return $"{value.ToString("F0", GlobalDefinitions.Culture)}%";
         }
 
-        async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(IGuildUser user, bool otherUser = false)
+        private async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(IGuildUser user, bool otherUser = false)
         {
             var settings = await _settings.ReadUser<LastFmUserSettings>(user.Id, false);
             if (settings == null || string.IsNullOrWhiteSpace(settings.LastFmUsername))
@@ -833,7 +833,7 @@ namespace DustyBot.Modules
             return (settings, user.Nickname ?? user.Username);
         }
 
-        async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(ParameterToken param, IGuildUser fallback = null)
+        private async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(ParameterToken param, IGuildUser fallback = null)
         {
             var userOrName = await param.AsGuildUserOrName;
             if (!string.IsNullOrEmpty(userOrName?.Item2))
@@ -849,16 +849,16 @@ namespace DustyBot.Modules
             return await GetLastFmSettings(user, param.HasValue);
         }
 
-        static string GetNoScrobblesMessage(string offDiscordUser) =>
+        private static string GetNoScrobblesMessage(string offDiscordUser) =>
             $"Looks like {(!string.IsNullOrEmpty(offDiscordUser) ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles yet...";
 
-        static string GetNoScrobblesTimePeriodMessage(string offDiscordUser) =>
+        private static string GetNoScrobblesTimePeriodMessage(string offDiscordUser) =>
             $"Looks like {(!string.IsNullOrEmpty(offDiscordUser) ? $"user `{offDiscordUser}`" : "this user")} doesn't have any scrobbles in this time period...";
 
-        LastFmDataPeriod ParseStatsPeriod(string input) 
+        private LastFmDataPeriod ParseStatsPeriod(string input) 
             => InputStatsPeriodMapping.TryGetValue(input, out var result) ? result : throw new IncorrectParametersCommandException("Invalid time period.");
 
-        string FormatStatsPeriod(LastFmDataPeriod period)
+        private string FormatStatsPeriod(LastFmDataPeriod period)
         {
             switch (period)
             {
@@ -873,7 +873,7 @@ namespace DustyBot.Modules
             }
         }
 
-        string FormatStatsDataPeriod(LastFmDataPeriod period)
+        private string FormatStatsDataPeriod(LastFmDataPeriod period)
         {
             switch (period)
             {
@@ -888,7 +888,7 @@ namespace DustyBot.Modules
             }
         }
 
-        static IEnumerable<LastFmMatch<T>> GetMatches<T>(IEnumerable<LastFmScore<T>> first, IEnumerable<LastFmScore<T>> second, Func<T, object> keySelector)
+        private static IEnumerable<LastFmMatch<T>> GetMatches<T>(IEnumerable<LastFmScore<T>> first, IEnumerable<LastFmScore<T>> second, Func<T, object> keySelector)
         {
             var lookup = second.ToDictionary(x => keySelector(x.Entity));
             var result = new List<LastFmMatch<T>>();
@@ -901,7 +901,7 @@ namespace DustyBot.Modules
             return result.OrderByDescending(x => x.Score);
         }
 
-        static int GetCommonPlays<T>(IEnumerable<LastFmMatch<T>> matches, Func<T, int> playcountSelector)
+        private static int GetCommonPlays<T>(IEnumerable<LastFmMatch<T>> matches, Func<T, int> playcountSelector)
             => matches.Aggregate(0, (x, y) => x + Math.Min(playcountSelector(y.First), playcountSelector(y.Second)));
 
         private static void ThrowUserNotFound(string name) => 

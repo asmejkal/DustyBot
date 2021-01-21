@@ -1,24 +1,25 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Net;
-using System.IO;
 using System.Globalization;
-using Newtonsoft.Json.Linq;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Settings;
-using DustyBot.Helpers;
+using System.IO;
+using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
-using DustyBot.Database.Services;
+using System.Threading.Tasks;
+using Discord;
+using DustyBot.Configuration;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
@@ -68,7 +69,9 @@ namespace DustyBot.Modules
 
             List<ComebackInfo> comebacks;
             if (string.Compare("all", param, true) == 0)
+            {
                 comebacks = settings.YouTubeComebacks;
+            }
             else
             {
                 comebacks = settings.YouTubeComebacks.Where(x => string.Compare(x.Category, param, true) == 0).ToList();
@@ -88,13 +91,13 @@ namespace DustyBot.Modules
                 return;
             }
 
-            //Get YT data
+            // Get YT data
             var pages = new PageCollection();
             var infos = new List<Tuple<ComebackInfo, YoutubeInfo>>();
             foreach (var comeback in comebacks)
                 infos.Add(Tuple.Create(comeback, await GetYoutubeInfo(comeback.VideoIds, _integrationOptions.Value.YouTubeKey)));
 
-            //Compose embeds with info
+            // Compose embeds with info
             string recommendation = "Try also: " + GetOtherCategoriesRecommendation(settings, param, false, command.Prefix) + ".";
             foreach (var info in infos.OrderByDescending(x => x.Item2.PublishedAt))
             {
@@ -111,8 +114,7 @@ namespace DustyBot.Modules
                 pages.Last.Embed.AddField(eab => eab.WithName($":tv: {info.Item1.Name}").WithIsInline(false).WithValue(
                     $"**Views: **{info.Item2.Views.ToString("N0", new CultureInfo("en-US"))}\n" +
                     $"**Likes: **{info.Item2.Likes.ToString("N0", new CultureInfo("en-US"))}\n" +
-                    $"**Published: **{string.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"
-                    ));
+                    $"**Published: **{string.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"));
             }
 
             await command.Reply(pages);
@@ -160,7 +162,9 @@ namespace DustyBot.Modules
                 name = command[1];
             }
             else
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Too many parameters.");            
+            {
+                throw new Framework.Exceptions.IncorrectParametersCommandException("Too many parameters.");
+            }
 
             if (string.Compare(category, "default", true) == 0 || string.IsNullOrEmpty(category))
                 category = null;
@@ -200,8 +204,9 @@ namespace DustyBot.Modules
                 }
 
                 int scount = 0;
-                if (originalName != null && newName != null) // Only applies to categories
+                if (originalName != null && newName != null) 
                 {
+                    // Only applies to categories
                     foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Name, originalName, true) == 0))
                     {
                         scount++;

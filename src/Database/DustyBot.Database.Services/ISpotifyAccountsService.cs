@@ -1,6 +1,6 @@
-﻿using DustyBot.Database.TableStorage.Tables;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
+using DustyBot.Database.TableStorage.Tables;
 
 namespace DustyBot.Database.Services
 {

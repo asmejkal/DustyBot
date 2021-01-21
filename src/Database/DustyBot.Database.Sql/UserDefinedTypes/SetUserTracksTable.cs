@@ -1,5 +1,5 @@
-﻿using DustyBot.Core.Formatting;
-using System;
+﻿using System;
+using DustyBot.Core.Formatting;
 
 namespace DustyBot.Database.Sql.UserDefinedTypes
 {

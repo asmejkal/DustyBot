@@ -1,17 +1,10 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
+using DustyBot.Database.Mongo.Collections.Templates;
+using DustyBot.Database.Mongo.Models;
 
-namespace DustyBot.Settings
+namespace DustyBot.Database.Mongo.Collections
 {
-    public class Notification
-    {
-        public string LoweredWord { get; set; }
-        public string OriginalWord { get; set; }
-        public ulong User { get; set; }
-        public uint TriggerCount { get; set; }
-    }
-
     public class NotificationSettings : BaseServerSettings
     {
         public List<Notification> Notifications { get; set; } = new List<Notification>();

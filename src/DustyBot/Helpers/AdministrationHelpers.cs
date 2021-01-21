@@ -1,10 +1,10 @@
-﻿using Discord;
-using DustyBot.Database.Services;
-using DustyBot.Settings;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Discord;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
 
 namespace DustyBot.Helpers
 {

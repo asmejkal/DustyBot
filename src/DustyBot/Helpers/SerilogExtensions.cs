@@ -1,9 +1,9 @@
-﻿using Discord;
+﻿using System;
+using System.Threading.Tasks;
+using Discord;
 using Discord.Rest;
 using Serilog;
 using Serilog.Events;
-using System;
-using System.Threading.Tasks;
 
 namespace DustyBot.Helpers
 {

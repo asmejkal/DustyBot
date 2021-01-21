@@ -1,33 +1,34 @@
-﻿using Discord;
-using System.Threading.Tasks;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using System.Linq;
-using System;
-using Discord.WebSocket;
-using System.Net;
-using System.IO;
-using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Helpers;
-using DustyBot.Settings;
-using System.IO.Compression;
-using System.Text.RegularExpressions;
+﻿using System;
 using System.Collections.Concurrent;
-using DustyBot.Definitions;
-using DustyBot.Database.Services;
-using DustyBot.Core.Async;
-using DustyBot.Services;
-using DustyBot.Exceptions;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Configuration;
+using DustyBot.Core.Async;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
+using DustyBot.Exceptions;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Commands.Parsing;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
-using DustyBot.Framework.Commands.Parsing;
+using DustyBot.Helpers;
+using DustyBot.Services;
 using Microsoft.Extensions.Logging;
-using DustyBot.Framework.Logging;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
@@ -36,9 +37,9 @@ namespace DustyBot.Modules
     {
         private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";
         private const string QuotedPostRegexString = @"<http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)[^\s]*>";
+        private const int LinkPerPostLimit = 8;
         private static readonly Regex PostRegex = new Regex(PostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex QuotedPostRegex = new Regex(QuotedPostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private const int LinkPerPostLimit = 8;
         private static readonly TimeSpan PreviewDeleteWindow = TimeSpan.FromSeconds(30);
 
         private readonly BaseSocketClient _client;
@@ -51,7 +52,8 @@ namespace DustyBot.Modules
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly ICommandParser _commandParser;
         private readonly HelpBuilder _helpBuilder;
-        private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
+
+        private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> _previews = 
             new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
         public InstagramModule(
@@ -196,6 +198,12 @@ namespace DustyBot.Modules
             await command.ReplySuccess("Done.");
         }
 
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
+            _client.ReactionAdded -= HandleReactionAdded;
+        }
+
         private Task HandleMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
@@ -230,7 +238,9 @@ namespace DustyBot.Modules
                             style = userSettings.InstagramPreviewStyle;
                     }
                     else
+                    {
                         style = userSettings.InstagramPreviewStyle;
+                    }
 
                     var matches = PostRegex.Matches(message.Content);
                     if (!matches.Any())
@@ -289,7 +299,7 @@ namespace DustyBot.Modules
                     if (reaction.Emote.Name != EmoteConstants.ClickToRemove.Name)
                         return;
 
-                    if (!Previews.TryGetValue(message.Id, out var context))
+                    if (!_previews.TryGetValue(message.Id, out var context))
                         return;
 
                     if (reaction.User.Value.Id != context.AuthorId)
@@ -307,7 +317,7 @@ namespace DustyBot.Modules
                     }
                     finally
                     {
-                        Previews.TryRemove(message.Id, out _);
+                        _previews.TryRemove(message.Id, out _);
                     }
                 }
                 catch (Exception ex)
@@ -323,7 +333,7 @@ namespace DustyBot.Modules
         {
             var sent = await SendPreviewMessageAsync(await FetchPreviewAsync(id), id, channel, style);
 
-            Previews.TryAdd(sent.Last().Id, (authorId, sent));
+            _previews.TryAdd(sent.Last().Id, (authorId, sent));
             try
             {
                 await sent.Last().AddReactionAsync(EmoteConstants.ClickToRemove);
@@ -338,7 +348,7 @@ namespace DustyBot.Modules
                 try
                 {
                     await Task.Delay(PreviewDeleteWindow);
-                    if (Previews.TryRemove(sent.Last().Id, out _))
+                    if (_previews.TryRemove(sent.Last().Id, out _))
                         await sent.Last().RemoveReactionAsync(EmoteConstants.ClickToRemove, sent.Last().Author);
                 }
                 catch (Discord.Net.HttpException dex) when (dex.HttpCode == HttpStatusCode.NotFound)
@@ -500,12 +510,6 @@ namespace DustyBot.Modules
             {
                 _logger.WithScope(message).LogError(ex, "Failed to delete default embed");
             }
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
-            _client.ReactionAdded -= HandleReactionAdded;
         }
     }
 }

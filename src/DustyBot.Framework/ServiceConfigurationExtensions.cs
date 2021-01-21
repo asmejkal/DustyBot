@@ -1,11 +1,10 @@
-﻿using DustyBot.Framework.Commands.Parsing;
+﻿using System;
+using DustyBot.Framework.Commands.Parsing;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Configuration;
-using DustyBot.Framework.Logging;
 using DustyBot.Framework.Reflection;
 using DustyBot.Framework.Utility;
 using Microsoft.Extensions.DependencyInjection;
-using System;
 
 namespace DustyBot.Framework
 {

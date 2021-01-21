@@ -1,19 +1,9 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections.Templates;
+using DustyBot.Database.Mongo.Models;
 
-namespace DustyBot.Settings
+namespace DustyBot.Database.Mongo.Collections
 {
-    public class Reaction
-    {
-        public int Id { get; set; }
-        public string Trigger { get; set; }
-        public string Value { get; set; }
-
-        public int TriggerCount { get; set; }
-    }
-
     public class ReactionsSettings : BaseServerSettings
     {
         public List<Reaction> Reactions { get; set; } = new List<Reaction>();

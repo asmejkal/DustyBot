@@ -1,8 +1,8 @@
-﻿using DustyBot.Framework.Configuration;
-using DustyBot.Framework.Modules;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using DustyBot.Framework.Configuration;
+using DustyBot.Framework.Modules;
 
 namespace DustyBot.Framework.Reflection
 {

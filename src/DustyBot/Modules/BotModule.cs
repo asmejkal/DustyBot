@@ -1,29 +1,30 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Discord;
+using Discord.Net;
+using Discord.WebSocket;
+using DustyBot.Configuration;
+using DustyBot.Core.Async;
+using DustyBot.Core.Formatting;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
+using DustyBot.Framework;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using System.Reflection;
-using Discord.WebSocket;
-using System.Net;
-using System.IO;
-using Discord.Net;
-using DustyBot.Core.Formatting;
-using DustyBot.Definitions;
-using DustyBot.Database.Services;
 using DustyBot.Framework.Exceptions;
-using DustyBot.Core.Async;
 using DustyBot.Framework.Modules.Attributes;
-using DustyBot.Framework;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using Markdig;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
 
 namespace DustyBot.Modules
 {
@@ -72,7 +73,7 @@ namespace DustyBot.Modules
             }
             else
             {
-                //Try to find the command
+                // Try to find the command
                 var invoker = new string(command["Command"].AsString.TakeWhile(c => !char.IsWhiteSpace(c)).ToArray());
                 if (invoker.StartsWith(command.Prefix))
                     invoker = invoker.Substring(command.Prefix.Length);
@@ -86,7 +87,7 @@ namespace DustyBot.Modules
 
                 var (commandRegistration, _) = findResult.Value;
 
-                //Build response
+                // Build response
                 var embed = new EmbedBuilder()
                     .WithTitle($"Command {commandRegistration.PrimaryUsage.InvokeUsage}")
                     .WithDescription(commandRegistration.Description)
@@ -280,7 +281,6 @@ namespace DustyBot.Modules
 
                     result.AppendLine($"<p data-target=\"#usage{counter}\" data-toggle=\"collapse\" class=\"paramlistitem\">" +
                         $"<i class=\"fa fa-angle-right\" style=\"margin-right: 3px;\"></i><span class=\"paramlistcode\">{handledCommand.PrimaryUsage.InvokeUsage}</span> – {handledCommand.Description} " +
-                        //string.Join(" ", handledCommand.RequiredPermissions.Select(x => $"<span class=\"perm\">{x.ToString().SplitCamelCase()}</span>")) +
                         "</p>");
 
                     var usage = BuildWebUsageString(handledCommand, _botOptions.Value.DefaultCommandPrefix);
@@ -343,6 +343,11 @@ namespace DustyBot.Modules
             await _settings.ModifyGlobal<SupporterSettings>(x => removed = x.Supporters.RemoveAll(y => y.Name == command["Name"]));
 
             await command.ReplySuccess($"Removed {removed} supporters.");
+        }
+
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
         }
 
         private string ReplacePlaceholders(string input)
@@ -449,11 +454,6 @@ namespace DustyBot.Modules
             }
 
             return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

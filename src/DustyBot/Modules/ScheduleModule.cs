@@ -1,27 +1,28 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.IO;
-using System.Globalization;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using DustyBot.Definitions;
-using DustyBot.Services;
-using DustyBot.Database.Services;
+using Discord;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Miscellaneous;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Commands.Parsing;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
-using DustyBot.Framework.Commands.Parsing;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
+using DustyBot.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Modules
@@ -61,7 +62,9 @@ namespace DustyBot.Modules
                         builder.AppendLine();
                 }
                 else
+                {
                     builder.AppendLine();
+                }
 
                 var unknown = Calendars.Where(x => x.reason == Reason.Error).ToList();
                 if (unknown.Any())
@@ -79,9 +82,9 @@ namespace DustyBot.Modules
 
         private const string DateRegex = @"^(?:([0-9]{4})\/)?([0-9]{1,2})\/([0-9]{1,2})$";
         private const string TimeRegex = @"^(?:([0-9]{1,2}):([0-9]{1,2})|\?\?:\?\?)$";
+        private const string NoneTag = "none";
         private static readonly string[] MonthFormats = new string[] { "MMMM", "MMM", "%M" };
         private static readonly string[] DateFormats = new string[] { "yyyy/M/d", "M/d" };
-        private const string NoneTag = "none";
         private static readonly IReadOnlyCollection<string> ReservedTags = new[] { ScheduleSettings.AllTag, NoneTag, "notify" };
 
         private readonly ICommunicator _communicator;
@@ -280,7 +283,7 @@ namespace DustyBot.Modules
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
             var tag = command["Tag"].HasValue ? command["Tag"].AsString : null;
-            var r = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>s.Notifications.RemoveAll(x => ScheduleSettings.CompareTag(x.Tag, tag, ignoreAllTag: true)));
+            var r = await _settings.Modify(command.GuildId, (ScheduleSettings s) => s.Notifications.RemoveAll(x => ScheduleSettings.CompareTag(x.Tag, tag, ignoreAllTag: true)));
             if (r <= 0)
             {
                 await command.ReplyError($"There's no notification settings for this tag.");
@@ -443,61 +446,6 @@ namespace DustyBot.Modules
             await command.ReplySuccess(message + $" {result}");
         }
 
-        private async Task<(ScheduleEvent Event, string Message)> AddEventInner(ICommand command, bool notify = false)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-
-            if (command["Tag"].HasValue && ReservedTags.Any(x => ScheduleSettings.CompareTag(command["Tag"], x, true)))
-                throw new CommandException("This tag is reserved, please pick a different one.");
-
-            ScheduleEvent e;
-            try
-            {
-                // Parse datetime
-                var dateTime = DateTime.ParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None);
-                bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-                if (hasTime)
-                    dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
-
-                if (notify && !hasTime)
-                    throw new CommandException("Notified events must have time specififed. Use `event add` to add events with an unknown time.");
-
-                // Create event
-                var link = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
-                e = new ScheduleEvent
-                {
-                    Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
-                    Date = dateTime,
-                    HasTime = hasTime,
-                    Description = link.HasValue ? link.Value.Text : command["Description"],
-                    Link = command["Link"].HasValue ? command["Link"].AsString : link?.Uri.AbsoluteUri,
-                    Notify = notify
-                };
-            }
-            catch (FormatException)
-            {
-                throw new IncorrectParametersCommandException("Invalid date.", false);
-            }
-
-            if (string.IsNullOrEmpty(e.Description))
-                throw new IncorrectParametersCommandException("Description is required.");
-
-            var settings = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
-            {
-                if (e.Notify && !s.Notifications.Any(x => e.FitsTag(x.Tag)))
-                    throw new AbortException("Please first set up a channel which will receive the notifications for this tag with `schedule set notifications`.");
-
-                e.Id = s.NextEventId++;
-                s.Events.Add(e);
-                return s;
-            });
-
-            if (e.Notify)
-                await _service.RefreshNotifications(command.GuildId, settings);
-
-            return (e, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $" has been added with ID `{e.Id}`" + (e.HasTag ? $" and tag `{e.Tag}`" : string.Empty) + ".");
-        }
-
         [Command("event", "remove", "Removes an event from schedule, by ID or search.")]
         [Alias("events", "remove")]
         [Parameter("IdOrSearchString", ParameterType.String, ParameterFlags.Remainder, "the event's ID or a part of description (you will be asked to choose one if multiple events match the description)")]
@@ -509,66 +457,6 @@ namespace DustyBot.Modules
 
             var result = await RefreshCalendars(command.Guild, e.Date, e.Tag);
             await command.ReplySuccess(message + $" {result}");
-        }
-
-        private async Task<(ScheduleEvent Event, string Message)> RemoveEventInner(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-
-            if (command["IdOrSearchString"].AsInt.HasValue)
-            {
-                var (e, settings) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
-                {
-                    var id = command["IdOrSearchString"].AsInt;
-                    var i = s.Events.FindIndex(x => x.Id == id);
-                    if (i < 0)
-                        throw new CommandException($"Cannot find an event with ID `{id}`.");
-
-                    var removed = s.Events[i];
-                    s.Events.RemoveAt(i);
-                    return (removed, s);
-                });
-
-                if (e == null)
-                    throw new CommandException($"Can't find an event with ID `{command["IdOrSearchString"].AsInt}`.");
-
-                if (e.Notify)
-                    await _service.RefreshNotifications(command.GuildId, settings);
-
-                return (e, $"Event `{e.Description}` has been removed.");    
-            }
-            else
-            {
-                var searchString = command["IdOrSearchString"].AsString;
-                var settings = await _settings.Read<ScheduleSettings>(command.GuildId);
-                var events = settings.Events.Where(x => x.Description.IndexOf(searchString, StringComparison.OrdinalIgnoreCase) >= 0);
-                if (events.Skip(1).Any())
-                {
-                    //Multiple results
-                    var pages = BuildEventList(settings, "Multiple matches", events, footer: "Please pick one event and run the command again with its ID number.");
-                    throw new AbortException(pages);
-                }
-                else if (events.Count() == 1)
-                {
-                    var e = events.First();
-                    await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
-                    {
-                        var i = s.Events.FindIndex(x => x.Id == e.Id);
-                        if (i >= 0)
-                        {
-                            var removed = s.Events[i];
-                            s.Events.RemoveAt(i);
-                        }
-                    });
-
-                    if (e.Notify)
-                        await _service.RefreshNotifications(command.GuildId, settings);
-
-                    return (events.First(), $"Event `{e.Description}` with ID `{e.Id}` has been removed.");
-                }
-                else
-                    throw new AbortException($"No events found containing `{searchString}` in their description.");
-            }
         }
 
         [Command("event", "edit", "Edits an event in schedule.")]
@@ -592,98 +480,6 @@ namespace DustyBot.Modules
             await command.ReplySuccess(message + $" {result}");
         }
 
-        private async Task<(DateTime OrigDate, ScheduleEvent Event, string Message)> EditEventInner(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-
-            DateTime? date = null;
-            TimeSpan? time = null;
-            bool? hasTime = null;
-            string description = null;
-            var link = new Optional<string>();
-            bool? notify = null;
-            try
-            {
-                if (command["Date"].HasValue)
-                    date = DateTime.ParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None);
-
-                if (command["Time"].HasValue)
-                {
-                    hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
-                    if (hasTime.Value)
-                        time = new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0);
-                }
-            }
-            catch (FormatException)
-            {
-                throw new IncorrectParametersCommandException("Invalid date.", false);
-            }
-
-            if (command["Description"].HasValue)
-            {
-                var markdownLink = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
-                description = markdownLink.HasValue ? markdownLink.Value.Text : command["Description"];
-
-                if (markdownLink.HasValue)
-                    link = markdownLink.Value.Uri.AbsoluteUri;
-            }
-
-            if (command["Link"].HasValue)
-                link = (string)command["Link"];
-
-            if (command["Nolink"].HasValue)
-                link = null;
-
-            if (description != null && string.IsNullOrWhiteSpace(description))
-                throw new IncorrectParametersCommandException("Description cannot be empty.");
-
-            if (command["Notification"].HasValue)
-                notify = string.Compare(command["Notification"], "notify", true, GlobalDefinitions.Culture) == 0;
-
-            var (settings, edited, originalDate, wasNotify) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
-            {
-                var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
-                if (i < 0)
-                    throw new CommandException("Cannot find an event with this ID.");
-
-                var e = s.Events[i];
-                s.Events.RemoveAt(i);
-
-                var backup = (originalDate: e.Date, wasNotify: e.Notify);
-                if (date.HasValue)
-                    e.Date = date.Value.Date + e.Date.TimeOfDay;
-
-                if (hasTime.HasValue)
-                    e.HasTime = hasTime.Value;
-
-                if (time.HasValue)
-                    e.Date = e.Date.Date + time.Value;
-
-                if (!string.IsNullOrWhiteSpace(description))
-                    e.Description = description;
-
-                if (link.IsSpecified)
-                    e.Link = link.Value;
-
-                if (notify.HasValue)
-                    e.Notify = notify.Value;
-
-                if (!e.HasTime && e.Notify)
-                    throw new CommandException("Notified events must have time specififed.");
-
-                if (e.Notify && !s.Notifications.Any(x => e.FitsTag(x.Tag)))
-                    throw new AbortException("Please first set up a channel which will receive the notifications for this tag with `schedule set notifications`.");
-
-                s.Events.Add(e); //Have to remove and re-add to sort properly
-                return (s, e, backup.originalDate, backup.wasNotify);
-            });
-
-            if (edited.Notify || wasNotify)
-                await _service.RefreshNotifications(command.GuildId, settings);
-
-            return (originalDate, edited, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $".");
-        }
-
         [Command("event", "tag", "Tags an event.")]
         [Alias("events", "tag")]
         [Parameter("EventId", ParameterType.Int, "ID of the event to tag (shown when an event is added or in `event search` and `event list`)")]
@@ -697,34 +493,6 @@ namespace DustyBot.Modules
 
             var result = await RefreshCalendars(command.Guild, new[] { e.Date }, new[] { e.Tag, originalTag });
             await command.ReplySuccess(message + $" {result}");
-        }
-
-        private async Task<(string OriginalTag, ScheduleEvent Event, string Message)> TagEventInner(ICommand command)
-        {
-            await AssertPrivileges(command.Message.Author, command.GuildId);
-
-            var tag = command["Tag"].AsString;
-            var remove = ScheduleSettings.CompareTag(tag, NoneTag, true);
-            if (!remove && ReservedTags.Any(x => ScheduleSettings.CompareTag(tag, x, true)))
-                throw new CommandException("This tag is reserved, please pick a different one.");
-
-            var (settings, edited, originalTag) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
-            {
-                var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
-                if (i < 0)
-                    throw new CommandException("Cannot find an event with this ID.");
-
-                var e = s.Events[i];
-                s.Events.RemoveAt(i);
-
-                var ot = e.Tag;
-                e.Tag = remove ? null : tag;
-
-                s.Events.Add(e); // Have to remove and re-add to sort properly
-                return (s, e, ot);
-            });
-
-            return (originalTag, edited, $"Event `{edited.Id}` has been " + (remove ? "untagged." : $"tagged as `{edited.Tag}`."));
         }
 
         [Command("event", "batch", "Perform multiple event add/remove/edit/tag operations at once.", CommandFlags.TypingIndicator)]
@@ -815,7 +583,9 @@ namespace DustyBot.Modules
                             updateTags.AddRange(new[] { e.Tag, originalTag });
                         }
                         else
+                        {
                             throw new InvalidOperationException($"Unexpected command verb '{partialCommandRegistration.PrimaryUsage.Verbs.First()}'");
+                        }
 
                         foreach (var updateTag in updateTags)
                         {
@@ -1077,7 +847,7 @@ namespace DustyBot.Modules
             if (!DateTime.TryParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out var date))
                 throw new IncorrectParametersCommandException("Invalid date.", false);
 
-            date = date.AddDays(1); //End boundary is exclusive internally: <begin, end)
+            date = date.AddDays(1); // End boundary is exclusive internally: <begin, end)
 
             var (calendar, settings) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
@@ -1223,7 +993,9 @@ namespace DustyBot.Modules
                     result.Append($" Upcoming: `Week`");
                 }
                 else
+                {
                     throw new InvalidOperationException("Unknown calendar type.");
+                }
 
                 if (calendar.HasTag)
                     result.Append($" Tag: `{calendar.Tag}`");
@@ -1243,18 +1015,18 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            //Get original calendar
+            // Get original calendar
             var settings = await _settings.Read<ScheduleSettings>(command.GuildId);
             var origCalendar = GetCalendarOfType<RangeScheduleCalendar>(settings, command["MessageId"].AsId.Value);
 
-            //Check date
+            // Check date
             if (!DateTime.TryParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None, out var date))
                 throw new IncorrectParametersCommandException("Invalid date.", false);
 
             if (date <= origCalendar.BeginDate || date >= origCalendar.EndDate)
                 throw new IncorrectParametersCommandException($"The date has to be betweeen the calendar's begin and end dates ({BuildCalendarSpanString(origCalendar)}).");
 
-            //Create new calendar
+            // Create new calendar
             var newCalendar = new RangeScheduleCalendar()
             {
                 Tag = origCalendar.Tag,
@@ -1278,12 +1050,12 @@ namespace DustyBot.Modules
                 throw new CommandException($"Could not create the new calendar because it would be too long to display. Try narrowing the range of dates for the calendar.");
             }
 
-            //Save
+            // Save
             settings = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
             {
                 origCalendar = s.Calendars.FirstOrDefault(x => x.MessageId == command["MessageId"].AsId) as RangeScheduleCalendar;
                 if (origCalendar == null)
-                    throw new CommandException("Please try again."); //Race condition
+                    throw new CommandException("Please try again."); // Race condition
 
                 origCalendar.EndDate = date;
                 s.Calendars.Add(newCalendar);
@@ -1529,6 +1301,243 @@ namespace DustyBot.Modules
             return result.ToString();
         }
 
+        private async Task<(ScheduleEvent Event, string Message)> AddEventInner(ICommand command, bool notify = false)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            if (command["Tag"].HasValue && ReservedTags.Any(x => ScheduleSettings.CompareTag(command["Tag"], x, true)))
+                throw new CommandException("This tag is reserved, please pick a different one.");
+
+            ScheduleEvent e;
+            try
+            {
+                // Parse datetime
+                var dateTime = DateTime.ParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None);
+                bool hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
+                if (hasTime)
+                    dateTime = dateTime.Add(new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0));
+
+                if (notify && !hasTime)
+                    throw new CommandException("Notified events must have time specififed. Use `event add` to add events with an unknown time.");
+
+                // Create event
+                var link = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
+                e = new ScheduleEvent
+                {
+                    Tag = command["Tag"].HasValue ? command["Tag"].AsString : null,
+                    Date = dateTime,
+                    HasTime = hasTime,
+                    Description = link.HasValue ? link.Value.Text : command["Description"],
+                    Link = command["Link"].HasValue ? command["Link"].AsString : link?.Uri.AbsoluteUri,
+                    Notify = notify
+                };
+            }
+            catch (FormatException)
+            {
+                throw new IncorrectParametersCommandException("Invalid date.", false);
+            }
+
+            if (string.IsNullOrEmpty(e.Description))
+                throw new IncorrectParametersCommandException("Description is required.");
+
+            var settings = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                if (e.Notify && !s.Notifications.Any(x => e.FitsTag(x.Tag)))
+                    throw new AbortException("Please first set up a channel which will receive the notifications for this tag with `schedule set notifications`.");
+
+                e.Id = s.NextEventId++;
+                s.Events.Add(e);
+                return s;
+            });
+
+            if (e.Notify)
+                await _service.RefreshNotifications(command.GuildId, settings);
+
+            return (e, $"Event `{e.Description}` taking place on `{e.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (e.HasTime ? $" at `{e.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $" has been added with ID `{e.Id}`" + (e.HasTag ? $" and tag `{e.Tag}`" : string.Empty) + ".");
+        }
+
+        private async Task<(ScheduleEvent Event, string Message)> RemoveEventInner(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            if (command["IdOrSearchString"].AsInt.HasValue)
+            {
+                var (e, settings) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
+                {
+                    var id = command["IdOrSearchString"].AsInt;
+                    var i = s.Events.FindIndex(x => x.Id == id);
+                    if (i < 0)
+                        throw new CommandException($"Cannot find an event with ID `{id}`.");
+
+                    var removed = s.Events[i];
+                    s.Events.RemoveAt(i);
+                    return (removed, s);
+                });
+
+                if (e == null)
+                    throw new CommandException($"Can't find an event with ID `{command["IdOrSearchString"].AsInt}`.");
+
+                if (e.Notify)
+                    await _service.RefreshNotifications(command.GuildId, settings);
+
+                return (e, $"Event `{e.Description}` has been removed.");
+            }
+            else
+            {
+                var searchString = command["IdOrSearchString"].AsString;
+                var settings = await _settings.Read<ScheduleSettings>(command.GuildId);
+                var events = settings.Events.Where(x => x.Description.IndexOf(searchString, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (events.Skip(1).Any())
+                {
+                    // Multiple results
+                    var pages = BuildEventList(settings, "Multiple matches", events, footer: "Please pick one event and run the command again with its ID number.");
+                    throw new AbortException(pages);
+                }
+                else if (events.Count() == 1)
+                {
+                    var e = events.First();
+                    await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
+                    {
+                        var i = s.Events.FindIndex(x => x.Id == e.Id);
+                        if (i >= 0)
+                        {
+                            var removed = s.Events[i];
+                            s.Events.RemoveAt(i);
+                        }
+                    });
+
+                    if (e.Notify)
+                        await _service.RefreshNotifications(command.GuildId, settings);
+
+                    return (events.First(), $"Event `{e.Description}` with ID `{e.Id}` has been removed.");
+                }
+                else
+                {
+                    throw new AbortException($"No events found containing `{searchString}` in their description.");
+                }
+            }
+        }
+
+        private async Task<(DateTime OrigDate, ScheduleEvent Event, string Message)> EditEventInner(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            DateTime? date = null;
+            TimeSpan? time = null;
+            bool? hasTime = null;
+            string description = null;
+            var link = default(Optional<string>);
+            bool? notify = null;
+            try
+            {
+                if (command["Date"].HasValue)
+                    date = DateTime.ParseExact(command["Date"], DateFormats, GlobalDefinitions.Culture, DateTimeStyles.None);
+
+                if (command["Time"].HasValue)
+                {
+                    hasTime = command["Time"].HasValue && command["Time"].AsRegex.Groups[1].Success && command["Time"].AsRegex.Groups[2].Success;
+                    if (hasTime.Value)
+                        time = new TimeSpan(int.Parse(command["Time"].AsRegex.Groups[1].Value), int.Parse(command["Time"].AsRegex.Groups[2].Value), 0);
+                }
+            }
+            catch (FormatException)
+            {
+                throw new IncorrectParametersCommandException("Invalid date.", false);
+            }
+
+            if (command["Description"].HasValue)
+            {
+                var markdownLink = DiscordHelpers.TryParseMarkdownUri(command["Description"]);
+                description = markdownLink.HasValue ? markdownLink.Value.Text : command["Description"];
+
+                if (markdownLink.HasValue)
+                    link = markdownLink.Value.Uri.AbsoluteUri;
+            }
+
+            if (command["Link"].HasValue)
+                link = (string)command["Link"];
+
+            if (command["Nolink"].HasValue)
+                link = null;
+
+            if (description != null && string.IsNullOrWhiteSpace(description))
+                throw new IncorrectParametersCommandException("Description cannot be empty.");
+
+            if (command["Notification"].HasValue)
+                notify = string.Compare(command["Notification"], "notify", true, GlobalDefinitions.Culture) == 0;
+
+            var (settings, edited, originalDate, wasNotify) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
+                if (i < 0)
+                    throw new CommandException("Cannot find an event with this ID.");
+
+                var e = s.Events[i];
+                s.Events.RemoveAt(i);
+
+                var backup = (originalDate: e.Date, wasNotify: e.Notify);
+                if (date.HasValue)
+                    e.Date = date.Value.Date + e.Date.TimeOfDay;
+
+                if (hasTime.HasValue)
+                    e.HasTime = hasTime.Value;
+
+                if (time.HasValue)
+                    e.Date = e.Date.Date + time.Value;
+
+                if (!string.IsNullOrWhiteSpace(description))
+                    e.Description = description;
+
+                if (link.IsSpecified)
+                    e.Link = link.Value;
+
+                if (notify.HasValue)
+                    e.Notify = notify.Value;
+
+                if (!e.HasTime && e.Notify)
+                    throw new CommandException("Notified events must have time specififed.");
+
+                if (e.Notify && !s.Notifications.Any(x => e.FitsTag(x.Tag)))
+                    throw new AbortException("Please first set up a channel which will receive the notifications for this tag with `schedule set notifications`.");
+
+                s.Events.Add(e); // Have to remove and re-add to sort properly
+                return (s, e, backup.originalDate, backup.wasNotify);
+            });
+
+            if (edited.Notify || wasNotify)
+                await _service.RefreshNotifications(command.GuildId, settings);
+
+            return (originalDate, edited, $"Event `{edited.Id}` has been edited to `{edited.Description}` taking place on `{edited.Date.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (edited.HasTime ? $" at `{edited.Date.ToString("HH:mm", GlobalDefinitions.Culture)}`" : string.Empty) + $".");
+        }
+
+        private async Task<(string OriginalTag, ScheduleEvent Event, string Message)> TagEventInner(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var tag = command["Tag"].AsString;
+            var remove = ScheduleSettings.CompareTag(tag, NoneTag, true);
+            if (!remove && ReservedTags.Any(x => ScheduleSettings.CompareTag(tag, x, true)))
+                throw new CommandException("This tag is reserved, please pick a different one.");
+
+            var (settings, edited, originalTag) = await _settings.Modify(command.GuildId, (ScheduleSettings s) =>
+            {
+                var i = s.Events.FindIndex(x => x.Id == (int)command["EventId"]);
+                if (i < 0)
+                    throw new CommandException("Cannot find an event with this ID.");
+
+                var e = s.Events[i];
+                s.Events.RemoveAt(i);
+
+                var ot = e.Tag;
+                e.Tag = remove ? null : tag;
+
+                s.Events.Add(e); // Have to remove and re-add to sort properly
+                return (s, e, ot);
+            });
+
+            return (originalTag, edited, $"Event `{edited.Id}` has been " + (remove ? "untagged." : $"tagged as `{edited.Tag}`."));
+        }
+
         private Task<RefreshResult> RefreshCalendars(IGuild guild, DateTime? affectedTime = null, Optional<string> tag = default) => 
             RefreshCalendars(guild, affectedTime.HasValue ? new[] { affectedTime.Value } : Enumerable.Empty<DateTime>(), tag);
 
@@ -1570,7 +1579,12 @@ namespace DustyBot.Modules
                 }
 
                 var (text, embed) = BuildCalendarMessage(calendar, settings);
-                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; }, new RequestOptions() {  });
+                await message.ModifyAsync(x => 
+                { 
+                    x.Content = text; 
+                    x.Embed = embed; 
+                });
+
                 return RefreshResult.Reason.Success;
             }
             catch (ArgumentOutOfRangeException)
@@ -1596,7 +1610,9 @@ namespace DustyBot.Modules
                     throw new MissingPermissionsException("You may bypass this requirement by asking for a schedule manager role.", GuildPermission.ManageMessages);
             }
             else
+            {
                 throw new InvalidOperationException();
+            }
         }
 
         private static T GetCalendarOfType<T>(ScheduleSettings settings, ulong id)
@@ -1619,13 +1635,17 @@ namespace DustyBot.Modules
                     throw new IncorrectParametersCommandException($"This command cannot be used with this calendar type.", false);
             }
             else
+            {
                 return typed;
+            }
         }
 
         private static (DateTime begin, DateTime end) GetDateSpan(ScheduleCalendar calendar, ScheduleSettings settings)
         {
             if (calendar is RangeScheduleCalendar rangeCalendar)
+            {
                 return (rangeCalendar.BeginDate, rangeCalendar.EndDate);
+            }
             else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
             {
                 var beginDate = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
@@ -1639,7 +1659,9 @@ namespace DustyBot.Modules
                 return (beginDate, endDate);
             }
             else
+            {
                 throw new InvalidOperationException("Unknown calendar type.");
+            }
         }
 
         private static string BuildCalendarTitle(ScheduleCalendar calendar)
@@ -1656,7 +1678,9 @@ namespace DustyBot.Modules
                     return "Schedule";
             }
             else
+            {
                 return calendar.Title;
+            }
         }
 
         private static PageCollection BuildEventList(ScheduleSettings settings, string header, DateTime? beginDate = null, DateTime? endDate = null, Func<ScheduleEvent, bool> predicate = null, string footer = null)

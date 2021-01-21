@@ -1,19 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Discord.WebSocket;
-using Discord;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Async;
+using DustyBot.Framework.Commands.Parsing;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Configuration;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Commands.Parsing;
-using System.Threading;
 using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Framework.Commands
 {
@@ -80,6 +80,11 @@ namespace DustyBot.Framework.Commands
         {
             _client.MessageReceived += HandleMessageReceived;
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
         }
 
         private Task HandleMessageReceived(SocketMessage message)
@@ -339,11 +344,6 @@ namespace DustyBot.Framework.Commands
 
             var totalElapsed = stopwatch.Elapsed;
             logger.LogInformation("Command {CommandCounter} {Result} in {TotalElapsed:F3}s (v: {VerificationElapsed:F3}s, p: {ParsingElapsed:F3}s, e: {ExecutionElapsed:F3}s, g: {GatewayDelay:F3}s)", counter, result, totalElapsed.TotalSeconds, verificationElapsed.TotalSeconds, (parsingElapsed - verificationElapsed).TotalSeconds, (totalElapsed - parsingElapsed).TotalSeconds, gatewayPing.TotalSeconds);
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

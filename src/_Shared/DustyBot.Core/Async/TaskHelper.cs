@@ -8,8 +8,13 @@ namespace DustyBot.Core.Async
         private static readonly Action<Task> DefaultErrorContinuation =
         t =>
         {
-            try { t.Wait(); }
-            catch { }
+            try 
+            { 
+                t.Wait(); 
+            }
+            catch 
+            {
+            }
         };
 
         public static void FireForget(Func<Task> action, Action<Exception> handler = null)
@@ -23,15 +28,13 @@ namespace DustyBot.Core.Async
             {
                 task.ContinueWith(
                     DefaultErrorContinuation,
-                    TaskContinuationOptions.ExecuteSynchronously |
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted);
             }
             else
             {
                 task.ContinueWith(
                     t => handler(t.Exception.GetBaseException()),
-                    TaskContinuationOptions.ExecuteSynchronously |
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted);
             }
         }
 

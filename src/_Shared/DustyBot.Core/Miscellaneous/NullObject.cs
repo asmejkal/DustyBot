@@ -5,28 +5,28 @@ namespace DustyBot.Core.Miscellaneous
     public struct NullObject<T>
     {
         [DefaultValue(true)]
-        private bool isnull;// default property initializers are not supported for structs
-
-        private NullObject(T item, bool isnull) : this()
-        {
-            this.isnull = isnull;
-            this.Item = item;
-        }
+        private bool _isNull; // default property initializers are not supported for structs
 
         public NullObject(T item) : this(item, item == null)
         {
         }
 
+        private NullObject(T item, bool isNull) : this()
+        {
+            _isNull = isNull;
+            Item = item;
+        }
+
         public static NullObject<T> Null()
         {
-            return new NullObject<T>();
+            return default;
         }
 
         public T Item { get; }
 
         public bool IsNull()
         {
-            return this.isnull;
+            return _isNull;
         }
 
         public static implicit operator T(NullObject<T> nullObject)
@@ -47,25 +47,25 @@ namespace DustyBot.Core.Miscellaneous
         public override bool Equals(object obj)
         {
             if (obj == null)
-                return this.IsNull();
+                return IsNull();
 
             if (!(obj is NullObject<T>))
                 return false;
 
             var no = (NullObject<T>)obj;
 
-            if (this.IsNull())
+            if (IsNull())
                 return no.IsNull();
 
             if (no.IsNull())
                 return false;
 
-            return this.Item.Equals(no.Item);
+            return Item.Equals(no.Item);
         }
 
         public override int GetHashCode()
         {
-            if (this.isnull)
+            if (_isNull)
                 return 0;
 
             var result = Item.GetHashCode();

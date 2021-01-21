@@ -1,19 +1,20 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using DustyBot.Framework.Exceptions;
+using Discord;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
 using DustyBot.Database.Services;
 using DustyBot.Definitions;
-using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Modules.Attributes;
+using DustyBot.Framework.Reflection;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
@@ -84,7 +85,7 @@ namespace DustyBot.Modules
                 return;
             }
 
-            //Build and send the poll message
+            // Build and send the poll message
             var description = string.Empty;
             for (int i = 0; i < poll.Answers.Count; ++i)
                 description += $"`[{i + 1}]` {poll.Answers[i]}\n";
@@ -104,7 +105,7 @@ namespace DustyBot.Modules
 
             await _communicator.SendMessage(channel, embed.Build());
 
-            //Add to settings
+            // Add to settings
             bool added = await _settings.Modify(command.GuildId, (PollSettings s) =>
             {
                 if (s.Polls.Any(x => x.Channel == channelId))
@@ -186,7 +187,9 @@ namespace DustyBot.Modules
             });
             
             if (poll == null)
+            {
                 await command.ReplyError("There is no poll running in this channel.");
+            }
             else
             {
                 var confMessage = await command.ReplySuccess($"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.");
@@ -244,7 +247,7 @@ namespace DustyBot.Modules
             foreach (var result in poll.Results.OrderByDescending(x => x.Value))
             {
                 ++i;
-                currentPlace = prevScore == result.Value ? currentPlace : i; //Place vote ties in the same placemenet
+                currentPlace = prevScore == result.Value ? currentPlace : i; // Place vote ties in the same placemenet
                 prevScore = result.Value;
 
                 var line = $"{(emotes.ContainsKey(currentPlace) && result.Value > 0 ? emotes[currentPlace] : EmoteConstants.Blank.Name)} `[{result.Key}]` **{poll.Answers[result.Key - 1]}** with **{result.Value}** vote{(result.Value != 1 ? "s" : "")}.\n";

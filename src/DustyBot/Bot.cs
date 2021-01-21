@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
+using DustyBot.Configuration;
+using DustyBot.Framework;
 using DustyBot.Helpers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Serilog;
-using DustyBot.Framework;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
-using DustyBot.Configuration;
+using Serilog;
 
 namespace DustyBot
 {
@@ -19,7 +19,7 @@ namespace DustyBot
             GeneralFailure
         }
 
-        static async Task<int> Main(string[] args) => (int)await RunAsync();
+        public static async Task<int> Main(string[] args) => (int)await RunAsync();
 
         public static async Task<ReturnCode> RunAsync()
         {

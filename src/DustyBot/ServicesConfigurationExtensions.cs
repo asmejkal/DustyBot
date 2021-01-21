@@ -1,4 +1,5 @@
-﻿using Discord;
+﻿using System;
+using Discord;
 using Discord.WebSocket;
 using DustyBot.Configuration;
 using DustyBot.Core.Services;
@@ -16,7 +17,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Sinks.Elasticsearch;
-using System;
 
 namespace DustyBot
 {

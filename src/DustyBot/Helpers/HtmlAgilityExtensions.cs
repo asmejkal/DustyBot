@@ -20,7 +20,46 @@ namespace DustyBot.Helpers
             return builder.ToString();
         }
 
-        static void Plain(StringBuilder builder, ref ToPlainTextState state, IEnumerable<HtmlAgilityPack.HtmlNode> nodes)
+        // System.Xml.Linq part
+        public static string ToPlainText(this IEnumerable<XNode> nodes)
+        {
+            var builder = new System.Text.StringBuilder();
+            var state = ToPlainTextState.StartLine;
+
+            Plain(builder, ref state, nodes);
+            return builder.ToString();
+        }
+
+        public static void Process(StringBuilder builder, ref ToPlainTextState state, params char[] chars)
+        {
+            foreach (var ch in chars)
+            {
+                if (char.IsWhiteSpace(ch))
+                {
+                    if (IsHardSpace(ch))
+                    {
+                        if (state == ToPlainTextState.WhiteSpace)
+                            builder.Append(' ');
+                        builder.Append(' ');
+                        state = ToPlainTextState.NotWhiteSpace;
+                    }
+                    else
+                    {
+                        if (state == ToPlainTextState.NotWhiteSpace)
+                            state = ToPlainTextState.WhiteSpace;
+                    }
+                }
+                else
+                {
+                    if (state == ToPlainTextState.WhiteSpace)
+                        builder.Append(' ');
+                    builder.Append(ch);
+                    state = ToPlainTextState.NotWhiteSpace;
+                }
+            }
+        }
+
+        private static void Plain(StringBuilder builder, ref ToPlainTextState state, IEnumerable<HtmlAgilityPack.HtmlNode> nodes)
         {
             foreach (var node in nodes)
             {
@@ -52,6 +91,7 @@ namespace DustyBot.Helpers
                             builder.AppendLine();
                             state = ToPlainTextState.StartLine;
                         }
+
                         Plain(builder, ref state, node.ChildNodes);
                         if (state != ToPlainTextState.StartLine)
                         {
@@ -59,23 +99,11 @@ namespace DustyBot.Helpers
                             state = ToPlainTextState.StartLine;
                         }
                     }
-
                 }
-
             }
         }
 
-        // System.Xml.Linq part
-        public static string ToPlainText(this IEnumerable<XNode> nodes)
-        {
-            var builder = new System.Text.StringBuilder();
-            var state = ToPlainTextState.StartLine;
-
-            Plain(builder, ref state, nodes);
-            return builder.ToString();
-        }
-
-        static void Plain(StringBuilder builder, ref ToPlainTextState state, IEnumerable<XNode> nodes)
+        private static void Plain(StringBuilder builder, ref ToPlainTextState state, IEnumerable<XNode> nodes)
         {
             foreach (var node in nodes)
             {
@@ -103,6 +131,7 @@ namespace DustyBot.Helpers
                             builder.AppendLine();
                             state = ToPlainTextState.StartLine;
                         }
+
                         Plain(builder, ref state, element.Nodes());
                         if (state != ToPlainTextState.StartLine)
                         {
@@ -110,7 +139,6 @@ namespace DustyBot.Helpers
                             state = ToPlainTextState.StartLine;
                         }
                     }
-
                 }
                 else if (node is XText)
                 {
@@ -120,44 +148,14 @@ namespace DustyBot.Helpers
             }
         }
 
-        // common part
-        public static void Process(System.Text.StringBuilder builder, ref ToPlainTextState state, params char[] chars)
-        {
-            foreach (var ch in chars)
-            {
-                if (char.IsWhiteSpace(ch))
-                {
-                    if (IsHardSpace(ch))
-                    {
-                        if (state == ToPlainTextState.WhiteSpace)
-                            builder.Append(' ');
-                        builder.Append(' ');
-                        state = ToPlainTextState.NotWhiteSpace;
-                    }
-                    else
-                    {
-                        if (state == ToPlainTextState.NotWhiteSpace)
-                            state = ToPlainTextState.WhiteSpace;
-                    }
-                }
-                else
-                {
-                    if (state == ToPlainTextState.WhiteSpace)
-                        builder.Append(' ');
-                    builder.Append(ch);
-                    state = ToPlainTextState.NotWhiteSpace;
-                }
-            }
-        }
-
-        static bool IsHardSpace(char ch)
+        private static bool IsHardSpace(char ch)
         {
             return ch == 0xA0 || ch == 0x2007 || ch == 0x202F;
         }
 
         private static readonly HashSet<string> InlineTags = new HashSet<string>
         {
-            //from https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente
+            // from https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente
             "b", "big", "i", "small", "tt", "abbr", "acronym",
             "cite", "code", "dfn", "em", "kbd", "strong", "samp",
             "var", "a", "bdo", "br", "img", "map", "object", "q",
@@ -176,6 +174,5 @@ namespace DustyBot.Helpers
             NotWhiteSpace,
             WhiteSpace,
         }
-
     }
 }

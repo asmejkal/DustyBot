@@ -6,8 +6,8 @@ namespace DustyBot.Core.Collections
 {
     public class SortedList<T> : ICollection<T>, IReadOnlyCollection<T>
     {
-        private List<T> m_innerList;
-        private Comparer<T> m_comparer;
+        private List<T> _innerList;
+        private Comparer<T> _comparer;
 
         public SortedList() : this(Comparer<T>.Default)
         {
@@ -15,14 +15,14 @@ namespace DustyBot.Core.Collections
 
         public SortedList(Comparer<T> comparer)
         {
-            m_innerList = new List<T>();
-            m_comparer = comparer;
+            _innerList = new List<T>();
+            _comparer = comparer;
         }
 
         public void Add(T item)
         {
-            int insertIndex = FindIndexForSortedInsert(m_innerList, m_comparer, item);
-            m_innerList.Insert(insertIndex, item);
+            int insertIndex = FindIndexForSortedInsert(_innerList, _comparer, item);
+            _innerList.Insert(insertIndex, item);
         }
 
         public bool Contains(T item)
@@ -31,20 +31,20 @@ namespace DustyBot.Core.Collections
         }
 
         /// <summary>
-        /// Searches for the specified object and returns the zero-based index of the first occurrence within the entire SortedList<T>
+        /// Searches for the specified object and returns the zero-based index of the first occurrence within the entire SortedList.
         /// </summary>
         public int IndexOf(T item)
         {
-            int insertIndex = FindIndexForSortedInsert(m_innerList, m_comparer, item);
-            if (insertIndex == m_innerList.Count)
+            int insertIndex = FindIndexForSortedInsert(_innerList, _comparer, item);
+            if (insertIndex == _innerList.Count)
             {
                 return -1;
             }
 
-            if (m_comparer.Compare(item, m_innerList[insertIndex]) == 0)
+            if (_comparer.Compare(item, _innerList[insertIndex]) == 0)
             {
                 int index = insertIndex;
-                while (index > 0 && m_comparer.Compare(item, m_innerList[index - 1]) == 0)
+                while (index > 0 && _comparer.Compare(item, _innerList[index - 1]) == 0)
                 {
                     index--;
                 }
@@ -60,58 +60,59 @@ namespace DustyBot.Core.Collections
             int index = IndexOf(item);
             if (index >= 0)
             {
-                m_innerList.RemoveAt(index);
+                _innerList.RemoveAt(index);
                 return true;
             }
+
             return false;
         }
 
         public void RemoveAt(int index)
         {
-            m_innerList.RemoveAt(index);
+            _innerList.RemoveAt(index);
         }
 
-        public int RemoveAll(Predicate<T> match) => m_innerList.RemoveAll(match);
-        public int FindIndex(Predicate<T> match) => m_innerList.FindIndex(match);
+        public int RemoveAll(Predicate<T> match) => _innerList.RemoveAll(match);
+        public int FindIndex(Predicate<T> match) => _innerList.FindIndex(match);
 
         public void CopyTo(T[] array)
         {
-            m_innerList.CopyTo(array);
+            _innerList.CopyTo(array);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            m_innerList.CopyTo(array, arrayIndex);
+            _innerList.CopyTo(array, arrayIndex);
         }
 
         public void Clear()
         {
-            m_innerList.Clear();
+            _innerList.Clear();
         }
 
         public T this[int index]
         {
             get
             {
-                return m_innerList[index];
+                return _innerList[index];
             }
         }
 
         public IEnumerator<T> GetEnumerator()
         {
-            return m_innerList.GetEnumerator();
+            return _innerList.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return m_innerList.GetEnumerator();
+            return _innerList.GetEnumerator();
         }
 
         public int Count
         {
             get
             {
-                return m_innerList.Count;
+                return _innerList.Count;
             }
         }
 
@@ -142,12 +143,14 @@ namespace DustyBot.Core.Collections
                 {
                     return middleIndex;
                 }
-                else if (comparisonResult > 0) // middle > item
+                else if (comparisonResult > 0)
                 {
+                    // middle > item
                     upperIndex = middleIndex - 1;
                 }
-                else // middle < item
+                else
                 {
+                    // middle < item
                     lowerIndex = middleIndex + 1;
                 }
             }
@@ -156,8 +159,9 @@ namespace DustyBot.Core.Collections
             // and any entry preceding 'middle' is lesser than 'item'.
             // So we either put 'item' before or after 'middle'.
             comparisonResult = comparer.Compare(list[lowerIndex], item);
-            if (comparisonResult < 0) // middle < item
+            if (comparisonResult < 0)
             {
+                // middle < item
                 return lowerIndex + 1;
             }
             else

@@ -1,13 +1,13 @@
-﻿using Discord;
-using Discord.WebSocket;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DustyBot.Framework.Utility;
-using System.Globalization;
+using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Parsing;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Commands
 {
@@ -42,7 +42,7 @@ namespace DustyBot.Framework.Commands
 
         private class ValueCache
         {
-            Dictionary<ParameterType, DynamicValue> _data = new Dictionary<ParameterType, DynamicValue>();
+            private Dictionary<ParameterType, DynamicValue> _data = new Dictionary<ParameterType, DynamicValue>();
 
             public bool TryGet(ParameterType type, out dynamic value)
             {
@@ -60,6 +60,11 @@ namespace DustyBot.Framework.Commands
         public static readonly ParameterToken Empty = new ParameterToken();
 
         private static readonly Regex MessageLinkRegex = new Regex(@"https:\/\/discord.*\.com\/channels\/\d+\/\d+\/(\d+)");
+        private static readonly Regex ColorCodeRegex = new Regex("^#?([a-fA-F0-9]+)$", RegexOptions.Compiled);
+        private static readonly Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
+        private static readonly Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
+
+        public ParameterToken this[int key] => Repeats.ElementAtOrDefault(key) ?? Empty;
 
         public SocketGuild Guild { get; }
         public string Raw { get; } = string.Empty;
@@ -69,73 +74,14 @@ namespace DustyBot.Framework.Commands
         public int Begin { get; }
         public int End { get; }
         public IList<ParameterToken> Repeats { get; } = new List<ParameterToken>();
-        public Regex Regex { get => _regex; set { _regex = value; _cache.Remove(ParameterType.Regex); } }
-
-        public ParameterToken this[int key] => Repeats.ElementAtOrDefault(key) ?? Empty;
-
-        private ValueCache _cache = new ValueCache();
-        private Regex _regex;
-        private readonly IUserFetcher _userFetcher;
-
-        private ParameterToken()
-        {
-        }
-
-        internal ParameterToken(Token token, SocketGuild guild, IUserFetcher userFetcher)
-        {
-            Repeats.Add(this);
-            Begin = token.Begin;
-            End = token.End;
-            Raw = token.Value ?? string.Empty;
-            Guild = guild;
-            _userFetcher = userFetcher;
-        }
-
-        internal ParameterToken(ParameterInfo registration, int begin, int end, string value, SocketGuild guild, IUserFetcher userFetcher)
-        {
-            Repeats.Add(this);
-            Registration = registration;
-            Begin = begin;
-            End = end;
-            Raw = value ?? string.Empty;
-            Guild = guild;
-            _userFetcher = userFetcher;
-        }
-
-        public async Task<bool> IsType(ParameterType type) => (await GetValue(type).ConfigureAwait(false)) != null;
-
-        public async Task<dynamic> GetValue(ParameterType type)
-        {
-            dynamic result;
-            switch (type)
-            {
-                case ParameterType.Short: result = AsShort; break;
-                case ParameterType.UShort: result = AsUShort; break;
-                case ParameterType.Int: result = AsInt; break;
-                case ParameterType.UInt: result = AsUInt; break;
-                case ParameterType.Long: result = AsLong; break;
-                case ParameterType.ULong: result = AsULong; break;
-                case ParameterType.Double: result = AsDouble; break;
-                case ParameterType.Float: result = AsFloat; break;
-                case ParameterType.Decimal: result = AsDecimal; break;
-                case ParameterType.Bool: result = AsBool; break;
-                case ParameterType.String: result = AsString; break;
-                case ParameterType.Uri: result = AsUri; break;
-                case ParameterType.Guid: result = AsGuid; break;
-                case ParameterType.Regex: result = AsRegex; break;
-                case ParameterType.ColorCode: result = AsColorCode; break;
-                case ParameterType.Id: result = AsId; break;
-                case ParameterType.MentionOrId: result = AsMentionOrId; break;
-                case ParameterType.TextChannel: result = AsTextChannel; break;
-                case ParameterType.GuildUser: result = await AsGuildUser.ConfigureAwait(false); break;
-                case ParameterType.GuildUserOrName: result = await AsGuildUserOrName.ConfigureAwait(false); break;
-                case ParameterType.Role: result = AsRole; break;
-                case ParameterType.GuildUserMessage: result = await AsGuildUserMessage.ConfigureAwait(false); break;
-                case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage.ConfigureAwait(false); break;
-                default: result = null; break;
-            }
-
-            return result;
+        public Regex Regex 
+        { 
+            get => _regex; 
+            set 
+            { 
+                _regex = value; 
+                _cache.Remove(ParameterType.Regex); 
+            } 
         }
 
         public short? AsShort => TryConvert<short>(this, ParameterType.Short, short.TryParse);
@@ -153,40 +99,9 @@ namespace DustyBot.Framework.Commands
         public Guid? AsGuid => TryConvert<Guid>(this, ParameterType.Guid, Guid.TryParse);
         public Match AsRegex => TryConvert<Match>(this, ParameterType.Regex, x => Regex?.Match(x));
         public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
-
-        private static bool TryParseMentionOrId(string value, out ulong id)
-        {
-            if (!ulong.TryParse(value, out id))
-            {
-                var match = UserMentionRegex.Match(value);
-                if (!match.Success)
-                    return false;
-
-                id = ulong.Parse(match.Groups[1].Value);
-            }
-
-            return true;
-        }
-
         public ulong? AsMentionOrId => TryConvert<ulong>(this, ParameterType.MentionOrId, TryParseMentionOrId);
-
-        private static Regex ColorCodeRegex = new Regex("^#?([a-fA-F0-9]+)$", RegexOptions.Compiled);
-        private static bool TryParseColorCode(string value, out uint result)
-        {
-            var match = ColorCodeRegex.Match(value);
-            if (match.Success)
-            {
-                var number = match.Groups[1].Value;
-                return uint.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
-            }
-
-            result = 0;
-            return false;
-        }
-
         public uint? AsColorCode => TryConvert<uint>(this, ParameterType.ColorCode, TryParseColorCode);
 
-        private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
         public ITextChannel AsTextChannel => TryConvert<ITextChannel>(this, ParameterType.TextChannel, x =>
         {
             ulong id;
@@ -203,7 +118,6 @@ namespace DustyBot.Framework.Commands
             return Guild?.TextChannels.FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
         });
 
-        private static readonly Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
         public Task<IGuildUser> AsGuildUser => TryConvert<IGuildUser>(this, ParameterType.GuildUser, async x =>
         {
             if (Guild == null)
@@ -311,20 +225,88 @@ namespace DustyBot.Framework.Commands
             return message;
         });
 
-        public static explicit operator short? (ParameterToken token) => token.AsShort;
-        public static explicit operator ushort? (ParameterToken token) => token.AsUShort;
-        public static explicit operator int? (ParameterToken token) => token.AsInt;
-        public static explicit operator uint? (ParameterToken token) => token.AsUInt;
-        public static explicit operator long? (ParameterToken token) => token.AsLong;
-        public static explicit operator ulong? (ParameterToken token) => token.AsULong;
-        public static explicit operator double? (ParameterToken token) => token.AsDouble;
-        public static explicit operator float? (ParameterToken token) => token.AsFloat;
-        public static explicit operator decimal? (ParameterToken token) => token.AsDecimal;
-        public static explicit operator bool? (ParameterToken token) => token.AsBool;
+        private readonly IUserFetcher _userFetcher;
+
+        private ValueCache _cache = new ValueCache();
+        private Regex _regex;
+
+        internal ParameterToken(Token token, SocketGuild guild, IUserFetcher userFetcher)
+        {
+            Repeats.Add(this);
+            Begin = token.Begin;
+            End = token.End;
+            Raw = token.Value ?? string.Empty;
+            Guild = guild;
+            _userFetcher = userFetcher;
+        }
+
+        internal ParameterToken(ParameterInfo registration, int begin, int end, string value, SocketGuild guild, IUserFetcher userFetcher)
+        {
+            Repeats.Add(this);
+            Registration = registration;
+            Begin = begin;
+            End = end;
+            Raw = value ?? string.Empty;
+            Guild = guild;
+            _userFetcher = userFetcher;
+        }
+
+        private ParameterToken()
+        {
+        }
+
+        public async Task<bool> IsType(ParameterType type) => (await GetValue(type).ConfigureAwait(false)) != null;
+
+        public async Task<dynamic> GetValue(ParameterType type)
+        {
+            dynamic result;
+            switch (type)
+            {
+                case ParameterType.Short: result = AsShort; break;
+                case ParameterType.UShort: result = AsUShort; break;
+                case ParameterType.Int: result = AsInt; break;
+                case ParameterType.UInt: result = AsUInt; break;
+                case ParameterType.Long: result = AsLong; break;
+                case ParameterType.ULong: result = AsULong; break;
+                case ParameterType.Double: result = AsDouble; break;
+                case ParameterType.Float: result = AsFloat; break;
+                case ParameterType.Decimal: result = AsDecimal; break;
+                case ParameterType.Bool: result = AsBool; break;
+                case ParameterType.String: result = AsString; break;
+                case ParameterType.Uri: result = AsUri; break;
+                case ParameterType.Guid: result = AsGuid; break;
+                case ParameterType.Regex: result = AsRegex; break;
+                case ParameterType.ColorCode: result = AsColorCode; break;
+                case ParameterType.Id: result = AsId; break;
+                case ParameterType.MentionOrId: result = AsMentionOrId; break;
+                case ParameterType.TextChannel: result = AsTextChannel; break;
+                case ParameterType.GuildUser: result = await AsGuildUser.ConfigureAwait(false); break;
+                case ParameterType.GuildUserOrName: result = await AsGuildUserOrName.ConfigureAwait(false); break;
+                case ParameterType.Role: result = AsRole; break;
+                case ParameterType.GuildUserMessage: result = await AsGuildUserMessage.ConfigureAwait(false); break;
+                case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage.ConfigureAwait(false); break;
+                default: result = null; break;
+            }
+
+            return result;
+        }
+
+        public override string ToString() => Raw;
+
+        public static explicit operator short?(ParameterToken token) => token.AsShort;
+        public static explicit operator ushort?(ParameterToken token) => token.AsUShort;
+        public static explicit operator int?(ParameterToken token) => token.AsInt;
+        public static explicit operator uint?(ParameterToken token) => token.AsUInt;
+        public static explicit operator long?(ParameterToken token) => token.AsLong;
+        public static explicit operator ulong?(ParameterToken token) => token.AsULong;
+        public static explicit operator double?(ParameterToken token) => token.AsDouble;
+        public static explicit operator float?(ParameterToken token) => token.AsFloat;
+        public static explicit operator decimal?(ParameterToken token) => token.AsDecimal;
+        public static explicit operator bool?(ParameterToken token) => token.AsBool;
         public static implicit operator string(ParameterToken token) => token.AsString;
         public static explicit operator Uri(ParameterToken token) => token.AsUri;
-        public static explicit operator Guid? (ParameterToken token) => token.AsGuid;
-        public static explicit operator Match (ParameterToken token) => token.AsRegex;
+        public static explicit operator Guid?(ParameterToken token) => token.AsGuid;
+        public static explicit operator Match(ParameterToken token) => token.AsRegex;
 
         private static T TryConvert<T>(ParameterToken token, ParameterType type, Func<string, T> parser)
             where T : class
@@ -374,12 +356,37 @@ namespace DustyBot.Framework.Commands
                 return cache;
 
             T tmp;
-            T? result = parser(token.Raw, out tmp) ? new T?(tmp) : new T?();
+            T? result = parser(token.Raw, out tmp) ? new T?(tmp) : default;
             token._cache.Add(new DynamicValue(result, type));
 
             return result;
         }
 
-        public override string ToString() => Raw;
+        private static bool TryParseMentionOrId(string value, out ulong id)
+        {
+            if (!ulong.TryParse(value, out id))
+            {
+                var match = UserMentionRegex.Match(value);
+                if (!match.Success)
+                    return false;
+
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            return true;
+        }
+
+        private static bool TryParseColorCode(string value, out uint result)
+        {
+            var match = ColorCodeRegex.Match(value);
+            if (match.Success)
+            {
+                var number = match.Groups[1].Value;
+                return uint.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
+            }
+
+            result = 0;
+            return false;
+        }
     }
 }

@@ -1,11 +1,11 @@
-﻿using Microsoft.Data.SqlClient;
-using StoredProcedureEFCore;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
+using StoredProcedureEFCore;
 
 namespace DustyBot.Database.Sql.StoredProcedures.Utility
 {

@@ -1,6 +1,6 @@
-﻿using Discord;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Discord;
 
 namespace DustyBot.Framework.Commands.Parsing
 {

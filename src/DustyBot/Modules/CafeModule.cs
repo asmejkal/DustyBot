@@ -1,14 +1,15 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using DustyBot.Framework.Commands;
-using DustyBot.Settings;
-using DustyBot.Helpers;
+using Discord;
 using DustyBot.Core.Security;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
 using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using DustyBot.Helpers.DaumCafe;
 using DustyBot.Helpers.DaumCafe.Exceptions;
 
@@ -108,7 +109,7 @@ namespace DustyBot.Modules
 
             await _settings.Modify(command.GuildId, (MediaSettings s) =>
             {
-                //Remove duplicate feeds
+                // Remove duplicate feeds
                 s.DaumCafeFeeds.RemoveAll(x => x.CafeId == feed.CafeId && x.BoardId == feed.BoardId && x.TargetChannel == feed.TargetChannel);
 
                 s.DaumCafeFeeds.Add(feed);

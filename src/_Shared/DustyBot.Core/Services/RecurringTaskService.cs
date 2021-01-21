@@ -33,6 +33,11 @@ namespace DustyBot.Core.Services
             return Task.CompletedTask;
         }
 
+        public override void Dispose()
+        {
+            Dispose(true);
+        }
+
         protected async Task WaitForFirstCompletion()
         {
             await _firstExecutionTaskSource.Task;
@@ -82,7 +87,6 @@ namespace DustyBot.Core.Services
 
         protected abstract Task ExecuteRecurringAsync(IServiceProvider provider, int executionCount, CancellationToken ct);
 
-        #region IDisposable Support
         private bool _disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
@@ -98,11 +102,5 @@ namespace DustyBot.Core.Services
                 _disposedValue = true;
             }
         }
-
-        public override void Dispose()
-        {
-            Dispose(true);
-        }
-        #endregion
     }
 }

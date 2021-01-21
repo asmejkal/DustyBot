@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
-using DustyBot.Framework.Utility;
-using System.Threading;
 using Discord.WebSocket;
-using DustyBot.Framework.Commands;
 using DustyBot.Core.Async;
+using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
-using DustyBot.Core.Collections;
+using DustyBot.Framework.Commands;
 using DustyBot.Framework.Logging;
+using DustyBot.Framework.Utility;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Framework.Communication
@@ -20,14 +20,6 @@ namespace DustyBot.Framework.Communication
     {
         private sealed class PaginatedMessageContext : IDisposable
         {
-            public PaginatedMessageContext(PageCollection pages, ulong messageOwner = 0, bool resend = false)
-            {
-                _pages = new List<Page>(pages);
-                InvokerUserId = messageOwner;
-                Resend = resend;
-            }
-
-            int _currentPage = 0;
             public int CurrentPage
             {
                 get => _currentPage;
@@ -41,17 +33,26 @@ namespace DustyBot.Framework.Communication
             }
 
             public int TotalPages => _pages.Count;
-
-            List<Page> _pages;
             public IReadOnlyCollection<Page> Pages { get => _pages; }
 
             public bool ControlledByInvoker => InvokerUserId != 0;
-            public ulong InvokerUserId;
+            public ulong InvokerUserId { get; }
             public bool Resend { get; set; }
 
             public SemaphoreSlim Lock { get; } = new SemaphoreSlim(1, 1);
 
             public DateTime ExpirationDate { get; private set; } = DateTime.Now + PaginatedMessageLife;
+
+            private int _currentPage = 0;
+            private List<Page> _pages;
+
+            public PaginatedMessageContext(PageCollection pages, ulong messageOwner = 0, bool resend = false)
+            {
+                _pages = new List<Page>(pages);
+                InvokerUserId = messageOwner;
+                Resend = resend;
+            }
+
             public void ExtendLife() => ExpirationDate = DateTime.Now + PaginatedMessageLife;
 
             public void Dispose()
@@ -60,14 +61,14 @@ namespace DustyBot.Framework.Communication
             }
         }
 
-        public static readonly Color ColorSuccess = Color.Green;
-        public static readonly Color ColorError = Color.Red;
-        public static readonly IEmote ArrowLeft = new Emoji("⬅️");
-        public static readonly IEmote ArrowRight = new Emoji("➡️");
-        public static readonly TimeSpan PaginatedMessageLife = TimeSpan.FromHours(48);
         public const string SuccessMarker = "\u2705";
         public const string FailureMarker = "\u26D4";
         public const string QuestionMarker = "\u2754";
+        public static readonly Color ColorSuccess = Color.Green;
+        public static readonly Color ColorError = Color.Red;
+        public static readonly IEmote ArrowLeft = new Emoji("\u2B05\uFE0F");
+        public static readonly IEmote ArrowRight = new Emoji("\u27A1\uFE0F");
+        public static readonly TimeSpan PaginatedMessageLife = TimeSpan.FromHours(48);
 
         private readonly BaseSocketClient _client;
         private readonly ILogger<Communicator> _logger;
@@ -84,7 +85,7 @@ namespace DustyBot.Framework.Communication
 
         public async Task SendMessage(IMessageChannel channel, PageCollection pages, ulong messageOwner = 0, bool resend = false)
         {
-            //Set footers where applicable (only if we have more than one page or if the only page has no custom footer)
+            // Set footers where applicable (only if we have more than one page or if the only page has no custom footer)
             if (pages.Count > 1 || (pages.Count == 1 && pages[0].Embed != null && string.IsNullOrEmpty(pages[0].Embed.Footer?.Text)))
             {
                 for (int i = 0; i < pages.Count; ++i)
@@ -100,10 +101,10 @@ namespace DustyBot.Framework.Communication
                 }
             }
 
-            //Send the first page
+            // Send the first page
             var result = await channel.SendMessageAsync(pages.First().Content.Sanitise(), false, pages.First().Embed?.Build()).ConfigureAwait(false);
 
-            //If there's more pages, save a context
+            // If there's more pages, save a context
             if (pages.Count > 1)
             {
                 var context = new PaginatedMessageContext(pages, messageOwner, resend);
@@ -116,7 +117,7 @@ namespace DustyBot.Framework.Communication
                 await result.AddReactionAsync(ArrowLeft);
                 await result.AddReactionAsync(ArrowRight);
 
-                //Clean old messages, to avoid tracking too many unnecessary messages when the bots runs for a long time
+                // Clean old messages, to avoid tracking too many unnecessary messages when the bots runs for a long time
                 CleanupPaginatedMessages();
             }
         }
@@ -263,6 +264,14 @@ namespace DustyBot.Framework.Communication
                 (string.IsNullOrWhiteSpace(examples) ? string.Empty : "\n\n__Examples:__\n" + examples);
         }
 
+        public void Dispose()
+        {
+            _client.ReactionAdded -= HandleReactionAdded;
+            _client.MessageDeleted -= HandleMessageDeleted;
+
+            CleanupPaginatedMessages();
+        }
+
         private Task HandleReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
         {
             TaskHelper.FireForget(async () =>
@@ -272,11 +281,11 @@ namespace DustyBot.Framework.Communication
                     if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
                         return;
 
-                    //Check for page arrows
+                    // Check for page arrows
                     if (reaction.Emote.Name != ArrowLeft.Name && reaction.Emote.Name != ArrowRight.Name)
                         return;
 
-                    //Lock and check if we have a page context for this message                        
+                    // Lock and check if we have a page context for this message                        
                     PaginatedMessageContext context;
                     lock (_paginatedMessages)
                     {
@@ -288,15 +297,15 @@ namespace DustyBot.Framework.Communication
                     {
                         await context.Lock.WaitAsync();
 
-                        //If requested, only allow the original invoker of the command to flip pages
+                        // If requested, only allow the original invoker of the command to flip pages
                         var concMessage = await message.GetOrDownloadAsync();
                         if (context.ControlledByInvoker && reaction.UserId != context.InvokerUserId)
                             return;
 
-                        //Message was touched -> refresh expiration date
+                        // Message was touched -> refresh expiration date
                         context.ExtendLife();
 
-                        //Calculate new page index and check bounds
+                        // Calculate new page index and check bounds
                         var newPage = context.CurrentPage + (reaction.Emote.Name == ArrowLeft.Name ? -1 : 1);
                         if (newPage < 0 || newPage >= context.TotalPages)
                         {
@@ -304,7 +313,7 @@ namespace DustyBot.Framework.Communication
                             return;
                         }
 
-                        //Modify or resend message
+                        // Modify or resend message
                         var newMessage = context.Pages.ElementAt(newPage);
                         if (context.Resend)
                         {
@@ -321,13 +330,17 @@ namespace DustyBot.Framework.Communication
                         }
                         else
                         {
-                            await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed?.Build(); });
+                            await concMessage.ModifyAsync(x => 
+                            { 
+                                x.Content = newMessage.Content; 
+                                x.Embed = newMessage.Embed?.Build(); 
+                            });
+
                             await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
                         }
 
-                        //Update context
+                        // Update context
                         context.CurrentPage = newPage;
-
                     }
                     finally
                     {
@@ -369,7 +382,7 @@ namespace DustyBot.Framework.Communication
             }
             catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.Forbidden)
             {
-                //Missing permission, ignore
+                // Missing permission, ignore
             }
             catch (Exception ex)
             {
@@ -384,14 +397,6 @@ namespace DustyBot.Framework.Communication
                 foreach (var removed in _paginatedMessages.RemoveAll((x, y) => y.ExpirationDate < DateTime.Now))
                     removed.Value.Dispose();
             }
-        }
-
-        public void Dispose()
-        {
-            _client.ReactionAdded -= HandleReactionAdded;
-            _client.MessageDeleted -= HandleMessageDeleted;
-
-            CleanupPaginatedMessages();
         }
     }
 }

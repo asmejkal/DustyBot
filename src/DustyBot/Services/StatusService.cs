@@ -1,9 +1,9 @@
-﻿using Discord.WebSocket;
+﻿using System.Threading;
+using System.Threading.Tasks;
+using Discord.WebSocket;
 using DustyBot.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DustyBot.Services
 {

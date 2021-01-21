@@ -1,4 +1,7 @@
-﻿using DustyBot.Core.Async;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using DustyBot.Core.Async;
 using DustyBot.Database.Core.Settings;
 using DustyBot.Database.Mongo.Collections.Templates;
 using DustyBot.Database.Mongo.Serializers;
@@ -8,9 +11,6 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace DustyBot.Database.Services
 {
@@ -18,11 +18,11 @@ namespace DustyBot.Database.Services
     {
         public string DatabaseName { get; }
 
-        private IMongoDatabase _db;
+        private readonly KeyedSemaphoreSlim<(Type Type, ulong GuildId)> _serverSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong GuildId)>(1, maxPoolSize: int.MaxValue);
+        private readonly KeyedSemaphoreSlim<(Type Type, ulong UserId)> _userSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong UserId)>(1, maxPoolSize: int.MaxValue);
+        private readonly KeyedSemaphoreSlim<Type> _globalSettingsMutex = new KeyedSemaphoreSlim<Type>(1, maxPoolSize: int.MaxValue);
 
-        KeyedSemaphoreSlim<(Type Type, ulong GuildId)> _serverSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong GuildId)>(1, maxPoolSize: int.MaxValue);
-        KeyedSemaphoreSlim<(Type Type, ulong UserId)> _userSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong UserId)>(1, maxPoolSize: int.MaxValue);
-        KeyedSemaphoreSlim<Type> _globalSettingsMutex = new KeyedSemaphoreSlim<Type>(1, maxPoolSize: int.MaxValue);
+        private IMongoDatabase _db;
 
         static MongoSettingsService()
         {
@@ -38,62 +38,6 @@ namespace DustyBot.Database.Services
             _db = client.GetDatabase(url.DatabaseName);
 
             DatabaseName = url.DatabaseName;
-        }
-
-        private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)
-        {
-            var collection = _db.GetCollection<T>(typeof(T).Name);
-            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
-            if (settings == null && createIfNeeded)
-            {
-                //Create
-                settings = await creator();
-                await collection.InsertOneAsync(settings);
-            }
-
-            return settings;
-        }
-
-        private async Task<T> GetDocument<T>(long id, bool createIfNeeded = true)
-            where T : new()
-        {
-            return await GetDocument(id, () => Task.FromResult(new T()), createIfNeeded);
-        }
-
-        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, Func<Task<T>> creator, bool createIfNeeded = true)
-        {
-            var collection = _db.GetCollection<T>(typeof(T).Name);
-            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
-            if (settings == null && createIfNeeded)
-            {
-                //Create
-                using (await mutex.ClaimAsync(mutexKey))
-                {
-                    collection = _db.GetCollection<T>(typeof(T).Name);
-                    settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
-                    if (settings == null)
-                    {
-                        settings = await creator();
-                        await collection.InsertOneAsync(settings);
-                    }
-                }
-            }
-
-            return settings;
-        }
-
-        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, bool createIfNeeded = true)
-            where T : new()
-        {
-            return await SafeGetDocument(id, mutex, mutexKey, () => Task.FromResult(new T()), createIfNeeded);
-        }
-
-        private Task<T> Create<T>(ulong serverId)
-            where T : IServerSettings, new()
-        {
-            var s = new T();
-            s.ServerId = serverId;
-            return Task.FromResult(s);
         }
 
         public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
@@ -187,14 +131,6 @@ namespace DustyBot.Database.Services
             }
         }
 
-        private Task<T> CreateUser<T>(ulong userId)
-            where T : IUserSettings, new()
-        {
-            var s = new T();
-            s.UserId = userId;
-            return Task.FromResult(s);
-        }
-
         public async Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
             where T : IUserSettings, new()
         {
@@ -232,23 +168,82 @@ namespace DustyBot.Database.Services
             }
         }
 
+        public void Dispose()
+        {
+            _serverSettingsMutex?.Dispose();
+            _userSettingsMutex?.Dispose();
+            _globalSettingsMutex?.Dispose();
+        }
+
+        private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)
+        {
+            var collection = _db.GetCollection<T>(typeof(T).Name);
+            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+            if (settings == null && createIfNeeded)
+            {
+                // Create
+                settings = await creator();
+                await collection.InsertOneAsync(settings);
+            }
+
+            return settings;
+        }
+
+        private async Task<T> GetDocument<T>(long id, bool createIfNeeded = true)
+            where T : new()
+        {
+            return await GetDocument(id, () => Task.FromResult(new T()), createIfNeeded);
+        }
+
+        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, Func<Task<T>> creator, bool createIfNeeded = true)
+        {
+            var collection = _db.GetCollection<T>(typeof(T).Name);
+            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+            if (settings == null && createIfNeeded)
+            {
+                // Create
+                using (await mutex.ClaimAsync(mutexKey))
+                {
+                    collection = _db.GetCollection<T>(typeof(T).Name);
+                    settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+                    if (settings == null)
+                    {
+                        settings = await creator();
+                        await collection.InsertOneAsync(settings);
+                    }
+                }
+            }
+
+            return settings;
+        }
+
+        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, bool createIfNeeded = true)
+            where T : new()
+        {
+            return await SafeGetDocument(id, mutex, mutexKey, () => Task.FromResult(new T()), createIfNeeded);
+        }
+
+        private Task<T> Create<T>(ulong serverId)
+            where T : IServerSettings, new()
+        {
+            var s = new T();
+            s.ServerId = serverId;
+            return Task.FromResult(s);
+        }
+
+        private Task<T> CreateUser<T>(ulong userId)
+            where T : IUserSettings, new()
+        {
+            var s = new T();
+            s.UserId = userId;
+            return Task.FromResult(s);
+        }
+
         private Task UpsertSettings<T>(ulong id, T value)
         {
             return _db
                 .GetCollection<T>(typeof(T).Name)
                 .ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)id)), value, new ReplaceOptions() { IsUpsert = true });
-        }
-
-        public void Dispose()
-        {
-            _serverSettingsMutex?.Dispose();
-            _serverSettingsMutex = null;
-
-            _userSettingsMutex?.Dispose();
-            _userSettingsMutex = null;
-
-            _globalSettingsMutex?.Dispose();
-            _globalSettingsMutex = null;
         }
     }
 }

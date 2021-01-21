@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
-using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace DustyBot.Framework.Utility
 {
@@ -17,6 +17,7 @@ namespace DustyBot.Framework.Utility
         private static readonly Regex MarkdownUriRegex = new Regex(@"^\[(.+)\]\((.+)\)$", RegexOptions.Compiled);
         private static readonly Regex MarkdownQuoteRegex = new Regex(@"^> ", RegexOptions.Multiline | RegexOptions.Compiled);
         private static readonly IEnumerable<char> MarkdownCharacters = new[] { '*', '_', '~', '`', '[', ']', '(', ')' };
+        private static readonly Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
 
         public static async Task EnsureBotPermissions(IGuild guild, params GuildPermission[] perms)
         {
@@ -52,7 +53,6 @@ namespace DustyBot.Framework.Utility
             await EnsureBotPermissions(guildChannel, perms);
         }
 
-        private static Regex UserMentionRegex = new Regex("<@!?([0-9]+)>", RegexOptions.Compiled);
         public static async Task<string> ReplaceUserMentions(string content, IEnumerable<ulong> mentionedUserIds, IGuild guild)
         {
             var names = new Dictionary<ulong, string>();

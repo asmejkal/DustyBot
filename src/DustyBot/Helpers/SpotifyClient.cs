@@ -1,11 +1,9 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Helpers
 {
@@ -26,20 +24,6 @@ namespace DustyBot.Helpers
             var client = new SpotifyClient(clientId, clientSecret);
             await client.Authorize();
             return client;
-        }
-
-        private async Task Authorize()
-        {
-            var result = await SpotifyHelpers.GetClientToken(ClientId, ClientSecret);
-            Authorization = (result.Token, DateTimeOffset.UtcNow.AddSeconds(result.ExpiresIn));
-        }
-
-        private async Task<string> GetToken()
-        {
-            if (Authorization.token == null || DateTimeOffset.Now + TimeSpan.FromMinutes(1) > Authorization.expires)
-                await Authorize();
-
-            return Authorization.token;
         }
 
         public async Task<string> SearchTrackUrl(string query)
@@ -70,6 +54,20 @@ namespace DustyBot.Helpers
                 dynamic item = (root.tracks?.items as JArray)?.FirstOrDefault();
                 return (string)item?.id;
             }
+        }
+
+        private async Task Authorize()
+        {
+            var result = await SpotifyHelpers.GetClientToken(ClientId, ClientSecret);
+            Authorization = (result.Token, DateTimeOffset.UtcNow.AddSeconds(result.ExpiresIn));
+        }
+
+        private async Task<string> GetToken()
+        {
+            if (Authorization.token == null || DateTimeOffset.Now + TimeSpan.FromMinutes(1) > Authorization.expires)
+                await Authorize();
+
+            return Authorization.token;
         }
     }
 }

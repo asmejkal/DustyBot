@@ -1,26 +1,27 @@
-﻿using Discord;
-using System;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Logging;
-using DustyBot.Settings;
-using DustyBot.Helpers;
+using Discord;
 using Discord.WebSocket;
-using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
-using System.Linq;
-using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
 using DustyBot.Framework.Exceptions;
-using System.IO;
-using System.Globalization;
-using Newtonsoft.Json;
-using System.Net;
+using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
+using DustyBot.Helpers;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace DustyBot.Modules
 {
@@ -308,6 +309,11 @@ namespace DustyBot.Modules
                 await command.ReplySuccess($"Users with role `{command["RoleNameOrID"].AsRole.Name}` (`{command["RoleNameOrID"].AsRole.Id}`) will now be allowed to manage reactions.");
         }
 
+        public void Dispose()
+        {
+            _client.MessageReceived -= HandleMessageReceived;
+        }
+
         private Task HandleMessageReceived(SocketMessage message)
         {
             TaskHelper.FireForget(async () =>
@@ -363,7 +369,9 @@ namespace DustyBot.Modules
                     throw new MissingPermissionsException("You may bypass this requirement by asking for a reactions manager role.", GuildPermission.ManageMessages);
             }
             else
+            {
                 throw new InvalidOperationException();
+            }
         }
 
         private static Reaction GetRandom(ICollection<Reaction> reactions, string trigger)
@@ -421,11 +429,6 @@ namespace DustyBot.Modules
             }
 
             return pages;
-        }
-
-        public void Dispose()
-        {
-            _client.MessageReceived -= HandleMessageReceived;
         }
     }
 }

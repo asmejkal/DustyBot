@@ -1,7 +1,7 @@
-﻿using DustyBot.Database.Core.Settings;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using DustyBot.Database.Core.Settings;
 
 namespace DustyBot.Database.Services
 {
@@ -34,7 +34,7 @@ namespace DustyBot.Database.Services
         Task<U> ModifyGlobal<T, U>(Func<T, U> action)
             where T : new();
 
-        //User settings
+        // User settings
         Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
             where T : IUserSettings, new();
 

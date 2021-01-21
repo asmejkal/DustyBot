@@ -86,7 +86,9 @@ namespace DustyBot.Core.Async
                 KeyLockScope scope;
 
                 if (_scopes.ContainsKey(key))
+                {
                     scope = _scopes[key];
+                }
                 else
                 {
                     scope = _pool.Count == 0 ? new KeyLockScope(key, _initialCount, Release) : _pool.Dequeue().Reuse(key);

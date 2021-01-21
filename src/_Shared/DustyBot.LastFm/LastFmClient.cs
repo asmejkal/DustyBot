@@ -1,7 +1,4 @@
-﻿using DustyBot.LastFm.Models;
-using HtmlAgilityPack;
-using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,6 +8,9 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using DustyBot.LastFm.Models;
+using HtmlAgilityPack;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.LastFm
 {
@@ -140,7 +140,9 @@ namespace DustyBot.LastFm
                     return (result.ToList(), more);
                 }
                 else
+                {
                     return (Array.Empty<LastFmRecentTrack>(), false);
+                }
             }
         }
 

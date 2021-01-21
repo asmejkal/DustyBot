@@ -1,9 +1,8 @@
-﻿using DustyBot.Core.Collections;
-using DustyBot.Database.Mongo.Collections;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
+using DustyBot.Core.Collections;
+using DustyBot.Database.Mongo.Models;
 
 namespace DustyBot.Database.Services
 {

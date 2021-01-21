@@ -1,14 +1,14 @@
-﻿using DustyBot.Database.Services;
-using DustyBot.Framework.Configuration;
-using DustyBot.Settings;
-using System;
+﻿using System;
 using System.Threading.Tasks;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Configuration;
 
 namespace DustyBot.Configuration
 {
     public class FrameworkGuildConfigProvider : IFrameworkGuildConfigProvider
     {
-        private ISettingsService _settingsService;
+        private readonly ISettingsService _settingsService;
 
         public FrameworkGuildConfigProvider(ISettingsService settingsService)
         {

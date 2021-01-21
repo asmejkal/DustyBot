@@ -1,17 +1,10 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
+﻿using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections.Templates;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
-using System;
-using System.Collections.Generic;
 
-namespace DustyBot.Database.Mongo.Collections
+namespace DustyBot.Database.Mongo.Models
 {
-    public class ProxyBlacklistItem
-    {
-        public string Address { get; set; }
-        public DateTimeOffset Expiration { get; set; }
-    }
-
     public class ProxyList : BaseGlobalSettings
     {
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]

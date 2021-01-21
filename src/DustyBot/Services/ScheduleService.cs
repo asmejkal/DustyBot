@@ -1,15 +1,16 @@
-﻿using Discord.WebSocket;
-using DustyBot.Settings;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Services;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Utility;
-using Discord;
-using System.Threading;
-using System.Collections.Concurrent;
-using DustyBot.Database.Services;
-using DustyBot.Core.Async;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -62,16 +63,16 @@ namespace DustyBot.Services
             }
         }
 
-        private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15); //Some timezones have quarter-hour fractions
+        private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15); // Some timezones have quarter-hour fractions
 
         private readonly BaseSocketClient _client;
         private readonly ISettingsService _settings;
         private readonly ILogger<ScheduleService> _logger;
 
         private readonly object _updatingLock = new object();
+        private readonly ConcurrentDictionary<ulong, NotificationContext> _notifications = new ConcurrentDictionary<ulong, NotificationContext>();
         private bool _updating;
         private Timer _updateTimer;
-        private readonly ConcurrentDictionary<ulong, NotificationContext> _notifications = new ConcurrentDictionary<ulong, NotificationContext>();
 
         public ScheduleService(BaseSocketClient client, ISettingsService settings, ILogger<ScheduleService> logger)
         {
@@ -122,6 +123,15 @@ namespace DustyBot.Services
             }
         }
 
+        public void Dispose()
+        {
+            _updateTimer?.Dispose();
+            _updateTimer = null;
+
+            foreach (var notification in _notifications.Values)
+                notification.Dispose();
+        }
+
         private void OnUpdate(object state)
         {
             TaskHelper.FireForget(async () =>
@@ -143,7 +153,7 @@ namespace DustyBot.Services
 
                         var targetToday = DateTime.UtcNow.Add(settings.TimezoneOffset).Date;
                         if (targetToday <= settings.LastUpcomingCalendarsUpdate.Date)
-                            continue; //Already updated today (in target timezone)
+                            continue; // Already updated today (in target timezone)
 
                         var guild = _client.GetGuild(settings.ServerId) as IGuild;
                         if (guild == null)
@@ -164,7 +174,11 @@ namespace DustyBot.Services
                                 }
 
                                 var (text, embed) = Modules.ScheduleModule.BuildCalendarMessage(calendar, settings);
-                                await message.ModifyAsync(x => { x.Content = text; x.Embed = embed; });
+                                await message.ModifyAsync(x => 
+                                { 
+                                    x.Content = text; 
+                                    x.Embed = embed; 
+                                });
 
                                 logger.LogInformation("Updated calendar {CalendarMessageId}", calendar.MessageId);
                             }
@@ -261,15 +275,6 @@ namespace DustyBot.Services
                     _logger.LogError(ex, "Failed to process event notifications");
                 }
             });
-        }
-       
-        public void Dispose()
-        {
-            _updateTimer?.Dispose();
-            _updateTimer = null;
-
-            foreach (var notification in _notifications.Values)
-                notification.Dispose();
         }
     }
 }

@@ -1,10 +1,10 @@
-﻿using DustyBot.Database.Sql;
+﻿using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using DustyBot.Database.Sql;
 using DustyBot.Database.Sql.StoredProcedures;
 using DustyBot.Database.Sql.StoredProcedures.Models;
 using DustyBot.Database.Sql.UserDefinedTypes;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DustyBot.Database.Services
 {

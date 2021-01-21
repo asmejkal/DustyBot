@@ -1,6 +1,6 @@
-﻿using DustyBot.Framework.Modules;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using DustyBot.Framework.Modules;
 
 namespace DustyBot.Framework.Reflection
 {

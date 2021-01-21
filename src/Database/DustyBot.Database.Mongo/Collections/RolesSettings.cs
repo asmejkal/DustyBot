@@ -1,23 +1,11 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
+﻿using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections.Templates;
+using DustyBot.Database.Mongo.Models;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
-using System.Collections.Generic;
 
-namespace DustyBot.Settings
+namespace DustyBot.Database.Mongo.Collections
 {
-    public class AssignableRole
-    {
-        public ulong RoleId { get; set; }
-        public List<string> Names { get; set; } = new List<string>();
-        public ulong SecondaryId { get; set; }
-        public HashSet<string> Groups { get; set; } = new HashSet<string>();
-    }
-
-    public class GroupSettings
-    {
-        public uint Limit { get; set; }
-    }
-
     public class RolesSettings : BaseServerSettings
     {
         public ulong RoleChannel { get; set; }

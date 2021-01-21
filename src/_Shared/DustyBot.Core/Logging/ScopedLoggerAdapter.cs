@@ -1,15 +1,14 @@
-﻿using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Concurrent;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Core.Logging
 {
     internal class ScopedLoggerAdapter : ILogger
     {
         private readonly ILogger _inner;
-        public readonly ImmutableDictionary<string, object> _fields;
+        private readonly ImmutableDictionary<string, object> _fields;
 
         public ScopedLoggerAdapter(ILogger inner, IEnumerable<KeyValuePair<string, object>> fields)
         {

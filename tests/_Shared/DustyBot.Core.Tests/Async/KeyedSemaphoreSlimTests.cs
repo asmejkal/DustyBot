@@ -1,5 +1,5 @@
-using DustyBot.Core.Async;
 using System.Threading.Tasks;
+using DustyBot.Core.Async;
 using Xunit;
 
 namespace DustyBot.Core.Tests.Async
