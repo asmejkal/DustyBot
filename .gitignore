@@ -287,5 +287,5 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 
-# For linux
-src/DustyBot/Data/
+# Docker
+*.env
