@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
@@ -10,23 +11,25 @@ namespace DustyBot.Framework.Utility
 {
     public static class DiscordExtensions
     {
-        public static async Task StartReadyAsync(this DiscordSocketClient client)
+        public static async Task StartReadyAsync(this DiscordSocketClient client, CancellationToken ct)
         {
-            var readyTask = client.WaitForReadyAsync();
+            var readyTask = client.WaitForReadyAsync(ct);
             await client.StartAsync();
             await readyTask;
         }
 
-        public static async Task StartReadyAsync(this DiscordShardedClient client)
+        public static async Task StartReadyAsync(this DiscordShardedClient client, CancellationToken ct)
         {
-            var readyTask = client.WaitForReadyAsync();
+            var readyTask = client.WaitForReadyAsync(ct);
             await client.StartAsync();
             await readyTask;
         }
 
-        public static Task WaitForReadyAsync(this DiscordSocketClient client)
+        public static Task WaitForReadyAsync(this DiscordSocketClient client, CancellationToken ct)
         {
             var readyTaskSource = new TaskCompletionSource<bool>();
+            ct.Register(() => readyTaskSource.TrySetCanceled());
+
             client.Ready += () =>
             {
                 readyTaskSource.SetResult(true);
@@ -36,9 +39,10 @@ namespace DustyBot.Framework.Utility
             return readyTaskSource.Task;
         }
 
-        public static Task WaitForReadyAsync(this DiscordShardedClient client)
+        public static Task WaitForReadyAsync(this DiscordShardedClient client, CancellationToken ct)
         {
             var readyTaskSource = new TaskCompletionSource<bool>();
+            ct.Register(() => readyTaskSource.TrySetCanceled());
 
             var readyClients = new HashSet<DiscordSocketClient>();
             client.ShardReady += x =>

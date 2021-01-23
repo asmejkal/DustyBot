@@ -95,7 +95,12 @@ namespace DustyBot
         public static void ConfigureBotLogging(this LoggerConfiguration configuration, IOptions<LoggingOptions> options)
         {
             configuration.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-                .WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(options.Value.ElasticsearchNodeUri))
+                .Enrich.FromLogContext()
+                .MinimumLevel.Information();
+
+            if (!string.IsNullOrEmpty(options.Value.ElasticsearchNodeUri))
+            {
+                configuration.WriteTo.Elasticsearch(new ElasticsearchSinkOptions(new Uri(options.Value.ElasticsearchNodeUri))
                 {
                     IndexFormat = "dustybot-{0:yyyy-MM-dd}",
                     AutoRegisterTemplate = true,
@@ -103,9 +108,8 @@ namespace DustyBot
                     DetectElasticsearchVersion = true,
                     RegisterTemplateFailure = RegisterTemplateRecovery.FailSink,
                     EmitEventFailure = EmitEventFailureHandling.ThrowException
-                })
-                .Enrich.FromLogContext()
-                .MinimumLevel.Information();
+                });
+            }
         }
 
         private static IServiceCollection AddDiscordClient(this IServiceCollection services)

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using DustyBot.Framework.Utility;
@@ -18,10 +19,10 @@ namespace DustyBot
             _client = client;
         }
 
-        public async Task LaunchAsync()
+        public async Task LaunchAsync(CancellationToken ct)
         {
             await _client.LoginAsync(TokenType.Bot, _options.Value.BotToken);
-            await _client.StartReadyAsync();
+            await _client.StartReadyAsync(ct);
         }
     }
 }

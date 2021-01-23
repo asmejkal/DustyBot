@@ -16,6 +16,8 @@ namespace DustyBot.Core.Services
         private readonly ITimerAwaiter _timerAwaiter;
         private readonly TaskCompletionSource<byte> _firstExecutionTaskSource = new TaskCompletionSource<byte>();
 
+        private bool _disposedValue = false;
+
         protected RecurringTaskService(TimeSpan delay, ITimerAwaiter timerAwaiter, IServiceProvider services, ILogger<RecurringTaskService> logger, TimeSpan startDelay = default)
         {
             _services = services;
@@ -30,7 +32,7 @@ namespace DustyBot.Core.Services
             if (!_firstExecutionTaskSource.Task.IsCompleted)
                 _firstExecutionTaskSource.SetCanceled();
 
-            return Task.CompletedTask;
+            return base.StopAsync(ct);
         }
 
         public override void Dispose()
@@ -75,7 +77,7 @@ namespace DustyBot.Core.Services
                     await _timerAwaiter.WaitTriggerAsync(_delay, stoppingToken);
                 }
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
                 // Stopped
             }
@@ -86,8 +88,6 @@ namespace DustyBot.Core.Services
         }
 
         protected abstract Task ExecuteRecurringAsync(IServiceProvider provider, int executionCount, CancellationToken ct);
-
-        private bool _disposedValue = false; // To detect redundant calls
 
         protected virtual void Dispose(bool disposing)
         {
