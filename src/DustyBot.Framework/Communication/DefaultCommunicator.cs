@@ -180,9 +180,6 @@ namespace DustyBot.Framework.Communication
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
-                        return;
-
                     //Check for page arrows
                     if (reaction.Emote.Name != ArrowLeft.Name && reaction.Emote.Name != ArrowRight.Name)
                         return;
@@ -211,7 +208,7 @@ namespace DustyBot.Framework.Communication
                         var newPage = context.CurrentPage + (reaction.Emote.Name == ArrowLeft.Name ? -1 : 1);
                         if (newPage < 0 || newPage >= context.TotalPages)
                         {
-                            await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
+                            await RemovePageReaction(concMessage, reaction.Emote, reaction.UserId);
                             return;
                         }
 
@@ -233,7 +230,7 @@ namespace DustyBot.Framework.Communication
                         else
                         {
                             await concMessage.ModifyAsync(x => { x.Content = newMessage.Content; x.Embed = newMessage.Embed?.Build(); });
-                            await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
+                            await RemovePageReaction(concMessage, reaction.Emote, reaction.UserId);
                         }
                             
                         //Update context
@@ -254,11 +251,11 @@ namespace DustyBot.Framework.Communication
             return Task.CompletedTask;
         }
 
-        private async Task RemovePageReaction(IUserMessage message, IEmote emote, IUser user)
+        private async Task RemovePageReaction(IUserMessage message, IEmote emote, ulong userId)
         {
             try
             {
-                await message.RemoveReactionAsync(emote, user);
+                await message.RemoveReactionAsync(emote, userId);
             }
             catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.Forbidden)
             {

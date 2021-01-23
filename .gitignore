@@ -289,3 +289,4 @@ __pycache__/
 
 # For linux
 src/DustyBot/Data/
+*.env

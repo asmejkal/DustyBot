@@ -249,21 +249,18 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
-                        return;
-
                     if (reaction.Emote.Name != EmoteConstants.ClickToRemove.Name)
                         return;
 
                     if (!Previews.TryGetValue(message.Id, out var context))
                         return;
 
-                    if (reaction.User.Value.Id != context.AuthorId)
+                    if (reaction.UserId != context.AuthorId)
                         return;
 
                     try
                     {
-                        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting post preview for user {reaction.User.Value.Username} ({reaction.User.Value.Id})."));
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Deleting post preview for user {reaction.User.Value?.Username} ({reaction.UserId})."));
                         foreach (var m in context.Messages)
                             await m.DeleteAsync();
                     }

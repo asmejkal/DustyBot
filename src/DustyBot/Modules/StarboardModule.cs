@@ -381,9 +381,6 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
-                        return;
-
                     if (!(channel is ITextChannel textChannel))
                         return;
 
@@ -523,9 +520,6 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    if (reaction == null || !reaction.User.IsSpecified || reaction.User.Value == null || reaction.User.Value.IsBot)
-                        return;
-
                     if (!(channel is ITextChannel textChannel))
                         return;
 
