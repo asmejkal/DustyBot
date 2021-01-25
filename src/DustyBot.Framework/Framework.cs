@@ -72,7 +72,7 @@ namespace DustyBot.Framework
             EventRouter = new Events.SocketEventRouter(components.Modules, components.Client);
 
             if (components.Communicator == null)
-                components.Communicator = new Communication.DefaultCommunicator(components.Config, components.Logger);
+                components.Communicator = new Communication.DefaultCommunicator(components.Config, components.Logger, components.Client);
 
             if (components.Communicator is Communication.DefaultCommunicator defaultCommunicator)
                 EventRouter.Register(defaultCommunicator);
