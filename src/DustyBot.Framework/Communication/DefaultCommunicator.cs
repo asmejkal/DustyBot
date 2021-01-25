@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
-using DustyBot.Framework.Utility;
-using System.Threading;
 using Discord.WebSocket;
-using DustyBot.Framework.Commands;
 using DustyBot.Core.Async;
+using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
-using DustyBot.Core.Collections;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Utility;
 
 namespace DustyBot.Framework.Communication
 {
@@ -63,14 +63,16 @@ namespace DustyBot.Framework.Communication
 
         public Config.FrameworkConfig Config { get; set; }
         public Logging.ILogger Logger { get; set; }
+        public BaseSocketClient Client { get; }
 
         public string SuccessMarker => ":white_check_mark:";
         public string FailureMarker => ":no_entry:";
 
-        public DefaultCommunicator(Config.FrameworkConfig config, Logging.ILogger logger)
+        public DefaultCommunicator(Config.FrameworkConfig config, Logging.ILogger logger, BaseSocketClient client)
         {
             Config = config;
             Logger = logger;
+            Client = client;
         }
 
         public async Task<ICollection<IUserMessage>> CommandReplySuccess(IMessageChannel channel, string message, Embed embed = null) 
@@ -180,6 +182,9 @@ namespace DustyBot.Framework.Communication
             {
                 try
                 {
+                    if (reaction.UserId == Client.CurrentUser.Id)
+                        return;
+
                     //Check for page arrows
                     if (reaction.Emote.Name != ArrowLeft.Name && reaction.Emote.Name != ArrowRight.Name)
                         return;

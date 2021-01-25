@@ -1,28 +1,28 @@
-﻿using Discord;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
+using DustyBot.Exceptions;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Logging;
-using System.Linq;
-using System;
-using Discord.WebSocket;
-using System.Net;
-using System.IO;
-using Newtonsoft.Json.Linq;
-using System.Collections.Generic;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
 using DustyBot.Helpers;
-using DustyBot.Settings;
-using System.IO.Compression;
-using System.Text.RegularExpressions;
-using System.Collections.Concurrent;
-using DustyBot.Definitions;
-using DustyBot.Database.Services;
-using DustyBot.Core.Async;
 using DustyBot.Services;
-using DustyBot.Exceptions;
-using System.Diagnostics;
+using DustyBot.Settings;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
@@ -42,11 +42,12 @@ namespace DustyBot.Modules
         private BotConfig Config { get; }
         private IUrlShortener UrlShortener { get; }
         private IProxyService ProxyService { get; }
+        public BaseSocketClient Client { get; }
 
         private ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)> Previews = 
             new ConcurrentDictionary<ulong, (ulong AuthorId, IEnumerable<IUserMessage> Messages)>();
 
-        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUrlShortener urlShortener, IProxyService proxyService)
+        public InstagramModule(ICommunicator communicator, ISettingsService settings, ILogger logger, BotConfig config, IUrlShortener urlShortener, IProxyService proxyService, BaseSocketClient client)
         {
             Communicator = communicator;
             Settings = settings;
@@ -54,6 +55,7 @@ namespace DustyBot.Modules
             Config = config;
             UrlShortener = urlShortener;
             ProxyService = proxyService;
+            Client = client;
         }
 
         [Command("ig", "Shows a preview of one or more Instagram posts.")]
@@ -249,6 +251,9 @@ namespace DustyBot.Modules
             {
                 try
                 {
+                    if (reaction.UserId == Client.CurrentUser.Id)
+                        return;
+
                     if (reaction.Emote.Name != EmoteConstants.ClickToRemove.Name)
                         return;
 

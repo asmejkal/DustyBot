@@ -1,26 +1,26 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Globalization;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using Discord.WebSocket;
+using System.Linq;
+using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
-using DustyBot.Database.Services;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
-using DustyBot.Core.Async;
+using DustyBot.Database.Services;
 using DustyBot.Definitions;
-using System.Net;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
+using DustyBot.Settings;
 
 namespace DustyBot.Modules
 {
@@ -35,16 +35,18 @@ namespace DustyBot.Modules
         private ILogger Logger { get; }
         private IUserFetcher UserFetcher { get; }
         private IUrlShortener UrlShortener { get; }
+        private BaseSocketClient Client { get; }
 
         private KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
 
-        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener)
+        public StarboardModule(ICommunicator communicator, ISettingsService settings, ILogger logger, IUserFetcher userFetcher, IUrlShortener urlShortener, BaseSocketClient client)
         {
             Communicator = communicator;
             Settings = settings;
             Logger = logger;
             UserFetcher = userFetcher;
             UrlShortener = urlShortener;
+            Client = client;
         }
 
         [Command("starboard", "help", "Shows help for this module.", CommandFlags.Hidden)]
@@ -381,6 +383,9 @@ namespace DustyBot.Modules
             {
                 try
                 {
+                    if (reaction.UserId == Client.CurrentUser.Id)
+                        return;
+
                     if (!(channel is ITextChannel textChannel))
                         return;
 
@@ -520,6 +525,9 @@ namespace DustyBot.Modules
             {
                 try
                 {
+                    if (reaction.UserId == Client.CurrentUser.Id)
+                        return;
+
                     if (!(channel is ITextChannel textChannel))
                         return;
 
