@@ -278,7 +278,7 @@ namespace DustyBot.Framework.Communication
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
+                    if (reaction.UserId == _client.CurrentUser.Id)
                         return;
 
                     // Check for page arrows
@@ -309,7 +309,7 @@ namespace DustyBot.Framework.Communication
                         var newPage = context.CurrentPage + (reaction.Emote.Name == ArrowLeft.Name ? -1 : 1);
                         if (newPage < 0 || newPage >= context.TotalPages)
                         {
-                            await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
+                            await RemovePageReaction(concMessage, reaction.Emote, reaction.UserId);
                             return;
                         }
 
@@ -336,7 +336,7 @@ namespace DustyBot.Framework.Communication
                                 x.Embed = newMessage.Embed?.Build(); 
                             });
 
-                            await RemovePageReaction(concMessage, reaction.Emote, reaction.User.Value);
+                            await RemovePageReaction(concMessage, reaction.Emote, reaction.UserId);
                         }
 
                         // Update context
@@ -349,7 +349,7 @@ namespace DustyBot.Framework.Communication
                 }
                 catch (Exception ex)
                 {
-                    _logger.WithScope(channel, message.Id).LogError(ex, "Failed to flip a page for PaginatedMessage");
+                    _logger.WithScope(reaction).LogError(ex, "Failed to flip a page for PaginatedMessage");
                 }
             });
 
@@ -374,11 +374,14 @@ namespace DustyBot.Framework.Communication
             return Task.CompletedTask;
         }
 
-        private async Task RemovePageReaction(IUserMessage message, IEmote emote, IUser user)
+        private async Task RemovePageReaction(IUserMessage message, IEmote emote, ulong userId)
         {
             try
             {
-                await message.RemoveReactionAsync(emote, user);
+                if (message.Channel is SocketGuildChannel channel && !channel.Guild.CurrentUser.GetPermissions(channel).ManageMessages)
+                    return;
+
+                await message.RemoveReactionAsync(emote, userId);
             }
             catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.Forbidden)
             {

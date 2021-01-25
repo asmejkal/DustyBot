@@ -293,7 +293,7 @@ namespace DustyBot.Service.Modules
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
+                    if (reaction.UserId == _client.CurrentUser.Id)
                         return;
 
                     if (reaction.Emote.Name != EmoteConstants.ClickToRemove.Name)
@@ -302,12 +302,12 @@ namespace DustyBot.Service.Modules
                     if (!_previews.TryGetValue(message.Id, out var context))
                         return;
 
-                    if (reaction.User.Value.Id != context.AuthorId)
+                    if (reaction.UserId != context.AuthorId)
                         return;
 
                     try
                     {
-                        _logger.WithScope(reaction.User.Value).WithScope(channel).LogInformation("Deleting Instagram post preview");
+                        _logger.WithScope(reaction).LogInformation("Deleting Instagram post preview");
                         foreach (var m in context.Messages)
                             await m.DeleteAsync();
                     }
@@ -322,7 +322,7 @@ namespace DustyBot.Service.Modules
                 }
                 catch (Exception ex)
                 {
-                    _logger.WithScope(channel, message.Id).LogError(ex, "Failed to process preview delete reaction");
+                    _logger.WithScope(reaction).LogError(ex, "Failed to process preview delete reaction");
                 }
             });
 

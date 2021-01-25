@@ -411,7 +411,7 @@ namespace DustyBot.Service.Modules
             {
                 try
                 {
-                    if (!reaction.User.IsSpecified || reaction.User.Value.IsBot)
+                    if (reaction.UserId == _client.CurrentUser.Id)
                         return;
 
                     if (!(channel is ITextChannel textChannel))
@@ -434,7 +434,7 @@ namespace DustyBot.Service.Modules
                                 }
                                 catch (Exception ex)
                                 {
-                                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process new star in board {StarboardId}", board.Id);
+                                    _logger.WithScope(reaction).LogError(ex, "Failed to process new star in board {StarboardId}", board.Id);
                                 }
                             }
                         });
@@ -442,7 +442,7 @@ namespace DustyBot.Service.Modules
                 }
                 catch (Exception ex)
                 {
-                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process a potential new starboard reaction");
+                    _logger.WithScope(reaction).LogError(ex, "Failed to process a potential new starboard reaction");
                 }
             });
 
@@ -555,7 +555,7 @@ namespace DustyBot.Service.Modules
             {
                 try
                 {
-                    if (reaction == null || !reaction.User.IsSpecified || reaction.User.Value == null || reaction.User.Value.IsBot)
+                    if (reaction.UserId == _client.CurrentUser.Id)
                         return;
 
                     if (!(channel is ITextChannel textChannel))
@@ -577,7 +577,7 @@ namespace DustyBot.Service.Modules
                                 }
                                 catch (Exception ex)
                                 {
-                                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process removed star in board {StarboardId}", board.Id);
+                                    _logger.WithScope(reaction).LogError(ex, "Failed to process removed star in board {StarboardId}", board.Id);
                                 }
                             }
                         });
@@ -585,7 +585,7 @@ namespace DustyBot.Service.Modules
                 }
                 catch (Exception ex)
                 {
-                    _logger.WithScope(channel, cachedMessage.Id).LogError(ex, "Failed to process a potential removed starboard reaction");
+                    _logger.WithScope(reaction).LogError(ex, "Failed to process a potential removed starboard reaction");
                 }
             });
 

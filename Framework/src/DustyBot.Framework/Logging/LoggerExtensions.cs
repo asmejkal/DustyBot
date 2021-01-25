@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Logging;
 using Microsoft.Extensions.Logging;
 
@@ -59,6 +60,22 @@ namespace DustyBot.Framework.Logging
         {
             var correlationIds = new Dictionary<string, object>();
             FillGuild(correlationIds, guild);
+
+            return logger.WithScope(correlationIds);
+        }
+
+        public static ILogger WithScope(this ILogger logger, SocketReaction reaction)
+        {
+            var correlationIds = new Dictionary<string, object>();
+            if (reaction.User.IsSpecified)
+                FillUser(correlationIds, reaction.User.Value);
+            else
+                correlationIds.Add(LogFields.UserId, reaction.UserId);
+
+            FillMessage(correlationIds, reaction.MessageId);
+            FillChannel(correlationIds, reaction.Channel);
+            if (reaction.Channel is IGuildChannel guildChannel)
+                FillGuild(correlationIds, guildChannel.Guild);
 
             return logger.WithScope(correlationIds);
         }
