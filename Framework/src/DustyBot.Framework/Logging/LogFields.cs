@@ -10,5 +10,8 @@
         public const string GuildId = "GuildId";
         public const string GuildName = "GuildName";
         public const string CommandId = "CommandId";
+        public const string CommandPrimaryUsage = "CommandPrimaryUsage";
+        public const string CommandInvokeUsage = "CommandInvokeUsage";
+        public const string CommandModuleType = "CommandModuleType";
     }
 }

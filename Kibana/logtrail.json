@@ -1,0 +1,40 @@
+{
+  "version" : 2,
+  "index_patterns" : [
+    {      
+      "es": {
+        "default_index": "dustybot-*"
+      },
+      "tail_interval_in_seconds": 3,
+      "es_index_time_offset_in_seconds": 0,
+      "display_timezone": "local",
+      "display_timestamp_format": "MMM DD HH:mm:ss",
+      "max_buckets": 500,
+      "default_time_range_in_days" : 0,
+      "max_hosts": 100,
+      "max_events_to_keep_in_viewer": 5000,
+      "default_search": "",
+      "fields" : {
+        "mapping" : {
+            "timestamp" : "@timestamp",
+            "hostname" : "fields.Component",
+            "program": "fields.ComponentInstance",
+            "message": "message"
+        },
+        "message_format": "{{{fields.GuildName}}} {{{fields.ChannelName}}} {{{fields.UserName}}}: {{{message}}}",
+        "keyword_suffix" : "keyword"
+      },
+      "color_mapping" : {
+		"field": "level",
+		"mapping": {
+			"Critical": "#ff0000",
+			"Error": "#ff3232",
+			"Warning": "#ffb90f",
+			"Information": "#f9f9f9",
+			"Debug": "#eaeaea",
+			"Trace": "#e0e0e0"
+		}
+      }
+    }
+  ]
+}

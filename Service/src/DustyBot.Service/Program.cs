@@ -9,7 +9,6 @@ using DustyBot.Service.Helpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Serilog;
 
 namespace DustyBot
@@ -48,7 +47,7 @@ namespace DustyBot
             using var host = new HostBuilder()
                 .ConfigureAppConfiguration(x => x.AddEnvironmentVariables())
                 .ConfigureServices((context, services) => services.AddBotServices(context.Configuration))
-                .UseSerilog((_, provider, config) => config.ConfigureBotLogging(provider.GetRequiredService<IOptions<LoggingOptions>>()))
+                .UseSerilog((_, provider, config) => config.ConfigureBotLogging(provider))
                 .Build();
 
             await host.Services.GetRequiredService<DiscordClientLauncher>().LaunchAsync(ct);

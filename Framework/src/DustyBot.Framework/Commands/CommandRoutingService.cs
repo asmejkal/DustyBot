@@ -120,7 +120,7 @@ namespace DustyBot.Framework.Commands
         private async Task HandleCommand(SocketUserMessage message, CommandRegistrationFindResult findResult)
         {
             var correlationId = Guid.NewGuid();
-            var logger = _logger.WithCommandScope(message, correlationId);
+            var logger = _logger.WithCommandScope(message, correlationId, findResult.Registration, findResult.Usage);
             
             var stopwatch = Stopwatch.StartNew();
             var gatewayDelay = DateTimeOffset.UtcNow - message.Timestamp;
@@ -283,9 +283,10 @@ namespace DustyBot.Framework.Commands
                 using (var scope = _clientServiceProvider.CreateScope())
                 {
                     var module = scope.ServiceProvider.GetRequiredService(findResult.Registration.ModuleType);
-                    var commandLogger = _loggerFactory.CreateLogger(findResult.Registration.ModuleType);
+                    var commandLogger = _loggerFactory.CreateLogger(findResult.Registration.ModuleType)
+                        .WithCommandScope(command.Message, correlationId, findResult.Registration, findResult.Usage);
 
-                    await findResult.Registration.Handler.Invoke(module, command, commandLogger.WithCommandScope(command.Message, correlationId));
+                    await findResult.Registration.Handler.Invoke(module, command, commandLogger);
                 }
 
                 result = CommandResult.Succeeded;

@@ -92,10 +92,15 @@ namespace DustyBot
             services.AddScoped<ITimeProvider, TimeProvider>();
         }
 
-        public static void ConfigureBotLogging(this LoggerConfiguration configuration, IOptions<LoggingOptions> options)
+        public static void ConfigureBotLogging(this LoggerConfiguration configuration, IServiceProvider provider)
         {
+            var options = provider.GetRequiredService<IOptions<LoggingOptions>>();
+            var discordOptions = provider.GetRequiredService<IOptions<DiscordOptions>>();
+
             configuration.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
                 .Enrich.FromLogContext()
+                .Enrich.WithProperty("Component", "dustybot-service")
+                .Enrich.WithProperty("ComponentInstance", $"shard-{string.Join("+", discordOptions.Value.Shards ?? new[] { 0 })}")
                 .MinimumLevel.Information();
 
             if (!string.IsNullOrEmpty(options.Value.ElasticsearchNodeUri))
@@ -116,6 +121,7 @@ namespace DustyBot
         {
             services.AddSingleton(x =>
             {
+                var options = x.GetRequiredService<IOptions<DiscordOptions>>();
                 var intents = GatewayIntents.DirectMessageReactions |
                     GatewayIntents.DirectMessages |
                     GatewayIntents.GuildEmojis |
@@ -130,10 +136,11 @@ namespace DustyBot
                     MessageCacheSize = 200,
                     ConnectionTimeout = int.MaxValue,
                     ExclusiveBulkDelete = true,
-                    GatewayIntents = intents
+                    GatewayIntents = intents,
+                    TotalShards = options.Value.TotalShards
                 };
 
-                return new DiscordShardedClient(config)
+                return new DiscordShardedClient(options.Value.Shards, config)
                     .UseSerilog(x.GetRequiredService<ILogger>());
             });
 

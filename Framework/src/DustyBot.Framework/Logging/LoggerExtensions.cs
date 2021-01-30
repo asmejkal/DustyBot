@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Discord;
 using Discord.WebSocket;
 using DustyBot.Core.Logging;
+using DustyBot.Framework.Commands;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Framework.Logging
@@ -80,10 +81,14 @@ namespace DustyBot.Framework.Logging
             return logger.WithScope(correlationIds);
         }
 
-        internal static ILogger WithCommandScope(this ILogger logger, IMessage message, Guid commandId)
+        internal static ILogger WithCommandScope(this ILogger logger, IMessage message, Guid commandId, CommandInfo commandInfo, CommandInfo.Usage commandUsage)
         {
             var correlationIds = new Dictionary<string, object>();
             correlationIds.Add(LogFields.CommandId, commandId);
+            correlationIds.Add(LogFields.CommandPrimaryUsage, commandInfo.PrimaryUsage);
+            correlationIds.Add(LogFields.CommandInvokeUsage, commandUsage.InvokeUsage);
+            correlationIds.Add(LogFields.CommandModuleType, commandInfo.ModuleType.Name);
+
             FillMessage(correlationIds, message);
             FillUser(correlationIds, message.Author);
             FillChannel(correlationIds, message.Channel);

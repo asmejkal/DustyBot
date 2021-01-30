@@ -1,0 +1,41 @@
+version: '3.5'
+services:
+    dustybot-service:
+        build: 
+            context: .
+            dockerfile: Service/src/DustyBot.Service/Dockerfile
+        image: dustybot-service
+        container_name: dustybot-service
+        environment:
+            - TableStorageConnectionString=${Dusty_TableStorageConnectionString}
+            - SqlDbConnectionString=${Dusty_SqlDbConnectionString}
+            - DefaultCommandPrefix=${Dusty_DefaultCommandPrefix}
+            - OwnerID=${Dusty_OwnerID}
+            - BotToken=${Dusty_BotToken}
+            - YouTubeKey=${Dusty_YouTubeKey}
+            - LastFmKey=${Dusty_LastFmKey}
+            - SpotifyId=${Dusty_SpotifyId}
+            - SpotifyKey=${Dusty_SpotifyKey}
+            - PapagoClientId=${Dusty_PapagoClientId}
+            - PapagoClientSecret=${Dusty_PapagoClientSecret}
+            - PolrKey=${Dusty_PolrKey}
+            - PolrDomain=${Dusty_PolrDomain}
+            - ProxyListUrl=${Dusty_ProxyListUrl}
+            - ProxyListToken=${Dusty_ProxyListToken}
+            - WebsiteRoot=${Dusty_WebsiteRoot}
+            - WebsiteShorthand=${Dusty_WebsiteShorthand}
+            - SupportServerInvite=${Dusty_SupportServerInvite}
+            - SpotifyConnectUrl=${Dusty_SpotifyConnectUrl}
+            - PatreonUrl=${Dusty_PatreonUrl}
+            - "ElasticsearchNodeUri=http://dustybot-elasticsearch:9200"
+            - "MongoDbConnectionString=mongodb://${Dusty_MongoRootUsername}:${Dusty_MongoRootPassword}@dustybot-mongodb:27017/dustybot?authSource=admin&maxPoolSize=1000"
+        restart: always 
+        networks:
+            - dustybot-mongodb-net
+            - dustybot-elasticsearch-net
+
+networks:
+    dustybot-mongodb-net:
+        name: dustybot-mongodb-net
+    dustybot-elasticsearch-net:
+        name: dustybot-elasticsearch-net
