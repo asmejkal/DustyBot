@@ -99,7 +99,7 @@ namespace DustyBot.Service.Services
             {
                 var blacklist = await _proxyList.GetBlacklistAsync();
                 _proxies = proxies.Where(x => !blacklist.Any(y => y.Address == x.Address.AbsoluteUri)).ToImmutableList();
-                _logger.LogInformation("Downloaded proxies ({BlacklistCount} blacklisted): {ProxyList}", proxies.Count - _proxies.Count, string.Join(", ", proxies.Select(x => x.Address)));
+                _logger.LogInformation("Downloaded {ProxyCount} proxies ({BlacklistCount} blacklisted)", proxies.Count, proxies.Count - _proxies.Count);
             }
         }
     }

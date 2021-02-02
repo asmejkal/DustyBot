@@ -134,7 +134,6 @@ namespace DustyBot
                 var config = new DiscordSocketConfig
                 {
                     MessageCacheSize = 200,
-                    ConnectionTimeout = int.MaxValue,
                     ExclusiveBulkDelete = true,
                     GatewayIntents = intents,
                     TotalShards = options.Value.TotalShards

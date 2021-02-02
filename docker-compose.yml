@@ -5,9 +5,6 @@ services:
             file: dustybot-service-template.yml
             service: dustybot-service
         container_name: dustybot-service
-        environment:
-            - TotalShards=1
-            - ShardsList=0
         depends_on:
             - dustybot-mongodb
             - dustybot-elasticsearch
