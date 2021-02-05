@@ -1,26 +1,26 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.IO;
-using System.Globalization;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
-using DustyBot.Helpers;
-using DustyBot.Definitions;
-using DustyBot.Services;
-using DustyBot.Database.Services;
+using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Miscellaneous;
-using Discord.WebSocket;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
+using DustyBot.Services;
+using DustyBot.Settings;
 
 namespace DustyBot.Modules
 {
@@ -192,13 +192,14 @@ namespace DustyBot.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            var currentUser = await command.Guild.GetCurrentUserAsync();
+            if (!currentUser.GetPermissions(command["Channel"].AsTextChannel).SendMessages)
             {
                 await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
-            if ((!command["RoleNameOrID"].AsRole?.IsMentionable) ?? false)
+            if (!currentUser.GuildPermissions.MentionEveryone && !command["RoleNameOrID"].AsRole.IsMentionable)
             {
                 await command.ReplyError(Communicator, $"This role can't be pinged. Please adjust the role permissions in your server and try again.");
                 return;
