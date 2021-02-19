@@ -151,7 +151,7 @@ namespace DustyBot.Modules
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
-                    if (!banningUser.IsOwner() && banningUserMaxRole <= guildUser.GetHighestRolePosition())
+                    if (!banningUser.IsOwner() && (banningUserMaxRole <= guildUser.GetHighestRolePosition() || guildUser.IsOwner()))
                     {
                         result.AppendLine($"{Communicator.FailureMarker} You don't have permission to ban user `{userName}` on this server.");
                         continue;
