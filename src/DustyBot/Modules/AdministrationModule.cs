@@ -1,21 +1,19 @@
-﻿using Discord;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
-using System.IO;
-using Newtonsoft.Json.Linq;
-using DustyBot.Framework.Modules;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
-using Newtonsoft.Json;
-using DustyBot.Helpers;
-using System;
-using System.Collections.Generic;
+using DustyBot.Framework.Modules;
 using DustyBot.Framework.Utility;
-using Discord.WebSocket;
-using DustyBot.Database.Services;
+using DustyBot.Helpers;
 
 namespace DustyBot.Modules
 {
@@ -142,7 +140,8 @@ namespace DustyBot.Modules
             if (command["Users"].Repeats.Count > 10)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("The maximum number of bans per command is 10.", false);
 
-            var userMaxRole = ((IGuildUser)command.Author).RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
+            var banningUser = (IGuildUser)command.Author;
+            var banningUserMaxRole = banningUser.GetHighestRolePosition();
             var result = new StringBuilder();
             var bans = new Dictionary<ulong, (Task Task, string User)>();
             foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
@@ -152,9 +151,9 @@ namespace DustyBot.Modules
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
-                    if (userMaxRole <= guildUser.RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0))
+                    if (!banningUser.IsOwner() && banningUserMaxRole <= guildUser.GetHighestRolePosition())
                     {
-                        result.AppendLine($"{Communicator.FailureMarker} You can't ban user `{userName}` on this server.");
+                        result.AppendLine($"{Communicator.FailureMarker} You don't have permission to ban user `{userName}` on this server.");
                         continue;
                     }
                 }

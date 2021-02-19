@@ -1,8 +1,8 @@
-﻿using Discord;
-using DustyBot.Core.Async;
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Discord;
+using DustyBot.Core.Async;
 
 namespace DustyBot.Framework.Utility
 {
@@ -70,5 +70,11 @@ namespace DustyBot.Framework.Utility
             var userMaxPosition = user.RoleIds.Select(x => role.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
             return role.Position < userMaxPosition;
         }
+
+        public static int GetHighestRolePosition(this IGuildUser user) =>
+            user.RoleIds.Select(x => user.Guild.GetRole(x)?.Position ?? 0).DefaultIfEmpty().Max();
+
+        public static bool IsOwner(this IGuildUser user) =>
+            user.Guild.OwnerId == user.Id;
     }
 }
