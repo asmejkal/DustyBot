@@ -64,6 +64,10 @@ namespace DustyBot.Helpers
 
         public bool MentionedEveryone => Inner.MentionedEveryone;
 
+        public IUserMessage ReferencedMessage => Inner.ReferencedMessage;
+
+        public MessageFlags? Flags => Inner.Flags;
+
         public async Task AddReactionAsync(IEmote emote, RequestOptions options = null)
             => await Inner.AddReactionAsync(emote, options);
 
