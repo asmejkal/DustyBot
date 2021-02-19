@@ -29,8 +29,8 @@ namespace DustyBot.Modules
     [Module("Instagram", "Helps with Instagram post previews.")]
     class InstagramModule : Module
     {
-        private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";
-        private const string QuotedPostRegexString = @"<http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)[^\s]*>";
+        private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv|reel)\/([^/?#>\s]+)";
+        private const string QuotedPostRegexString = "<" + PostRegexString + @"[^\s]*>";
         private static readonly Regex PostRegex = new Regex(PostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex QuotedPostRegex = new Regex(QuotedPostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private const int LinkPerPostLimit = 8;
