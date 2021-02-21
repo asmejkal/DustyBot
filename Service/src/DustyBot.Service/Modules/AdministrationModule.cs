@@ -149,7 +149,8 @@ namespace DustyBot.Service.Modules
             if (command["Users"].Repeats.Count > 10)
                 throw new Framework.Exceptions.IncorrectParametersCommandException("The maximum number of bans per command is 10.", false);
 
-            var userMaxRole = ((IGuildUser)command.Author).RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0);
+            var banningUser = (IGuildUser)command.Author;
+            var banningUserMaxRole = banningUser.GetHighestRolePosition();
             var result = new StringBuilder();
             var bans = new Dictionary<ulong, (Task Task, string User, ulong UserId)>();
             foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
@@ -159,9 +160,9 @@ namespace DustyBot.Service.Modules
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
-                    if (command.Guild.OwnerId != command.Author.Id && userMaxRole <= guildUser.RoleIds.Select(x => command.Guild.GetRole(x)).Max(x => x?.Position ?? 0))
+                    if (!banningUser.IsOwner() && (banningUserMaxRole <= guildUser.GetHighestRolePosition() || guildUser.IsOwner()))
                     {
-                        result.AppendLine(_communicator.FormatFailure($"You can't ban user `{userName}` on this server."));
+                        result.AppendLine(_communicator.FormatFailure($"You don't have permission to ban user `{userName}` on this server."));
                         continue;
                     }
                 }
@@ -180,6 +181,7 @@ namespace DustyBot.Service.Modules
             }
             catch (Exception)
             {
+                // Handled below
             }
 
             foreach (var ban in bans.Values)

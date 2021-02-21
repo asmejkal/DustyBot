@@ -247,13 +247,14 @@ namespace DustyBot.Service.Modules
         {
             await AssertPrivileges(command.Message.Author, command.GuildId);
 
-            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["Channel"].AsTextChannel).SendMessages)
+            var currentUser = await command.Guild.GetCurrentUserAsync();
+            if (!currentUser.GetPermissions(command["Channel"].AsTextChannel).SendMessages)
             {
                 await command.ReplyError($"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
                 return;
             }
 
-            if ((!command["RoleNameOrID"].AsRole?.IsMentionable) ?? false)
+            if (!currentUser.GuildPermissions.MentionEveryone && !command["RoleNameOrID"].AsRole.IsMentionable)
             {
                 await command.ReplyError($"This role can't be pinged. Please adjust the role permissions in your server and try again.");
                 return;

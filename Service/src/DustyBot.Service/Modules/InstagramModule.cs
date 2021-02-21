@@ -35,8 +35,8 @@ namespace DustyBot.Service.Modules
     [Module("Instagram", "Show previews for your Instagram links.")]
     internal sealed class InstagramModule : IDisposable
     {
-        private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)";
-        private const string QuotedPostRegexString = @"<http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv)\/([^/?#>\s]+)[^\s]*>";
+        private const string PostRegexString = @"https?:\/\/(?:www\.)?instagram\.com\/(?:p|tv|reel)\/([^/?#>\s]+)";
+        private const string QuotedPostRegexString = "<" + PostRegexString + @"[^\s]*>";
         private const int LinkPerPostLimit = 8;
         private static readonly Regex PostRegex = new Regex(PostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex QuotedPostRegex = new Regex(QuotedPostRegexString, RegexOptions.IgnoreCase | RegexOptions.Compiled);
