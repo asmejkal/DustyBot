@@ -38,7 +38,7 @@ namespace DustyBot.Helpers
             DateTimeOffset? timestamp = null, 
             string iconUrl = null,
             int maxCaptionLength = 400,
-            int maxCaptionLines = 10)
+            int maxCaptionLines = 8)
         {
             var author = new EmbedAuthorBuilder()
                 .WithName(title);
@@ -98,7 +98,14 @@ namespace DustyBot.Helpers
             return embed;
         }
 
-        public static IEnumerable<string> BuildMediaText(string title, IEnumerable<string> media, string url = null, string caption = null, string footer = null)
+        public static IEnumerable<string> BuildMediaText(
+            string title, 
+            IEnumerable<string> media, 
+            string url = null, 
+            string caption = null, 
+            string footer = null,
+            int maxCaptionLength = 400,
+            int maxCaptionLines = 8)
         {
             var result = new StringBuilder();
             result.AppendLine(title);
@@ -114,7 +121,10 @@ namespace DustyBot.Helpers
                     links.AppendLine(item);
 
                 if (first && !string.IsNullOrWhiteSpace(caption))
-                    result.AppendLine(caption.Truncate(DiscordHelpers.MaxMessageLength - links.Length - result.Length - (footer?.Length ?? 0) - 50).Quote());
+                {
+                    var captionSpace = DiscordHelpers.MaxMessageLength - links.Length - result.Length - (footer?.Length ?? 0) - 50;
+                    result.AppendLine(caption.Truncate(Math.Min(maxCaptionLength, captionSpace)).TruncateLines(maxCaptionLines, trim: true).Quote());
+                }
 
                 result.Append(links);
                 if (first && !string.IsNullOrEmpty(footer))

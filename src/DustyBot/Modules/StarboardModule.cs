@@ -716,7 +716,9 @@ namespace DustyBot.Modules
                     $"**@{author.Username}{(string.IsNullOrEmpty(author.Nickname) ? "" : $" ~ {author.Nickname}")}:**",
                     attachments.Take(PrintHelpers.MediaPerTextMessage),
                     caption: content,
-                    footer: footer);
+                    footer: footer,
+                    maxCaptionLength: int.MaxValue,
+                    maxCaptionLines: int.MaxValue);
 
                 var result = await DiscordHelpers.ReplaceMentions(messages.First(), message.MentionedUserIds, message.MentionedRoleIds, channel.Guild);
                 return (DiscordHelpers.EscapeMentions(result), null);
