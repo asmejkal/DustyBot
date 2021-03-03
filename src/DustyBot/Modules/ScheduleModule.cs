@@ -199,7 +199,8 @@ namespace DustyBot.Modules
                 return;
             }
 
-            if (!currentUser.GuildPermissions.MentionEveryone && !command["RoleNameOrID"].AsRole.IsMentionable)
+            var pingRole = command["RoleNameOrID"].AsRole;
+            if (pingRole != null && !currentUser.GuildPermissions.MentionEveryone && !pingRole.IsMentionable)
             {
                 await command.ReplyError(Communicator, $"This role can't be pinged. Please adjust the role permissions in your server and try again.");
                 return;
@@ -213,7 +214,7 @@ namespace DustyBot.Modules
                 {
                     Tag = tag,
                     Channel = command["Channel"].AsTextChannel.Id,
-                    Role = command["RoleNameOrID"].AsRole?.Id ?? default
+                    Role = pingRole?.Id ?? default
                 });
             });
 
