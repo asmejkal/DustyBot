@@ -21,6 +21,8 @@ using DustyBot.Framework.Utility;
 using DustyBot.Helpers;
 using DustyBot.Services;
 using DustyBot.Settings;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
@@ -348,6 +350,45 @@ namespace DustyBot.Modules
                 var result = await RefreshCalendars(command.Guild, Enumerable.Empty<DateTime>(), new[] { currentTag, remove ? null : newTag });
                 await command.ReplySuccess(Communicator, $"Retagged {countEvents} events and {countCalendars} calendars. {result}");
                 await Service.RefreshNotifications(command.GuildId, settings);
+            }
+        }
+
+        [Command("schedule", "export", "Exports all events into a text file.")]
+        public async Task ExportSchedule(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var settings = await Settings.Read<ScheduleSettings>(command.GuildId, false);
+            if (settings == null || !settings.Events.Any())
+            {
+                await command.Reply(Communicator, "There are no events in this server's schedule.");
+                return;
+            }
+
+            var serializer = new JsonSerializer() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+            var events = settings.Events.Select(x => JObject.FromObject(new
+            {
+                Date = x.Date.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                Time = x.HasTime ? x.Date.ToString("HH:mm", CultureInfo.InvariantCulture) : null,
+                Description = x.Description,
+                Link = x.HasLink ? x.Link : null,
+                Tag = x.HasTag ? x.Tag : null,
+            }, serializer));
+
+            var result = JObject.FromObject(new 
+            {
+                Timezone = BuildUTCOffsetString(settings),
+                Events = new JArray(events)
+            });
+
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream, Encoding.UTF8))
+            {
+                serializer.Serialize(writer, result);
+                writer.Flush();
+
+                stream.Seek(0, SeekOrigin.Begin);
+                await command.Channel.SendFileAsync(stream, $"Schedule-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.json", $"{Communicator.SuccessMarker} Exported {settings.Events.Count} events!");
             }
         }
 

@@ -229,7 +229,7 @@ namespace DustyBot.Modules
                 writer.Flush();
                 stream.Position = 0;
 
-                await command.Channel.SendFileAsync(stream, $"Reactions-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.json", $"Exported {settings.Reactions.Count} reactions!");
+                await command.Channel.SendFileAsync(stream, $"Reactions-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.json", $"{Communicator.SuccessMarker} Exported {settings.Reactions.Count} reactions!");
             }
         }
 
