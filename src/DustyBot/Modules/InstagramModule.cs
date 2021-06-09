@@ -69,47 +69,50 @@ namespace DustyBot.Modules
             if (!channelPermissions.SendMessages)
                 return;
 
-            var style = InstagramPreviewStyle.None;
-            if (command["Style"].HasValue)
-            {
-                if (!Enum.TryParse(command["Style"], true, out style) || !Enum.IsDefined(typeof(InstagramPreviewStyle), style))
-                    throw new IncorrectParametersCommandException("Unknown style.");
-            }
-            else
-            {
-                var settings = await Settings.ReadUser<UserMediaSettings>(command.Author.Id, false);
-                if (settings != null && settings.InstagramPreviewStyle != InstagramPreviewStyle.None)
-                    style = settings.InstagramPreviewStyle;
-            }
+            await command.Reply(Communicator, $"Instagram has blocked all of Dusty's IP addresses. We're working on the problem, please try again later.");
+            return;
 
-            var matches = PostRegex.Matches(command["Url"]);
-            if (!matches.Any())
-                throw new IncorrectParametersCommandException("Not a valid post link.");
+            //var style = InstagramPreviewStyle.None;
+            //if (command["Style"].HasValue)
+            //{
+            //    if (!Enum.TryParse(command["Style"], true, out style) || !Enum.IsDefined(typeof(InstagramPreviewStyle), style))
+            //        throw new IncorrectParametersCommandException("Unknown style.");
+            //}
+            //else
+            //{
+            //    var settings = await Settings.ReadUser<UserMediaSettings>(command.Author.Id, false);
+            //    if (settings != null && settings.InstagramPreviewStyle != InstagramPreviewStyle.None)
+            //        style = settings.InstagramPreviewStyle;
+            //}
 
-            var unquoted = matches.Count > QuotedPostRegex.Matches(command["Url"]).Count;
-            Task suppressionTask = null;
-            if (unquoted && channelPermissions.ManageMessages)
-                suppressionTask = TrySuppressEmbed(command.Message);
+            //var matches = PostRegex.Matches(command["Url"]);
+            //if (!matches.Any())
+            //    throw new IncorrectParametersCommandException("Not a valid post link.");
 
-            foreach (var id in matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit))
-            {
-                try
-                {
-                    await PostPreviewAsync(id, command.Channel, style, command.Author.Id);
-                }
-                catch (Exception ex)
-                {
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {command.Author.Username} ({command.Author.Id}) on {command.Guild.Name}", ex));
+            //var unquoted = matches.Count > QuotedPostRegex.Matches(command["Url"]).Count;
+            //Task suppressionTask = null;
+            //if (unquoted && channelPermissions.ManageMessages)
+            //    suppressionTask = TrySuppressEmbed(command.Message);
 
-                    if (ex is ProxiesDepletedException)
-                        await command.Reply(Communicator, $"Instagram has blocked all of Dusty's IP addresses. Please try again later.");
-                    else
-                        await command.ReplyError(Communicator, "Failed to create preview.");
-                }
-            }
+            //foreach (var id in matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit))
+            //{
+            //    try
+            //    {
+            //        await PostPreviewAsync(id, command.Channel, style, command.Author.Id);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {command.Author.Username} ({command.Author.Id}) on {command.Guild.Name}", ex));
 
-            if (suppressionTask != null)
-                await suppressionTask;
+            //        if (ex is ProxiesDepletedException)
+            //            await command.Reply(Communicator, $"Instagram has blocked all of Dusty's IP addresses. Please try again later.");
+            //        else
+            //            await command.ReplyError(Communicator, "Failed to create preview.");
+            //    }
+            //}
+
+            //if (suppressionTask != null)
+            //    await suppressionTask;
         }
 
         [Command("ig", "toggle", "auto", "Automatically create previews for Instagram links you post.", CommandFlags.DirectMessageAllow)]
@@ -171,70 +174,72 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    var channel = message.Channel as SocketTextChannel;
-                    if (channel == null)
-                        return;
+                    return;
 
-                    var user = message.Author as IGuildUser;
-                    if (user == null)
-                        return;
+                    //var channel = message.Channel as SocketTextChannel;
+                    //if (channel == null)
+                    //    return;
 
-                    if (user.IsBot)
-                        return;
+                    //var user = message.Author as IGuildUser;
+                    //if (user == null)
+                    //    return;
 
-                    if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
-                        return;
+                    //if (user.IsBot)
+                    //    return;
 
-                    var userSettings = await Settings.ReadUser<UserMediaSettings>(user.Id, false);
-                    InstagramPreviewStyle style;
-                    if (userSettings == null || !userSettings.InstagramAutoPreviews)
-                    {
-                        var serverSettings = await Settings.Read<MediaSettings>(channel.Guild.Id, false);
-                        if (serverSettings == null || !serverSettings.InstagramAutoPreviews)
-                            return;
+                    //if (!channel.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+                    //    return;
 
-                        if (userSettings == null || userSettings.InstagramPreviewStyle == InstagramPreviewStyle.None)
-                            style = serverSettings.InstagramPreviewStyle;
-                        else
-                            style = userSettings.InstagramPreviewStyle;
-                    }
-                    else
-                        style = userSettings.InstagramPreviewStyle;
+                    //var userSettings = await Settings.ReadUser<UserMediaSettings>(user.Id, false);
+                    //InstagramPreviewStyle style;
+                    //if (userSettings == null || !userSettings.InstagramAutoPreviews)
+                    //{
+                    //    var serverSettings = await Settings.Read<MediaSettings>(channel.Guild.Id, false);
+                    //    if (serverSettings == null || !serverSettings.InstagramAutoPreviews)
+                    //        return;
 
-                    var matches = PostRegex.Matches(message.Content);
-                    if (!matches.Any())
-                        return;
+                    //    if (userSettings == null || userSettings.InstagramPreviewStyle == InstagramPreviewStyle.None)
+                    //        style = serverSettings.InstagramPreviewStyle;
+                    //    else
+                    //        style = userSettings.InstagramPreviewStyle;
+                    //}
+                    //else
+                    //    style = userSettings.InstagramPreviewStyle;
 
-                    var botSettings = await Settings.Read<BotSettings>(channel.Guild.Id, createIfNeeded: false);
-                    var commandMatch = SocketCommand.FindLongestMatch(message.Content, botSettings?.CommandPrefix ?? Config.DefaultCommandPrefix, new[] { HandledCommands.Single(x => x.PrimaryUsage.InvokeUsage == "ig") });
-                    if (commandMatch != null)
-                        return; // Don't create duplicate previews from the ig command
+                    //var matches = PostRegex.Matches(message.Content);
+                    //if (!matches.Any())
+                    //    return;
 
-                    var unquoted = matches.Count > QuotedPostRegex.Matches(message.Content).Count;
+                    //var botSettings = await Settings.Read<BotSettings>(channel.Guild.Id, createIfNeeded: false);
+                    //var commandMatch = SocketCommand.FindLongestMatch(message.Content, botSettings?.CommandPrefix ?? Config.DefaultCommandPrefix, new[] { HandledCommands.Single(x => x.PrimaryUsage.InvokeUsage == "ig") });
+                    //if (commandMatch != null)
+                    //    return; // Don't create duplicate previews from the ig command
 
-                    var ids = matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit).ToList();
-                    await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Creating previews of {ids.Count} posts{(unquoted ? " [unquoted]" : "")} ({string.Join(" ", ids)}) for user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
+                    //var unquoted = matches.Count > QuotedPostRegex.Matches(message.Content).Count;
 
-                    Task suppressionTask = null;
-                    if (unquoted)
-                    {
-                        suppressionTask = TrySuppressEmbed((IUserMessage)message);
-                    }
+                    //var ids = matches.Select(x => x.Groups[1].Value).Distinct().Take(LinkPerPostLimit).ToList();
+                    //await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Creating previews of {ids.Count} posts{(unquoted ? " [unquoted]" : "")} ({string.Join(" ", ids)}) for user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}"));
 
-                    foreach (var id in ids)
-                    {
-                        try
-                        {
-                            await PostPreviewAsync(id, message.Channel, style, user.Id);
-                        }
-                        catch (Exception ex)
-                        {
-                            await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}", ex));
-                        }
-                    }
+                    //Task suppressionTask = null;
+                    //if (unquoted)
+                    //{
+                    //    suppressionTask = TrySuppressEmbed((IUserMessage)message);
+                    //}
 
-                    if (suppressionTask != null)
-                        await suppressionTask;
+                    //foreach (var id in ids)
+                    //{
+                    //    try
+                    //    {
+                    //        await PostPreviewAsync(id, message.Channel, style, user.Id);
+                    //    }
+                    //    catch (Exception ex)
+                    //    {
+                    //        await Logger.Log(new LogMessage(LogSeverity.Info, "Instagram", $"Failed to create preview for post {id} and user {message.Author.Username} ({message.Author.Id}) on {channel.Guild.Name}", ex));
+                    //    }
+                    //}
+
+                    //if (suppressionTask != null)
+                    //    await suppressionTask;
                 }
                 catch (Exception ex)
                 {

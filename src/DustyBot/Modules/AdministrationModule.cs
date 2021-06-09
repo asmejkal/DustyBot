@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using DustyBot.Database.Mongo.Collections;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
@@ -20,6 +23,29 @@ namespace DustyBot.Modules
     [Module("Mod", "Helps with server administration.")]
     class AdministrationModule : Module
     {
+        private static readonly IReadOnlyList<string> SampleUsernames = new[]
+        {
+            "StreetTrader34",
+            "Cue__True54",
+            "ParvidensInfused21",
+            "Thus Guideline20",
+            "Gliddery+Pratincola95",
+            "FlirdsDazzling69",
+            "Recruit Wavy21",
+            "TongueQuail64",
+            "DanoneAll89",
+            "KarstenMewish16",
+            "Ratsbane Flair",
+            "StudSkall",
+            "ReachSarcastic",
+            "KlubboFinnvik",
+            "Worm Blow",
+            "Lindved2Astern",
+            "ButterburSkir",
+            "Savings@Lewy",
+            "DilkLarboard!"
+        };
+
         private ICommunicator Communicator { get; }
         private ISettingsService Settings { get; }
         private ILogger Logger { get; }
@@ -192,6 +218,56 @@ namespace DustyBot.Modules
             }
 
             await command.Reply(Communicator, result.ToString());
+        }
+
+        [Command("autoban", "Prevent users matching the specified criteria from joining your server.")]
+        [Permissions(GuildPermission.BanMembers), BotPermissions(GuildPermission.BanMembers)]
+        [Parameter("LogChannel", ParameterType.TextChannel, "a channel that will receive autoban notifications")]
+        [Parameter("NameRegex", ParameterType.String, "users with a name matching this regular expression will be automatically banned")]
+        [Comment("For testing of regular expressions you can use https://regexr.com/. Expressions ignore upper and lower case.")]
+        [Example("\"weird dude.*\"")]
+        public async Task Autoban(ICommand command)
+        {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["LogChannel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError(Communicator, $"The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
+            var stopwatch = Stopwatch.StartNew(); // Ideally we'd measure thread execution time, but that's not as simple in C#
+            foreach (var item in SampleUsernames)
+            {
+                try
+                {
+                    Regex.IsMatch(item, command["NameRegex"], RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    // Continue
+                }
+
+                if (stopwatch.ElapsedMilliseconds > SampleUsernames.Count * 30)
+                {
+                    await command.Reply(Communicator, "Your regular expression is too complex.");
+                    return;
+                }
+            }
+
+            await Settings.Modify<AdministrationSettings>(command.GuildId, x =>
+            {
+                x.AutobanUsernameRegex = command["NameRegex"];
+                x.AutobanLogChannelId = command["LogChannel"].AsTextChannel.Id;
+            });
+
+            await command.ReplySuccess(Communicator, "All users matching the provided conditions will now be automatically banned without a greeting message.");
+        }
+
+        [Command("autoban", "disable", "Disable automatic bans.")]
+        [Permissions(GuildPermission.BanMembers)]
+        public async Task DisableAutoban(ICommand command)
+        {
+            await Settings.Modify<AdministrationSettings>(command.GuildId, x => x.AutobanUsernameRegex = default);
+            await command.ReplySuccess(Communicator, "Automatic bans disabled.");
         }
 
         [Command("roles", "Lists all roles on the server with their IDs.")]

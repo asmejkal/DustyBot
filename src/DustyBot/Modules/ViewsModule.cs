@@ -1,21 +1,21 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Net;
-using System.IO;
 using System.Globalization;
-using Newtonsoft.Json.Linq;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Settings;
-using DustyBot.Helpers;
+using System.IO;
+using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
-using DustyBot.Database.Services;
+using System.Threading.Tasks;
+using Discord;
 using DustyBot.Core.Formatting;
 using DustyBot.Core.Parsing;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Modules;
+using DustyBot.Helpers;
+using DustyBot.Settings;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
@@ -104,7 +104,8 @@ namespace DustyBot.Modules
             var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
                 .Where(x => x != category)
                 .Where(x => !string.IsNullOrEmpty(x))
-                .Distinct();
+                .Distinct()
+                .Take(5);
 
             var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
             

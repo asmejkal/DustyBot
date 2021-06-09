@@ -1,8 +1,7 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
+using Discord;
 
 namespace DustyBot.Helpers
 {
@@ -67,6 +66,8 @@ namespace DustyBot.Helpers
         public IUserMessage ReferencedMessage => Inner.ReferencedMessage;
 
         public MessageFlags? Flags => Inner.Flags;
+
+        public IReadOnlyCollection<ISticker> Stickers => Inner.Stickers;
 
         public async Task AddReactionAsync(IEmote emote, RequestOptions options = null)
             => await Inner.AddReactionAsync(emote, options);

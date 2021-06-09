@@ -1,17 +1,19 @@
-﻿using Discord;
-using System;
+﻿using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Core.Async;
+using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
-using DustyBot.Framework.Logging;
-using DustyBot.Settings;
-using Discord.WebSocket;
-using DustyBot.Helpers;
-using DustyBot.Database.Services;
-using DustyBot.Core.Async;
 using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using DustyBot.Helpers;
+using DustyBot.Settings;
 
 namespace DustyBot.Modules
 {
@@ -218,12 +220,54 @@ namespace DustyBot.Modules
                 throw new InvalidOperationException("Inconsistent settings");
         }
 
+        private async Task<bool> ProcessAutoban(SocketGuildUser guildUser)
+        {
+            var settings = await Settings.Read<AdministrationSettings>(guildUser.Guild.Id, false);
+            if (settings == null)
+                return false;
+
+            if (settings.AutobanUsernameRegex == default || settings.AutobanLogChannelId == default)
+                return false;
+
+            var channel = guildUser.Guild.GetTextChannel(settings.AutobanLogChannelId);
+            if (channel == null)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Autoban", $"Can't log autobans for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because the channel does not exist"));
+                return false;
+            }
+
+            if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Autoban", $"Can't log autobans for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
+                return false;
+            }
+
+            if (!Regex.IsMatch(guildUser.Username, settings.AutobanUsernameRegex))
+                return false;
+            
+            await guildUser.BanAsync(1, "autobanned");
+
+            var embed = new EmbedBuilder()
+                .WithDescription($"**Autobanned user {guildUser.Mention}:**\n Username {guildUser.Username} matches the autoban rule.").WithColor(Color.Red);
+
+            await channel.SendMessageAsync("", embed: embed.Build());
+
+            await Logger.Log(new LogMessage(LogSeverity.Info, "Autoban", $"Autobanned user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
+            return true;
+        }
+
         public override Task OnUserJoined(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
+                    if (await ProcessAutoban(guildUser))
+                    {
+                        // Skip greeting
+                        return;
+                    }
+
                     var settings = await Settings.Read<EventsSettings>(guildUser.Guild.Id, false);
                     if (settings == null)
                         return;

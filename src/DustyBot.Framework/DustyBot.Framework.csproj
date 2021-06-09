@@ -11,7 +11,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Discord.Net" Version="2.3.1-dev-yeba-20210213004550" />
+    <PackageReference Include="Discord.Net" Version="2.4.0-20210508.2" />
+    <PackageReference Include="Discord.Net.Commands" Version="2.4.0-dev-20210508.2" />
+    <PackageReference Include="Discord.Net.Core" Version="2.4.0-dev-20210508.2" />
+    <PackageReference Include="Discord.Net.Rest" Version="2.4.0-dev-20210508.2" />
+    <PackageReference Include="Discord.Net.Webhook" Version="2.4.0-dev-20210508.2" />
+    <PackageReference Include="Discord.Net.WebSocket" Version="2.4.0-dev-20210508.2" />
     <PackageReference Include="Microsoft.CSharp" Version="4.5.0" />
     <PackageReference Include="System.Reflection.Extensions" Version="4.3.0" />
   </ItemGroup>

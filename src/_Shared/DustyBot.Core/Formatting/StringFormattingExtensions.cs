@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -21,7 +20,7 @@ namespace DustyBot.Core.Formatting
         }
 
         public static bool TryAppendLineLimited(this StringBuilder o, string value, int maxLength)
-            => o.TryAppendLimited(value + Environment.NewLine, maxLength);
+            => o.TryAppendLimited(value + '\n', maxLength);
 
         public static string Truncate(this string value, int maxChars, string ellipsis = "...")
         {

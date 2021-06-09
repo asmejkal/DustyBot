@@ -13,6 +13,8 @@ using System.Diagnostics;
 using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Formatting;
+using System.Net.Http;
+using System.Net;
 
 namespace DustyBot.Services
 {
@@ -143,7 +145,16 @@ namespace DustyBot.Services
                 session = DaumCafeSession.Anonymous;
 
             //Get last post ID
-            var lastPostId = await session.GetLastPostId(feed.CafeId, feed.BoardId);
+            int lastPostId;
+            try
+            {
+                lastPostId = await session.GetLastPostId(feed.CafeId, feed.BoardId);
+            }
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.Forbidden)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Service", $"Cafe feed {feed.Id} ({feed.CafeId}/{feed.BoardId}) update forbidden for {channel.Guild.Name} ({channel.Guild.Id})"));
+                return;
+            }
 
             //If new feed -> just store the last post ID and return
             if (feed.LastPostId < 0)
