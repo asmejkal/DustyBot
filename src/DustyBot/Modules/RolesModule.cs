@@ -1,25 +1,25 @@
-﻿using Discord;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Net;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Settings;
-using Discord.WebSocket;
-using DustyBot.Definitions;
-using DustyBot.Framework.Exceptions;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using Discord;
+using Discord.WebSocket;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Database.Services;
-using System.Collections.Concurrent;
+using DustyBot.Definitions;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using DustyBot.Framework.Utility;
+using DustyBot.Settings;
 
 namespace DustyBot.Modules
 {
@@ -338,7 +338,7 @@ namespace DustyBot.Modules
             await command.ReplySuccess(Communicator, $"Role `{primary.Name} ({primary.Id})` has been set as a primary bias role to `{secondary.Name} ({secondary.Id})`.");
         }
 
-        [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
+        [Command("roles", "stats", "Server roles statistics.")]
         [Alias("role", "stats"), Alias("bias", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
         public async Task RolesStats(ICommand command)

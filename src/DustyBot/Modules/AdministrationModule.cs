@@ -116,6 +116,30 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, "Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
         }
 
+        [Command("read", "Reads the content and formatting of a specified message.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("MessageId", ParameterType.GuildUserMessage, ParameterFlags.Remainder, "ID or message link")]
+        public async Task Read(ICommand command)
+        {
+            var message = await command["MessageId"].AsGuildUserMessage;
+            var permissions = ((IGuildUser)command.Author).GetPermissions((IGuildChannel)message.Channel);
+            if (!permissions.ViewChannel || !permissions.ReadMessageHistory)
+            {
+                await command.ReplyError(Communicator, "You don't have a permission to read the message history in this channel.");
+                return;
+            }
+
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(message.Content);
+                writer.Flush();
+                stream.Position = 0;
+
+                await command.Channel.SendFileAsync(stream, $"Message-{command.Guild.Name}-{message.Id}.txt");
+            }
+        }
+
         [Command("edit", "Edits a message sent by the say command.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("MessageId", ParameterType.GuildSelfMessage, "a message previously sent by the `say` command")]

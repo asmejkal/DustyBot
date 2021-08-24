@@ -229,6 +229,13 @@ namespace DustyBot.Modules
             if (settings.AutobanUsernameRegex == default || settings.AutobanLogChannelId == default)
                 return false;
 
+            var currentUser = guildUser.Guild.CurrentUser;
+            if (!currentUser.GuildPermissions.BanMembers)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Info, "Autoban", $"Missing permissions to process autoban for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id})"));
+                return false;
+            }
+
             var channel = guildUser.Guild.GetTextChannel(settings.AutobanLogChannelId);
             if (channel == null)
             {
@@ -236,19 +243,20 @@ namespace DustyBot.Modules
                 return false;
             }
 
-            if (!guildUser.Guild.CurrentUser.GetPermissions(channel).SendMessages)
+            if (!currentUser.GetPermissions(channel).SendMessages)
             {
                 await Logger.Log(new LogMessage(LogSeverity.Info, "Autoban", $"Can't log autobans for user {guildUser.Username} ({guildUser.Id}) on {guildUser.Guild.Name} ({guildUser.Guild.Id}) because of missing permissions"));
                 return false;
             }
 
-            if (!Regex.IsMatch(guildUser.Username, settings.AutobanUsernameRegex))
+            if (!Regex.IsMatch(guildUser.Username, settings.AutobanUsernameRegex, RegexOptions.IgnoreCase))
                 return false;
             
             await guildUser.BanAsync(1, "autobanned");
 
             var embed = new EmbedBuilder()
-                .WithDescription($"**Autobanned user {guildUser.Mention}:**\n Username {guildUser.Username} matches the autoban rule.").WithColor(Color.Red);
+                .WithFooter($"ID: {guildUser.Id}")
+                .WithDescription($"**Autobanned user {guildUser.Mention}:**\n Username `{guildUser.Username}` matches the autoban rule.").WithColor(Color.Red);
 
             await channel.SendMessageAsync("", embed: embed.Build());
 
@@ -262,10 +270,17 @@ namespace DustyBot.Modules
             {
                 try
                 {
-                    if (await ProcessAutoban(guildUser))
+                    try
                     {
-                        // Skip greeting
-                        return;
+                        if (await ProcessAutoban(guildUser))
+                        {
+                            // Skip greeting
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Error, "Autoban", "Failed to process autoban", ex));
                     }
 
                     var settings = await Settings.Read<EventsSettings>(guildUser.Guild.Id, false);
