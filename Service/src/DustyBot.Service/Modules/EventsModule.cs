@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
@@ -246,12 +247,72 @@ namespace DustyBot.Service.Modules
             }
         }
 
+        private async Task<bool> ProcessAutoban(SocketGuildUser guildUser)
+        {
+            var settings = await _settings.Read<AdministrationSettings>(guildUser.Guild.Id, false);
+            if (settings == null)
+                return false;
+
+            if (settings.AutobanUsernameRegex == default || settings.AutobanLogChannelId == default)
+                return false;
+
+            var logger = _logger.WithScope(guildUser);
+            var currentUser = guildUser.Guild.CurrentUser;
+            if (!currentUser.GuildPermissions.BanMembers)
+            {
+                logger.LogInformation("Missing permissions to process autoban");
+                return false;
+            }
+
+            var channel = guildUser.Guild.GetTextChannel(settings.AutobanLogChannelId);
+            if (channel == null || !currentUser.GetPermissions(channel).SendMessages)
+            {
+                logger.LogInformation("Can't log autobans");
+                return false;
+            }
+
+            try
+            {
+                if (!Regex.IsMatch(guildUser.Username, settings.AutobanUsernameRegex, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200)))
+                    return false;
+            }
+            catch (RegexMatchTimeoutException ex)
+            {
+                logger.LogWarning(ex, "Failed to process autoban because of regex timeout");
+                return false;
+            }
+            
+            await guildUser.BanAsync(1, "autobanned");
+
+            var embed = new EmbedBuilder()
+                .WithFooter($"ID: {guildUser.Id}")
+                .WithDescription($"**Autobanned user {guildUser.Mention}:**\n Username `{guildUser.Username}` matches the autoban rule.").WithColor(Color.Red);
+
+            await channel.SendMessageAsync("", embed: embed.Build());
+
+            logger.LogInformation("Autobanned user");
+            return true;
+        }
+
         private Task HandleUserJoined(SocketGuildUser guildUser)
         {
             TaskHelper.FireForget(async () =>
             {
                 try
                 {
+                    try
+                    {
+                        if (await ProcessAutoban(guildUser))
+                        {
+                            // Skip greeting
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.WithScope(guildUser).LogError(ex, "Failed to process autoban");
+                    }
+
                     var settings = await _settings.Read<EventsSettings>(guildUser.Guild.Id, false);
                     if (settings == null)
                         return;

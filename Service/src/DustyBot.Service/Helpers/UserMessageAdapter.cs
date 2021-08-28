@@ -67,6 +67,8 @@ namespace DustyBot.Service.Helpers
 
         public MessageFlags? Flags => _inner.Flags;
 
+        public IReadOnlyCollection<ISticker> Stickers => _inner.Stickers;
+
         public async Task AddReactionAsync(IEmote emote, RequestOptions options = null)
             => await _inner.AddReactionAsync(emote, options);
 

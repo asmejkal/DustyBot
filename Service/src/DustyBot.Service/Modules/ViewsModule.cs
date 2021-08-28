@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -17,6 +16,7 @@ using DustyBot.Framework.Communication;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using DustyBot.Service.Configuration;
+using DustyBot.Service.Definitions;
 using DustyBot.Service.Helpers;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
@@ -112,8 +112,8 @@ namespace DustyBot.Service.Modules
                 TimeSpan timePublished = DateTime.Now.ToUniversalTime() - info.Item2.PublishedAt;
 
                 pages.Last.Embed.AddField(eab => eab.WithName($":tv: {info.Item1.Name}").WithIsInline(false).WithValue(
-                    $"**Views: **{info.Item2.Views.ToString("N0", new CultureInfo("en-US"))}\n" +
-                    $"**Likes: **{info.Item2.Likes.ToString("N0", new CultureInfo("en-US"))}\n" +
+                    $"**Views: **{info.Item2.Views.ToString("N0", GlobalDefinitions.Culture)}\n" +
+                    $"**Likes: **{info.Item2.Likes.ToString("N0", GlobalDefinitions.Culture)}\n" +
                     $"**Published: **{string.Format("{0}d {1}h {2}min ago", timePublished.Days, timePublished.Hours, timePublished.Minutes)}\n\n"));
             }
 
@@ -252,7 +252,8 @@ namespace DustyBot.Service.Modules
             var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
                 .Where(x => x != category)
                 .Where(x => !string.IsNullOrEmpty(x))
-                .Distinct();
+                .Distinct()
+                .Take(5);
 
             var isDefault = settings.YouTubeComebacks.Any(x => x.Category == null) && category != null;
 

@@ -85,7 +85,7 @@ namespace DustyBot.Framework.Logging
         {
             var correlationIds = new Dictionary<string, object>();
             correlationIds.Add(LogFields.CommandId, commandId);
-            correlationIds.Add(LogFields.CommandPrimaryUsage, commandInfo.PrimaryUsage);
+            correlationIds.Add(LogFields.CommandPrimaryUsage, commandInfo.PrimaryUsage.InvokeUsage);
             correlationIds.Add(LogFields.CommandInvokeUsage, commandUsage.InvokeUsage);
             correlationIds.Add(LogFields.CommandModuleType, commandInfo.ModuleType.Name);
 

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Discord;
@@ -120,7 +121,16 @@ namespace DustyBot.Service.Services
             }
 
             // Get last post ID
-            var lastPostId = await session.GetLastPostId(feed.CafeId, feed.BoardId, ct);
+            int lastPostId;
+            try
+            {
+                lastPostId = await session.GetLastPostId(feed.CafeId, feed.BoardId, ct);
+            }
+            catch (WebException ex) when (ex.Response is HttpWebResponse r && r.StatusCode == HttpStatusCode.Forbidden)
+            {
+                logger.LogInformation("Cafe feed {CafeId}/{BoardId} update forbidden", feed.CafeId, feed.BoardId);
+                return;
+            }
 
             // If new feed -> just store the last post ID and return
             if (feed.LastPostId < 0)

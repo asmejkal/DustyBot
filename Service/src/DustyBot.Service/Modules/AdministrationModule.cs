@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using DustyBot.Database.Mongo.Collections;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
@@ -21,6 +24,29 @@ namespace DustyBot.Service.Modules
     [Module("Mod", "Helps with server administration.")]
     internal sealed class AdministrationModule
     {
+        private static readonly IReadOnlyList<string> SampleUsernames = new[]
+        {
+            "StreetTrader34",
+            "Cue__True54",
+            "ParvidensInfused21",
+            "Thus Guideline20",
+            "Gliddery+Pratincola95",
+            "FlirdsDazzling69",
+            "Recruit Wavy21",
+            "TongueQuail64",
+            "DanoneAll89",
+            "KarstenMewish16",
+            "Ratsbane Flair",
+            "StudSkall",
+            "ReachSarcastic",
+            "KlubboFinnvik",
+            "Worm Blow",
+            "Lindved2Astern",
+            "ButterburSkir",
+            "Savings@Lewy",
+            "DilkLarboard!"
+        };
+
         private readonly ICommunicator _communicator;
         private readonly ISettingsService _settings;
         private readonly BaseSocketClient _client;
@@ -97,6 +123,30 @@ namespace DustyBot.Service.Modules
 
             if (command["TargetChannel"].AsTextChannel.Id != command.Message.Channel.Id)
                 await command.ReplySuccess("Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
+        }
+
+        [Command("read", "Reads the content and formatting of a specified message.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("MessageId", ParameterType.GuildUserMessage, ParameterFlags.Remainder, "ID or message link")]
+        public async Task Read(ICommand command)
+        {
+            var message = await command["MessageId"].AsGuildUserMessage;
+            var permissions = ((IGuildUser)command.Author).GetPermissions((IGuildChannel)message.Channel);
+            if (!permissions.ViewChannel || !permissions.ReadMessageHistory)
+            {
+                await command.ReplyError("You don't have a permission to read the message history in this channel.");
+                return;
+            }
+
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(message.Content);
+                writer.Flush();
+                stream.Position = 0;
+
+                await command.Channel.SendFileAsync(stream, $"Message-{command.Guild.Name}-{message.Id}.txt");
+            }
         }
 
         [Command("edit", "Edits a message sent by the say command.")]
@@ -202,6 +252,56 @@ namespace DustyBot.Service.Modules
             }
 
             await command.Reply(result.ToString());
+        }
+
+        [Command("autoban", "Prevent users matching the specified criteria from joining your server.")]
+        [Permissions(GuildPermission.BanMembers), BotPermissions(GuildPermission.BanMembers)]
+        [Parameter("LogChannel", ParameterType.TextChannel, "a channel that will receive autoban notifications")]
+        [Parameter("NameRegex", ParameterType.String, "users with a name matching this regular expression will be automatically banned")]
+        [Comment("For testing of regular expressions you can use https://regexr.com/. Expressions ignore upper and lower case.")]
+        [Example("\"weird dude.*\"")]
+        public async Task Autoban(ICommand command)
+        {
+            if (!(await command.Guild.GetCurrentUserAsync()).GetPermissions(command["LogChannel"].AsTextChannel).SendMessages)
+            {
+                await command.ReplyError("The bot can't send messages in this channel. Please set the correct guild or channel permissions.");
+                return;
+            }
+
+            var stopwatch = Stopwatch.StartNew(); // Ideally we'd measure thread execution time, but that's not as simple in C#
+            foreach (var item in SampleUsernames)
+            {
+                try
+                {
+                    Regex.IsMatch(item, command["NameRegex"], RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    // Continue
+                }
+
+                if (stopwatch.ElapsedMilliseconds > SampleUsernames.Count * 30)
+                {
+                    await command.Reply("Your regular expression is too complex.");
+                    return;
+                }
+            }
+            
+            await _settings.Modify<AdministrationSettings>(command.GuildId, x =>
+            {
+                x.AutobanUsernameRegex = command["NameRegex"];
+                x.AutobanLogChannelId = command["LogChannel"].AsTextChannel.Id;
+            });
+
+            await command.ReplySuccess("All users matching the provided conditions will now be automatically banned without a greeting message.");
+        }
+
+        [Command("autoban", "disable", "Disable automatic bans.")]
+        [Permissions(GuildPermission.BanMembers)]
+        public async Task DisableAutoban(ICommand command)
+        {
+            await _settings.Modify<AdministrationSettings>(command.GuildId, x => x.AutobanUsernameRegex = default);
+            await command.ReplySuccess("Automatic bans disabled.");
         }
 
         [Command("roles", "Lists all roles on the server with their IDs.")]

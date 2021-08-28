@@ -114,8 +114,18 @@ namespace DustyBot.Framework.Communication
                 }
 
                 await DiscordHelpers.EnsureBotPermissions(channel, ChannelPermission.AddReactions);
-                await result.AddReactionAsync(ArrowLeft);
-                await result.AddReactionAsync(ArrowRight);
+                TaskHelper.FireForget(async () =>
+                {
+                    try
+                    {
+                        await result.AddReactionAsync(ArrowLeft);
+                        await result.AddReactionAsync(ArrowRight);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.WithScope(result).LogError(ex, "Failed to add page reaction");
+                    }
+                });
 
                 // Clean old messages, to avoid tracking too many unnecessary messages when the bots runs for a long time
                 CleanupPaginatedMessages();

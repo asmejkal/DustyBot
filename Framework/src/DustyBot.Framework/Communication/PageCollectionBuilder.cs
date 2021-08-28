@@ -29,7 +29,7 @@ namespace DustyBot.Framework.Communication
                     pages.Add(embed);
                     description.Clear();
                     pageLines = 1;
-                    description.AppendLine(line.Truncate(EmbedBuilder.MaxDescriptionLength));
+                    description.Append(line.Truncate(EmbedBuilder.MaxDescriptionLength - 1) + '\n');
                 }
             }
 

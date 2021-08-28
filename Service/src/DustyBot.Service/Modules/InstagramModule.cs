@@ -102,7 +102,10 @@ namespace DustyBot.Service.Modules
             if (!channelPermissions.SendMessages)
                 return;
 
-            var style = InstagramPreviewStyle.None;
+            await command.Reply("Instagram has blocked all of Dusty's IP addresses. We're working on the problem, please try again later.");
+            return;
+
+            /*var style = InstagramPreviewStyle.None;
             if (command["Style"].HasValue)
             {
                 if (!Enum.TryParse(command["Style"], true, out style) || !Enum.IsDefined(typeof(InstagramPreviewStyle), style))
@@ -142,7 +145,7 @@ namespace DustyBot.Service.Modules
             }
 
             if (suppressionTask != null)
-                await suppressionTask;
+                await suppressionTask;*/
         }
 
         [Command("ig", "toggle", "auto", "Automatically create previews for Instagram links you post.", CommandFlags.DirectMessageAllow)]
@@ -206,7 +209,7 @@ namespace DustyBot.Service.Modules
 
         private Task HandleMessageReceived(SocketMessage message)
         {
-            TaskHelper.FireForget(async () =>
+            /*TaskHelper.FireForget(async () =>
             {
                 try
                 {
@@ -282,7 +285,7 @@ namespace DustyBot.Service.Modules
                 {
                     _logger.WithScope(message).LogError(ex, "Failed to process message");
                 }
-            });
+            });*/
 
             return Task.CompletedTask;
         }

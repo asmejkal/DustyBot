@@ -354,7 +354,7 @@ namespace DustyBot.Service.Modules
             await command.ReplySuccess($"Role `{primary.Name} ({primary.Id})` has been set as a primary bias role to `{secondary.Name} ({secondary.Id})`.");
         }
 
-        [Command("roles", "stats", "Server roles statistics.", CommandFlags.TypingIndicator)]
+        [Command("roles", "stats", "Server roles statistics.")]
         [Alias("role", "stats"), Alias("bias", "stats")]
         [Parameter("all", "all", ParameterFlags.Optional, "include non-assignable roles")]
         public async Task RolesStats(ICommand command, ILogger logger)

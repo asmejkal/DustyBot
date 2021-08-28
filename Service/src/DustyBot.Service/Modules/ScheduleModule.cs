@@ -24,6 +24,8 @@ using DustyBot.Service.Definitions;
 using DustyBot.Service.Helpers;
 using DustyBot.Service.Services;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Service.Modules
 {
@@ -254,7 +256,8 @@ namespace DustyBot.Service.Modules
                 return;
             }
 
-            if (!currentUser.GuildPermissions.MentionEveryone && !command["RoleNameOrID"].AsRole.IsMentionable)
+            var pingRole = command["RoleNameOrID"].AsRole;
+            if (pingRole != null && !currentUser.GuildPermissions.MentionEveryone && !pingRole.IsMentionable)
             {
                 await command.ReplyError($"This role can't be pinged. Please adjust the role permissions in your server and try again.");
                 return;
@@ -268,7 +271,7 @@ namespace DustyBot.Service.Modules
                 {
                     Tag = tag,
                     Channel = command["Channel"].AsTextChannel.Id,
-                    Role = command["RoleNameOrID"].AsRole?.Id ?? default
+                    Role = pingRole?.Id ?? default
                 });
             });
 
@@ -402,6 +405,45 @@ namespace DustyBot.Service.Modules
                 var result = await RefreshCalendars(command.Guild, Enumerable.Empty<DateTime>(), new[] { currentTag, remove ? null : newTag });
                 await command.ReplySuccess($"Retagged {countEvents} events and {countCalendars} calendars. {result}");
                 await _service.RefreshNotifications(command.GuildId, settings);
+            }
+        }
+
+        [Command("schedule", "export", "Exports all events into a text file.")]
+        public async Task ExportSchedule(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var settings = await _settings.Read<ScheduleSettings>(command.GuildId, false);
+            if (settings == null || !settings.Events.Any())
+            {
+                await command.Reply("There are no events in this server's schedule.");
+                return;
+            }
+
+            var serializer = new JsonSerializer() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
+            var events = settings.Events.Select(x => JObject.FromObject(new
+            {
+                Date = x.Date.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                Time = x.HasTime ? x.Date.ToString("HH:mm", CultureInfo.InvariantCulture) : null,
+                Description = x.Description,
+                Link = x.HasLink ? x.Link : null,
+                Tag = x.HasTag ? x.Tag : null,
+            }, serializer));
+
+            var result = JObject.FromObject(new 
+            {
+                Timezone = BuildUTCOffsetString(settings),
+                Events = new JArray(events)
+            });
+
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream, Encoding.UTF8))
+            {
+                serializer.Serialize(writer, result);
+                writer.Flush();
+
+                stream.Seek(0, SeekOrigin.Begin);
+                await command.Channel.SendFileAsync(stream, $"Schedule-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.json", $"Exported {settings.Events.Count} events!");
             }
         }
 
