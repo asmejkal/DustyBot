@@ -20,8 +20,6 @@ services:
             - PapagoClientSecret=${Dusty_PapagoClientSecret}
             - PolrKey=${Dusty_PolrKey}
             - PolrDomain=${Dusty_PolrDomain}
-            - ProxyListUrl=${Dusty_ProxyListUrl}
-            - ProxyListToken=${Dusty_ProxyListToken}
             - WebsiteRoot=${Dusty_WebsiteRoot}
             - WebsiteShorthand=${Dusty_WebsiteShorthand}
             - SupportServerInvite=${Dusty_SupportServerInvite}

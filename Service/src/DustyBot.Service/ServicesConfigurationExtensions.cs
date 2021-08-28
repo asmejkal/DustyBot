@@ -49,7 +49,6 @@ namespace DustyBot
             services.AddHostedService<StatusService>();
             services.AddHostedService<DaumCafeService>();
             services.AddHostedApiService<IScheduleService, ScheduleService>();
-            services.AddHostedApiService<IProxyService, RotatingProxyService>();
 
             // Modules
             services.AddScoped<AdministrationModule>();

@@ -10,7 +10,5 @@
         public string PapagoClientSecret { get; set; }
         public string PolrKey { get; set; }
         public string PolrDomain { get; set; }
-        public string ProxyListUrl { get; set; }
-        public string ProxyListToken { get; set; }
     }
 }
