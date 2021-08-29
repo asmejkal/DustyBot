@@ -195,7 +195,9 @@ namespace DustyBot.Service.Modules
                 var confMessage = await command.ReplySuccess($"**{DiscordHelpers.EscapeMentions("@" + command.Message.Author.Username)}** vote cast.");
                 if (poll.Anonymous)
                 {
-                    await command.Message.DeleteAsync();
+                    if ((await command.Guild.GetCurrentUserAsync()).GetPermissions((IGuildChannel)command.Channel).ManageMessages)
+                        await command.Message.DeleteAsync();
+
                     confMessage.First().DeleteAfter(2);
                 }
             }

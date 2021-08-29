@@ -10,6 +10,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="5.0.0" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -19,7 +20,6 @@
   <ItemGroup>
     <ProjectReference Include="..\DustyBot.Database.Core\DustyBot.Database.Core.csproj" />
     <ProjectReference Include="..\DustyBot.Database.Mongo\DustyBot.Database.Mongo.csproj" />
-    <ProjectReference Include="..\DustyBot.Database.Sql\DustyBot.Database.Sql.csproj" />
     <ProjectReference Include="..\DustyBot.Database.TableStorage\DustyBot.Database.TableStorage.csproj" />
   </ItemGroup>
 

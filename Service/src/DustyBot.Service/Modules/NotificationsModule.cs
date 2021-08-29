@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
@@ -84,6 +85,7 @@ namespace DustyBot.Service.Modules
 
         private readonly BaseSocketClient _client;
         private readonly ISettingsService _settings;
+        private readonly INotificationSettingsService _userSettings;
         private readonly ILogger<NotificationsModule> _logger;
         private readonly IUserFetcher _userFetcher;
         private readonly IFrameworkReflector _frameworkReflector;
@@ -95,6 +97,7 @@ namespace DustyBot.Service.Modules
         public NotificationsModule(
             BaseSocketClient client, 
             ISettingsService settings, 
+            INotificationSettingsService userSettings,
             ILogger<NotificationsModule> logger, 
             IUserFetcher userFetcher, 
             IFrameworkReflector frameworkReflector,
@@ -102,6 +105,7 @@ namespace DustyBot.Service.Modules
         {
             _client = client;
             _settings = settings;
+            _userSettings = userSettings;
             _logger = logger;
             _userFetcher = userFetcher;
             _frameworkReflector = frameworkReflector;
@@ -231,10 +235,9 @@ namespace DustyBot.Service.Modules
         [Command("notification", "ignore", "active", "channel", "Skip notifications from the channel you're currently active in.")]
         [Alias("notifications", "ignore", "active", "channel", true), Alias("notif", "ignore", "active", "channel"), Alias("noti", "ignore", "active", "channel")]
         [Comment("All notifications will be delayed by a small amount. If you start typing in the channel where someone triggered a notification, you won't be notified.\n\nUse this command again to disable.")]
-        public async Task ToggleIgnoreActiveChannel(ICommand command)
+        public async Task ToggleIgnoreActiveChannel(ICommand command, CancellationToken ct)
         {
-            var enabled = await _settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
-
+            var enabled = await _userSettings.ToggleIgnoreActiveChannelAsync(command.Author.Id, ct);
             await command.ReplySuccess(enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 
@@ -345,8 +348,7 @@ namespace DustyBot.Service.Modules
                             {
                                 await _settings.Modify(channel.Guild.Id, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
 
-                                var targetUserSettings = await _settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
-                                if (targetUserSettings?.IgnoreActiveChannel ?? false)
+                                if (await _userSettings.GetIgnoreActiveChannelAsync(targetUser.Id, default))
                                 {
                                     var messageKey = (targetUser.Id, channel.Id);
                                     RegisterPendingNotification(messageKey, message.Id);

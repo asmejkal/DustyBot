@@ -200,7 +200,7 @@ namespace DustyBot.Service.Modules
                 throw new Framework.Exceptions.IncorrectParametersCommandException("The maximum number of bans per command is 10.", false);
 
             var banningUser = (IGuildUser)command.Author;
-            var banningUserMaxRole = banningUser.GetHighestRolePosition();
+            var banningUserTopRole = banningUser.GetTopRole()?.Position ?? 0;
             var result = new StringBuilder();
             var bans = new Dictionary<ulong, (Task Task, string User, ulong UserId)>();
             foreach (var id in command["Users"].Repeats.Select(x => x.AsMentionOrId.Value))
@@ -210,7 +210,7 @@ namespace DustyBot.Service.Modules
                 if (guildUser != null)
                 {
                     userName = $"{guildUser.GetFullName()} ({guildUser.Id})";
-                    if (!banningUser.IsOwner() && (banningUserMaxRole <= guildUser.GetHighestRolePosition() || guildUser.IsOwner()))
+                    if (!banningUser.IsOwner() && (banningUserTopRole <= (guildUser.GetTopRole()?.Position ?? 0) || guildUser.IsOwner()))
                     {
                         result.AppendLine(_communicator.FormatFailure($"You don't have permission to ban user `{userName}` on this server."));
                         continue;

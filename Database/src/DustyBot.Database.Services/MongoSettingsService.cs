@@ -16,10 +16,7 @@ namespace DustyBot.Database.Services
 {
     public sealed class MongoSettingsService : ISettingsService, IDisposable
     {
-        public string DatabaseName { get; }
-
         private readonly KeyedSemaphoreSlim<(Type Type, ulong GuildId)> _serverSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong GuildId)>(1, maxPoolSize: int.MaxValue);
-        private readonly KeyedSemaphoreSlim<(Type Type, ulong UserId)> _userSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong UserId)>(1, maxPoolSize: int.MaxValue);
         private readonly KeyedSemaphoreSlim<Type> _globalSettingsMutex = new KeyedSemaphoreSlim<Type>(1, maxPoolSize: int.MaxValue);
 
         private IMongoDatabase _db;
@@ -36,8 +33,6 @@ namespace DustyBot.Database.Services
             var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
             var client = new MongoClient(url);
             _db = client.GetDatabase(url.DatabaseName);
-
-            DatabaseName = url.DatabaseName;
         }
 
         public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
@@ -131,47 +126,9 @@ namespace DustyBot.Database.Services
             }
         }
 
-        public async Task<T> ReadUser<T>(ulong userId, bool createIfNeeded = true)
-            where T : IUserSettings, new()
-        {
-            return await SafeGetDocument(unchecked((long)userId), _userSettingsMutex, (typeof(T), userId), () => CreateUser<T>(userId), createIfNeeded);
-        }
-
-        public async Task<IEnumerable<T>> ReadUser<T>()
-            where T : IUserSettings
-        {
-            var cursor = await _db.GetCollection<T>(typeof(T).Name).Find(Builders<T>.Filter.Empty).ToCursorAsync();
-            return cursor.ToEnumerable();
-        }
-
-        public async Task ModifyUser<T>(ulong userId, Action<T> action)
-            where T : IUserSettings, new()
-        {
-            using (await _userSettingsMutex.ClaimAsync((typeof(T), userId)))
-            {
-                var settings = await GetDocument(unchecked((long)userId), () => CreateUser<T>(userId));
-                action(settings);
-                await UpsertSettings(userId, settings);
-            }
-        }
-
-        public async Task<U> ModifyUser<T, U>(ulong userId, Func<T, U> action)
-            where T : IUserSettings, new()
-        {
-            using (await _userSettingsMutex.ClaimAsync((typeof(T), userId)))
-            {
-                var settings = await GetDocument(unchecked((long)userId), () => CreateUser<T>(userId));
-                var result = action(settings);
-                await UpsertSettings(userId, settings);
-
-                return result;
-            }
-        }
-
         public void Dispose()
         {
             _serverSettingsMutex?.Dispose();
-            _userSettingsMutex?.Dispose();
             _globalSettingsMutex?.Dispose();
         }
 
@@ -228,14 +185,6 @@ namespace DustyBot.Database.Services
         {
             var s = new T();
             s.ServerId = serverId;
-            return Task.FromResult(s);
-        }
-
-        private Task<T> CreateUser<T>(ulong userId)
-            where T : IUserSettings, new()
-        {
-            var s = new T();
-            s.UserId = userId;
             return Task.FromResult(s);
         }
 

@@ -26,15 +26,23 @@ namespace DustyBot.Service.Services
         private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15);
 
         private readonly ISettingsService _settings;
+        private readonly ICredentialsService _credentialsService;
         private readonly ILogger<DaumCafeService> _logger;
         private readonly BaseSocketClient _client;
 
         private readonly Dictionary<Guid, Tuple<DateTime, DaumCafeSession>> _sessionCache = new Dictionary<Guid, Tuple<DateTime, DaumCafeSession>>();
 
-        public DaumCafeService(BaseSocketClient client, ISettingsService settings, ILogger<DaumCafeService> logger, ITimerAwaiter timerAwaiter, IServiceProvider services)
+        public DaumCafeService(
+            BaseSocketClient client, 
+            ISettingsService settings,
+            ICredentialsService credentialsService,
+            ILogger<DaumCafeService> logger, 
+            ITimerAwaiter timerAwaiter, 
+            IServiceProvider services)
             : base(UpdateFrequency, timerAwaiter, services, logger, UpdateFrequency)
         {
             _settings = settings;
+            _credentialsService = credentialsService;
             _logger = logger;
             _client = client;
         }
@@ -98,7 +106,7 @@ namespace DustyBot.Service.Services
             {
                 if (!_sessionCache.TryGetValue(feed.CredentialId, out var dateSession) || DateTime.Now - dateSession.Item1 > SessionLifetime)
                 {
-                    var credential = await Modules.CafeModule.GetCredential(_settings, feed.CredentialUser, feed.CredentialId);
+                    var credential = await Modules.CafeModule.GetCredential(_credentialsService, feed.CredentialUser, feed.CredentialId, ct);
                     try
                     {
                         session = await DaumCafeSession.Create(credential.Login, credential.Password, ct);

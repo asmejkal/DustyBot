@@ -1,0 +1,6 @@
+version: '3.4'
+
+services:
+    dustybot-mongodb:
+        ports:
+            - "27018:27017"

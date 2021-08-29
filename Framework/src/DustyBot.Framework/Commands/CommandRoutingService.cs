@@ -286,7 +286,7 @@ namespace DustyBot.Framework.Commands
                     var commandLogger = _loggerFactory.CreateLogger(findResult.Registration.ModuleType)
                         .WithCommandScope(command.Message, correlationId, findResult.Registration, findResult.Usage);
 
-                    await findResult.Registration.Handler.Invoke(module, command, commandLogger);
+                    await findResult.Registration.Handler.Invoke(module, command, commandLogger, default); // TODO: cancellation
                 }
 
                 result = CommandResult.Succeeded;

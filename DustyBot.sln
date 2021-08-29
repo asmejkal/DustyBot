@@ -6,7 +6,6 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AD7BBBB3-0056-488C-A664-53AE15EA1EB7}"
 	ProjectSection(SolutionItems) = preProject
 		CodeAnalysis.ruleset = CodeAnalysis.ruleset
-		docker-compose.yml = docker-compose.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Shared", "_Shared", "{127DDE52-244E-411F-A62D-AC0C5EFECAC8}"
@@ -51,10 +50,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Mongo", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Services", "Database\src\DustyBot.Database.Services\DustyBot.Database.Services.csproj", "{580CE249-3802-4E1A-8882-1805B58FF7D5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Sql", "Database\src\DustyBot.Database.Sql\DustyBot.Database.Sql.csproj", "{7759CD59-69C8-4286-AD0F-9BE2EE5F85C3}"
-EndProject
-Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "DustyBot.Database.Sql.Schema", "Database\src\DustyBot.Database.Sql.Schema\DustyBot.Database.Sql.Schema.sqlproj", "{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.TableStorage", "Database\src\DustyBot.Database.TableStorage\DustyBot.Database.TableStorage.csproj", "{83B1E906-7C3D-4A95-B015-2ED3A9B47EA2}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework", "Framework\src\DustyBot.Framework\DustyBot.Framework.csproj", "{9911B815-1FC2-4F0D-A882-E79A48DEC6FD}"
@@ -65,9 +60,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Service", "Service
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Database.Services.Tests", "Database\tests\DustyBot.Database.Services.Tests\DustyBot.Database.Services.Tests.csproj", "{E93FACA2-34E4-48DC-B503-85E5E9F66AD8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Service.Tests", "Service\tests\DustyBot.Service.Tests\DustyBot.Service.Tests.csproj", "{DDE7C6A6-1389-4359-B213-4331963AF116}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Service.Tests", "Service\tests\DustyBot.Service.Tests\DustyBot.Service.Tests.csproj", "{DDE7C6A6-1389-4359-B213-4331963AF116}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DustyBot.Framework.Tests", "Framework\tests\DustyBot.Framework.Tests\DustyBot.Framework.Tests.csproj", "{02A78073-20EE-40BA-B2D3-E480DA06C87C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework.Tests", "Framework\tests\DustyBot.Framework.Tests\DustyBot.Framework.Tests.csproj", "{02A78073-20EE-40BA-B2D3-E480DA06C87C}"
+EndProject
+Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -99,16 +96,6 @@ Global
 		{580CE249-3802-4E1A-8882-1805B58FF7D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{580CE249-3802-4E1A-8882-1805B58FF7D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{580CE249-3802-4E1A-8882-1805B58FF7D5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7759CD59-69C8-4286-AD0F-9BE2EE5F85C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7759CD59-69C8-4286-AD0F-9BE2EE5F85C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7759CD59-69C8-4286-AD0F-9BE2EE5F85C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7759CD59-69C8-4286-AD0F-9BE2EE5F85C3}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C}.Release|Any CPU.Deploy.0 = Release|Any CPU
 		{83B1E906-7C3D-4A95-B015-2ED3A9B47EA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{83B1E906-7C3D-4A95-B015-2ED3A9B47EA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{83B1E906-7C3D-4A95-B015-2ED3A9B47EA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -137,6 +124,10 @@ Global
 		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -158,8 +149,6 @@ Global
 		{86C3C78B-A923-4243-B579-24D7A0028381} = {21E892D3-639C-4431-B481-28860B005680}
 		{3E50651D-9E5F-40B1-BA13-4F94CD0C4A92} = {21E892D3-639C-4431-B481-28860B005680}
 		{580CE249-3802-4E1A-8882-1805B58FF7D5} = {21E892D3-639C-4431-B481-28860B005680}
-		{7759CD59-69C8-4286-AD0F-9BE2EE5F85C3} = {21E892D3-639C-4431-B481-28860B005680}
-		{8E92E258-D86F-449F-BA8E-FD6BCD915E2C} = {21E892D3-639C-4431-B481-28860B005680}
 		{83B1E906-7C3D-4A95-B015-2ED3A9B47EA2} = {21E892D3-639C-4431-B481-28860B005680}
 		{9911B815-1FC2-4F0D-A882-E79A48DEC6FD} = {70F978B9-F6E2-40FE-BF8F-3E81D0E3CE4D}
 		{D11B868A-128B-477B-8A53-84EB1304F16B} = {4784CB8D-38A2-4D47-8A12-9B06EDB959BD}

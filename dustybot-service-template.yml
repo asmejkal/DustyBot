@@ -1,10 +1,11 @@
-version: '3.5'
+version: '3.4'
+
 services:
     dustybot-service:
         build: 
             context: .
             dockerfile: Service/src/DustyBot.Service/Dockerfile
-        image: dustybot-service
+        image: ${DOCKER_REGISTRY-}dustybot-service
         container_name: dustybot-service
         environment:
             - TableStorageConnectionString=${Dusty_TableStorageConnectionString}

@@ -16,6 +16,7 @@
     <CodeAnalysisRuleSet>../../../CodeAnalysis.ruleset</CodeAnalysisRuleSet>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\..\..</DockerfileContext>
+    <DockerfileRunEnvironmentFiles>..\..\..\.env</DockerfileRunEnvironmentFiles>
   </PropertyGroup>
 
   <ItemGroup>

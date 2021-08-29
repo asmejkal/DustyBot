@@ -5,7 +5,6 @@ using DustyBot.Core.Miscellaneous;
 using DustyBot.Core.Services;
 using DustyBot.Database.Services;
 using DustyBot.Database.Services.Configuration;
-using DustyBot.Database.Sql;
 using DustyBot.Framework;
 using DustyBot.Framework.Configuration;
 using DustyBot.Service.Configuration;
@@ -16,6 +15,7 @@ using DustyBot.Service.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 using Serilog;
 using Serilog.Sinks.Elasticsearch;
 
@@ -39,11 +39,12 @@ namespace DustyBot
             services.AddTransient<DiscordClientLauncher>();
 
             // Database
+            services.AddMongoDatabase();
             services.AddSingleton<ISettingsService, MongoSettingsService>();
-            services.AddScoped<IProxyListService, ProxyListService>();
             services.AddScoped<ISpotifyAccountsService, SpotifyAccountsService>();
-            services.AddScoped(x => DustyBotDbContext.Create(x.GetRequiredService<IOptions<DatabaseOptions>>().Value.SqlDbConnectionString));
-            services.AddScoped<Func<ILastFmStatsService>>(x => () => ActivatorUtilities.CreateInstance<LastFmStatsService>(x));
+            services.AddScoped<ICredentialsService, CredentialsService>();
+            services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
+            services.AddScoped<ILastFmSettingsService, LastFmSettingsService>();
 
             // Services
             services.AddHostedService<StatusService>();
@@ -143,6 +144,25 @@ namespace DustyBot
             });
 
             services.AddSingleton<BaseSocketClient>(x => x.GetRequiredService<DiscordShardedClient>());
+            return services;
+        }
+
+        private static IServiceCollection AddMongoDatabase(this IServiceCollection services)
+        {
+            services.AddSingleton<IMongoClient>(x =>
+            {
+                var options = x.GetRequiredService<IOptions<DatabaseOptions>>();
+                var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
+                return new MongoClient(url);
+            });
+
+            services.AddSingleton<IMongoDatabase>(x =>
+            {
+                var options = x.GetRequiredService<IOptions<DatabaseOptions>>();
+                var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
+                return x.GetRequiredService<IMongoClient>().GetDatabase(url.DatabaseName);
+            });
+
             return services;
         }
     }

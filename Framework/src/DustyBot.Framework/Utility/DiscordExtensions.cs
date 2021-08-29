@@ -77,7 +77,7 @@ namespace DustyBot.Framework.Utility
                     {
                         if (!user.GetPermissions(c).ReadMessageHistory)
                             continue;
-                        
+
                         var message = await textChannel.GetMessageAsync(id).ConfigureAwait(false);
                         if (message != null)
                             return message;
@@ -109,7 +109,7 @@ namespace DustyBot.Framework.Utility
             return $"https://discordapp.com/channels/{channel.GuildId}/{channel.Id}/{message.Id}";
         }
 
-        public static string GetAnimatedIconUrl(this IGuild guild) => 
+        public static string GetAnimatedIconUrl(this IGuild guild) =>
             (guild.IconId?.StartsWith("a_") ?? false) ? System.IO.Path.ChangeExtension(guild.IconUrl, "gif") : null;
 
         public static string GetFullName(this IUser user) => $"{user.Username}#{user.Discriminator}";
@@ -120,8 +120,14 @@ namespace DustyBot.Framework.Utility
             return role.Position < userMaxPosition;
         }
 
-        public static int GetHighestRolePosition(this IGuildUser user) =>
-            user.RoleIds.Select(x => user.Guild.GetRole(x)?.Position ?? 0).DefaultIfEmpty().Max();
+        public static IEnumerable<IRole> GetRoles(this IGuildUser user) => user switch
+        {
+            SocketGuildUser x => x.Roles,
+            _ => user.RoleIds.Select(x => user.Guild.GetRole(x)).Where(x => x != null)
+        };
+
+        public static IRole GetTopRole(this IGuildUser user) =>
+            user.GetRoles().DefaultIfEmpty().Aggregate((x, y) => y.Position > x.Position ? y : x);
 
         public static bool IsOwner(this IGuildUser user) =>
             user.Guild.OwnerId == user.Id;

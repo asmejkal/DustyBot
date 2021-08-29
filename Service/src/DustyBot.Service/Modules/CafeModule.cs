@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using DustyBot.Core.Security;
@@ -7,6 +8,7 @@ using DustyBot.Database.Mongo.Collections;
 using DustyBot.Database.Mongo.Models;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
+using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using DustyBot.Service.Helpers;
@@ -21,12 +23,14 @@ namespace DustyBot.Service.Modules
         public const int ServerFeedLimit = 25;
 
         private readonly ISettingsService _settings;
+        private readonly ICredentialsService _credentialsService;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly HelpBuilder _helpBuilder;
 
-        public CafeModule(ISettingsService settings, IFrameworkReflector frameworkReflector, HelpBuilder helpBuilder)
+        public CafeModule(ISettingsService settings, ICredentialsService credentialsService, IFrameworkReflector frameworkReflector, HelpBuilder helpBuilder)
         {
             _settings = settings;
+            _credentialsService = credentialsService;
             _frameworkReflector = frameworkReflector;
             _helpBuilder = helpBuilder;
         }
@@ -47,7 +51,7 @@ namespace DustyBot.Service.Modules
         [Comment("**You will not get post previews** for level restricted boards unless you add a credential. But if the topic listing is public, the bot will still post links to new topics.\n\nCurrently only Daum accounts are supported ")]
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel")]
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
-        public async Task AddCafeFeed(ICommand command)
+        public async Task AddCafeFeed(ICommand command, CancellationToken ct)
         {
             if ((await _settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= ServerFeedLimit)
             {
@@ -61,8 +65,10 @@ namespace DustyBot.Service.Modules
                 return;
             }
 
-            var feed = new DaumCafeFeed();
-            feed.TargetChannel = command["Channel"].AsTextChannel.Id;
+            var feed = new DaumCafeFeed()
+            {
+                TargetChannel = command["Channel"].AsTextChannel.Id
+            };
 
             bool postsAccesible;
             try
@@ -73,7 +79,7 @@ namespace DustyBot.Service.Modules
                     feed.CredentialUser = command.Message.Author.Id;
                     feed.CredentialId = (Guid)command["CredentialId"];
 
-                    var credential = await GetCredential(_settings, feed.CredentialUser, feed.CredentialId);
+                    var credential = await GetCredential(_credentialsService, feed.CredentialUser, feed.CredentialId, ct);
                     session = await DaumCafeSession.Create(credential.Login, credential.Password, default);
                 }
                 else
@@ -89,7 +95,7 @@ namespace DustyBot.Service.Modules
             }
             catch (InvalidBoardLinkException)
             {
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Unrecognized board link.");
+                throw new IncorrectParametersCommandException("Unrecognized board link.");
             }
             catch (InaccessibleBoardException)
             {
@@ -177,16 +183,17 @@ namespace DustyBot.Service.Modules
         [Parameter("Description", ParameterType.String, "type anything for you to recognize these credentials later")]
         [Comment("Your credentials are stored in an encrypted database and retrieved by the bot only when necessary.")]
         [Example("johndoe1 mysecretpassword \"Google Mail\"")]
-        public async Task AddCredential(ICommand command)
+        public async Task AddCredential(ICommand command, CancellationToken ct)
         {
-            var id = await _settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) =>
-            {
-                var c = new Credential { Login = command[0], Password = command[1].AsString.ToSecureString(), Name = command[2] };
-                s.Credentials.Add(c);
-                return c.Id;
-            });
+            var credentials = new Credentials 
+            { 
+                Login = command["Login"], 
+                Password = command["Password"].AsString.ToSecureString(), 
+                Name = command["Description"] 
+            };
 
-            await command.ReplySuccess($"A credential with ID `{id}` has been added! Use `credential list` to view all your saved credentials.");
+            await _credentialsService.AddAsync(command.Author.Id, credentials, ct);
+            await command.ReplySuccess($"A credential with ID `{credentials.Id}` has been added! Use `credential list` to view all your saved credentials.");
         }
 
         [Command("credential", "remove", "Removes a saved credential.", CommandFlags.DirectMessageAllow)]
@@ -194,12 +201,9 @@ namespace DustyBot.Service.Modules
         [Parameter("CredentialId", ParameterType.Guid)]
         [Comment("Use `credential list` to view your saved credentials.")]
         [Example("5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
-        public async Task RemoveCredential(ICommand command)
+        public async Task RemoveCredential(ICommand command, CancellationToken ct)
         {
-            var removed = await _settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) =>
-            {
-                return s.Credentials.RemoveAll(x => x.Id == (Guid)command[0]) > 0;
-            });
+            var removed = await _credentialsService.RemoveAsync(command.Author.Id, (Guid)command["CredentialId"], ct);
 
             if (removed)
                 await command.ReplySuccess($"Credential has been removed.");
@@ -209,18 +213,17 @@ namespace DustyBot.Service.Modules
 
         [Command("credential", "clear", "Removes all your saved credentials.", CommandFlags.DirectMessageAllow)]
         [Alias("credentials", "clear")]
-        public async Task ClearCredential(ICommand command)
+        public async Task ClearCredential(ICommand command, CancellationToken ct)
         {
-            await _settings.ModifyUser(command.Message.Author.Id, (UserCredentials s) => s.Credentials.Clear());
-
+            await _credentialsService.ResetAsync(command.Author.Id, ct);
             await command.ReplySuccess($"All your credentials have been removed.");
         }
 
         [Command("credential", "list", "Lists all your saved credentials.", CommandFlags.DirectMessageAllow)]
         [Alias("credentials", "list")]
-        public async Task ListCredential(ICommand command)
+        public async Task ListCredential(ICommand command, CancellationToken ct)
         {
-            var settings = await _settings.ReadUser<UserCredentials>(command.Message.Author.Id);
+            var settings = await _credentialsService.ReadAsync(command.Message.Author.Id, ct);
             if (settings.Credentials.Count <= 0)
             {
                 await command.Reply("No credential saved. Use `credential add` to save a credential.");
@@ -236,34 +239,22 @@ namespace DustyBot.Service.Modules
             await command.Reply(result);
         }
 
-        public static async Task<Credential> GetCredential(ISettingsService settings, ulong userId, string id)
+        public static async Task<Credentials> GetCredential(ICredentialsService credentialsService, ulong userId, string id, CancellationToken ct)
         {
-            Guid guid;
-            if (!Guid.TryParse(id, out guid))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid ID format. Use `credential list` in a Direct Message to view all your saved credentials and their IDs.");
+            if (!Guid.TryParse(id, out var guid))
+                throw new IncorrectParametersCommandException("Invalid ID format. Use `credential list` in a Direct Message to view all your saved credentials and their IDs.");
 
-            return await GetCredential(settings, userId, guid);
+            return await GetCredential(credentialsService, userId, guid, ct);
         }
 
-        public static async Task<Credential> GetCredential(ISettingsService settings, ulong userId, Guid guid)
+        public static async Task<Credentials> GetCredential(ICredentialsService credentialsService, ulong userId, Guid guid, CancellationToken ct)
         {
-            var credentials = await settings.ReadUser<UserCredentials>(userId);
-            var credential = credentials.Credentials.FirstOrDefault(x => x.Id == guid);
+            var credentials = await credentialsService.ReadAsync(userId, ct);
+            var credential = credentials?.Credentials.FirstOrDefault(x => x.Id == guid);
             if (credential == null)
-                throw new Framework.Exceptions.IncorrectParametersCommandException("You don't have a credential saved with this ID. Use `credential add` in a Direct Message to add a credential.");
+                throw new IncorrectParametersCommandException("You don't have a credential saved with this ID. Use `credential add` in a Direct Message to add a credential.");
 
             return credential;
-        }
-
-        public static async Task EnsureCredential(ISettingsService settings, ulong userId, string id)
-        {
-            Guid guid;
-            if (!Guid.TryParse(id, out guid))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("Invalid ID format. Use `credential list` to view all your saved credentials and their IDs.");
-
-            var credentials = await settings.ReadUser<UserCredentials>(userId);
-            if (!credentials.Credentials.Any(x => x.Id == guid))
-                throw new Framework.Exceptions.IncorrectParametersCommandException("You don't have a credential saved with this ID. Use `credential add` in a Direct Message to add a credential.");
         }
     }
 }

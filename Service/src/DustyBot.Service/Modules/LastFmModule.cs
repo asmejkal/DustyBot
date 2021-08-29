@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using DustyBot.Core.Formatting;
@@ -64,23 +65,20 @@ namespace DustyBot.Service.Modules
             { "all", LastFmDataPeriod.Overall }
         };
 
-        private readonly ISettingsService _settings;
-        private readonly Func<ILastFmStatsService> _lastFmServiceFactory;
+        private readonly ILastFmSettingsService _settings;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly WebsiteWalker _websiteWalker;
         private readonly IOptions<IntegrationOptions> _integrationOptions;
         private readonly HelpBuilder _helpBuilder;
 
         public LastFmModule(
-            ISettingsService settings, 
-            Func<ILastFmStatsService> lastFmServiceFactory, 
+            ILastFmSettingsService settings, 
             IFrameworkReflector frameworkReflector, 
             WebsiteWalker websiteWalker,
             IOptions<IntegrationOptions> integrationOptions,
             HelpBuilder helpBuilder)
         {
             _settings = settings;
-            _lastFmServiceFactory = lastFmServiceFactory;
             _frameworkReflector = frameworkReflector;
             _websiteWalker = websiteWalker;
             _integrationOptions = integrationOptions;
@@ -715,78 +713,38 @@ namespace DustyBot.Service.Modules
         [Command("lf", "set", "Saves your username on Last.fm.", CommandFlags.DirectMessageAllow)]
         [Parameter("Username", ParameterType.String, ParameterFlags.Remainder, "your Last.fm username")]
         [Comment("Can be used in a direct message. Your username will be saved across servers.")]
-        public async Task LastFmSet(ICommand command)
+        public async Task LastFmSet(ICommand command, CancellationToken ct)
         {
-            await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
-            {
-                x.LastFmUsername = command["Username"];
-                x.Anonymous = false;
-            });
-
+            await _settings.SetUsernameAsync(command.Message.Author.Id, command["Username"], false, ct);
             await command.ReplySuccess($"Your Last.fm username has been set to `{command["Username"]}`.");
         }
 
         [Command("lf", "set", "anonymous", "Saves your username on Last.fm, without revealing it to others.", CommandFlags.DirectMessageAllow)]
         [Parameter("Username", ParameterType.String, ParameterFlags.Remainder, "your Last.fm username")]
         [Comment("Can be used in a direct message. Your username will be saved across servers.\nCommands won't include your username or link to your profile.")]
-        public async Task LastFmSetAnonymous(ICommand command)
+        public async Task LastFmSetAnonymous(ICommand command, CancellationToken ct)
         {
             try
             {
-                await command.Message.DeleteAsync();
+                if ((await command.Guild.GetCurrentUserAsync()).GetPermissions((IGuildChannel)command.Channel).ManageMessages)
+                    await command.Message.DeleteAsync();
             }
             catch (Discord.Net.HttpException)
             {
-                // Most likely missing permissions, ignore (no way to tell - discord often doesn't set the proper error code...)
+                // Ignore
             }
 
-            await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) =>
-            {
-                x.LastFmUsername = command["Username"];
-                x.Anonymous = true;
-            });
-
+            await _settings.SetUsernameAsync(command.Message.Author.Id, command["Username"], true, ct);
             await command.ReplySuccess($"Your Last.fm username has been set.");
         }
 
         [Command("lf", "reset", "Deletes your saved Last.fm username.", CommandFlags.DirectMessageAllow)]
         [Alias("lf", "unset", true)]
         [Comment("Can be used in a direct message.")]
-        public async Task LastFmUnset(ICommand command)
+        public async Task LastFmUnset(ICommand command, CancellationToken ct)
         {
-            await _settings.ModifyUser(command.Message.Author.Id, (LastFmUserSettings x) => x.LastFmUsername = null);
+            await _settings.ResetAsync(command.Message.Author.Id, ct);
             await command.ReplySuccess($"Your Last.fm username has been deleted.");
-        }
-
-        [Command("lf", "top", "artists", "global", "Shows the top artists among all users.", CommandFlags.OwnerOnly)]
-        [Alias("lf", "ta", "global"), Alias("lf", "top", "artist", "global", true), Alias("lf", "topartists", "global", true)]
-        [Alias("lf", "topartist", "global", true), Alias("lf", "artists", "global")]
-        public async Task Test(ICommand command)
-        {
-            using (var dbService = _lastFmServiceFactory())
-            {
-                const int NumDisplayed = 100;
-                var results = await dbService.GetTopArtistsAsync(NumDisplayed, default);
-
-                var pages = new PageCollectionBuilder();
-                var place = 1;
-                foreach (var entry in results.Take(NumDisplayed))
-                    pages.AppendLine($"`#{place++}` **{FormatLink(entry.Name, entry.Url, true)}**_ – {entry.Plays.ToStringBigNumber()} plays_");
-
-                var embedFactory = new Func<EmbedBuilder>(() =>
-                {
-                    var author = new EmbedAuthorBuilder()
-                    .WithIconUrl(_websiteWalker.LfIconUrl)
-                    .WithName($"Global top artists");
-
-                    return new EmbedBuilder()
-                        .WithColor(0xd9, 0x23, 0x23)
-                        .WithAuthor(author)
-                        .WithFooter($"Top artists of all bot users");
-                });
-
-                await command.Reply(pages.BuildEmbedCollection(embedFactory, 10), true);
-            }
         }
 
         private string FormatArtistLink(LastFmArtist artist, bool trim = false) 
@@ -821,7 +779,7 @@ namespace DustyBot.Service.Modules
 
         private async Task<(LastFmUserSettings settings, string name)> GetLastFmSettings(IGuildUser user, bool otherUser = false)
         {
-            var settings = await _settings.ReadUser<LastFmUserSettings>(user.Id, false);
+            var settings = await _settings.ReadAsync(user.Id);
             if (settings == null || string.IsNullOrWhiteSpace(settings.LastFmUsername))
             {
                 if (otherUser)

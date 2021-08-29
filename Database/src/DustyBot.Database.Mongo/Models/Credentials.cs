@@ -3,7 +3,7 @@ using System.Security;
 
 namespace DustyBot.Database.Mongo.Models
 {
-    public sealed class Credential : IDisposable
+    public sealed class Credentials : IDisposable
     {
         public Guid Id { get; set; } = Guid.NewGuid();
 

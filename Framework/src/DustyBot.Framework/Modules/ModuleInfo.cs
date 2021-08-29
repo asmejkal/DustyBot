@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Threading;
 using Discord;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Modules.Attributes;
@@ -78,17 +79,22 @@ namespace DustyBot.Framework.Modules
             var convertedModuleParameter = Expression.Convert(moduleParameter, type);
             var commandParameter = Expression.Parameter(typeof(ICommand));
             var loggerParameter = Expression.Parameter(typeof(ILogger));
+            var ctParameter = Expression.Parameter(typeof(CancellationToken));
 
             var parameters = method.GetParameters().Select(x => x.ParameterType).ToList();
             MethodCallExpression call;
+            if (parameters.SequenceEqual(new[] { typeof(ICommand), typeof(ILogger), typeof(CancellationToken) }))
+                call = Expression.Call(convertedModuleParameter, method, commandParameter, loggerParameter, ctParameter);
             if (parameters.SequenceEqual(new[] { typeof(ICommand), typeof(ILogger) }))
                 call = Expression.Call(convertedModuleParameter, method, commandParameter, loggerParameter);
+            else if (parameters.SequenceEqual(new[] { typeof(ICommand), typeof(CancellationToken) }))
+                call = Expression.Call(convertedModuleParameter, method, commandParameter, ctParameter);
             else if (parameters.SequenceEqual(new[] { typeof(ICommand) }))
                 call = Expression.Call(convertedModuleParameter, method, commandParameter);
             else
                 throw new ArgumentException($"Invalid method signature of command {method.Name} on type {type}.");
 
-            var lambda = Expression.Lambda<CommandInfo.CommandHandlerDelegate>(call, moduleParameter, commandParameter, loggerParameter);
+            var lambda = Expression.Lambda<CommandInfo.CommandHandlerDelegate>(call, moduleParameter, commandParameter, loggerParameter, ctParameter);
 
             return lambda.Compile();
         }

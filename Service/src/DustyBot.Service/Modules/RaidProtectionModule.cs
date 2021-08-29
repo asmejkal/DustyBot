@@ -553,7 +553,7 @@ namespace DustyBot.Service.Modules
 
         private async Task EnforceRule(ReadOnlyRaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
         {
-            if (rule.Delete)
+            if (rule.Delete && (await channel.Guild.GetCurrentUserAsync()).GetPermissions(channel).ManageMessages)
             {
                 foreach (var message in messages)
                     TaskHelper.FireForget(async () => await message.DeleteAsync());
