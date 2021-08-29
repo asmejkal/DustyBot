@@ -4,7 +4,7 @@ An open-source bot for music fan Discords.
 
 **Webpage:** [dustybot.info](http://dustybot.info).
 
-## Set up
+## Running the bot
 1. Install docker
 2. Clone the project and go to the root folder
 3. Create an `.env` file and copy in the environment variables listed below (or set them in your shell)
@@ -38,3 +38,9 @@ Dusty_SpotifyConnectUrl=
 Dusty_PatreonUrl=
 Dusty_SqlDbConnectionString=
 ```
+
+## Debugging in Visual Studio
+1. Clone the project and go to the root folder
+2. Create an `.env` file and copy in the environment variables listed above
+3. Open the solution and run the `docker-compose` project
+4. :tada:
