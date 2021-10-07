@@ -204,7 +204,7 @@ namespace DustyBot.Modules
 
             try
             {
-                var dm = await command.Message.Author.CreateDMChannelAsync();
+                var dm = await command.Message.Author.GetOrCreateDMChannelAsync();
                 await dm.SendMessageAsync(result.ToString());
             }
             catch (Discord.Net.HttpException)
@@ -366,7 +366,7 @@ namespace DustyBot.Modules
                                     }
                                 }                                
 
-                                var dm = await targetUser.CreateDMChannelAsync();
+                                var dm = await targetUser.GetOrCreateDMChannelAsync();
                                 var footer = $"\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}";
 
                                 var embed = new EmbedBuilder()
