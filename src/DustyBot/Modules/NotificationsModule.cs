@@ -1,24 +1,24 @@
-﻿using Discord;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Globalization;
-using DustyBot.Framework.Modules;
-using DustyBot.Framework.Commands;
-using DustyBot.Framework.Communication;
-using DustyBot.Framework.Utility;
-using DustyBot.Framework.Logging;
-using DustyBot.Framework.Exceptions;
-using DustyBot.Settings;
+using Discord;
 using Discord.WebSocket;
-using System.Collections.Concurrent;
-using DustyBot.Helpers;
-using DustyBot.Database.Services;
 using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
+using DustyBot.Database.Services;
+using DustyBot.Framework.Commands;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Exceptions;
+using DustyBot.Framework.Logging;
+using DustyBot.Framework.Modules;
+using DustyBot.Framework.Utility;
+using DustyBot.Helpers;
+using DustyBot.Settings;
 
 namespace DustyBot.Modules
 {
@@ -77,6 +77,7 @@ namespace DustyBot.Modules
         public const int MinNotificationLength = 2;
         public const int MaxNotificationLength = 50;
         public const int MaxNotificationsPerUser = 15;
+        public const int DailyNotificationQuotaPerServer = 200;
 
         private static readonly TimeSpan NotificationTimeoutDelay = TimeSpan.FromSeconds(8);
 
@@ -203,7 +204,7 @@ namespace DustyBot.Modules
 
             try
             {
-                var dm = await command.Message.Author.GetOrCreateDMChannelAsync();
+                var dm = await command.Message.Author.CreateDMChannelAsync();
                 await dm.SendMessageAsync(result.ToString());
             }
             catch (Discord.Net.HttpException)
@@ -322,7 +323,33 @@ namespace DustyBot.Modules
                         {
                             try
                             {
-                                await Settings.Modify(channel.Guild.Id, (NotificationSettings s) => s.RaiseCount(n.User, n.LoweredWord));
+                                bool quotaExceeded = false;
+                                bool quotaThresholdReached = false;
+                                await Settings.Modify(channel.Guild.Id, (NotificationSettings s) =>
+                                {
+                                    s.RaiseCount(n.User, n.LoweredWord);
+
+                                    var today = DateTime.UtcNow.Date;
+                                    if (s.CurrentQuotaDate.Date != today)
+                                    {
+                                        s.UserQuotas.Clear();
+                                        s.CurrentQuotaDate = today;
+                                    }
+
+                                    s.UserQuotas.TryGetValue(n.User, out var quota);
+                                    s.UserQuotas[n.User] = ++quota;
+
+                                    if (quota == DailyNotificationQuotaPerServer)
+                                        quotaThresholdReached = true;
+                                    else if (quota > DailyNotificationQuotaPerServer)
+                                        quotaExceeded = true;
+                                });
+
+                                if (quotaExceeded)
+                                {
+                                    await Logger.Log(new LogMessage(LogSeverity.Info, "Notifications", $"Ignoring notification that exceeds quota for {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) with trigger \"{n.OriginalWord}\" on {channel.Guild.Name} ({channel.Guild.Id})"));
+                                    return;
+                                }
 
                                 var targetUserSettings = await Settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
                                 if (targetUserSettings?.IgnoreActiveChannel ?? false)
@@ -334,12 +361,12 @@ namespace DustyBot.Modules
 
                                     if (!TryClaimPendingNotification(messageKey, message.Id))
                                     {
-                                        await Logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Notification canceled for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) and message {message.Id} on {channel.Guild.Name} ({channel.Guild.Id}) in #{channel.Name} ({channel.Id})"));
+                                        await Logger.Log(new LogMessage(LogSeverity.Info, "Notifications", $"Notification canceled for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) with trigger \"{n.OriginalWord}\" on {channel.Guild.Name} ({channel.Guild.Id})"));
                                         return;
                                     }
                                 }                                
 
-                                var dm = await targetUser.GetOrCreateDMChannelAsync();
+                                var dm = await targetUser.CreateDMChannelAsync();
                                 var footer = $"\n\n`{message.CreatedAt.ToUniversalTime().ToString("HH:mm UTC", CultureInfo.InvariantCulture)}` | [Show]({message.GetLink()}) | {channel.Mention}";
 
                                 var embed = new EmbedBuilder()
@@ -347,6 +374,16 @@ namespace DustyBot.Modules
                                     .WithDescription(message.Content.Truncate(EmbedBuilder.MaxDescriptionLength - footer.Length) + footer);
 
                                 await dm.SendMessageAsync($"🔔 `{message.Author.Username}` mentioned `{n.OriginalWord}` on `{channel.Guild.Name}`:", embed: embed.Build());
+                                await Logger.Log(new LogMessage(LogSeverity.Verbose, "Notifications", $"Notified user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) with trigger \"{n.OriginalWord}\" on {channel.Guild.Name} ({channel.Guild.Id})"));
+
+                                if (quotaThresholdReached)
+                                {
+                                    await Logger.Log(new LogMessage(LogSeverity.Info, "Notifications", $"Notification quota threshold reached for user {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) with trigger \"{n.OriginalWord}\" on {channel.Guild.Name} ({channel.Guild.Id})"));
+
+                                    var now = DateTime.UtcNow;
+                                    var timeLeft = now.Date.AddDays(1) - now;
+                                    await dm.SendMessageAsync($"You've reached your daily notification limit on server `{channel.Guild.Name}`. Your quota will reset in `{timeLeft.SimpleFormat()}`. \nWe're sorry, but this is a necessary safeguard to prevent abuse.");
+                                }
                             }
                             catch (Discord.Net.HttpException ex) when (ex.DiscordCode == 50007)
                             {

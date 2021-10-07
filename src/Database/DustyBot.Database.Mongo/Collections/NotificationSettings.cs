@@ -1,4 +1,7 @@
 ﻿using DustyBot.Database.Mongo.Collections.Templates;
+using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Bson.Serialization.Options;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,6 +18,10 @@ namespace DustyBot.Settings
     public class NotificationSettings : BaseServerSettings
     {
         public List<Notification> Notifications { get; set; } = new List<Notification>();
+
+        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
+        public Dictionary<ulong, int> UserQuotas { get; set; } = new Dictionary<ulong, int>();
+        public DateTime CurrentQuotaDate { get; set; }
 
         public bool RaiseCount(ulong user, string loweredWord)
         {

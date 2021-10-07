@@ -1,16 +1,16 @@
-﻿using Discord;
+﻿using System;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
-using DustyBot.Framework.Modules;
+using Discord;
+using Discord.WebSocket;
+using DustyBot.Database.Services;
+using DustyBot.Definitions;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
-using DustyBot.Definitions;
-using System.Linq;
-using System;
-using Discord.WebSocket;
+using DustyBot.Framework.Modules;
 using DustyBot.Framework.Utility;
-using DustyBot.Database.Services;
-using System.Text;
 
 namespace DustyBot.Modules
 {
@@ -41,6 +41,28 @@ namespace DustyBot.Modules
                 .WithTitle($"{user.Username}#{user.Discriminator}")
                 .WithUrl(avatar)
                 .WithImageUrl(avatar);
+
+            await command.Channel.SendMessageAsync(embed: embed.Build());
+        }
+
+        [Command("banner", "Shows a big version of a user's profile banner.")]
+        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional | ParameterFlags.Remainder, "the user; shows your banner if omitted")]
+        public async Task Banner(ICommand command)
+        {
+            var user = command["User"].HasValue ? await command["User"].AsGuildUser : command.Author;
+            var test = UserFetcher.FetchUserAsync(user.Id);
+
+            var url = user.GetBannerUrl(size: 4096);
+            if (string.IsNullOrEmpty(url))
+            {
+                await command.Reply(Communicator, "User has no profile banner.");
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                    .WithTitle($"{user.Username}#{user.Discriminator}")
+                    .WithUrl(url)
+                    .WithImageUrl(url);
 
             await command.Channel.SendMessageAsync(embed: embed.Build());
         }
