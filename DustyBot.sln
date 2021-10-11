@@ -64,7 +64,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Service.Tests", "S
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DustyBot.Framework.Tests", "Framework\tests\DustyBot.Framework.Tests\DustyBot.Framework.Tests.csproj", "{02A78073-20EE-40BA-B2D3-E480DA06C87C}"
 EndProject
-Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}"
+Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{151B255C-F953-4F0E-8A9D-36F45053AB61}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -124,10 +124,10 @@ Global
 		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{02A78073-20EE-40BA-B2D3-E480DA06C87C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DE79B8C4-7A90-47EE-A965-06E3CB008A7C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{151B255C-F953-4F0E-8A9D-36F45053AB61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{151B255C-F953-4F0E-8A9D-36F45053AB61}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{151B255C-F953-4F0E-8A9D-36F45053AB61}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{151B255C-F953-4F0E-8A9D-36F45053AB61}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

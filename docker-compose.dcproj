@@ -3,7 +3,7 @@
   <PropertyGroup Label="Globals">
     <ProjectVersion>2.1</ProjectVersion>
     <DockerTargetOS>Linux</DockerTargetOS>
-    <ProjectGuid>de79b8c4-7a90-47ee-a965-06e3cb008a7c</ProjectGuid>
+    <ProjectGuid>151b255c-f953-4f0e-8a9d-36f45053ab61</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>
     <None Include="docker-compose.override.yml">

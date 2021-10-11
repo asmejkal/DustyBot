@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "Docker Compose": {
+      "commandName": "DockerCompose",
+      "serviceActions": {
+        "dustybot-elasticsearch": "StartWithoutDebugging",
+        "dustybot-kibana": "StartWithoutDebugging",
+        "dustybot-mongodb": "StartWithoutDebugging",
+        "dustybot-service": "StartDebugging"
+      },
+      "composeLaunchAction": "None",
+      "commandVersion": "1.0"
+    }
+  }
+}

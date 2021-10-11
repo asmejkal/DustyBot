@@ -1,0 +1,11 @@
+FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
+WORKDIR /src
+COPY "Framework" "Framework"
+COPY "Database" "Database"
+COPY "_Shared" "_Shared"
+COPY "Service" "Service"
+COPY "nuget.config" .
+COPY "CodeAnalysis.ruleset" .
+RUN dotnet publish "Service/src/DustyBot.Service/DustyBot.Service.csproj" -c Release -o "/app/publish"
+
+ENTRYPOINT ["dotnet", "/app/publish/DustyBot.Service.dll"]

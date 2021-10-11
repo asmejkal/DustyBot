@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Description>Dusty Bot</Description>
     <AssemblyTitle>Dusty Bot</AssemblyTitle>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <PackageId>DustyBot</PackageId>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
