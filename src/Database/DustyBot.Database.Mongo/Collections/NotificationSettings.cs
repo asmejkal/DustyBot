@@ -19,6 +19,11 @@ namespace DustyBot.Settings
     {
         public List<Notification> Notifications { get; set; } = new List<Notification>();
 
+        public HashSet<ulong> IgnoredUsers { get; set; } = new HashSet<ulong>();
+
+        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
+        public Dictionary<ulong, HashSet<ulong>> UserIgnoredChannels { get; set; } = new Dictionary<ulong, HashSet<ulong>>();
+
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<ulong, int> UserQuotas { get; set; } = new Dictionary<ulong, int>();
         public DateTime CurrentQuotaDate { get; set; }

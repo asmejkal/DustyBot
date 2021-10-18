@@ -192,7 +192,7 @@ namespace DustyBot.Modules
                 .AddField(x => x.WithIsInline(true).WithName("Owner").WithValue($"{owner.Username}#{owner.Discriminator}"))
                 .AddField(x => x.WithIsInline(true).WithName("Owner ID").WithValue(guild.OwnerId))
                 .AddField(x => x.WithIsInline(true).WithName("Members").WithValue(guild.MemberCount))
-                .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString("dd.MM.yyyy H:mm:ss UTC")));
+                .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString(@"yyyy\/MM\/dd H:mm:ss UTC")));
 
             await command.Message.Channel.SendMessageAsync(string.Empty, embed: embed.Build());
         }
@@ -338,8 +338,11 @@ namespace DustyBot.Modules
             inside = false;
             input = input.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
 
-            inside = false;
-            input = input.Split(new string[] { "*" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<i>" : "</i>") + y);
+            if (input.Count(x => x == '*') > 1)
+            {
+                inside = false;
+                input = input.Split(new string[] { "*" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<i>" : "</i>") + y);
+            }
 
             inside = false;
             input = input.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
@@ -377,7 +380,7 @@ namespace DustyBot.Modules
             }
 
             var examples = commandRegistration.Examples
-                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
+                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {Markdown(x)}")
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "<br/>" + y);
 
@@ -389,7 +392,7 @@ namespace DustyBot.Modules
                 result.Append("<br/><br/>" + Markdown(commandRegistration.GetComment(commandPrefix)));
 
             if (!string.IsNullOrWhiteSpace(examples))
-                result.Append("<br/><br/><u>Examples:</u><br/><code>" + Markdown(examples) + "</code>");
+                result.Append("<br/><br/><u>Examples:</u><br/><code>" + examples + "</code>");
 
             if (commandRegistration.Aliases.Any(x => !x.Hidden))
             {

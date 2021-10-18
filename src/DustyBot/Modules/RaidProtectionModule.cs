@@ -587,7 +587,7 @@ namespace DustyBot.Modules
                 if (logChannel != null && currentUser.GetPermissions(logChannel).SendMessages)
                 {
                     var embed = new EmbedBuilder()
-                        .WithFooter(fb => fb.WithText(messages.Last().Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")))
+                        .WithFooter(fb => fb.WithText(messages.Last().Timestamp.ToUniversalTime().ToString(@"yyyy\/MM\/dd H:mm:ss UTC")))
                         .AddField(fb => fb.WithName("Reason").WithValue($"Broken rule ({rule.Type})."));
 
                     if (punish)

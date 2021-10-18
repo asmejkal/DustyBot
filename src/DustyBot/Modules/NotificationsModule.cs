@@ -37,9 +37,9 @@ namespace DustyBot.Modules
 
             private Node Root { get; set; } = new Node();
 
-            public KeywordTree(IEnumerable<Notification> notifications)
+            public KeywordTree(IEnumerable<Notification> notifications, IEnumerable<ulong> ignoredUsers)
             {
-                foreach (var n in notifications)
+                foreach (var n in notifications.Where(x => !ignoredUsers.Contains(x.User)))
                 {
                     Node current = Root;
                     foreach (var c in n.LoweredWord)
@@ -98,16 +98,16 @@ namespace DustyBot.Modules
             UserFetcher = userFetcher;
         }
 
-        [Command("notification", "help", "Shows help for this module.", CommandFlags.Hidden)]
-        [Alias("notif", "help"), Alias("noti", "help")]
+        [Command("notifications", "help", "Shows help for this module.", CommandFlags.Hidden)]
+        [Alias("notif", "help"), Alias("noti", "help"), Alias("notification", "help")]
         [IgnoreParameters]
         public async Task Help(ICommand command)
         {
             await command.Channel.SendMessageAsync(embed: HelpBuilder.GetModuleHelpEmbed(this, command.Prefix));
         }
 
-        [Command("notification", "add", "Adds a word to be notified on when mentioned in this server.")]
-        [Alias("notifications", "add", true), Alias("notif", "add"), Alias("noti", "add")]
+        [Command("notifications", "add", "Adds a word that you will be notified for when it is mentioned in this server.")]
+        [Alias("notification", "add", true), Alias("notif", "add"), Alias("noti", "add")]
         [Alias("notifications", true), Alias("notification"), Alias("notif"), Alias("noti")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "when this word is mentioned in this server you will receive a notification")]
         public async Task AddNotification(ICommand command)
@@ -150,14 +150,14 @@ namespace DustyBot.Modules
                     OriginalWord = command["Word"]
                 });
 
-                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
+                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications, s.IgnoredUsers);
             });
 
             await command.ReplySuccess(Communicator, "You will now be notified when this word is mentioned (please make sure your privacy settings allow the bot to DM you).");
         }
 
-        [Command("notification", "remove", "Removes a notified word.")]
-        [Alias("notifications", "remove", true), Alias("notif", "remove"), Alias("noti", "remove")]
+        [Command("notifications", "remove", "Removes a notified word.")]
+        [Alias("notification", "remove", true), Alias("notif", "remove"), Alias("noti", "remove")]
         [Parameter("Word", ParameterType.String, ParameterFlags.Remainder, "a word you don't want to be notified on anymore")]
         public async Task RemoveNotification(ICommand command)
         {
@@ -177,10 +177,140 @@ namespace DustyBot.Modules
                 if (s.Notifications.RemoveAll(x => x.User == command.Message.Author.Id && x.LoweredWord == lowered) < 1)
                     throw new CommandException($"You don't have this word set as a notification. You can see all your notifications with `notification list`.");
 
-                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications);
+                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications, s.IgnoredUsers);
             });
 
             await command.ReplySuccess(Communicator, "You will no longer be notified when this word is mentioned.");
+        }
+
+        [Command("notifications", "clear", "Removes all notified words on this server.")]
+        [Alias("notification", "clear", true), Alias("notif", "clear"), Alias("noti", "clear")]
+        public async Task ClearNotifications(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (NotificationSettings s) =>
+            {
+                s.Notifications.RemoveAll(x => x.User == command.Message.Author.Id);
+                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications, s.IgnoredUsers);
+            });
+
+            await command.ReplySuccess(Communicator, "You will no longer be notified on this server.");
+        }
+
+        [Command("notifications", "pause", "Disables all notifications on this server until you turn them back on.")]
+        [Alias("notification", "pause", true), Alias("notif", "pause"), Alias("noti", "pause")]
+        public async Task PauseNotifications(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (NotificationSettings s) =>
+            {
+                s.IgnoredUsers.Add(command.Author.Id);
+                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications, s.IgnoredUsers);
+            });
+
+            await command.ReplySuccess(Communicator, "You will not be notified on this server until you use `notifications resume`.");
+        }
+
+        [Command("notifications", "resume", "Turns paused notifications back on.")]
+        [Alias("notification", "resume", true), Alias("notif", "resume"), Alias("noti", "resume")]
+        [Alias("notifications", "unpause"), Alias("notification", "unpause"), Alias("notif", "unpause"), Alias("noti", "unpause")]
+        public async Task ResumeNotifications(ICommand command)
+        {
+            await Settings.Modify(command.GuildId, (NotificationSettings s) =>
+            {
+                s.IgnoredUsers.Remove(command.Author.Id);
+                KeywordTrees[command.GuildId] = new KeywordTree(s.Notifications, s.IgnoredUsers);
+            });
+
+            await command.ReplySuccess(Communicator, "You will now be notified on this server again.");
+        }
+
+        [Command("notifications", "block", "Blocks a person from triggering your notifications.", CommandFlags.DirectMessageAllow)]
+        [Alias("notification", "block", true), Alias("notif", "block"), Alias("noti", "block")]
+        [Parameter("User", ParameterType.User, "a user ID or a mention")]
+        [Comment("You will not get notifications for any messages from a blocked person. \n\nThis command can be used in a DM. See [this guide](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) if you don't know how to find the user's ID.")]
+        public async Task BlockNotifications(ICommand command)
+        {
+            try
+            {
+                if (command.Channel is IGuildChannel guildChannel &&
+                    (await command.Guild.GetCurrentUserAsync()).GetPermissions(guildChannel).ManageMessages)
+                {
+                    await command.Message.DeleteAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
+            }
+
+            var user = await command["User"].AsUser;
+            await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.BlockedUsers.Add(user.Id));
+
+            var messages = await command.ReplySuccess(Communicator, "You will no longer receive notifications for any messages from this person.");
+            
+            if (command.Channel is IGuildChannel)
+                messages.First().DeleteAfter(3);
+        }
+
+        [Command("notifications", "unblock", "Unblocks a person.", CommandFlags.DirectMessageAllow)]
+        [Alias("notification", "unblock", true), Alias("notif", "unblock"), Alias("noti", "unblock")]
+        [Parameter("User", ParameterType.User, "a user ID or mention")]
+        [Comment("This command can be used in a DM. You will receive notifications for messages from this person again.")]
+        public async Task UnblockNotifications(ICommand command)
+        {
+            try
+            {
+                if (command.Channel is IGuildChannel guildChannel &&
+                    (await command.Guild.GetCurrentUserAsync()).GetPermissions(guildChannel).ManageMessages)
+                {
+                    await command.Message.DeleteAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Notifications", "Failed to delete notification message.", ex));
+            }
+
+            var user = await command["User"].AsUser;
+            await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.BlockedUsers.Remove(user.Id));
+
+            var messages = await command.ReplySuccess(Communicator, "You will receive notifications for messages from this person again.");
+
+            if (command.Channel is IGuildChannel)
+                messages.First().DeleteAfter(3);
+        }
+
+        [Command("notifications", "ignore", "channel", "Ignore messages in this channel for notifications. Use again to un-ignore.")]
+        [Alias("notification", "ignore", "channel", true), Alias("notif", "ignore", "channel"), Alias("noti", "ignore", "channel")]
+        public async Task IgnoreNotificationsChannel(ICommand command)
+        {
+            var removed = await Settings.Modify(command.GuildId, (NotificationSettings s) =>
+            {
+                if (!s.UserIgnoredChannels.TryGetValue(command.Author.Id, out var ignoredChannels))
+                    s.UserIgnoredChannels.Add(command.Author.Id, ignoredChannels = new HashSet<ulong>());
+
+                var remove = ignoredChannels.Contains(command.Channel.Id);
+                if (remove)
+                    ignoredChannels.Remove(command.Channel.Id);
+                else
+                    ignoredChannels.Add(command.Channel.Id);
+
+                return remove;
+            });
+
+            if (removed)
+                await command.ReplySuccess(Communicator, "You will now receive notifications from this channel again.");
+            else
+                await command.ReplySuccess(Communicator, "You will no longer receive notifications from this channel.");
+        }
+
+        [Command("notification", "ignore", "active", "channel", "Skip notifications from the channel you're currently active in.")]
+        [Alias("notifications", "ignore", "active", "channel", true), Alias("notif", "ignore", "active", "channel"), Alias("noti", "ignore", "active", "channel")]
+        [Comment("All notifications will be delayed by a small amount. If you start typing in the channel where someone triggered a notification, you won't be notified.\n\nUse this command again to disable.")]
+        public async Task ToggleIgnoreActiveChannel(ICommand command)
+        {
+            var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
+
+            await command.ReplySuccess(Communicator, enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 
         [Command("notification", "list", "Lists all your notified words on this server.")]
@@ -214,16 +344,6 @@ namespace DustyBot.Modules
             }
 
             await command.ReplySuccess(Communicator, "Please check your direct messages.");
-        }
-
-        [Command("notification", "ignore", "active", "channel", "Skip notifications from the channel you're currently active in.")]
-        [Alias("notifications", "ignore", "active", "channel", true), Alias("notif", "ignore", "active", "channel"), Alias("noti", "ignore", "active", "channel")]
-        [Comment("All notifications will be delayed by a small amount. If you start typing in the channel where someone triggered a notification, you won't be notified.\n\nUse this command again to disable.")]
-        public async Task ToggleIgnoreActiveChannel(ICommand command)
-        {
-            var enabled = await Settings.ModifyUser(command.Author.Id, (UserNotificationSettings s) => s.IgnoreActiveChannel = !s.IgnoreActiveChannel);
-
-            await command.ReplySuccess(Communicator, enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 
         private void RegisterPendingNotification((ulong, ulong) key, ulong message)
@@ -294,7 +414,7 @@ namespace DustyBot.Modules
 
                     ResetPendingNotifications(user.Id, channel.Id);
 
-                    var tree = KeywordTrees.GetOrAdd(channel.Guild.Id, x => new KeywordTree(settings.Notifications));
+                    var tree = KeywordTrees.GetOrAdd(channel.Guild.Id, x => new KeywordTree(settings.Notifications, settings.IgnoredUsers));
                     var notifiedUsers = new HashSet<ulong>();
                     foreach (var (p, n) in tree.Match(message.Content))
                     {
@@ -323,12 +443,28 @@ namespace DustyBot.Modules
                         {
                             try
                             {
+                                // Check blocklist
+                                var targetUserSettings = await Settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
+                                if (targetUserSettings != null && targetUserSettings.BlockedUsers.Contains(user.Id))
+                                {
+                                    await Logger.Log(new LogMessage(LogSeverity.Info, "Notifications", $"Blocking a notification from user {user.Id} for {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) with trigger \"{n.OriginalWord}\" on {channel.Guild.Name} ({channel.Guild.Id})"));
+                                    return;
+                                }
+
                                 bool quotaExceeded = false;
                                 bool quotaThresholdReached = false;
-                                await Settings.Modify(channel.Guild.Id, (NotificationSettings s) =>
+                                var ignoredChannel = await Settings.Modify(channel.Guild.Id, (NotificationSettings s) =>
                                 {
+                                    if (s.UserIgnoredChannels.TryGetValue(targetUser.Id, out var ignoredChannels) && 
+                                        ignoredChannels.Contains(channel.Id))
+                                    {
+                                        return true;
+                                    }
+
+                                    // Raise notification counter
                                     s.RaiseCount(n.User, n.LoweredWord);
 
+                                    // Check and update daily quota
                                     var today = DateTime.UtcNow.Date;
                                     if (s.CurrentQuotaDate.Date != today)
                                     {
@@ -343,15 +479,16 @@ namespace DustyBot.Modules
                                         quotaThresholdReached = true;
                                     else if (quota > DailyNotificationQuotaPerServer)
                                         quotaExceeded = true;
+
+                                    return false;
                                 });
 
-                                if (quotaExceeded)
-                                {
-                                    await Logger.Log(new LogMessage(LogSeverity.Info, "Notifications", $"Ignoring notification that exceeds quota for {targetUser.Username}#{targetUser.Discriminator} ({targetUser.Id}) with trigger \"{n.OriginalWord}\" on {channel.Guild.Name} ({channel.Guild.Id})"));
+                                if (ignoredChannel)
                                     return;
-                                }
 
-                                var targetUserSettings = await Settings.ReadUser<UserNotificationSettings>(targetUser.Id, false);
+                                if (quotaExceeded)
+                                    return;
+
                                 if (targetUserSettings?.IgnoreActiveChannel ?? false)
                                 {
                                     var messageKey = (targetUser.Id, channel.Id);

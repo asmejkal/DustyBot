@@ -127,6 +127,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.TextChannel: result = AsTextChannel; break;
                 case ParameterType.GuildUser: result = await AsGuildUser.ConfigureAwait(false); break;
                 case ParameterType.GuildUserOrName: result = await AsGuildUserOrName.ConfigureAwait(false); break;
+                case ParameterType.User: result = await AsUser.ConfigureAwait(false); break;
                 case ParameterType.Role: result = AsRole; break;
                 case ParameterType.GuildUserMessage: result = await AsGuildUserMessage.ConfigureAwait(false); break;
                 case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage.ConfigureAwait(false); break;
@@ -247,6 +248,21 @@ namespace DustyBot.Framework.Commands
                 user = await _userFetcher.FetchGuildUserAsync(Guild.Id, id).ConfigureAwait(false); // fallback to REST
 
             return user != null ? Tuple.Create(user, (string)null) : null;
+        });
+
+        public Task<IUser> AsUser => TryConvert<IUser>(this, ParameterType.User, async x =>
+        {
+            ulong id;
+            if (!ulong.TryParse(x, out id))
+            {
+                var match = UserMentionRegex.Match(x);
+                if (!match.Success)
+                    return null;
+
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            return await _userFetcher.FetchUserAsync(id).ConfigureAwait(false);
         });
 
         public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>

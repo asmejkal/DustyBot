@@ -230,7 +230,7 @@ namespace DustyBot.Modules
                             if (message.Attachments.Any())
                                 sb.AppendLine(string.Join("\n", message.Attachments.Select(a => a.Url)));
 
-                            sb.Append(message.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC"));
+                            sb.Append(message.Timestamp.ToUniversalTime().ToString(@"yyyy\/MM\/dd H:mm:ss UTC"));
 
                             if (sb.Length > EmbedBuilder.MaxDescriptionLength / 2)
                             {
@@ -303,7 +303,7 @@ namespace DustyBot.Modules
             var preface = $"**Message by {userMessage.Author.Mention} in {textChannel.Mention} was deleted:**\n";
             var embed = new EmbedBuilder()
                 .WithDescription(preface + userMessage.Content.Truncate(EmbedBuilder.MaxDescriptionLength - preface.Length))
-                .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString("dd.MM.yyyy H:mm:ss UTC")})"));
+                .WithFooter(fb => fb.WithText($"{userMessage.Timestamp.ToUniversalTime().ToString(@"yyyy\/MM\/dd H:mm:ss UTC")} (deleted on {DateTime.Now.ToUniversalTime().ToString(@"yyyy\/MM\/dd H:mm:ss UTC")})"));
 
             if (userMessage.Attachments.Any())
                 embed.AddField(efb => efb.WithName("Attachments").WithValue(string.Join(", ", userMessage.Attachments.Select(a => a.Url))).WithIsInline(false));
