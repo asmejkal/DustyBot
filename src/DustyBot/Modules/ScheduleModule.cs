@@ -1227,7 +1227,7 @@ namespace DustyBot.Modules
         [Command("calendar", "split", "Splits a calendar in two by a given date.")]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "a date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Comment("The calendar will be split in two. All events *before* the provided date will stay in the old calendar. All events from the provided date onwards (inclusive) will be displayed in a new calendar which will be created.")]
+        [Comment("The calendar will be split in two. All events before the provided date will stay in the old calendar. All events from the provided date onwards (inclusive) will be displayed in a new calendar which will be created.")]
         [Example("462366629247057930 12/15")]
         public async Task SplitCalendar(ICommand command)
         {
