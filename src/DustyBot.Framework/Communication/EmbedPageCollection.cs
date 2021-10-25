@@ -2,6 +2,7 @@
 using DustyBot.Core.Formatting;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace DustyBot.Framework.Communication
@@ -12,6 +13,11 @@ namespace DustyBot.Framework.Communication
 
         public PageCollectionBuilder()
         {
+        }
+
+        public PageCollectionBuilder(IEnumerable<string> lines)
+        {
+            Lines = lines.ToList();
         }
 
         public void AppendLine(string text) => Lines.Add(text);

@@ -26,7 +26,7 @@ using Newtonsoft.Json.Linq;
 
 namespace DustyBot.Modules
 {
-    [Module("Instagram", "Helps with Instagram post previews.")]
+    [Module("Instagram", "Helps with Instagram post previews.", true)]
     class InstagramModule : Module
     {
         private const string PostRegexString = @"http[s]:\/\/(?:www\.)?instagram\.com\/(?:p|tv|reel)\/([^/?#>\s]+)";

@@ -338,12 +338,6 @@ namespace DustyBot.Modules
             inside = false;
             input = input.Split(new string[] { "**" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<b>" : "</b>") + y);
 
-            if (input.Count(x => x == '*') > 1)
-            {
-                inside = false;
-                input = input.Split(new string[] { "*" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<i>" : "</i>") + y);
-            }
-
             inside = false;
             input = input.Split(new string[] { "__" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<u>" : "</u>") + y);
             

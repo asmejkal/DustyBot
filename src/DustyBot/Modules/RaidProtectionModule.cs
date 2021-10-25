@@ -21,6 +21,8 @@ using DustyBot.Core.Async;
 using DustyBot.Core.Collections;
 using DustyBot.Framework.Exceptions;
 using DustyBot.Definitions;
+using System.Collections.Concurrent;
+using NReco.Text;
 
 namespace DustyBot.Modules
 {
@@ -86,6 +88,18 @@ namespace DustyBot.Modules
             public bool Empty => Offenses.Count <= 0 && ImagePosts.Count <= 0 && TextPosts.Count <= 0;
         }
 
+        struct BlacklistKeywordProperties
+        {
+            public bool HasBeginningWildcard { get; set; }
+            public bool HasEndingWildcard { get; set; }
+
+            public BlacklistKeywordProperties(bool hasBeginningWildcard, bool hasEndingWildcard)
+            {
+                HasBeginningWildcard = hasBeginningWildcard;
+                HasEndingWildcard = hasEndingWildcard;
+            }
+        }
+
         public ICommunicator Communicator { get; }
         public ISettingsService Settings { get; }
         public ILogger Logger { get; }
@@ -96,6 +110,9 @@ namespace DustyBot.Modules
         private static readonly TimeSpan ReportTimer = TimeSpan.FromMinutes(30);
 
         private readonly GlobalContext _context = new GlobalContext();
+
+        private readonly ConcurrentDictionary<ulong, AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties>> BlacklistTries = 
+            new ConcurrentDictionary<ulong, AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties>>();
 
         public RaidProtectionModule(ICommunicator communicator, ISettingsService settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
         {
@@ -141,7 +158,11 @@ namespace DustyBot.Modules
         [Comment("Does not erase your current rules.")]
         public async Task DisableRaidProtection(ICommand command)
         {
-            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) => x.Enabled = false);
+            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            {
+                x.Enabled = false;
+                RefreshTrie(x);
+            });
             await command.ReplySuccess(Communicator, $"Raid protection has been disabled.");
         }
 
@@ -182,14 +203,14 @@ namespace DustyBot.Modules
         public async Task AddBlacklistRaidProtection(ICommand command)
         {
             const int minLength = 3;
-            const int guildLimit = 50;
+            const int guildLimit = 200;
 
             var phrases = command["Phrases"].Repeats.Select(x => x.AsString).ToList();
             var tooShort = phrases.Where(x => x.Length < minLength);
             if (tooShort.Any())
                 throw new IncorrectParametersCommandException($"A phrase needs to be at least {minLength} characters long. The following phrases are too short: {tooShort.WordJoinQuoted()}.", false);
 
-            var added = await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
                 if (x.PhraseBlacklistRule.Blacklist.Count + phrases.Count > guildLimit)
                     throw new AbortException($"You can only have up to {guildLimit} blacklisted phrases in a server.");
@@ -204,10 +225,10 @@ namespace DustyBot.Modules
                     Blacklist = x.PhraseBlacklistRule.Blacklist.Concat(phrases).Distinct().ToList()
                 });
 
-                return phrases;
+                RefreshTrie(x);
             });
 
-            await command.ReplySuccess(Communicator, $"The following phrases have been added to the blacklist: {added.WordJoinQuoted()}.");
+            await command.ReplySuccess(Communicator, $"The following phrases have been added to the blacklist: {phrases.WordJoinQuoted()}.");
         }
 
         [Command("raid", "protection", "blacklist", "remove", "Removes one or more blacklisted phrases.")]
@@ -235,6 +256,8 @@ namespace DustyBot.Modules
                     OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
                     Blacklist = complement
                 });
+
+                RefreshTrie(x);
             });
 
             await command.ReplySuccess(Communicator, $"The following phrases have been removed from the blacklist: {phrases.WordJoinQuoted()}.");
@@ -256,9 +279,24 @@ namespace DustyBot.Modules
                     OffenseWindow = x.PhraseBlacklistRule.OffenseWindow,
                     Blacklist = new List<string>()
                 });
+
+                RefreshTrie(x);
             });
 
             await command.ReplySuccess(Communicator, $"The phrase blacklist has been disabled.");
+        }
+
+        [Command("raid", "protection", "blacklist", "list", "Shows all blacklisted phrases.")]
+        [Alias("raid-protection", "blacklist", "list", true)]
+        [Permissions(GuildPermission.Administrator)]
+        public async Task ListBlacklistRaidProtection(ICommand command)
+        {
+            var settings = await Settings.Read<RaidProtectionSettings>(command.GuildId);
+
+            var builder = new PageCollectionBuilder(settings.PhraseBlacklistRule.Blacklist);
+            var pages = builder.BuildEmbedCollection(() => new EmbedBuilder().WithTitle("Blacklisted phrases"), 25);
+
+            await command.Reply(Communicator, pages);
         }
 
         [Command("raid", "protection", "rules", "set", "Modifies a raid protection rule.", CommandFlags.OwnerOnly | CommandFlags.DirectMessageAllow)]
@@ -340,7 +378,7 @@ namespace DustyBot.Modules
 
                     if (settings.PhraseBlacklistRule.Enabled)
                     {
-                        if (MatchBlacklist(message.Content, settings.PhraseBlacklistRule.Blacklist))
+                        if (MatchBlacklist(channel.GuildId, message.Content, settings.PhraseBlacklistRule.Blacklist))
                         {
                             await EnforceRule(settings.PhraseBlacklistRule, new IMessage[] { message }, channel, await GetUserContext(user), user, settings.LogChannel, message.Content);
                             return;
@@ -416,24 +454,24 @@ namespace DustyBot.Modules
             return Task.CompletedTask;
         }
 
-        private bool MatchBlacklist(string message, IEnumerable<string> blacklist)
+        private bool MatchBlacklist(ulong guildId, string message, IEnumerable<string> blacklist)
         {
-            // TODO: inefficient
-            return blacklist.Any(x =>
+            var trie = BlacklistTries.GetOrAdd(guildId, x => CreateTrie(blacklist));
+
+            bool matched = false;
+            trie.ParseText(message, match =>
             {
-                var phrase = x.Trim('*', 1);
-                var i = message.IndexOf(phrase, StringComparison.OrdinalIgnoreCase);
-                if (i == -1)
-                    return false;
+                if (match.Begin > 0 && char.IsLetter(message[match.Begin - 1]) && !match.Value.HasBeginningWildcard)
+                    return true; // Inside a word (prefixed) - skip
 
-                if (i > 0 && char.IsLetter(message[i - 1]) && x.First() != '*')
-                    return false; // Inside a word (prefixed) - skip
-
-                if (i + phrase.Length < message.Length && char.IsLetter(message[i + phrase.Length]) && x.Last() != '*')
+                if (match.End < message.Length && char.IsLetter(message[match.End]) && !match.Value.HasEndingWildcard)
                     return false; // Inside a word (suffixed) - skip
 
-                return true;
+                matched = true;
+                return false; // Got a match - break
             });
+
+            return matched;
         }
 
         private async Task CleanupContext(RaidProtectionSettings settings)
@@ -604,6 +642,22 @@ namespace DustyBot.Modules
 
                 await Logger.Log(new LogMessage(LogSeverity.Info, "Admin", $"Enforced rule {rule.Type} {(punish ? "(punished)" : "(warned)")} on user {user.Username} ({user.Id}) on {channel.Guild.Name} ({channel.Guild.Id}) because of {reason}"));
             }
+        }
+
+        private void RefreshTrie(RaidProtectionSettings settings)
+        {
+            if (settings.Enabled && settings.PhraseBlacklistRule.Enabled && settings.PhraseBlacklistRule.Blacklist.Any())
+                BlacklistTries[settings.ServerId] = CreateTrie(settings.PhraseBlacklistRule.Blacklist);
+            else
+                BlacklistTries.TryRemove(settings.ServerId, out _);
+        }
+
+        private AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties> CreateTrie(IEnumerable<string> blacklist)
+        {
+            var keywords = blacklist.ToDictionary(x => x.Trim('*', 1), 
+                x => new BlacklistKeywordProperties(x.First() == '*', x.Last() == '*'));
+
+            return new AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties>(keywords, ignoreCase: true);
         }
     }
 }
