@@ -111,8 +111,8 @@ namespace DustyBot.Modules
 
         private readonly GlobalContext _context = new GlobalContext();
 
-        private readonly ConcurrentDictionary<ulong, AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties>> BlacklistTries = 
-            new ConcurrentDictionary<ulong, AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties>>();
+        private readonly ConcurrentDictionary<ulong, AhoCorasickDoubleArrayTrie<List<BlacklistKeywordProperties>>> BlacklistTries = 
+            new ConcurrentDictionary<ulong, AhoCorasickDoubleArrayTrie<List<BlacklistKeywordProperties>>>();
 
         public RaidProtectionModule(ICommunicator communicator, ISettingsService settings, ILogger logger, Discord.Rest.DiscordRestClient restClient)
         {
@@ -193,9 +193,34 @@ namespace DustyBot.Modules
             await command.Reply(Communicator, result.ToString());
         }
 
+        [Command("raid", "protection", "set", "max", "offenses", "Sets how many violations of a rule may happen before the user gets muted.")]
+        [Alias("raid-protection", "rules")]
+        [Parameter("RuleName", ParameterType.String, "name of one of the rules from the `raid protection rules` command")]
+        [Parameter("MaxOffenseCount", ParameterType.Int, "maximum number of offenses for this rule before the user gets muted")]
+        [Permissions(GuildPermission.BanMembers)]
+        public async Task SetMaxOffenseCount(ICommand command)
+        {
+            if (!Enum.TryParse<RaidProtectionRuleType>(command["RuleName"], out var type))
+                throw new IncorrectParametersCommandException("Unknown rule type.");
+
+            var maxOffenseCount = (int)command["MaxOffenseCount"];
+            if (maxOffenseCount < 1)
+                throw new IncorrectParametersCommandException("The value must be at least 1.", false);
+
+            await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
+            {
+                var rule = x.GetRule<RaidProtectionRule>(type);
+                rule.MaxOffenseCount = maxOffenseCount;
+
+                x.SetException(type, rule);
+            });
+
+            await command.ReplySuccess(Communicator, $"Users will now be muted after `{maxOffenseCount}` violations of `{type}`.");
+        }
+
         [Command("raid", "protection", "blacklist", "add", "Adds one or more blacklisted phrases.")]
         [Alias("raid-protection", "blacklist", "add", true)]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         [Parameter("Phrases", ParameterType.String, ParameterFlags.Repeatable, "one or more phrases separated by spaces")]
         [Comment("Use the `*` wildcard before or after the phrase to also match longer phrases. For example, `darn*` also matches `darnit`. Matching is not case sensitive.\n\n Messages that match any of these phrases will be handled according to the PhraseBlacklist rule (default: the offending message will be deleted and upon commiting 3 offenses within 5 minutes the offending user will be muted).")]
         [Example("darn*")]
@@ -203,7 +228,7 @@ namespace DustyBot.Modules
         public async Task AddBlacklistRaidProtection(ICommand command)
         {
             const int minLength = 3;
-            const int guildLimit = 200;
+            const int guildLimit = 500;
 
             var phrases = command["Phrases"].Repeats.Select(x => x.AsString).ToList();
             var tooShort = phrases.Where(x => x.Length < minLength);
@@ -233,7 +258,7 @@ namespace DustyBot.Modules
 
         [Command("raid", "protection", "blacklist", "remove", "Removes one or more blacklisted phrases.")]
         [Alias("raid-protection", "blacklist", "remove", true)]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         [Parameter("Phrases", ParameterType.String, ParameterFlags.Repeatable, "one or more phrases separated by spaces")]
         [Example("darn*")]
         [Example("\"fudge nugget\" *dang")]
@@ -265,7 +290,7 @@ namespace DustyBot.Modules
 
         [Command("raid", "protection", "blacklist", "clear", "Removes all phrases from the blacklist.")]
         [Alias("raid-protection", "blacklist", "clear", true)]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         public async Task ClearBlacklistRaidProtection(ICommand command)
         {
             await Settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
@@ -288,12 +313,18 @@ namespace DustyBot.Modules
 
         [Command("raid", "protection", "blacklist", "list", "Shows all blacklisted phrases.")]
         [Alias("raid-protection", "blacklist", "list", true)]
-        [Permissions(GuildPermission.Administrator)]
+        [Permissions(GuildPermission.BanMembers)]
         public async Task ListBlacklistRaidProtection(ICommand command)
         {
             var settings = await Settings.Read<RaidProtectionSettings>(command.GuildId);
 
-            var builder = new PageCollectionBuilder(settings.PhraseBlacklistRule.Blacklist);
+            if (!settings.PhraseBlacklistRule.Blacklist.Any())
+            {
+                await command.Reply(Communicator, "No blacklisted phrases have been added for this server.");
+                return;
+            }
+
+            var builder = new PageCollectionBuilder(settings.PhraseBlacklistRule.Blacklist.Select(x => $"`{x}`"));
             var pages = builder.BuildEmbedCollection(() => new EmbedBuilder().WithTitle("Blacklisted phrases"), 25);
 
             await command.Reply(Communicator, pages);
@@ -390,7 +421,7 @@ namespace DustyBot.Modules
                         var userContext = await GetUserContext(user);
                         bool enforce = false;
                         var offendingMessages = new List<IMessage>();
-                        ReadOnlySpamRule appliedRule;
+                        SpamRule appliedRule;
                         try
                         {
                             await userContext.Mutex.WaitAsync();
@@ -461,14 +492,19 @@ namespace DustyBot.Modules
             bool matched = false;
             trie.ParseText(message, match =>
             {
-                if (match.Begin > 0 && char.IsLetter(message[match.Begin - 1]) && !match.Value.HasBeginningWildcard)
-                    return true; // Inside a word (prefixed) - skip
+                foreach (var keyword in match.Value)
+                {
+                    if (match.Begin > 0 && char.IsLetter(message[match.Begin - 1]) && !keyword.HasBeginningWildcard)
+                        continue; // Inside a word (prefixed) - skip
 
-                if (match.End < message.Length && char.IsLetter(message[match.End]) && !match.Value.HasEndingWildcard)
-                    return false; // Inside a word (suffixed) - skip
+                    if (match.End < message.Length && char.IsLetter(message[match.End]) && !keyword.HasEndingWildcard)
+                        continue; // Inside a word (suffixed) - skip
 
-                matched = true;
-                return false; // Got a match - break
+                    matched = true;
+                    return false; // Got a match - break
+                }
+
+                return true;
             });
 
             return matched;
@@ -501,7 +537,7 @@ namespace DustyBot.Modules
                                 await userContext.Value.Mutex.WaitAsync();
                                 foreach (var offenses in userContext.Value.Offenses.ToList())
                                 {
-                                    offenses.Value.SlideWindow(settings.GetRule<ReadOnlyRaidProtectionRule>(offenses.Key).OffenseWindow, now - MaxMessageProcessingDelay);
+                                    offenses.Value.SlideWindow(settings.GetRule<RaidProtectionRule>(offenses.Key).OffenseWindow, now - MaxMessageProcessingDelay);
                                     if (offenses.Value.Count <= 0)
                                         userContext.Value.Offenses.Remove(offenses.Key);
                                 }
@@ -574,7 +610,7 @@ namespace DustyBot.Modules
             return userContext;
         }
 
-        private async Task EnforceRule(ReadOnlyRaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
+        private async Task EnforceRule(RaidProtectionRule rule, ICollection<IMessage> messages, ITextChannel channel, UserContext userContext, IGuildUser user, ulong logChannelId, string reason)
         {
             if (rule.Delete)
                 foreach (var message in messages)
@@ -652,12 +688,13 @@ namespace DustyBot.Modules
                 BlacklistTries.TryRemove(settings.ServerId, out _);
         }
 
-        private AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties> CreateTrie(IEnumerable<string> blacklist)
+        private AhoCorasickDoubleArrayTrie<List<BlacklistKeywordProperties>> CreateTrie(IEnumerable<string> blacklist)
         {
-            var keywords = blacklist.ToDictionary(x => x.Trim('*', 1), 
-                x => new BlacklistKeywordProperties(x.First() == '*', x.Last() == '*'));
+            var keywords = blacklist
+                .GroupBy(x => x.Trim('*', 1))
+                .ToDictionary(x => x.Key, x => x.Select(y => new BlacklistKeywordProperties(y.First() == '*', y.Last() == '*')).ToList());
 
-            return new AhoCorasickDoubleArrayTrie<BlacklistKeywordProperties>(keywords, ignoreCase: true);
+            return new AhoCorasickDoubleArrayTrie<List<BlacklistKeywordProperties>>(keywords, ignoreCase: true);
         }
     }
 }

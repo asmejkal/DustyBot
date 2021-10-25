@@ -148,7 +148,7 @@ namespace DustyBot.Modules
         [Command("invite", "Shows a link to invite the bot to your server.", CommandFlags.DirectMessageAllow)]
         public async Task Invite(ICommand command)
         {
-            await command.Reply(Communicator, $"<https://discord.com/oauth2/authorize?client_id={Client.CurrentUser.Id}&scope=bot&permissions=8192>");
+            await command.Reply(Communicator, $"<https://discord.com/oauth2/authorize?client_id={Client.CurrentUser.Id}&scope=bot&permissions=319552>");
         }
 
         [Command("servers", "Lists all servers the bot is on.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]

@@ -1360,7 +1360,8 @@ namespace DustyBot.Modules
                 Success,
                 Error,
                 MessageTooLong,
-                Removed
+                Removed,
+                MissingPermissions
             }
 
             public List<(ScheduleCalendar calendar, Reason reason)> Calendars { get; } = new List<(ScheduleCalendar, Reason)> ();
@@ -1393,6 +1394,9 @@ namespace DustyBot.Modules
 
                 foreach (var calendar in Calendars.Where(x => x.reason == Reason.MessageTooLong).Select(x => x.calendar))
                     builder.AppendLine($"⚠ Could not update calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because it is too long. You can split the calendar in two with the `calendar split` command.");
+
+                foreach (var calendar in Calendars.Where(x => x.reason == Reason.MissingPermissions).Select(x => x.calendar))
+                    builder.AppendLine($"⚠ Could not update calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because the bot is missing permissions.");
 
                 foreach (var calendar in Calendars.Where(x => x.reason == Reason.Removed).Select(x => x.calendar))
                     builder.AppendLine($"ℹ Removed calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because the calendar message no longer exists.");
@@ -1432,12 +1436,24 @@ namespace DustyBot.Modules
             var result = new RefreshResult();
             try
             {
+                IUserMessage message = null;
                 var channel = await guild.GetTextChannelAsync(calendar.ChannelId);
-                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId)) as IUserMessage : null;
+                if (channel != null)
+                {
+                    var permissions = (await guild.GetCurrentUserAsync()).GetPermissions(channel);
+                    if (!permissions.ViewChannel || !permissions.EmbedLinks)
+                    {
+                        await Logger.Log(new LogMessage(LogSeverity.Info, "Schedule", $"Missing permissions to update calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
+                        return RefreshResult.Reason.MissingPermissions;
+                    }
+
+                    message = await channel.GetMessageAsync(calendar.MessageId) as IUserMessage;
+                }
+
                 if (message == null)
                 {
                     await Settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
-                    await Logger.Log(new LogMessage(LogSeverity.Warning, "Schedule", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
+                    await Logger.Log(new LogMessage(LogSeverity.Info, "Schedule", $"Removed deleted calendar {calendar.MessageId} on {guild.Name} ({guild.Id})"));
                     return RefreshResult.Reason.Removed;
                 }
 

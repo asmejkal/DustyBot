@@ -17,12 +17,12 @@ namespace DustyBot.Settings
 
     public class RaidProtectionSettings : BaseServerSettings
     {
-        public static readonly IReadOnlyDictionary<RaidProtectionRuleType, ReadOnlyRaidProtectionRule> DefaultRules = new Dictionary<RaidProtectionRuleType, ReadOnlyRaidProtectionRule>()
+        public static readonly IReadOnlyDictionary<RaidProtectionRuleType, RaidProtectionRule> DefaultRules = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>()
         {
-            { RaidProtectionRuleType.MassMentionsRule, new MassMentionsRule { Type = RaidProtectionRuleType.MassMentionsRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), MentionsLimit = 10 }.AsReadOnly() },
-            { RaidProtectionRuleType.TextSpamRule, new SpamRule { Type = RaidProtectionRuleType.TextSpamRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 }.AsReadOnly() },
-            { RaidProtectionRuleType.ImageSpamRule, new SpamRule { Type = RaidProtectionRuleType.ImageSpamRule, Enabled = false, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 }.AsReadOnly() },
-            { RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule { Type = RaidProtectionRuleType.PhraseBlacklistRule, Enabled = false, Delete = true, MaxOffenseCount = 3, OffenseWindow = TimeSpan.FromMinutes(5) }.AsReadOnly() }
+            { RaidProtectionRuleType.MassMentionsRule, new MassMentionsRule { Type = RaidProtectionRuleType.MassMentionsRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), MentionsLimit = 10 } },
+            { RaidProtectionRuleType.TextSpamRule, new SpamRule { Type = RaidProtectionRuleType.TextSpamRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 } },
+            { RaidProtectionRuleType.ImageSpamRule, new SpamRule { Type = RaidProtectionRuleType.ImageSpamRule, Enabled = false, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 } },
+            { RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule { Type = RaidProtectionRuleType.PhraseBlacklistRule, Enabled = false, Delete = true, MaxOffenseCount = 3, OffenseWindow = TimeSpan.FromMinutes(5) } }
         };
 
         public bool Enabled { get; set; }
@@ -32,19 +32,19 @@ namespace DustyBot.Settings
         public Dictionary<RaidProtectionRuleType, RaidProtectionRule> Exceptions { get; set; } = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>();
 
         [BsonIgnore]
-        public ReadOnlyMassMentionsRule MassMentionsRule => GetRule<ReadOnlyMassMentionsRule>(RaidProtectionRuleType.MassMentionsRule);
+        public MassMentionsRule MassMentionsRule => GetRule<MassMentionsRule>(RaidProtectionRuleType.MassMentionsRule);
 
         [BsonIgnore]
-        public ReadOnlySpamRule TextSpamRule => GetRule<ReadOnlySpamRule>(RaidProtectionRuleType.TextSpamRule);
+        public SpamRule TextSpamRule => GetRule<SpamRule>(RaidProtectionRuleType.TextSpamRule);
 
         [BsonIgnore]
-        public ReadOnlySpamRule ImageSpamRule => GetRule<ReadOnlySpamRule>(RaidProtectionRuleType.ImageSpamRule);
+        public SpamRule ImageSpamRule => GetRule<SpamRule>(RaidProtectionRuleType.ImageSpamRule);
 
         [BsonIgnore]
-        public ReadOnlyPhraseBlacklistRule PhraseBlacklistRule => GetRule<ReadOnlyPhraseBlacklistRule>(RaidProtectionRuleType.PhraseBlacklistRule);
+        public PhraseBlacklistRule PhraseBlacklistRule => GetRule<PhraseBlacklistRule>(RaidProtectionRuleType.PhraseBlacklistRule);
 
         public T GetRule<T>(RaidProtectionRuleType type)
-            where T : ReadOnlyRaidProtectionRule => Exceptions.TryGetValue(type, out var rule) ? (T)rule.AsReadOnly() : (T)DefaultRules[type];
+            where T : RaidProtectionRule => Exceptions.TryGetValue(type, out var rule) ? (T)rule : (T)DefaultRules[type];
 
         public bool IsDefault(RaidProtectionRuleType type) => !Exceptions.ContainsKey(type);
         public void SetException(RaidProtectionRuleType type, RaidProtectionRule rule) => Exceptions[type] = rule;
@@ -63,18 +63,6 @@ namespace DustyBot.Settings
         public override string ToString()
         {
             return $"Enabled={Enabled}; MaxOffenseCount={MaxOffenseCount}; OffenseWindow={OffenseWindow.TotalSeconds}; Delete={Delete}";
-        }
-
-        public ReadOnlyRaidProtectionRule AsReadOnly()
-        {
-            if (GetType() == typeof(MassMentionsRule))
-                return new ReadOnlyMassMentionsRule((MassMentionsRule)this);
-            else if (GetType() == typeof(SpamRule))
-                return new ReadOnlySpamRule((SpamRule)this);
-            else if (GetType() == typeof(PhraseBlacklistRule))
-                return new ReadOnlyPhraseBlacklistRule((PhraseBlacklistRule)this);
-            else
-                throw new InvalidOperationException();
         }
 
         public void Fill(string s) => Fill(ParseValuePairs(s));
@@ -154,68 +142,4 @@ namespace DustyBot.Settings
     {
         public List<string> Blacklist { get; set; } = new List<string>();
     }
-
-    #region ReadOnly wrappers
-
-    public class ReadOnlyRaidProtectionRule
-    {
-        private RaidProtectionRule Inner { get; }
-
-        public ReadOnlyRaidProtectionRule(RaidProtectionRule inner)
-        {
-            Inner = inner;
-        }
-
-        public bool Enabled => Inner.Enabled;
-        public int MaxOffenseCount => Inner.MaxOffenseCount;
-        public TimeSpan OffenseWindow => Inner.OffenseWindow;
-        public bool Delete => Inner.Delete;
-        public RaidProtectionRuleType Type => Inner.Type;
-        public override string ToString() => Inner.ToString();
-    }
-
-    public class ReadOnlyMassMentionsRule : ReadOnlyRaidProtectionRule
-    {
-        private MassMentionsRule Inner { get; }
-
-        public ReadOnlyMassMentionsRule(MassMentionsRule inner)
-            : base(inner)
-        {
-            Inner = inner;
-        }
-
-        public int MentionsLimit => Inner.MentionsLimit;
-        public override string ToString() => Inner.ToString();
-    }
-
-    public class ReadOnlySpamRule : ReadOnlyRaidProtectionRule
-    {
-        private SpamRule Inner { get; }
-
-        public ReadOnlySpamRule(SpamRule inner)
-            : base(inner)
-        {
-            Inner = inner;
-        }
-
-        public TimeSpan Window => Inner.Window;
-        public int Threshold => Inner.Threshold;
-        public override string ToString() => Inner.ToString();
-    }
-
-    public class ReadOnlyPhraseBlacklistRule : ReadOnlyRaidProtectionRule
-    {
-        private PhraseBlacklistRule Inner { get; }
-
-        public ReadOnlyPhraseBlacklistRule(PhraseBlacklistRule inner)
-            : base(inner)
-        {
-            Inner = inner;
-        }
-
-        public IReadOnlyList<string> Blacklist => Inner.Blacklist;
-        public override string ToString() => Inner.ToString();
-    }
-
-    #endregion
 }
