@@ -117,132 +117,66 @@ namespace DustyBot.Modules
                 await command.ReplySuccess(Communicator, "Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
         }
 
-        private class EmbedSpecificationPart
-        {
-            public string Token { get; }
-            public bool IsRequired { get; }
-            public bool IsUnique { get; }
-
-            private Action<EmbedBuilder, string> Setter { get; }
-            private Func<string, bool> Validator { get; }
-
-            public EmbedSpecificationPart(
-                string token,
-                bool isRequired,
-                bool isUnique,
-                Action<EmbedBuilder, string> setter,
-                Func<string, bool> validator = null)
-            {
-                Token = token ?? throw new ArgumentNullException(nameof(token));
-                IsRequired = isRequired;
-                IsUnique = isUnique;
-                Setter = setter ?? throw new ArgumentNullException(nameof(setter));
-                Validator = validator;
-            }
-
-            public bool Validate(string value) => Validator == null || Validator(value);
-            public void Set(EmbedBuilder builder, string value) => Setter(builder, value);
-        }
-
-        private class EmbedFooterSpecificationPart : EmbedSpecificationPart
-        {
-            public EmbedFooterSpecificationPart(
-                string token,
-                bool isRequired,
-                bool isUnique,
-                Action<EmbedFooterBuilder, string> setter,
-                Func<string, bool> validator = null)
-                : base(token, isRequired, isUnique, (b, v) => SetFooter(b, v, setter), validator)
-            {
-            }
-
-            private static void SetFooter(EmbedBuilder builder, string value, Action<EmbedFooterBuilder, string> action)
-            {
-                if (builder.Footer == null)
-                    builder.Footer = new EmbedFooterBuilder();
-
-                action(builder.Footer, value);
-            }
-        }
-
-        private class EmbedFieldSpecificationPart : EmbedSpecificationPart
-        {
-            public EmbedFieldSpecificationPart(
-                string token,
-                bool isRequired,
-                bool isUnique,
-                bool inline)
-                : base(token, isRequired, isUnique, (b, v) => SetField(b, v, inline), ValidateField)
-            {
-            }
-
-            private static void SetField(EmbedBuilder builder, string value, bool inline)
-            {
-                var result = value.Split('\n', 2, StringSplitOptions.RemoveEmptyEntries);
-                builder.AddField(result[0], result[1], inline);
-            }
-
-            private static bool ValidateField(string value) =>
-                value.Split('\n', 2, StringSplitOptions.RemoveEmptyEntries).Length >= 2;
-        }
-
         [Command("say", "embed", "Sends an embed message.")]
         [Permissions(GuildPermission.ManageMessages)]
         [Parameter("TargetChannel", ParameterType.TextChannel, "a channel that will receive the message")]
         [Parameter("EmbedDescription", ParameterType.String, ParameterFlags.Remainder, "description of the embed, see below for info")]
-        [Comment("Example of the embed description:\n```\nTitle: your title\n\nImage: https://link.to.your/image.jpg\n\nThumbnail: https://link.to.your/image.jpg\n\nColor: hex code of a color, e.g. #91e687\n\nDescription: description text\nwhich can be on multiple lines\nif you want\n\nFooter: your footer text\nFooter icon: https://link.to.your/image.jpg\n\nField: title of a field\ntext of the field\n\nField: another field's title\nanother field's text```\nThere can be multiple fields.\nEverything except for description is optional.")]
+        [Comment("Example of the embed description:\n```Title: your title\n\nAuthor: author name (a sub-title)\n\nAuthor Link: link to make the author name clickable\n\nAuthor Icon: image link to show a small icon next to author\n\nImage: image link to show an image at the bottom\n\nThumbnail: image link to show a small image at the top right\n\nColor: hex code of a color, e.g. #91e687\n\nDescription: description text\nwhich can be on multiple lines\n\nFooter: your footer text\n\nFooter icon: image link to show a small icon in the footer\n\nField (title of a field): text of a field\nwhich can also be on multiple lines\n\nField (another field's title): another field's text\n\nInline Field (title of an inlined field): text of an inlined field```\nThere can be multiple fields.\nEverything except for description is optional.")]
         public async Task SayEmbed(ICommand command)
         {
             var specification = (string)command["EmbedDescription"];
             var channel = command["TargetChannel"].AsTextChannel;
 
-            var uriValidator = new Func<string, bool>(x => Uri.TryCreate(x, UriKind.Absolute, out _));
-
+            var uriValidator = new Func<string, string, bool>((name, value) => Uri.TryCreate(value, UriKind.Absolute, out _));
             var parts = new[]
             {
-                new EmbedSpecificationPart("title", false, true, (b, v) => b.WithTitle(v)),
-                new EmbedSpecificationPart("image", false, true, (b, v) => b.WithImageUrl(v), uriValidator),
-                new EmbedSpecificationPart("color", false, true, (b, v) => b.WithColor(HexColorParser.Parse(v)), x => HexColorParser.TryParse(x, out _)),
-                new EmbedSpecificationPart("thumbnail", false, true, (b, v) => b.WithThumbnailUrl(v), uriValidator),
-                new EmbedSpecificationPart("description", true, true, (b, v) => b.WithDescription(v)),
-                new EmbedFooterSpecificationPart("footer", false, true, (b, v) => b.WithText(v)),
-                new EmbedFooterSpecificationPart("footer icon", false, true, (b, v) => b.WithIconUrl(v), uriValidator),
-                new EmbedFieldSpecificationPart("field", false, false, false),
-                new EmbedFieldSpecificationPart("inline field", false, false, true)
+                new KeyValueSpecificationPart("title", true, false),
+                new KeyValueSpecificationPart("author", true, false),
+                new KeyValueSpecificationPart("author link", true, false, "author", validator: uriValidator),
+                new KeyValueSpecificationPart("author icon", true, false, "author", validator: uriValidator),
+                new KeyValueSpecificationPart("image", true, false, validator: uriValidator),
+                new KeyValueSpecificationPart("color", true, false),
+                new KeyValueSpecificationPart("thumbnail", true, false, validator: uriValidator),
+                new KeyValueSpecificationPart("description", true, true),
+                new KeyValueSpecificationPart("footer", true, false),
+                new KeyValueSpecificationPart("footer icon", true, false, "footer", validator: uriValidator),
+                new KeyValueSpecificationPart("field", false, false, isNameAccepted: true),
+                new KeyValueSpecificationPart("inline field", false, false, isNameAccepted: true),
             };
 
-            var embed = new EmbedBuilder();
-            foreach (var part in parts)
+            var parser = new KeyValueSpecificationParser(parts);
+            var result = parser.Parse(specification);
+            if (!result.Succeeded)
             {
-                var pattern = $"(?<=^|\n){part.Token}:(.+?)(?=$|{string.Join('|', parts.Select(x => $"{x.Token}:"))})";
-                var matches = Regex.Matches(specification, pattern, 
-                    RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
-
-                if (matches.Count < 1 && part.IsRequired)
+                await command.ReplyError(Communicator, result.Error switch
                 {
-                    await command.ReplyError(Communicator, $"The {part.Token} is missing.");
-                    return;
-                }
+                    KeyValueSpecificationParser.ErrorType.ValidationFailed => $"The specified {result.ErrorPart.Token} is invalid.",
+                    KeyValueSpecificationParser.ErrorType.DuplicatedUniquePart => $"There can only be one {result.ErrorPart.Token}.",
+                    KeyValueSpecificationParser.ErrorType.MissingDependency => $"The {result.ErrorPart.DependsOn} must also be specifed with {result.ErrorPart.Token}.",
+                    KeyValueSpecificationParser.ErrorType.RequiredPartMissing => $"The {result.ErrorPart.Token} is missing.",
+                    _ => "Invalid input"
+                });
 
-                if (matches.Count > 1 && part.IsUnique)
+                return;
+            }
+
+            var embed = new EmbedBuilder();
+            foreach (var (part, match) in result.Matches)
+            {
+                switch (part.Token)
                 {
-                    await command.ReplyError(Communicator, $"There can only be one {part.Token}.");
-                    return;
-                }
-
-                foreach (var match in matches.OfType<Match>())
-                {
-                    var value = match.Groups[1].Value.Trim();
-                    if (string.IsNullOrEmpty(value))
-                        continue;
-
-                    if (part.Validate(value) == false)
-                    {
-                        await command.ReplyError(Communicator, $"The specified {part.Token} is invalid.");
-                        return;
-                    }
-
-                    part.Set(embed, value);
+                    case "title": embed.WithTitle(match.Value); break;
+                    case "author": (embed.Author ??= new EmbedAuthorBuilder()).WithName(match.Value); break;
+                    case "author link": (embed.Author ??= new EmbedAuthorBuilder()).WithUrl(match.Value); break;
+                    case "author icon": (embed.Author ??= new EmbedAuthorBuilder()).WithIconUrl(match.Value); break;
+                    case "image": embed.WithImageUrl(match.Value); break;
+                    case "color": embed.WithColor(HexColorParser.Parse(match.Value)); break;
+                    case "thumbnail": embed.WithThumbnailUrl(match.Value); break;
+                    case "description": embed.WithDescription(match.Value); break;
+                    case "footer": (embed.Footer ??= new EmbedFooterBuilder()).WithText(match.Value); break;
+                    case "footer icon": (embed.Footer ??= new EmbedFooterBuilder()).WithIconUrl(match.Value); break;
+                    case "field": embed.AddField(match.Name, match.Value, false); break;
+                    case "inline field": embed.AddField(match.Name, match.Value, true); break;
                 }
             }
 
