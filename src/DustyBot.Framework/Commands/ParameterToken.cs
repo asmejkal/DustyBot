@@ -169,21 +169,7 @@ namespace DustyBot.Framework.Commands
 
         public ulong? AsMentionOrId => TryConvert<ulong>(this, ParameterType.MentionOrId, TryParseMentionOrId);
 
-        private static Regex ColorCodeRegex = new Regex("^#?([a-fA-F0-9]+)$", RegexOptions.Compiled);
-        private static bool TryParseColorCode(string value, out uint result)
-        {
-            var match = ColorCodeRegex.Match(value);
-            if (match.Success)
-            {
-                var number = match.Groups[1].Value;
-                return uint.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
-            }
-
-            result = 0;
-            return false;
-        }
-
-        public uint? AsColorCode => TryConvert<uint>(this, ParameterType.ColorCode, TryParseColorCode);
+        public uint? AsColorCode => TryConvert<uint>(this, ParameterType.ColorCode, HexColorParser.TryParse);
 
         private static Regex ChannelMentionRegex = new Regex("<#([0-9]+)>", RegexOptions.Compiled);
         public ITextChannel AsTextChannel => TryConvert<ITextChannel>(this, ParameterType.TextChannel, x =>

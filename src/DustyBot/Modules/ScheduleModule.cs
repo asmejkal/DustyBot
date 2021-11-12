@@ -1200,7 +1200,7 @@ namespace DustyBot.Modules
                 if (calendar is RangeScheduleCalendar rangeCalendar)
                 {
                     if (rangeCalendar.IsMonthCalendar)
-                        result.Append($" Month: `{rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)}`");
+                        result.Append($" Month: `{rangeCalendar.BeginDate.ToString("MMMM yyyy", GlobalDefinitions.Culture)}`");
                     else
                         result.Append($" Begin: `{rangeCalendar.BeginDate.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (rangeCalendar.HasEndDate ? $" End: `{rangeCalendar.EndDate.AddDays(-1).ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}` (inclusive)" : string.Empty));
                 }
@@ -1422,7 +1422,7 @@ namespace DustyBot.Modules
                 if (affectedTimes.Any() && affectedTimes.All(x => x < beginDate || x >= endDate))
                     continue;
 
-                if (!tags.Any(x => calendar.FitsTag(x)))
+                if (tags.Any() && !tags.Any(x => calendar.FitsTag(x)))
                     continue;
 
                 result.Add(calendar, await RefreshCalendar(calendar, guild, settings));
@@ -1535,7 +1535,7 @@ namespace DustyBot.Modules
             if (string.IsNullOrEmpty(calendar.Title))
             {
                 if (calendar is RangeScheduleCalendar rangeCalendar && rangeCalendar.IsMonthCalendar)
-                    return $"{rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)} schedule";
+                    return $"{rangeCalendar.BeginDate.ToString("MMMM yyyy", GlobalDefinitions.Culture)} schedule";
                 else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
                     return "Upcoming events";
                 else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)

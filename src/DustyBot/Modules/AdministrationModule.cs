@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using DustyBot.Core.Parsing;
 using DustyBot.Database.Mongo.Collections;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Commands;
@@ -81,7 +82,7 @@ namespace DustyBot.Modules
             // This is a mods-only command, but to prevent permission creep, check
             // if there's any non-mentionable role and if the sender has a mention everyone perm
             var nonMentionableRoles = command.Message.MentionedRoleIds.Where(x => !command.Guild.GetRole(x)?.IsMentionable ?? false).ToList();
-            var replaceRoleMentions = (message.ContainsEveryonePings() || nonMentionableRoles.Any()) && 
+            var replaceRoleMentions = (message.ContainsEveryonePings() || nonMentionableRoles.Any()) &&
                 !((IGuildUser)command.Author).GetPermissions(channel).MentionEveryone;
 
             if (replaceRoleMentions)
@@ -114,6 +115,138 @@ namespace DustyBot.Modules
 
             if (command["TargetChannel"].AsTextChannel.Id != command.Message.Channel.Id)
                 await command.ReplySuccess(Communicator, "Message sent." + (replaceRoleMentions ? " To mention roles, @here, or @everyone you must have the Mention Everyone permission." : ""));
+        }
+
+        private class EmbedSpecificationPart
+        {
+            public string Token { get; }
+            public bool IsRequired { get; }
+            public bool IsUnique { get; }
+
+            private Action<EmbedBuilder, string> Setter { get; }
+            private Func<string, bool> Validator { get; }
+
+            public EmbedSpecificationPart(
+                string token,
+                bool isRequired,
+                bool isUnique,
+                Action<EmbedBuilder, string> setter,
+                Func<string, bool> validator = null)
+            {
+                Token = token ?? throw new ArgumentNullException(nameof(token));
+                IsRequired = isRequired;
+                IsUnique = isUnique;
+                Setter = setter ?? throw new ArgumentNullException(nameof(setter));
+                Validator = validator;
+            }
+
+            public bool Validate(string value) => Validator == null || Validator(value);
+            public void Set(EmbedBuilder builder, string value) => Setter(builder, value);
+        }
+
+        private class EmbedFooterSpecificationPart : EmbedSpecificationPart
+        {
+            public EmbedFooterSpecificationPart(
+                string token,
+                bool isRequired,
+                bool isUnique,
+                Action<EmbedFooterBuilder, string> setter,
+                Func<string, bool> validator = null)
+                : base(token, isRequired, isUnique, (b, v) => SetFooter(b, v, setter), validator)
+            {
+            }
+
+            private static void SetFooter(EmbedBuilder builder, string value, Action<EmbedFooterBuilder, string> action)
+            {
+                if (builder.Footer == null)
+                    builder.Footer = new EmbedFooterBuilder();
+
+                action(builder.Footer, value);
+            }
+        }
+
+        private class EmbedFieldSpecificationPart : EmbedSpecificationPart
+        {
+            public EmbedFieldSpecificationPart(
+                string token,
+                bool isRequired,
+                bool isUnique,
+                bool inline)
+                : base(token, isRequired, isUnique, (b, v) => SetField(b, v, inline), ValidateField)
+            {
+            }
+
+            private static void SetField(EmbedBuilder builder, string value, bool inline)
+            {
+                var result = value.Split('\n', 2, StringSplitOptions.RemoveEmptyEntries);
+                builder.AddField(result[0], result[1], inline);
+            }
+
+            private static bool ValidateField(string value) =>
+                value.Split('\n', 2, StringSplitOptions.RemoveEmptyEntries).Length >= 2;
+        }
+
+        [Command("say", "embed", "Sends an embed message.")]
+        [Permissions(GuildPermission.ManageMessages)]
+        [Parameter("TargetChannel", ParameterType.TextChannel, "a channel that will receive the message")]
+        [Parameter("EmbedDescription", ParameterType.String, ParameterFlags.Remainder, "description of the embed, see below for info")]
+        [Comment("Example of the embed description:\n```\nTitle: your title\n\nImage: https://link.to.your/image.jpg\n\nThumbnail: https://link.to.your/image.jpg\n\nColor: hex code of a color, e.g. #91e687\n\nDescription: description text\nwhich can be on multiple lines\nif you want\n\nFooter: your footer text\nFooter icon: https://link.to.your/image.jpg\n\nField: title of a field\ntext of the field\n\nField: another field's title\nanother field's text```\nThere can be multiple fields.\nEverything except for description is optional.")]
+        public async Task SayEmbed(ICommand command)
+        {
+            var specification = (string)command["EmbedDescription"];
+            var channel = command["TargetChannel"].AsTextChannel;
+
+            var uriValidator = new Func<string, bool>(x => Uri.TryCreate(x, UriKind.Absolute, out _));
+
+            var parts = new[]
+            {
+                new EmbedSpecificationPart("title", false, true, (b, v) => b.WithTitle(v)),
+                new EmbedSpecificationPart("image", false, true, (b, v) => b.WithImageUrl(v), uriValidator),
+                new EmbedSpecificationPart("color", false, true, (b, v) => b.WithColor(HexColorParser.Parse(v)), x => HexColorParser.TryParse(x, out _)),
+                new EmbedSpecificationPart("thumbnail", false, true, (b, v) => b.WithThumbnailUrl(v), uriValidator),
+                new EmbedSpecificationPart("description", true, true, (b, v) => b.WithDescription(v)),
+                new EmbedFooterSpecificationPart("footer", false, true, (b, v) => b.WithText(v)),
+                new EmbedFooterSpecificationPart("footer icon", false, true, (b, v) => b.WithIconUrl(v), uriValidator),
+                new EmbedFieldSpecificationPart("field", false, false, false),
+                new EmbedFieldSpecificationPart("inline field", false, false, true)
+            };
+
+            var embed = new EmbedBuilder();
+            foreach (var part in parts)
+            {
+                var pattern = $"(?<=^|\n){part.Token}:(.+?)(?=$|{string.Join('|', parts.Select(x => $"{x.Token}:"))})";
+                var matches = Regex.Matches(specification, pattern, 
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+                if (matches.Count < 1 && part.IsRequired)
+                {
+                    await command.ReplyError(Communicator, $"The {part.Token} is missing.");
+                    return;
+                }
+
+                if (matches.Count > 1 && part.IsUnique)
+                {
+                    await command.ReplyError(Communicator, $"There can only be one {part.Token}.");
+                    return;
+                }
+
+                foreach (var match in matches.OfType<Match>())
+                {
+                    var value = match.Groups[1].Value.Trim();
+                    if (string.IsNullOrEmpty(value))
+                        continue;
+
+                    if (part.Validate(value) == false)
+                    {
+                        await command.ReplyError(Communicator, $"The specified {part.Token} is invalid.");
+                        return;
+                    }
+
+                    part.Set(embed, value);
+                }
+            }
+
+            await channel.SendMessageAsync(embed: embed.Build());
         }
 
         [Command("read", "Reads the content and formatting of a specified message.")]
