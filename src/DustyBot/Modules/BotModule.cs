@@ -333,6 +333,9 @@ namespace DustyBot.Modules
         static string Markdown(string input)
         {
             bool inside = false;
+            input = input.Split(new string[] { "```" }, StringSplitOptions.None).Aggregate((x, y) => x + ((inside = !inside) ? "<div class=\"code-block\">" : "</div>") + y);
+
+            inside = false;
             input = input.Split('`').Aggregate((x, y) => x + ((inside = !inside) ? "<span class=\"param\">" : "</span>") + y);
 
             inside = false;
