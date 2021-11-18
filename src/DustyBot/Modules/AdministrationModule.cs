@@ -184,6 +184,9 @@ namespace DustyBot.Modules
             }
 
             var description = new StringBuilder();
+            if (!string.IsNullOrEmpty(embed.Title))
+                description.AppendLine($"Title: {embed.Title}");
+
             if (embed.Author != null && !string.IsNullOrEmpty(embed.Author.Value.Name))
             {
                 description.AppendLine($"Author: {embed.Author.Value.Name}");
@@ -222,7 +225,16 @@ namespace DustyBot.Modules
                     description.AppendLine($"Field ({field.Name}): {field.Value}");
             }
 
-            await command.Reply(Communicator, description.ToString());
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream))
+            {
+                var result = description.ToString();
+                writer.Write(result);
+                writer.Flush();
+                stream.Position = 0;
+
+                await command.Channel.SendFileAsync(stream, $"Embed-{command.Guild.Name}-{message.Id}.txt", text: result);
+            }
         }
 
         [Command("edit", "Edits a message sent by the say command.")]
