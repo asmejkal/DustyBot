@@ -9,6 +9,6 @@ jobs:
       - name: Installing dotnet
         uses: actions/setup-dotnet@v1
         with:
-          dotnet-version: "3.1.100"
+          dotnet-version: "5.0.x"
       - name: Building DustyBot
         run: dotnet build Service/src/DustyBot.Service
