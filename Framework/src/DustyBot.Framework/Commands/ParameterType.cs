@@ -29,6 +29,7 @@ namespace DustyBot.Framework.Commands
         TextChannel,
         GuildUser,
         GuildUserOrName,
+        User,
         Role,
         GuildUserMessage,
         GuildSelfMessage

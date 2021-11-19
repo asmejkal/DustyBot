@@ -39,7 +39,8 @@ namespace DustyBot.Service.Modules
                 Success,
                 Error,
                 MessageTooLong,
-                Removed
+                Removed,
+                MissingPermissions
             }
 
             public List<(ScheduleCalendar calendar, Reason reason)> Calendars { get; } = new List<(ScheduleCalendar, Reason)>();
@@ -74,6 +75,9 @@ namespace DustyBot.Service.Modules
 
                 foreach (var calendar in Calendars.Where(x => x.reason == Reason.MessageTooLong).Select(x => x.calendar))
                     builder.AppendLine($"⚠ Could not update calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because it is too long. You can split the calendar in two with the `calendar split` command.");
+
+                foreach (var calendar in Calendars.Where(x => x.reason == Reason.MissingPermissions).Select(x => x.calendar))
+                    builder.AppendLine($"⚠ Could not update calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because the bot is missing permissions.");
 
                 foreach (var calendar in Calendars.Where(x => x.reason == Reason.Removed).Select(x => x.calendar))
                     builder.AppendLine($"ℹ Removed calendar `{calendar.MessageId}` (`{BuildCalendarTitle(calendar)}`) because the calendar message no longer exists.");
@@ -1023,7 +1027,7 @@ namespace DustyBot.Service.Modules
                 if (calendar is RangeScheduleCalendar rangeCalendar)
                 {
                     if (rangeCalendar.IsMonthCalendar)
-                        result.Append($" Month: `{rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)}`");
+                        result.Append($" Month: `{rangeCalendar.BeginDate.ToString("MMMM yyyy", GlobalDefinitions.Culture)}`");
                     else
                         result.Append($" Begin: `{rangeCalendar.BeginDate.ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}`" + (rangeCalendar.HasEndDate ? $" End: `{rangeCalendar.EndDate.AddDays(-1).ToString(@"yyyy\/MM\/dd", GlobalDefinitions.Culture)}` (inclusive)" : string.Empty));
                 }
@@ -1052,7 +1056,7 @@ namespace DustyBot.Service.Modules
         [Command("calendar", "split", "Splits a calendar in two by a given date.")]
         [Parameter("MessageId", ParameterType.Id, "message ID of the calendar; use `calendar list` to see all active calendars and their IDs")]
         [Parameter("Date", DateRegex, ParameterType.Regex, "a date in `MM/dd` or `yyyy/MM/dd` format (e.g. `07/23` or `2018/07/23`), uses current year by default")]
-        [Comment("The calendar will be split in two. All events *before* the provided date will stay in the old calendar. All events from the provided date onwards (inclusive) will be displayed in a new calendar which will be created.")]
+        [Comment("The calendar will be split in two. All events before the provided date will stay in the old calendar. All events from the provided date onwards (inclusive) will be displayed in a new calendar which will be created.")]
         [Example("462366629247057930 12/15")]
         public async Task SplitCalendar(ICommand command)
         {
@@ -1598,7 +1602,7 @@ namespace DustyBot.Service.Modules
                 if (affectedTimes.Any() && affectedTimes.All(x => x < beginDate || x >= endDate))
                     continue;
 
-                if (!tags.Any(x => calendar.FitsTag(x)))
+                if (tags.Any() && !tags.Any(x => calendar.FitsTag(x)))
                     continue;
 
                 result.Add(calendar, await RefreshCalendar(calendar, guild, settings));
@@ -1612,8 +1616,17 @@ namespace DustyBot.Service.Modules
             var result = new RefreshResult();
             try
             {
+                IUserMessage message = null;
                 var channel = await guild.GetTextChannelAsync(calendar.ChannelId);
-                var message = channel != null ? (await channel.GetMessageAsync(calendar.MessageId)) as IUserMessage : null;
+                if (channel != null)
+                {
+                    var permissions = (await guild.GetCurrentUserAsync()).GetPermissions(channel);
+                    if (!permissions.ViewChannel || !permissions.EmbedLinks)
+                        return RefreshResult.Reason.MissingPermissions;
+
+                    message = await channel.GetMessageAsync(calendar.MessageId) as IUserMessage;
+                }
+
                 if (message == null)
                 {
                     await _settings.Modify(guild.Id, (ScheduleSettings s) => s.Calendars.RemoveAll(x => x.MessageId == calendar.MessageId));
@@ -1712,7 +1725,7 @@ namespace DustyBot.Service.Modules
             if (string.IsNullOrEmpty(calendar.Title))
             {
                 if (calendar is RangeScheduleCalendar rangeCalendar && rangeCalendar.IsMonthCalendar)
-                    return $"{rangeCalendar.BeginDate.ToString("MMMM", GlobalDefinitions.Culture)} schedule";
+                    return $"{rangeCalendar.BeginDate.ToString("MMMM yyyy", GlobalDefinitions.Culture)} schedule";
                 else if (calendar is UpcomingSpanScheduleCalendar upcomingSpanCalendar)
                     return "Upcoming events";
                 else if (calendar is UpcomingWeekScheduleCalendar upcomingWeekCalendar)

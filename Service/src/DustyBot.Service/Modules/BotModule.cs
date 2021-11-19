@@ -164,7 +164,7 @@ namespace DustyBot.Service.Modules
         [Command("invite", "Shows a link to invite the bot to your server.", CommandFlags.DirectMessageAllow)]
         public async Task Invite(ICommand command)
         {
-            await command.Reply($"<https://discord.com/oauth2/authorize?client_id={_client.CurrentUser.Id}&scope=bot&permissions=8192>");
+            await command.Reply($"<https://discord.com/oauth2/authorize?client_id={_client.CurrentUser.Id}&scope=bot&permissions=319552>");
         }
 
         [Command("servers", "Lists all servers the bot is on.", CommandFlags.DirectMessageAllow | CommandFlags.OwnerOnly)]
@@ -208,7 +208,7 @@ namespace DustyBot.Service.Modules
                 .AddField(x => x.WithIsInline(true).WithName("Owner").WithValue($"{owner.Username}#{owner.Discriminator}"))
                 .AddField(x => x.WithIsInline(true).WithName("Owner ID").WithValue(guild.OwnerId))
                 .AddField(x => x.WithIsInline(true).WithName("Members").WithValue(guild.MemberCount))
-                .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString("dd.MM.yyyy H:mm:ss UTC")));
+                .AddField(x => x.WithIsInline(true).WithName("Created").WithValue(guild.CreatedAt.ToString(@"yyyy\/MM\/dd H:mm:ss UTC")));
 
             await command.Reply(embed.Build());
         }
@@ -392,7 +392,7 @@ namespace DustyBot.Service.Modules
             }
 
             var examples = commandRegistration.Examples
-                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {x}")
+                .Select(x => $"{commandPrefix}{commandRegistration.PrimaryUsage.InvokeUsage} {ConvertToHtml(x)}")
                 .DefaultIfEmpty()
                 .Aggregate((x, y) => x + "<br/>" + y);
 

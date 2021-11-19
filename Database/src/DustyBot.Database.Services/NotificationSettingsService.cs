@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DustyBot.Database.Mongo.Collections;
@@ -16,12 +18,29 @@ namespace DustyBot.Database.Services
             _db = db ?? throw new ArgumentNullException(nameof(db));
         }
 
+        public async Task BlockUserAsync(ulong userId, ulong targetUserId, CancellationToken ct)
+        {
+            await GetCollection()
+                .UpdateOne(x => x.UserId == userId)
+                .With(b => b.AddToSet(x => x.BlockedUsers, targetUserId))
+                .Upsert()
+                .ExecuteAsync(ct);
+        }
+
         public async Task<bool> GetIgnoreActiveChannelAsync(ulong userId, CancellationToken ct)
         {
             return await GetCollection()
                 .Find(x => x.UserId == userId)
                 .Project(x => x.IgnoreActiveChannel)
                 .FirstOrDefaultAsync(ct);
+        }
+
+        public async Task<IEnumerable<ulong>> GetBlockedUsersAsync(ulong userId, CancellationToken ct)
+        {
+            return await GetCollection()
+                .Find(x => x.UserId == userId)
+                .Project(x => x.BlockedUsers)
+                .FirstOrDefaultAsync(ct) ?? Enumerable.Empty<ulong>();
         }
 
         public async Task<bool> ToggleIgnoreActiveChannelAsync(ulong userId, CancellationToken ct)
@@ -32,6 +51,15 @@ namespace DustyBot.Database.Services
                 .Upsert()
                 .ReturnNew()
                 .Project(x => x.IgnoreActiveChannel)
+                .ExecuteAsync(ct);
+        }
+
+        public async Task UnblockUserAsync(ulong userId, ulong targetUserId, CancellationToken ct)
+        {
+            await GetCollection()
+                .UpdateOne(x => x.UserId == userId)
+                .With(b => b.Pull(x => x.BlockedUsers, targetUserId))
+                .Upsert()
                 .ExecuteAsync(ct);
         }
 

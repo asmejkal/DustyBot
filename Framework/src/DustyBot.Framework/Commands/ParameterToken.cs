@@ -100,7 +100,8 @@ namespace DustyBot.Framework.Commands
         public Match AsRegex => TryConvert<Match>(this, ParameterType.Regex, x => Regex?.Match(x));
         public ulong? AsId => TryConvert<ulong>(this, ParameterType.Id, ulong.TryParse);
         public ulong? AsMentionOrId => TryConvert<ulong>(this, ParameterType.MentionOrId, TryParseMentionOrId);
-        public uint? AsColorCode => TryConvert<uint>(this, ParameterType.ColorCode, TryParseColorCode);
+
+        public uint? AsColorCode => TryConvert<uint>(this, ParameterType.ColorCode, HexColorParser.TryParse);
 
         public ITextChannel AsTextChannel => TryConvert<ITextChannel>(this, ParameterType.TextChannel, x =>
         {
@@ -163,6 +164,21 @@ namespace DustyBot.Framework.Commands
                 user = await _userFetcher.FetchGuildUserAsync(Guild.Id, id).ConfigureAwait(false); // fallback to REST
 
             return user != null ? Tuple.Create(user, (string)null) : null;
+        });
+
+        public Task<IUser> AsUser => TryConvert<IUser>(this, ParameterType.User, async x =>
+        {
+            ulong id;
+            if (!ulong.TryParse(x, out id))
+            {
+                var match = UserMentionRegex.Match(x);
+                if (!match.Success)
+                    return null;
+
+                id = ulong.Parse(match.Groups[1].Value);
+            }
+
+            return await _userFetcher.FetchUserAsync(id).ConfigureAwait(false);
         });
 
         public IRole AsRole => TryConvert<IRole>(this, ParameterType.Role, x =>
@@ -282,6 +298,7 @@ namespace DustyBot.Framework.Commands
                 case ParameterType.TextChannel: result = AsTextChannel; break;
                 case ParameterType.GuildUser: result = await AsGuildUser.ConfigureAwait(false); break;
                 case ParameterType.GuildUserOrName: result = await AsGuildUserOrName.ConfigureAwait(false); break;
+                case ParameterType.User: result = await AsUser.ConfigureAwait(false); break;
                 case ParameterType.Role: result = AsRole; break;
                 case ParameterType.GuildUserMessage: result = await AsGuildUserMessage.ConfigureAwait(false); break;
                 case ParameterType.GuildSelfMessage: result = await AsGuildSelfMessage.ConfigureAwait(false); break;
@@ -374,19 +391,6 @@ namespace DustyBot.Framework.Commands
             }
 
             return true;
-        }
-
-        private static bool TryParseColorCode(string value, out uint result)
-        {
-            var match = ColorCodeRegex.Match(value);
-            if (match.Success)
-            {
-                var number = match.Groups[1].Value;
-                return uint.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
-            }
-
-            result = 0;
-            return false;
         }
     }
 }

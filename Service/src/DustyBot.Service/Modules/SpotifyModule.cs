@@ -182,7 +182,7 @@ namespace DustyBot.Service.Modules
                 var client = await GetClient(user.Id, command.Channel, user.Id != command.Author.Id);
 
                 var results = await client.GetUsersTopTracksAsync(period, 50);
-                if (!results?.Items.Any() ?? true)
+                if (!results?.Items?.Any() ?? true)
                     throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
                 var features = await client.GetSeveralAudioFeaturesAsync(results.Items.Select(x => x.Id).ToList());
@@ -255,7 +255,7 @@ namespace DustyBot.Service.Modules
                 const int NumDisplayed = 100;
 
                 var results = await client.GetUsersRecentlyPlayedTracksAsync(50);
-                if (!results?.Items.Any() ?? true)
+                if (!results?.Items?.Any() ?? true)
                     throw new AbortException("Looks like this user hasn't listened to anything recently.");
 
                 var pages = new PageCollectionBuilder();
@@ -306,7 +306,7 @@ namespace DustyBot.Service.Modules
                 const int NumDisplayed = 100;
             
                 var results = await client.GetUsersTopArtistsAsync(period, 50);
-                if (!results?.Items.Any() ?? true)
+                if (!results?.Items?.Any() ?? true)
                     throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
                 var pages = new PageCollectionBuilder();
@@ -354,7 +354,7 @@ namespace DustyBot.Service.Modules
                 const int NumDisplayed = 100;
 
                 var results = await client.GetUsersTopTracksAsync(period, 50);
-                if (!results?.Items.Any() ?? true)
+                if (!results?.Items?.Any() ?? true)
                     throw new AbortException("Looks like this user hasn't listened to anything in this time range.");
 
                 var pages = new PageCollectionBuilder();

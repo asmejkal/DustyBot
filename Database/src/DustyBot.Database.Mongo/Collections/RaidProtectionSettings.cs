@@ -9,12 +9,12 @@ namespace DustyBot.Database.Mongo.Collections
 {
     public class RaidProtectionSettings : BaseServerSettings
     {
-        public static readonly IReadOnlyDictionary<RaidProtectionRuleType, ReadOnlyRaidProtectionRule> DefaultRules = new Dictionary<RaidProtectionRuleType, ReadOnlyRaidProtectionRule>()
+        public static readonly IReadOnlyDictionary<RaidProtectionRuleType, RaidProtectionRule> DefaultRules = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>()
         {
-            { RaidProtectionRuleType.MassMentionsRule, new MassMentionsRule { Type = RaidProtectionRuleType.MassMentionsRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), MentionsLimit = 10 }.AsReadOnly() },
-            { RaidProtectionRuleType.TextSpamRule, new SpamRule { Type = RaidProtectionRuleType.TextSpamRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 }.AsReadOnly() },
-            { RaidProtectionRuleType.ImageSpamRule, new SpamRule { Type = RaidProtectionRuleType.ImageSpamRule, Enabled = false, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 }.AsReadOnly() },
-            { RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule { Type = RaidProtectionRuleType.PhraseBlacklistRule, Enabled = false, Delete = true, MaxOffenseCount = 3, OffenseWindow = TimeSpan.FromMinutes(5) }.AsReadOnly() }
+            { RaidProtectionRuleType.MassMentionsRule, new MassMentionsRule { Type = RaidProtectionRuleType.MassMentionsRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), MentionsLimit = 10 } },
+            { RaidProtectionRuleType.TextSpamRule, new SpamRule { Type = RaidProtectionRuleType.TextSpamRule, Enabled = true, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 } },
+            { RaidProtectionRuleType.ImageSpamRule, new SpamRule { Type = RaidProtectionRuleType.ImageSpamRule, Enabled = false, Delete = true, MaxOffenseCount = 2, OffenseWindow = TimeSpan.FromMinutes(5), Window = TimeSpan.FromSeconds(3), Threshold = 6 } },
+            { RaidProtectionRuleType.PhraseBlacklistRule, new PhraseBlacklistRule { Type = RaidProtectionRuleType.PhraseBlacklistRule, Enabled = false, Delete = true, MaxOffenseCount = 3, OffenseWindow = TimeSpan.FromMinutes(5) } }
         };
 
         public bool Enabled { get; set; }
@@ -24,19 +24,19 @@ namespace DustyBot.Database.Mongo.Collections
         public Dictionary<RaidProtectionRuleType, RaidProtectionRule> Exceptions { get; set; } = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>();
 
         [BsonIgnore]
-        public ReadOnlyMassMentionsRule MassMentionsRule => GetRule<ReadOnlyMassMentionsRule>(RaidProtectionRuleType.MassMentionsRule);
+        public MassMentionsRule MassMentionsRule => GetRule<MassMentionsRule>(RaidProtectionRuleType.MassMentionsRule);
 
         [BsonIgnore]
-        public ReadOnlySpamRule TextSpamRule => GetRule<ReadOnlySpamRule>(RaidProtectionRuleType.TextSpamRule);
+        public SpamRule TextSpamRule => GetRule<SpamRule>(RaidProtectionRuleType.TextSpamRule);
 
         [BsonIgnore]
-        public ReadOnlySpamRule ImageSpamRule => GetRule<ReadOnlySpamRule>(RaidProtectionRuleType.ImageSpamRule);
+        public SpamRule ImageSpamRule => GetRule<SpamRule>(RaidProtectionRuleType.ImageSpamRule);
 
         [BsonIgnore]
-        public ReadOnlyPhraseBlacklistRule PhraseBlacklistRule => GetRule<ReadOnlyPhraseBlacklistRule>(RaidProtectionRuleType.PhraseBlacklistRule);
+        public PhraseBlacklistRule PhraseBlacklistRule => GetRule<PhraseBlacklistRule>(RaidProtectionRuleType.PhraseBlacklistRule);
 
         public T GetRule<T>(RaidProtectionRuleType type)
-            where T : ReadOnlyRaidProtectionRule => Exceptions.TryGetValue(type, out var rule) ? (T)rule.AsReadOnly() : (T)DefaultRules[type];
+            where T : RaidProtectionRule => Exceptions.TryGetValue(type, out var rule) ? (T)rule : (T)DefaultRules[type];
 
         public bool IsDefault(RaidProtectionRuleType type) => !Exceptions.ContainsKey(type);
         public void SetException(RaidProtectionRuleType type, RaidProtectionRule rule) => Exceptions[type] = rule;

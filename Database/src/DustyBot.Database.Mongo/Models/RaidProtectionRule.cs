@@ -19,18 +19,6 @@ namespace DustyBot.Database.Mongo.Models
             return $"Enabled={Enabled}; MaxOffenseCount={MaxOffenseCount}; OffenseWindow={OffenseWindow.TotalSeconds}; Delete={Delete}";
         }
 
-        public ReadOnlyRaidProtectionRule AsReadOnly()
-        {
-            if (GetType() == typeof(MassMentionsRule))
-                return new ReadOnlyMassMentionsRule((MassMentionsRule)this);
-            else if (GetType() == typeof(SpamRule))
-                return new ReadOnlySpamRule((SpamRule)this);
-            else if (GetType() == typeof(PhraseBlacklistRule))
-                return new ReadOnlyPhraseBlacklistRule((PhraseBlacklistRule)this);
-            else
-                throw new InvalidOperationException();
-        }
-
         public void Fill(string s) => Fill(ParseValuePairs(s));
 
         public static RaidProtectionRule Create(RaidProtectionRuleType type, string s)

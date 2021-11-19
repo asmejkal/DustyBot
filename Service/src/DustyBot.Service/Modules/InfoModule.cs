@@ -36,6 +36,40 @@ namespace DustyBot.Service.Modules
             await command.Reply(embed.Build());
         }
 
+        [Command("banner", "Shows a big version of a user's profile banner.")]
+        [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional | ParameterFlags.Remainder, "the user; shows your banner if omitted")]
+        public async Task Banner(ICommand command)
+        {
+            /*var user = command["User"].HasValue ? await command["User"].AsGuildUser : command.Author;
+            var config = await _settings.ReadGlobal<BotConfig>();
+
+            var request = WebRequest.CreateHttp($"{DiscordConfig.APIUrl}users/{user.Id}");
+            request.Headers.Add("Authorization", $"Bot {config.BotToken}");
+
+            using var response = await request.GetResponseAsync();
+            using var reader = new StreamReader(response.GetResponseStream());
+
+            var content = await reader.ReadToEndAsync();
+            var json = JObject.Parse(content);
+
+            var bannerId = (string)json["banner"];
+            if (string.IsNullOrEmpty(bannerId))
+            {
+                await command.Reply(Communicator, "User has no profile banner.");
+                return;
+            }
+
+            var extension = bannerId.StartsWith("a_") ? "gif" : "png";
+            var url = $"{DiscordConfig.CDNUrl}banners/{user.Id}/{bannerId}.{extension}?size=4096";
+
+            var embed = new EmbedBuilder()
+                    .WithTitle($"{user.Username}#{user.Discriminator}")
+                    .WithUrl(url)
+                    .WithImageUrl(url);
+
+            await command.Channel.SendMessageAsync(embed: embed.Build());*/
+        }
+
         [Command("user", "Shows information about a user.")]
         [Alias("uinfo"), Alias("userinfo")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional | ParameterFlags.Remainder, "the user; shows your info if omitted")]
