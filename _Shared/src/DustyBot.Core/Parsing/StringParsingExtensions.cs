@@ -64,12 +64,12 @@ namespace DustyBot.Core.Parsing
             return messages;
         }
 
-        public static IEnumerable<Token> Tokenize(this string value, params char[] textQualifiers)
+        public static IEnumerable<Token> Tokenize(this string value, IReadOnlyDictionary<char, char> textQualifiers)
         {
             if (string.IsNullOrEmpty(value))
                 yield break;
 
-            char prevChar = '\0', nextChar = '\0', currentChar = '\0';
+            char prevChar = '\0', nextChar = '\0', currentChar = '\0', currentQualifier = '\0';
             bool inString = false;
             StringBuilder token = new StringBuilder();
             int begin = -1;
@@ -79,8 +79,9 @@ namespace DustyBot.Core.Parsing
                 prevChar = i > 0 ? prevChar = value[i - 1] : '\0';
                 nextChar = i + 1 < value.Length ? value[i + 1] : '\0';
 
-                if (textQualifiers.Contains(currentChar) && (prevChar == '\0' || char.IsWhiteSpace(prevChar)) && !inString)
+                if (!inString && textQualifiers.ContainsKey(currentChar) && (prevChar == '\0' || char.IsWhiteSpace(prevChar)))
                 {
+                    currentQualifier = currentChar;
                     inString = true;
                     if (begin < 0)
                         begin = i;
@@ -88,7 +89,7 @@ namespace DustyBot.Core.Parsing
                     continue;
                 }
 
-                if (textQualifiers.Contains(currentChar) && (nextChar == '\0' || char.IsWhiteSpace(nextChar)) && inString && prevChar != '\\')
+                if (inString && textQualifiers[currentQualifier] == currentChar && (nextChar == '\0' || char.IsWhiteSpace(nextChar)) && prevChar != '\\')
                 {
                     inString = false;
                     continue;

@@ -1,0 +1,98 @@
+[*.cs]
+
+# SYSLIB0014: Type or member is obsolete
+dotnet_diagnostic.SYSLIB0014.severity = none
+csharp_using_directive_placement=outside_namespace:warning
+
+# IDE0005: Using directive is unnecessary.
+dotnet_diagnostic.IDE0005.severity = warning
+
+# Code files
+[*.{cs,vb}]
+
+
+dotnet_diagnostic.CA1031.severity = none
+
+dotnet_diagnostic.CA1056.severity = none
+
+dotnet_diagnostic.CA1062.severity = none
+
+dotnet_diagnostic.CA1308.severity = none
+
+dotnet_diagnostic.CA2007.severity = none
+
+dotnet_diagnostic.IDE0021.severity = none
+
+dotnet_diagnostic.IDE0022.severity = none
+
+dotnet_diagnostic.IDE0023.severity = none
+
+dotnet_diagnostic.IDE0024.severity = none
+
+dotnet_diagnostic.IDE0025.severity = none
+
+dotnet_diagnostic.IDE0026.severity = none
+
+dotnet_diagnostic.IDE0027.severity = none
+
+dotnet_diagnostic.SA0001.severity = none
+
+dotnet_diagnostic.SA1000.severity = none
+
+dotnet_diagnostic.SA1028.severity = none
+
+dotnet_diagnostic.SA1101.severity = none
+
+dotnet_diagnostic.SA1116.severity = none
+
+dotnet_diagnostic.SA1122.severity = none
+
+dotnet_diagnostic.SA1128.severity = none
+
+dotnet_diagnostic.SA1133.severity = none
+
+dotnet_diagnostic.SA1200.severity = none
+
+dotnet_diagnostic.SA1201.severity = none
+
+dotnet_diagnostic.SA1204.severity = none
+
+dotnet_diagnostic.SA1309.severity = none
+
+dotnet_diagnostic.SA1314.severity = none
+
+dotnet_diagnostic.SA1407.severity = none
+
+dotnet_diagnostic.SA1413.severity = none
+
+dotnet_diagnostic.SA1500.severity = none
+
+dotnet_diagnostic.SA1502.severity = none
+
+dotnet_diagnostic.SA1503.severity = none
+
+dotnet_diagnostic.SA1516.severity = none
+
+dotnet_diagnostic.SA1600.severity = none
+
+dotnet_diagnostic.SA1601.severity = none
+
+dotnet_diagnostic.SA1602.severity = none
+
+dotnet_diagnostic.SA1611.severity = none
+
+dotnet_diagnostic.SA1615.severity = none
+
+dotnet_diagnostic.SA1618.severity = none
+
+dotnet_diagnostic.SA1629.severity = none
+
+dotnet_diagnostic.SA1633.severity = none
+
+dotnet_diagnostic.SX1101.severity = warning
+
+dotnet_diagnostic.SX1309.severity = warning
+
+dotnet_style_readonly_field=true:warning
+dotnet_style_require_accessibility_modifiers=for_non_interface_members:warning
+

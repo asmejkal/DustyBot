@@ -5,12 +5,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using Disqord;
+using Disqord.Gateway;
 using DustyBot.Core.Async;
 
 namespace DustyBot.Framework.Utility
 {
     public static class DiscordExtensions
     {
+        public static IEnumerable<ITextChannel> GetTextChannels(this IGatewayGuild guild) =>
+            guild.Channels.Select(x => x.Value).OfType<ITextChannel>();
+
         public static async Task StartReadyAsync(this DiscordSocketClient client, CancellationToken ct)
         {
             var readyTask = client.WaitForReadyAsync(ct);

@@ -17,9 +17,13 @@ namespace DustyBot.Framework
             services.AddSingleton(configuration);
             services.AddSingleton(framework);
             services.AddLogging(configuration.LoggingConfiguration);
-            services.AddSingleton(configuration.GuildConfigProvider);
             services.AddSingleton(configuration.DiscordClient);
             services.AddTransient<DiscordRestClient>(x => x.GetRequiredService<BaseSocketClient>().Rest);
+
+            if (configuration.GuildConfigProviderFactory != null)
+                services.AddScoped(x => configuration.GuildConfigProviderFactory());
+            else
+                services.AddScoped<IFrameworkGuildConfigProvider, DefaultFrameworkGuildConfigProvider>();
 
             if (configuration.Communicator != null)
                 services.AddSingleton(configuration.Communicator);

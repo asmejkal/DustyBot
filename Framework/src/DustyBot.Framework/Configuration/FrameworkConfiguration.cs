@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using Discord.WebSocket;
+using Disqord.Gateway;
+using Disqord.Rest;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules;
@@ -15,9 +17,10 @@ namespace DustyBot.Framework.Configuration
         public string DefaultCommandPrefix { get; }
         public ICommunicator Communicator { get; }
         public Action<ILoggingBuilder> LoggingConfiguration { get; }
-        public IFrameworkGuildConfigProvider GuildConfigProvider { get; }
+        public Func<IFrameworkGuildConfigProvider> GuildConfigProviderFactory { get; }
         public IReadOnlyList<ulong> OwnerIDs { get; }
-        public BaseSocketClient DiscordClient { get; }
+        public IGatewayClient GatewayClient { get; }
+        public IRestClient RestClient { get; }
         public IServiceProvider ClientServiceProvider { get; }
 
         public FrameworkConfiguration(
@@ -27,7 +30,7 @@ namespace DustyBot.Framework.Configuration
             IEnumerable<ModuleInfo> modules, 
             ICommunicator communicator,
             Action<ILoggingBuilder> loggingConfiguration, 
-            IFrameworkGuildConfigProvider guildConfigProvider,
+            Func<IFrameworkGuildConfigProvider> guildConfigProviderFactory,
             BaseSocketClient discordClient)
         {
             ClientServiceProvider = clientServiceProvider ?? throw new ArgumentNullException(nameof(clientServiceProvider));
@@ -38,7 +41,7 @@ namespace DustyBot.Framework.Configuration
             DefaultCommandPrefix = defaultCommandPrefix;
 
             LoggingConfiguration = loggingConfiguration ?? throw new ArgumentNullException(nameof(loggingConfiguration));
-            GuildConfigProvider = guildConfigProvider ?? throw new ArgumentNullException(nameof(guildConfigProvider));
+            GuildConfigProviderFactory = guildConfigProviderFactory ?? throw new ArgumentNullException(nameof(guildConfigProviderFactory));
 
             OwnerIDs = ownerIDs?.ToList() ?? throw new ArgumentNullException(nameof(ownerIDs));
 

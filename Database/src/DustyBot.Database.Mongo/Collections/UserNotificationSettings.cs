@@ -1,5 +1,5 @@
-﻿using DustyBot.Database.Mongo.Collections.Templates;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using DustyBot.Database.Mongo.Collections.Templates;
 
 namespace DustyBot.Database.Mongo.Collections
 {

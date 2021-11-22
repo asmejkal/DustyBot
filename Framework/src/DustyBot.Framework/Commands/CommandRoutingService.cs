@@ -4,8 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Discord;
-using Discord.WebSocket;
+using Disqord.Gateway;
+using Disqord.Hosting;
 using DustyBot.Core.Async;
 using DustyBot.Framework.Commands.Parsing;
 using DustyBot.Framework.Communication;
@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Framework.Commands
 {
-    internal sealed class CommandRoutingService : IDisposable
+    internal sealed class CommandRoutingService : DiscordClientService
     {
         private enum CommandResult
         {
@@ -39,7 +39,7 @@ namespace DustyBot.Framework.Commands
             }
         }
 
-        private readonly BaseSocketClient _client;
+        private readonly IGatewayClient _client;
         private readonly IServiceProvider _clientServiceProvider;
         private readonly ICommunicator _communicator;
         private readonly ILogger<CommandRoutingService> _logger;
@@ -49,13 +49,13 @@ namespace DustyBot.Framework.Commands
         private readonly IFrameworkGuildConfigProvider _guildConfigProvider;
         private readonly ICommandParser _commandParser;
 
-        private readonly Dictionary<string, List<CommandInfo>> _commandsMapping = new Dictionary<string, List<CommandInfo>>();
-        private readonly object _commandsMappingLock = new object();
+        private readonly Dictionary<string, List<CommandInfo>> _commandsMapping = new();
+        private readonly object _commandsMappingLock = new();
         private int _commandCounter = 0;
 
         public CommandRoutingService(
             FrameworkConfiguration config,
-            BaseSocketClient client, 
+            IGatewayClient client, 
             ICommunicator communicator,
             IFrameworkGuildConfigProvider guildConfigProvider,
             ICommandParser commandParser,
@@ -76,45 +76,40 @@ namespace DustyBot.Framework.Commands
                 AddModule(module);
         }
 
-        public Task StartAsync(CancellationToken ct)
+        protected override ValueTask OnMessageReceived(MessageReceivedEventArgs e)
         {
-            _client.MessageReceived += HandleMessageReceived;
-            return Task.CompletedTask;
+            try
+            {
+                // Filter messages from bots
+                if (message.Author.IsBot)
+                    return;
+
+                // Filter anything but normal user messages
+                if (!(message is SocketUserMessage userMessage))
+                    return;
+
+                // Try to find a command registration for this message
+                var findResult = await FindCommandRegistrationAsync(userMessage);
+                if (findResult == null)
+                    return;
+
+                await HandleCommand(userMessage, findResult);
+            }
+            catch (Exception ex)
+            {
+                _logger.WithScope(message).LogError(ex, "Failed to process potential command message.");
+            }
         }
 
-        public void Dispose()
+        private ValueTask HandleMessageReceived(object sender, MessageReceivedEventArgs args)
         {
-            _client.MessageReceived -= HandleMessageReceived;
-        }
-
-        private Task HandleMessageReceived(SocketMessage message)
-        {
+            var message = args.Message;
             TaskHelper.FireForget(async () =>
             {
-                try
-                {
-                    // Filter messages from bots
-                    if (message.Author.IsBot)
-                        return;
-
-                    // Filter anything but normal user messages
-                    if (!(message is SocketUserMessage userMessage))
-                        return;
-
-                    // Try to find a command registration for this message
-                    var findResult = await FindCommandRegistrationAsync(userMessage);
-                    if (findResult == null)
-                        return;
-
-                    await HandleCommand(userMessage, findResult);
-                }
-                catch (Exception ex)
-                {
-                    _logger.WithScope(message).LogError(ex, "Failed to process potential command message.");
-                }
+                
             });
 
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         private async Task HandleCommand(SocketUserMessage message, CommandRegistrationFindResult findResult)

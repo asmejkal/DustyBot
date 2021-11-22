@@ -8,7 +8,7 @@ namespace DustyBot.Core.Parsing
     {
         private static readonly Regex ColorCodeRegex = new Regex("^#?([a-fA-F0-9]+)$", RegexOptions.Compiled);
 
-        public static bool TryParse(string value, out uint result)
+        public static bool TryParse(string value, out int result)
         {
             if (value == null)
                 throw new ArgumentNullException(nameof(value));
@@ -17,14 +17,14 @@ namespace DustyBot.Core.Parsing
             if (match.Success)
             {
                 var number = match.Groups[1].Value;
-                return uint.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
+                return int.TryParse(number, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
             }
 
             result = 0;
             return false;
         }
 
-        public static uint Parse(string value)
+        public static int Parse(string value)
         {
             if (!TryParse(value, out var result))
                 throw new ArgumentException("Failed to parse value");

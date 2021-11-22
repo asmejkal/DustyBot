@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DustyBot.Framework
 {
-    public static class ServiceConfigurationExtensions
+    public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddFrameworkServices(this IServiceCollection services, Action<IServiceProvider, FrameworkConfigurationBuilder> configure)
         {

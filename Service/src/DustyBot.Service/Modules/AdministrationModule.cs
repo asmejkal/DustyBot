@@ -90,7 +90,7 @@ namespace DustyBot.Service.Modules
 
             // This is a mods-only command, but to prevent permission escalation, check
             // if there's any non-mentionable role and if the sender has a mention everyone perm
-            var nonMentionableRoles = command.Message.MentionedRoleIds.Where(x => !command.Guild.GetRole(x)?.IsMentionable ?? false).ToList();
+            var nonMentionableRoles = command.Message.MentionedRoleIds.Where(x => !command.Guild.Ro .GetRole(x)?.IsMentionable ?? false).ToList();
             var replaceRoleMentions = (message.ContainsEveryonePings() || nonMentionableRoles.Any()) &&
                 !((IGuildUser)command.Author).GetPermissions(channel).MentionEveryone;
 

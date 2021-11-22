@@ -27,6 +27,7 @@ namespace DustyBot.Service.Helpers
             }
 
             var permissionFails = new List<IGuildChannel>();
+            // if (bot has permissions to add overrides)
             foreach (var channel in await user.Guild.GetChannelsAsync())
             {
                 if (channel is ITextChannel || channel is IVoiceChannel)

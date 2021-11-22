@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Disqord.Sharding;
 using DustyBot.Framework;
 using DustyBot.Service.Configuration;
 using DustyBot.Service.Helpers;
@@ -47,10 +48,10 @@ namespace DustyBot
             using var host = new HostBuilder()
                 .ConfigureAppConfiguration(x => x.AddEnvironmentVariables())
                 .ConfigureServices((context, services) => services.AddBotServices(context.Configuration))
+                .ConfigureDiscordClientSharder((context, config) => config.ConfigureDiscordClient(context.Configuration))
                 .UseSerilog((_, provider, config) => config.ConfigureBotLogging(provider))
                 .Build();
-
-            await host.Services.GetRequiredService<DiscordClientLauncher>().LaunchAsync(ct);
+            
             await host.StartAsync(ct);
             await host.Services.GetRequiredService<IFramework>().StartAsync(ct);
 

@@ -6,6 +6,8 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using Disqord;
+using Disqord.Gateway;
 using DustyBot.Core.Parsing;
 using DustyBot.Framework.Utility;
 
@@ -66,7 +68,7 @@ namespace DustyBot.Framework.Commands
 
         public ParameterToken this[int key] => Repeats.ElementAtOrDefault(key) ?? Empty;
 
-        public SocketGuild Guild { get; }
+        public IGatewayGuild Guild { get; }
         public string Raw { get; } = string.Empty;
         public string LastError { get; private set; }
         public ParameterInfo Registration { get; set; }
@@ -107,16 +109,16 @@ namespace DustyBot.Framework.Commands
         {
             ulong id;
             if (ulong.TryParse(x, out id))
-                return Guild?.TextChannels.FirstOrDefault(y => y.Id == id);
+                return Guild?.GetChannel(id) as ITextChannel;
 
             var match = ChannelMentionRegex.Match(x);
             if (match.Success)
             {
                 id = ulong.Parse(match.Groups[1].Value);
-                return Guild?.TextChannels.FirstOrDefault(y => y.Id == id);
+                return Guild?.GetChannel(id) as ITextChannel;
             }
 
-            return Guild?.TextChannels.FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
+            return Guild?.GetTextChannels().FirstOrDefault(y => string.Compare(y.Name, x, true) == 0);
         });
 
         public Task<IGuildUser> AsGuildUser => TryConvert<IGuildUser>(this, ParameterType.GuildUser, async x =>

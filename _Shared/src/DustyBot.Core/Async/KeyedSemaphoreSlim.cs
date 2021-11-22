@@ -11,9 +11,9 @@ namespace DustyBot.Core.Async
         {
             private readonly int _initialCount;
             private readonly Action<KeyLockScope> _parentRelease;
+            private readonly SemaphoreSlim _semaphore;
 
             private int _counter;
-            private SemaphoreSlim _semaphore;
 
             public TKey Key { get; private set; }
 

@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Discord;
+using Disqord;
+using Disqord.Gateway;
 using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Commands
@@ -14,7 +16,7 @@ namespace DustyBot.Framework.Commands
         int ParametersCount { get; }
         IUserMessage Message { get; }
         ulong GuildId { get; }
-        IGuild Guild { get; }
+        IGatewayGuild Guild { get; }
         IUser Author { get; }
         IMessageChannel Channel { get; }
 
