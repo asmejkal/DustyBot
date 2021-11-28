@@ -1,4 +1,5 @@
 ﻿using Disqord.Bot;
+using Disqord.Gateway.Default;
 using DustyBot.Core.Miscellaneous;
 using DustyBot.Core.Services;
 using DustyBot.Database.Services;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using Qmmands;
 
 namespace DustyBot.Service
 {
@@ -16,9 +18,9 @@ namespace DustyBot.Service
     {
         public static void AddBotServices(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddCommands(x => x.ConfigureCommands(configuration));
-            
             // Configuration
+            services.Configure<DefaultGatewayCacheProviderConfiguration>(x => x.ConfigureCaching());
+            services.Configure<CommandServiceConfiguration>(x => x.ConfigureCommands(configuration));
             services.Configure<BotOptions>(configuration);
             services.Configure<DatabaseOptions>(configuration);
             services.Configure<DiscordOptions>(configuration);

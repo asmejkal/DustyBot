@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using DustyBot.Core.Disposal;
 using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Core.Logging
 {
-    internal class ScopedLoggerAdapter : ILogger
+    public class ScopedLoggerAdapter : ILogger
     {
         private readonly ILogger _inner;
         private readonly ImmutableDictionary<string, object> _fields;
@@ -21,15 +22,11 @@ namespace DustyBot.Core.Logging
         {
         }
 
-        public IDisposable BeginScope<TState>(TState state)
-        {
-            return _inner.BeginScope(state);
-        }
+        public IDisposable BeginScope() => _inner.BeginScope(_fields);
 
-        public bool IsEnabled(LogLevel logLevel)
-        {
-            return _inner.IsEnabled(logLevel);
-        }
+        public IDisposable BeginScope<TState>(TState state) => new DisposableWrapper(BeginScope(), _inner.BeginScope(state));
+
+        public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {

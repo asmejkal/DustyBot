@@ -5,7 +5,6 @@
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <UserSecretsId>52a32d8e-7845-45cd-a90c-66a64c302cb7</UserSecretsId>
     <DockerfileContext>..\..\..</DockerfileContext>
-    <CodeAnalysisRuleSet>../../../CodeAnalysis.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
   <ItemGroup>

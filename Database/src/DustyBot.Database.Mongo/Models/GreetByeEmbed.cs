@@ -2,7 +2,7 @@
 
 namespace DustyBot.Database.Mongo.Models
 {
-    public class GreetEmbed
+    public class GreetByeEmbed
     {
         public string Title { get; set; }
         public Uri Image { get; set; }
@@ -10,9 +10,9 @@ namespace DustyBot.Database.Mongo.Models
         public uint? Color { get; set; }
         public string Footer { get; set; }
 
-        public GreetEmbed() { }
+        public GreetByeEmbed() { }
 
-        public GreetEmbed(string title, string body, Uri image = null)
+        public GreetByeEmbed(string title, string body, Uri image = null)
         {
             Title = !string.IsNullOrEmpty(title) ? title : throw new ArgumentException("title");
             Image = image;

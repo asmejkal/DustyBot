@@ -3,6 +3,7 @@ using System.Linq;
 using Disqord.Bot.Sharding;
 using Disqord.Gateway;
 using Disqord.Gateway.Api;
+using Disqord.Gateway.Default;
 using DustyBot.Framework.Commands.Parsing;
 using DustyBot.Service.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -77,8 +78,17 @@ namespace DustyBot.Service
 
         public static void ConfigureCommands(this CommandServiceConfiguration configuration, IConfiguration provider)
         {
-            configuration.DefaultRunMode = RunMode.Parallel;
             configuration.DefaultArgumentParser = new ArgumentParser();
+            configuration.NullableNouns = Enumerable.Empty<string>();
+        }
+
+        public static void ConfigureCaching(this DefaultGatewayCacheProviderConfiguration configuration)
+        {
+            configuration.SupportedTypes.Remove(typeof(CachedSharedUser));
+
+            configuration.SupportedNestedTypes.Remove(typeof(CachedMember));
+            configuration.SupportedNestedTypes.Remove(typeof(CachedVoiceState));
+            configuration.SupportedNestedTypes.Remove(typeof(CachedPresence));
         }
     }
 }

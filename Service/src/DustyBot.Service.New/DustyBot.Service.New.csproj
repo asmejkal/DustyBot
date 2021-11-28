@@ -5,7 +5,6 @@
 		<TargetFramework>net6.0</TargetFramework>
 		<RootNamespace>DustyBot.Service</RootNamespace>
 		<Nullable>enable</Nullable>
-		<CodeAnalysisRuleSet>../../../CodeAnalysis.ruleset</CodeAnalysisRuleSet>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<DockerfileContext>..\..\..</DockerfileContext>
 		<DockerfileRunEnvironmentFiles>..\..\..\.env</DockerfileRunEnvironmentFiles>

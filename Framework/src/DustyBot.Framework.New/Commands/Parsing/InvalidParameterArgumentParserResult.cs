@@ -14,7 +14,7 @@ namespace DustyBot.Framework.Commands.Parsing
 
         public override string FailureReason => $"Parameter {InvalidPosition} ({Markdown.Escape(InvalidToken.Truncate(15))}) is invalid.";
 
-        public InvalidParameterArgumentParserResult(IReadOnlyDictionary<Parameter, object> arguments, int position, string invalidToken) 
+        public InvalidParameterArgumentParserResult(IReadOnlyDictionary<Parameter, object?> arguments, int position, string invalidToken) 
             : base(arguments)
         {
             InvalidPosition = position;

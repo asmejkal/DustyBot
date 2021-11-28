@@ -16,7 +16,7 @@ namespace DustyBot.Framework.Commands.Parsing
 
         public ArgumentParserFailureType Type { get; }
 
-        public FailureArgumentParserResult(IReadOnlyDictionary<Parameter, object> arguments, ArgumentParserFailureType type)
+        public FailureArgumentParserResult(IReadOnlyDictionary<Parameter, object?> arguments, ArgumentParserFailureType type)
             : base(arguments)
         {
             Type = type;

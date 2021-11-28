@@ -13,7 +13,6 @@
     <Copyright>Yebafan</Copyright>
     <RepositoryUrl>https://github.com/yebafan/DustyBot</RepositoryUrl>
     <Version>4.0.0</Version>
-    <CodeAnalysisRuleSet>../../../CodeAnalysis.ruleset</CodeAnalysisRuleSet>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\..\..</DockerfileContext>
     <DockerfileRunEnvironmentFiles>..\..\..\.env</DockerfileRunEnvironmentFiles>

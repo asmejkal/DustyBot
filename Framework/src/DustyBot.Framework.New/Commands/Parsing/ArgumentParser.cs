@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using DustyBot.Core.Parsing;
 using DustyBot.Framework.Attributes;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Qmmands;
 
 namespace DustyBot.Framework.Commands.Parsing
@@ -16,10 +15,10 @@ namespace DustyBot.Framework.Commands.Parsing
         {
             public CommandContext CommandContext { get; }
             public CommandService CommandService { get; }
-            public Dictionary<Parameter, object> Results { get; } = new();
+            public Dictionary<Parameter, object?> Results { get; } = new();
             public int TotalTokenCount { get; }
 
-            public Dictionary<(Parameter, Token), (bool IsSuccessful, object Result)> ParseResultCache { get; } = new();
+            public Dictionary<(Parameter, Token), (bool IsSuccessful, object? Result)> ParseResultCache { get; } = new();
 
             public CommandParsingContext(CommandContext commandContext, CommandService commandService, int totalTokenCount)
             {
@@ -35,8 +34,8 @@ namespace DustyBot.Framework.Commands.Parsing
 
                 if (param.IsMultiple)
                 {
-                    if (!Results.TryGetValue(param, out var values) || values is not List<object> valuesList)
-                        Results.Add(param, valuesList = new List<object>());
+                    if (!Results.TryGetValue(param, out var values) || values is not List<object?> valuesList)
+                        Results.Add(param, valuesList = new List<object?>());
 
                     valuesList.Add(value.Result);
                 }

@@ -105,7 +105,7 @@ namespace DustyBot.Service.Modules
             {
                 s.ResetGreet();
                 s.GreetChannel = command["Channel"].AsTextChannel.Id;
-                s.GreetEmbed = new GreetEmbed(command["Title"], command["Body"]);
+                s.GreetEmbed = new GreetByeEmbed(command["Title"], command["Body"]);
                 
                 if (command["Color"].AsColorCode.HasValue)
                     s.GreetEmbed.Color = command["Color"].AsColorCode;
@@ -149,12 +149,12 @@ namespace DustyBot.Service.Modules
         [Permissions(GuildPermission.Administrator)]
         public async Task GreetTest(ICommand command)
         {
-            var settings = await _settings.Read<EventsSettings>(command.GuildId, false);
-            if (settings == null || settings.GreetChannel == default)
-            {
-                await command.ReplyError("No greeting has been set.");
-                return;
-            }
+                var settings = await _settings.Read<EventsSettings>(command.GuildId, false);
+                if (settings == null || settings.GreetChannel == default)
+                {
+                    await command.ReplyError("No greeting has been set.");
+                    return;
+                }
 
             await Greet(command.Message.Channel, settings, (SocketGuildUser)command.Message.Author);
         }
