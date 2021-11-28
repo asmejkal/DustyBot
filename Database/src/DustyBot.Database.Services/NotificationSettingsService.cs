@@ -11,11 +11,11 @@ namespace DustyBot.Database.Services
 {
     public class NotificationSettingsService : INotificationSettingsService
     {
-        private IMongoDatabase _db;
+        private readonly IMongoDatabase _database;
 
-        public NotificationSettingsService(IMongoDatabase db)
+        public NotificationSettingsService(IMongoDatabase database)
         {
-            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _database = database ?? throw new ArgumentNullException(nameof(database));
         }
 
         public async Task BlockUserAsync(ulong userId, ulong targetUserId, CancellationToken ct)
@@ -64,6 +64,6 @@ namespace DustyBot.Database.Services
         }
 
         private IMongoCollection<UserNotificationSettings> GetCollection() =>
-            _db.GetCollection<UserNotificationSettings>(typeof(UserNotificationSettings).Name);
+            _database.GetCollection<UserNotificationSettings>(typeof(UserNotificationSettings).Name);
     }
 }

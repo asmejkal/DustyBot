@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
+using DustyBot.Database.Mongo.Collections.GreetBye.Models;
 
 namespace DustyBot.Service.Services.GreetBye
 {
@@ -13,19 +14,20 @@ namespace DustyBot.Service.Services.GreetBye
             GreetByeEventType type,
             Snowflake guildId,
             ITextChannel channel,
-            Color? color,
-            Uri? image,
             string title,
-            string body);
+            string body,
+            Uri? image = null,
+            Color? color = null,
+            string? footer = null);
 
-        Task<SetEventEmbedFooterResult> SetEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer);
+        Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer);
 
         Task DisableEventAsync(GreetByeEventType type, Snowflake guildId);
 
         Task<TriggerEventResult> TriggerEventAsync(GreetByeEventType type, IGatewayGuild guild, IMessageGuildChannel channel, IUser user);
     }
 
-    public enum SetEventEmbedFooterResult
+    public enum UpdateEventEmbedFooterResult
     {
         Success,
         EventEmbedNotSet

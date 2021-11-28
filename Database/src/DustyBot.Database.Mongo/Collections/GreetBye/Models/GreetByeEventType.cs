@@ -1,4 +1,4 @@
-﻿namespace DustyBot.Service.Services.GreetBye
+﻿namespace DustyBot.Database.Mongo.Collections.GreetBye.Models
 {
     public enum GreetByeEventType
     {

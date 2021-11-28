@@ -45,9 +45,9 @@ namespace DustyBot.Service
 
         public static void ConfigureBot(this DiscordBotSharderHostingContext configuration, IConfiguration provider)
         {
-            var options = provider.Get<DiscordOptions>();
-            var botOptions = provider.Get<BotOptions>();
-            var webOptions = provider.Get<WebOptions>();
+            var options = provider.GetSection(ConfigurationSections.Discord).Get<DiscordOptions>();
+            var botOptions = provider.GetSection(ConfigurationSections.Bot).Get<BotOptions>();
+            var webOptions = provider.GetSection(ConfigurationSections.Web).Get<WebOptions>();
 
             configuration.Intents = GatewayIntent.DirectReactions |
                 GatewayIntent.DirectMessages |
@@ -66,7 +66,7 @@ namespace DustyBot.Service
                     configuration.ShardCount = options.TotalShards;
             }
 
-            configuration.Token = options.BotToken;
+            configuration.Token = options.Token;
             configuration.Prefixes = new[] { botOptions.DefaultCommandPrefix };
             configuration.UseMentionPrefix = true;
 

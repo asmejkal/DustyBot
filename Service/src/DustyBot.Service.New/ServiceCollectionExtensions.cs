@@ -1,15 +1,11 @@
-﻿using Disqord.Bot;
-using Disqord.Gateway.Default;
+﻿using Disqord.Gateway.Default;
 using DustyBot.Core.Miscellaneous;
 using DustyBot.Core.Services;
 using DustyBot.Database.Services;
-using DustyBot.Database.Services.Configuration;
 using DustyBot.Service.Configuration;
 using DustyBot.Service.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using MongoDB.Driver;
 using Qmmands;
 
 namespace DustyBot.Service
@@ -21,69 +17,23 @@ namespace DustyBot.Service
             // Configuration
             services.Configure<DefaultGatewayCacheProviderConfiguration>(x => x.ConfigureCaching());
             services.Configure<CommandServiceConfiguration>(x => x.ConfigureCommands(configuration));
-            services.Configure<BotOptions>(configuration);
-            services.Configure<DatabaseOptions>(configuration);
-            services.Configure<DiscordOptions>(configuration);
-            services.Configure<IntegrationOptions>(configuration);
-            services.Configure<LoggingOptions>(configuration);
-            services.Configure<WebOptions>(configuration);
+            services.Configure<BotOptions>(configuration.GetSection(ConfigurationSections.Bot));
+            services.Configure<DiscordOptions>(configuration.GetSection(ConfigurationSections.Discord));
+            services.Configure<IntegrationOptions>(configuration.GetSection(ConfigurationSections.Integration));
+            services.Configure<LoggingOptions>(configuration.GetSection(ConfigurationSections.Logging));
+            services.Configure<WebOptions>(configuration.GetSection(ConfigurationSections.Web));
 
             // Database
-            services.AddMongoDatabase();
-            services.AddDatabaseServices();
+            services.AddDatabaseServices(
+                x => x.Configure<IConfiguration>((o, c) => c.GetSection(ConfigurationSections.Mongo).Bind(o)),
+                x => x.Configure<IConfiguration>((o, c) => c.GetSection(ConfigurationSections.TableStorage).Bind(o)));
 
             // Services
             services.AddScoped<IUrlShortenerService, PolrUrlShortenerService>();
 
-            // Background services
-            // services.AddHostedService<DaumCafeService>();
-            // services.AddHostedApiService<IScheduleService, ScheduleService>();
-
-            // Modules
-            /* services.AddScoped<AdministrationModule>();
-            services.AddSingleton<AutorolesModule>();
-            services.AddSingleton<BotModule>();
-            services.AddScoped<CafeModule>();
-            services.AddSingleton<GreetModule>();
-            services.AddScoped<InfoModule>();
-            services.AddSingleton<InstagramModule>();
-            services.AddScoped<LastFmModule>();
-            services.AddSingleton<LogModule>();
-            services.AddSingleton<NotificationsModule>();
-            services.AddScoped<PollModule>();
-            services.AddSingleton<RaidProtectionModule>();
-            services.AddSingleton<ReactionsModule>();
-            services.AddSingleton<RolesModule>();
-            services.AddScoped<ScheduleModule>();
-            services.AddScoped<SpotifyModule>();
-            services.AddSingleton<StarboardModule>();
-            services.AddScoped<TranslatorModule>();
-            services.AddScoped<ViewsModule>();
-
             // Miscellaneous
-            services.AddScoped<HelpBuilder>();
-            services.AddScoped<WebsiteWalker>(); */
             services.AddScoped<ITimerAwaiter, TimerAwaiter>();
             services.AddScoped<ITimeProvider, TimeProvider>();
-        }
-
-        private static IServiceCollection AddMongoDatabase(this IServiceCollection services)
-        {
-            services.AddSingleton<IMongoClient>(x =>
-            {
-                var options = x.GetRequiredService<IOptions<DatabaseOptions>>();
-                var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
-                return new MongoClient(url);
-            });
-
-            services.AddSingleton<IMongoDatabase>(x =>
-            {
-                var options = x.GetRequiredService<IOptions<DatabaseOptions>>();
-                var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
-                return x.GetRequiredService<IMongoClient>().GetDatabase(url.DatabaseName);
-            });
-
-            return services;
         }
     }
 }

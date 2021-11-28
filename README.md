@@ -36,7 +36,6 @@ Dusty_PolrDomain=
 Dusty_SupportServerInvite=
 Dusty_SpotifyConnectUrl=
 Dusty_PatreonUrl=
-Dusty_SqlDbConnectionString=
 ```
 
 ## Debugging in Visual Studio

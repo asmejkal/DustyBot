@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using DustyBot.Database.Services.Configuration;
+using DustyBot.Database.TableStorage.Configuration;
 using DustyBot.Database.TableStorage.Tables;
 using DustyBot.Database.TableStorage.Utility;
 using Microsoft.Extensions.Options;
@@ -12,19 +12,19 @@ namespace DustyBot.Database.Services
 {
     public class SpotifyAccountsService : ISpotifyAccountsService
     {
-        private CloudTable Table { get; }
+        private readonly CloudTable _table;
 
-        public SpotifyAccountsService(IOptions<DatabaseOptions> options)
+        public SpotifyAccountsService(IOptions<TableStorageOptions> options)
         {
-            var storageAccount = CloudStorageAccount.Parse(options.Value.TableStorageConnectionString);
+            var storageAccount = CloudStorageAccount.Parse(options.Value.ConnectionString);
             var storageClient = storageAccount.CreateCloudTableClient();
-            Table = storageClient.GetTableReference(SpotifyAccount.TableName);
+            _table = storageClient.GetTableReference(SpotifyAccount.TableName);
         }
 
-        public async Task<SpotifyAccount> GetUserAccountAsync(ulong userId, CancellationToken ct)
+        public async Task<SpotifyAccount?> GetUserAccountAsync(ulong userId, CancellationToken ct)
         {
             var filter = TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, userId.ToString());
-            var results = await Table.ExecuteQueryAsync(new TableQuery<SpotifyAccount>().Where(filter), ct);
+            var results = await _table.ExecuteQueryAsync(new TableQuery<SpotifyAccount>().Where(filter), ct);
             if (!results.Any())
                 return null;
 
@@ -33,11 +33,11 @@ namespace DustyBot.Database.Services
 
         public async Task AddOrUpdateUserAccountAsync(SpotifyAccount account, CancellationToken ct)
         {
-            await Table.CreateIfNotExistsAsync();
+            await _table.CreateIfNotExistsAsync();
             account.PartitionKey = "root";
             account.RowKey = account.UserId;
             account.ETag = "*";
-            await Table.ExecuteAsync(TableOperation.InsertOrReplace(account));
+            await _table.ExecuteAsync(TableOperation.InsertOrReplace(account));
         }
 
         public Task RemoveUserAccountAsync(ulong userId, CancellationToken ct)
@@ -50,7 +50,7 @@ namespace DustyBot.Database.Services
                 ETag = "*"
             };
 
-            return Table.ExecuteAsync(TableOperation.Delete(account));
+            return _table.ExecuteAsync(TableOperation.Delete(account));
         }
     }
 }

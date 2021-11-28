@@ -5,8 +5,6 @@ using DustyBot.Core.Async;
 using DustyBot.Database.Core.Settings;
 using DustyBot.Database.Mongo.Collections.Templates;
 using DustyBot.Database.Mongo.Serializers;
-using DustyBot.Database.Services.Configuration;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -19,7 +17,7 @@ namespace DustyBot.Database.Services
         private readonly KeyedSemaphoreSlim<(Type Type, ulong GuildId)> _serverSettingsMutex = new KeyedSemaphoreSlim<(Type Type, ulong GuildId)>(1, maxPoolSize: int.MaxValue);
         private readonly KeyedSemaphoreSlim<Type> _globalSettingsMutex = new KeyedSemaphoreSlim<Type>(1, maxPoolSize: int.MaxValue);
 
-        private IMongoDatabase _db;
+        private readonly IMongoDatabase _database;
 
         static MongoSettingsService()
         {
@@ -28,11 +26,9 @@ namespace DustyBot.Database.Services
             BsonSerializer.RegisterSerializer(new SecureStringSerializer());
         }
 
-        public MongoSettingsService(IOptions<DatabaseOptions> options)
+        public MongoSettingsService(IMongoDatabase database)
         {
-            var url = MongoUrl.Create(options.Value.MongoDbConnectionString);
-            var client = new MongoClient(url);
-            _db = client.GetDatabase(url.DatabaseName);
+            _database = database;
         }
 
         public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
@@ -44,7 +40,7 @@ namespace DustyBot.Database.Services
         public async Task<IEnumerable<T>> Read<T>()
             where T : IServerSettings
         {
-            var cursor = await _db.GetCollection<T>(typeof(T).Name).Find(Builders<T>.Filter.Empty).ToCursorAsync();
+            var cursor = await _database.GetCollection<T>(typeof(T).Name).Find(Builders<T>.Filter.Empty).ToCursorAsync();
             return cursor.ToEnumerable();
         }
 
@@ -134,7 +130,7 @@ namespace DustyBot.Database.Services
 
         private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)
         {
-            var collection = _db.GetCollection<T>(typeof(T).Name);
+            var collection = _database.GetCollection<T>(typeof(T).Name);
             var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
             if (settings == null && createIfNeeded)
             {
@@ -154,14 +150,14 @@ namespace DustyBot.Database.Services
 
         private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, Func<Task<T>> creator, bool createIfNeeded = true)
         {
-            var collection = _db.GetCollection<T>(typeof(T).Name);
+            var collection = _database.GetCollection<T>(typeof(T).Name);
             var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
             if (settings == null && createIfNeeded)
             {
                 // Create
                 using (await mutex.ClaimAsync(mutexKey))
                 {
-                    collection = _db.GetCollection<T>(typeof(T).Name);
+                    collection = _database.GetCollection<T>(typeof(T).Name);
                     settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
                     if (settings == null)
                     {
@@ -190,7 +186,7 @@ namespace DustyBot.Database.Services
 
         private Task UpsertSettings<T>(ulong id, T value)
         {
-            return _db
+            return _database
                 .GetCollection<T>(typeof(T).Name)
                 .ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)id)), value, new ReplaceOptions() { IsUpsert = true });
         }

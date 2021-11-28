@@ -9,11 +9,11 @@ namespace DustyBot.Database.Services
 {
     public class LastFmSettingsService : ILastFmSettingsService
     {
-        private IMongoDatabase _db;
+        private readonly IMongoDatabase _database;
 
-        public LastFmSettingsService(IMongoDatabase db)
+        public LastFmSettingsService(IMongoDatabase database)
         {
-            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _database = database ?? throw new ArgumentNullException(nameof(database));
         }
 
         public Task<LastFmUserSettings> ReadAsync(ulong userId, CancellationToken ct = default)
@@ -36,6 +36,6 @@ namespace DustyBot.Database.Services
         }
 
         private IMongoCollection<LastFmUserSettings> GetCollection() =>
-            _db.GetCollection<LastFmUserSettings>(typeof(LastFmUserSettings).Name);
+            _database.GetCollection<LastFmUserSettings>(typeof(LastFmUserSettings).Name);
     }
 }

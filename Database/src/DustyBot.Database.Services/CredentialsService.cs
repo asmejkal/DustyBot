@@ -10,11 +10,11 @@ namespace DustyBot.Database.Services
 {
     public class CredentialsService : ICredentialsService
     {
-        private IMongoDatabase _db;
+        private readonly IMongoDatabase _database;
 
-        public CredentialsService(IMongoDatabase db)
+        public CredentialsService(IMongoDatabase database)
         {
-            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _database = database ?? throw new ArgumentNullException(nameof(database));
         }
 
         public Task<UserCredentials> ReadAsync(ulong userId, CancellationToken ct = default)
@@ -47,6 +47,6 @@ namespace DustyBot.Database.Services
         }
 
         private IMongoCollection<UserCredentials> GetCollection() =>
-            _db.GetCollection<UserCredentials>(typeof(UserCredentials).Name);
+            _database.GetCollection<UserCredentials>(typeof(UserCredentials).Name);
     }
 }

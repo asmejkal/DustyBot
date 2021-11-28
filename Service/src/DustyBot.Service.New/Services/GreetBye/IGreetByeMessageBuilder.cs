@@ -1,6 +1,6 @@
 ﻿using Disqord;
 using Disqord.Gateway;
-using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Mongo.Collections.GreetBye.Models;
 
 namespace DustyBot.Service.Services.GreetBye
 {

@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
 using Disqord.Rest;
-using DustyBot.Database.Mongo.Collections;
-using DustyBot.Database.Mongo.Models;
+using DustyBot.Database.Mongo.Collections.GreetBye;
+using DustyBot.Database.Mongo.Collections.GreetBye.Models;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Client;
 using DustyBot.Framework.Entities;
@@ -18,7 +18,6 @@ using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Service.Services.GreetBye
 {
-    // TODO: migrate the DB and remove all the ifs
     internal class GreetByeService : DustyBotService, IGreetByeService, IDisposable
     {
         private readonly IGreetByeMessageBuilder _messageBuilder;
@@ -45,78 +44,39 @@ namespace DustyBot.Service.Services.GreetBye
 
         public Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, string message)
         {
-            return _settings.Modify(guildId, (EventsSettings s) =>
-            {
-                if (type == GreetByeEventType.Greet)
-                {
-                    s.ResetGreet();
-                    s.GreetChannel = channel.Id;
-                    s.GreetMessage = message;
-                }
-                else if (type == GreetByeEventType.Bye)
-                {
-                    s.ResetBye();
-                    s.ByeChannel = channel.Id;
-                    s.ByeMessage = message;
-                }
-            });
+            return _settings.Modify(guildId, (GreetByeSettings s) =>
+                s.Events[type] = new(channel.Id, message));
         }
 
-        public Task SetEventEmbedAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, Color? color, Uri? image, string title, string body)
+        public Task SetEventEmbedAsync(
+            GreetByeEventType type,
+            Snowflake guildId,
+            ITextChannel channel,
+            string title,
+            string body,
+            Uri? image = null,
+            Color? color = null,
+            string? footer = null)
         {
-            return _settings.Modify(guildId, (EventsSettings s) =>
-            {
-                var embed = new GreetByeEmbed(title, body, image);
-                if (color.HasValue)
-                    embed.Color = (uint)color.Value.RawValue;
-
-                if (type == GreetByeEventType.Greet)
-                {
-                    s.ResetGreet();
-                    s.GreetChannel = channel.Id;
-                    s.GreetEmbed = embed;
-                }
-                else if (type == GreetByeEventType.Bye)
-                {
-                    s.ResetBye();
-                    s.ByeChannel = channel.Id;
-                    s.ByeEmbed = embed;
-                }
-            });
+            return _settings.Modify(guildId, (GreetByeSettings s) => 
+                s.Events[type] = new(channel.Id, new GreetByeEmbed(title, body, image, color?.RawValue, footer)));
         }
 
-        public Task<SetEventEmbedFooterResult> SetEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer)
+        public Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer)
         {
-            return _settings.Modify(guildId, (EventsSettings s) =>
+            return _settings.Modify(guildId, (GreetByeSettings s) =>
             {
-                if (type == GreetByeEventType.Greet)
-                {
-                    if (s.GreetEmbed == null)
-                        return SetEventEmbedFooterResult.EventEmbedNotSet;
+                if (!s.Events.TryGetValue(type, out var setting) || setting.Embed == null)
+                    return UpdateEventEmbedFooterResult.EventEmbedNotSet;
 
-                    s.GreetEmbed.Footer = !string.IsNullOrEmpty(footer) ? footer : null;
-                }
-                else if (type == GreetByeEventType.Bye)
-                {
-                    if (s.ByeEmbed == null)
-                        return SetEventEmbedFooterResult.EventEmbedNotSet;
-
-                    s.ByeEmbed.Footer = !string.IsNullOrEmpty(footer) ? footer : null;
-                }
-                
-                return SetEventEmbedFooterResult.Success;
+                setting.Embed.Footer = footer;
+                return UpdateEventEmbedFooterResult.Success;
             });
         }
 
         public Task DisableEventAsync(GreetByeEventType type, Snowflake guildId)
         {
-            return _settings.Modify(guildId, (EventsSettings s) =>
-            {
-                if (type == GreetByeEventType.Greet)
-                    s.ResetGreet();
-                else if (type == GreetByeEventType.Bye)
-                    s.ResetBye();
-            });
+            return _settings.Modify(guildId, (GreetByeSettings s) => s.Events.Remove(type));
         }
 
         public async Task<TriggerEventResult> TriggerEventAsync(
@@ -125,8 +85,11 @@ namespace DustyBot.Service.Services.GreetBye
             IMessageGuildChannel channel, 
             IUser user)
         {
-            var settings = await _settings.Read<EventsSettings>(guild.Id, false);
-            return await TriggerEventAsync(type, guild, channel.Id, user, settings);
+            var settings = await _settings.Read<GreetByeSettings>(guild.Id, false);
+            if (settings == null || !settings.Events.TryGetValue(type, out var setting))
+                return TriggerEventResult.EventNotSet;
+
+            return await TriggerEventAsync(setting, guild, channel.Id, user);
         }
 
         public override void Dispose()
@@ -139,25 +102,8 @@ namespace DustyBot.Service.Services.GreetBye
         {
             try
             {
-                var settings = await _settings.Read<EventsSettings>(e.GuildId, false);
-                if (settings == null || settings.GreetChannel == default)
-                    return;
-
-                if (_autobannedUsers.ContainsKey((e.GuildId, e.MemberId)))
-                    return;
-
-                var guild = Bot.GetGuildOrThrow(e.GuildId);
-                var channel = guild.GetChannelOrThrow(settings.GreetChannel);
-
-                using var scope = Logger.BuildScope(x => x.WithArgs(e).WithGuild(guild).WithChannel(channel));
-                if (!guild.GetBotPermissions(channel).SendMessages)
-                {
-                    Logger.LogInformation("Can't greet user because of missing permissions");
-                    return;
-                }
-
-                Logger.LogInformation("Greeting user");
-                await TriggerEventAsync(GreetByeEventType.Greet, guild, channel.Id, e.Member, settings);
+                using var scope = Logger.BuildScope(x => x.WithArgs(e));
+                await HandleEventAsync(GreetByeEventType.Greet, e.GuildId, e.Member);
             }
             catch (Exception ex)
             {
@@ -169,30 +115,36 @@ namespace DustyBot.Service.Services.GreetBye
         {
             try
             {
-                var settings = await _settings.Read<EventsSettings>(e.GuildId, false);
-                if (settings == null || settings.ByeChannel == default)
-                    return;
-
-                if (_autobannedUsers.ContainsKey((e.GuildId, e.MemberId)))
-                    return; // TODO: possible race condition
-
-                var guild = Bot.GetGuildOrThrow(e.GuildId);
-                var channel = guild.GetChannelOrThrow(settings.ByeChannel);
-
-                using var scope = Logger.BuildScope(x => x.WithArgs(e).WithGuild(guild).WithChannel(channel));
-                if (!guild.GetBotPermissions(channel).SendMessages)
-                {
-                    Logger.LogInformation("Can't bye user because of missing permissions");
-                    return;
-                }
-
-                Logger.LogInformation("Saying goodbye to user");
-                await TriggerEventAsync(GreetByeEventType.Bye, guild, channel.Id, e.User, settings);
+                using var scope = Logger.BuildScope(x => x.WithArgs(e));
+                await HandleEventAsync(GreetByeEventType.Bye, e.GuildId, e.User);
             }
             catch (Exception ex)
             {
                 Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process bye event");
             }
+        }
+
+        private async ValueTask HandleEventAsync(GreetByeEventType type, Snowflake guildId, IUser user)
+        {
+            var settings = await _settings.Read<GreetByeSettings>(guildId, false);
+            if (settings == null || !settings.Events.TryGetValue(GreetByeEventType.Greet, out var setting))
+                return;
+
+            if (_autobannedUsers.ContainsKey((guildId, user.Id)))
+                return;
+
+            var guild = Bot.GetGuildOrThrow(guildId);
+            var channel = guild.GetChannelOrThrow(setting.ChannelId);
+
+            using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithChannel(channel));
+            if (!guild.GetBotPermissions(channel).SendMessages)
+            {
+                Logger.LogInformation("Can't send {GreetByeEventType} message because of missing permissions", type);
+                return;
+            }
+
+            Logger.LogInformation("Handling event {GreetByeEventType}", type);
+            await TriggerEventAsync(setting, guild, channel.Id, user);
         }
 
         private void HandleUserAutobanned(object? sender, (Snowflake GuildId, Snowflake UserId) e)
@@ -206,38 +158,18 @@ namespace DustyBot.Service.Services.GreetBye
         }
 
         private async Task<TriggerEventResult> TriggerEventAsync(
-            GreetByeEventType type, 
+            GreetByeEventSetting setting,
             IGatewayGuild guild, 
             Snowflake channelId, 
-            IUser user, 
-            EventsSettings settings)
+            IUser user)
         {
-            if (settings == null)
-                return TriggerEventResult.EventNotSet;
-
             var message = new LocalMessage();
-            if (type == GreetByeEventType.Greet)
-            {
-                if (settings.GreetMessage != default)
-                    message.WithContent(_messageBuilder.BuildText(settings.GreetMessage, user, guild));
-                else if (settings.GreetEmbed != default)
-                    message.WithEmbeds(_messageBuilder.BuildEmbed(settings.GreetEmbed, user, guild));
-                else
-                    return TriggerEventResult.EventNotSet;
-            }
-            else if (type == GreetByeEventType.Bye)
-            {
-                if (settings.ByeMessage != default)
-                    message.WithContent(_messageBuilder.BuildText(settings.ByeMessage, user, guild));
-                else if (settings.ByeEmbed != default)
-                    message.WithEmbeds(_messageBuilder.BuildEmbed(settings.ByeEmbed, user, guild));
-                else
-                    return TriggerEventResult.EventNotSet;
-            }
+            if (setting.Text != default)
+                message.WithContent(_messageBuilder.BuildText(setting.Text, user, guild));
+            else if (setting.Embed != default)
+                message.WithEmbeds(_messageBuilder.BuildEmbed(setting.Embed, user, guild));
             else
-            {
-                throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown enum value");
-            }
+                return TriggerEventResult.EventNotSet;
 
             await Bot.SendMessageAsync(channelId, message);
             return TriggerEventResult.Success;

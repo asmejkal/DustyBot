@@ -5,7 +5,7 @@ namespace DustyBot.Service.Configuration
 {
     public class DiscordOptions
     {
-        public string? BotToken { get; set; }
+        public string? Token { get; set; }
         public string? ShardsList { get; set; }
         public int? TotalShards { get; set; }
 
