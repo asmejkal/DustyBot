@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DustyBot.Core.Collections
@@ -18,21 +19,12 @@ namespace DustyBot.Core.Collections
                 await action(item);
         }
 
-        public static IEnumerable<T> SkipLast<T>(this IEnumerable<T> source, int n = 1)
+#pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
+        public static IEnumerable<T> WhereNotNull<T>(this IEnumerable<T?> source)
+            where T : class
         {
-            var it = source.GetEnumerator();
-            bool hasRemainingItems = false;
-            var cache = new Queue<T>(n + 1);
-
-            do
-            {
-                if (hasRemainingItems = it.MoveNext())
-                {
-                    cache.Enqueue(it.Current);
-                    if (cache.Count > n)
-                        yield return cache.Dequeue();
-                }
-            } while (hasRemainingItems);
+            return source.Where(x => x != null)!;
         }
+#pragma warning restore SA1009 // Closing parenthesis should be spaced correctly
     }
 }

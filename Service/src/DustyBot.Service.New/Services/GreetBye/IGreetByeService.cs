@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
@@ -8,7 +9,7 @@ namespace DustyBot.Service.Services.GreetBye
 {
     public interface IGreetByeService
     {
-        Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, string message);
+        Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, string message, CancellationToken ct);
 
         Task SetEventEmbedAsync(
             GreetByeEventType type,
@@ -18,13 +19,14 @@ namespace DustyBot.Service.Services.GreetBye
             string body,
             Uri? image = null,
             Color? color = null,
-            string? footer = null);
+            string? footer = null, 
+            CancellationToken ct = default);
 
-        Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer);
+        Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer, CancellationToken ct);
 
-        Task DisableEventAsync(GreetByeEventType type, Snowflake guildId);
+        Task DisableEventAsync(GreetByeEventType type, Snowflake guildId, CancellationToken ct);
 
-        Task<TriggerEventResult> TriggerEventAsync(GreetByeEventType type, IGatewayGuild guild, IMessageGuildChannel channel, IUser user);
+        Task<TriggerEventResult> TriggerEventAsync(GreetByeEventType type, IGatewayGuild guild, IMessageGuildChannel channel, IUser user, CancellationToken ct);
     }
 
     public enum UpdateEventEmbedFooterResult

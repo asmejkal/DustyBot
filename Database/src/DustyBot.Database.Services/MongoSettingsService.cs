@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using DustyBot.Core.Async;
 using DustyBot.Database.Core.Settings;
 using DustyBot.Database.Mongo.Collections.Templates;
-using DustyBot.Database.Mongo.Serializers;
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 namespace DustyBot.Database.Services
@@ -19,104 +16,97 @@ namespace DustyBot.Database.Services
 
         private readonly IMongoDatabase _database;
 
-        static MongoSettingsService()
-        {
-            BsonSerializer.RegisterSerializer(DateTimeSerializer.LocalInstance);
-            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
-            BsonSerializer.RegisterSerializer(new SecureStringSerializer());
-        }
-
         public MongoSettingsService(IMongoDatabase database)
         {
             _database = database;
         }
 
-        public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true)
+        public Task<T> Read<T>(ulong serverId, bool createIfNeeded = true, CancellationToken ct = default)
             where T : IServerSettings, new()
         {
-            return SafeGetDocument(unchecked((long)serverId), _serverSettingsMutex, (typeof(T), serverId), () => Create<T>(serverId), createIfNeeded);
+            return SafeGetDocument(unchecked((long)serverId), _serverSettingsMutex, (typeof(T), serverId), () => Create<T>(serverId), createIfNeeded, ct);
         }
 
-        public async Task<IEnumerable<T>> Read<T>()
+        public async Task<IEnumerable<T>> Read<T>(CancellationToken ct = default)
             where T : IServerSettings
         {
-            var cursor = await _database.GetCollection<T>(typeof(T).Name).Find(Builders<T>.Filter.Empty).ToCursorAsync();
+            var cursor = await _database.GetCollection<T>(typeof(T).Name).Find(Builders<T>.Filter.Empty).ToCursorAsync(ct);
             return cursor.ToEnumerable();
         }
 
-        public async Task Modify<T>(ulong serverId, Action<T> action)
+        public async Task Modify<T>(ulong serverId, Action<T> action, CancellationToken ct = default)
             where T : IServerSettings, new()
         {
             using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
+                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId), ct: ct);
                 action(settings);
-                await UpsertSettings(serverId, settings);
+                await UpsertSettings(serverId, settings, ct);
             }
         }
 
-        public async Task<U> Modify<T, U>(ulong serverId, Func<T, U> action)
+        public async Task<U> Modify<T, U>(ulong serverId, Func<T, U> action, CancellationToken ct = default)
             where T : IServerSettings, new()
         {
             using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
+                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId), ct: ct);
                 var result = action(settings);
-                await UpsertSettings(serverId, settings);
+                await UpsertSettings(serverId, settings, ct);
 
                 return result;
             }
         }
 
-        public async Task Modify<T>(ulong serverId, Func<T, Task> action)
+        public async Task Modify<T>(ulong serverId, Func<T, Task> action, CancellationToken ct = default)
             where T : IServerSettings, new()
         {
             using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
+                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId), ct: ct);
                 await action(settings);
-                await UpsertSettings(serverId, settings);
+                await UpsertSettings(serverId, settings, ct);
             }
         }
 
-        public async Task<U> Modify<T, U>(ulong serverId, Func<T, Task<U>> action)
+        public async Task<U> Modify<T, U>(ulong serverId, Func<T, Task<U>> action, CancellationToken ct = default)
             where T : IServerSettings, new()
         {
             using (await _serverSettingsMutex.ClaimAsync((typeof(T), serverId)))
             {
-                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId));
+                var settings = await GetDocument(unchecked((long)serverId), () => Create<T>(serverId), ct: ct);
                 var result = await action(settings);
-                await UpsertSettings(serverId, settings);
+                await UpsertSettings(serverId, settings, ct);
 
                 return result;
             }
         }
 
-        public async Task<T> ReadGlobal<T>()
+        public async Task<T> ReadGlobal<T>(CancellationToken ct = default)
             where T : new()
         {
-            return await SafeGetDocument<T, Type>(unchecked((long)CollectionConstants.GlobalSettingId), _globalSettingsMutex, typeof(T));
+            return await SafeGetDocument<T, Type>(unchecked((long)CollectionConstants.GlobalSettingId), _globalSettingsMutex, typeof(T), ct: ct);
         }
 
-        public async Task ModifyGlobal<T>(Action<T> action)
+        public async Task ModifyGlobal<T>(Action<T> action, CancellationToken ct = default)
             where T : new()
         {
             using (await _globalSettingsMutex.ClaimAsync(typeof(T)))
             {
-                var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId));
+                var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId), ct: ct);
                 action(settings);
-                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings);
+                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings, ct);
             }
         }
 
-        public async Task<U> ModifyGlobal<T, U>(Func<T, U> action)
+        public async Task<U> ModifyGlobal<T, U>(Func<T, U> action, CancellationToken ct = default)
             where T : new()
         {
             using (await _globalSettingsMutex.ClaimAsync(typeof(T)))
             {
-                var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId));
+                var settings = await GetDocument<T>(unchecked((long)CollectionConstants.GlobalSettingId), ct: ct);
                 var result = action(settings);
-                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings);
+                await UpsertSettings(unchecked((long)CollectionConstants.GlobalSettingId), settings, ct);
 
                 return result;
             }
@@ -128,41 +118,42 @@ namespace DustyBot.Database.Services
             _globalSettingsMutex?.Dispose();
         }
 
-        private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true)
+        private async Task<T> GetDocument<T>(long id, Func<Task<T>> creator, bool createIfNeeded = true, CancellationToken ct = default)
         {
             var collection = _database.GetCollection<T>(typeof(T).Name);
-            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync(ct);
             if (settings == null && createIfNeeded)
             {
                 // Create
                 settings = await creator();
-                await collection.InsertOneAsync(settings);
+                await collection.InsertOneAsync(settings, cancellationToken: ct);
             }
 
             return settings;
         }
 
-        private async Task<T> GetDocument<T>(long id, bool createIfNeeded = true)
+        private async Task<T> GetDocument<T>(long id, bool createIfNeeded = true, CancellationToken ct = default)
             where T : new()
         {
-            return await GetDocument(id, () => Task.FromResult(new T()), createIfNeeded);
+            return await GetDocument(id, () => Task.FromResult(new T()), createIfNeeded, ct);
         }
 
-        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, Func<Task<T>> creator, bool createIfNeeded = true)
+        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, Func<Task<T>> creator, bool createIfNeeded = true, CancellationToken ct = default)
+            where TMutexKey : notnull
         {
             var collection = _database.GetCollection<T>(typeof(T).Name);
-            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+            var settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync(ct);
             if (settings == null && createIfNeeded)
             {
                 // Create
-                using (await mutex.ClaimAsync(mutexKey))
+                using (await mutex.ClaimAsync(mutexKey, ct))
                 {
                     collection = _database.GetCollection<T>(typeof(T).Name);
-                    settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+                    settings = await collection.Find(Builders<T>.Filter.Eq("_id", id)).FirstOrDefaultAsync(ct);
                     if (settings == null)
                     {
                         settings = await creator();
-                        await collection.InsertOneAsync(settings);
+                        await collection.InsertOneAsync(settings, cancellationToken: ct);
                     }
                 }
             }
@@ -170,10 +161,11 @@ namespace DustyBot.Database.Services
             return settings;
         }
 
-        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, bool createIfNeeded = true)
-            where T : new()
+        private async Task<T> SafeGetDocument<T, TMutexKey>(long id, KeyedSemaphoreSlim<TMutexKey> mutex, TMutexKey mutexKey, bool createIfNeeded = true, CancellationToken ct = default)
+            where T : new() 
+            where TMutexKey : notnull
         {
-            return await SafeGetDocument(id, mutex, mutexKey, () => Task.FromResult(new T()), createIfNeeded);
+            return await SafeGetDocument(id, mutex, mutexKey, () => Task.FromResult(new T()), createIfNeeded, ct);
         }
 
         private Task<T> Create<T>(ulong serverId)
@@ -184,11 +176,11 @@ namespace DustyBot.Database.Services
             return Task.FromResult(s);
         }
 
-        private Task UpsertSettings<T>(ulong id, T value)
+        private Task UpsertSettings<T>(ulong id, T value, CancellationToken ct = default)
         {
             return _database
                 .GetCollection<T>(typeof(T).Name)
-                .ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)id)), value, new ReplaceOptions() { IsUpsert = true });
+                .ReplaceOneAsync(Builders<T>.Filter.Eq("_id", unchecked((long)id)), value, new ReplaceOptions() { IsUpsert = true }, ct);
         }
     }
 }

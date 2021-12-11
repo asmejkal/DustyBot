@@ -6,7 +6,7 @@ namespace DustyBot.Database.Mongo.Collections
 {
     public class ReactionsSettings : BaseServerSettings
     {
-        public List<Reaction> Reactions { get; set; } = new List<Reaction>();
+        public List<Reaction> Reactions { get; set; } = new();
         public int NextReactionId { get; set; } = 1;
         public ulong ManagerRole { get; set; }
         public bool IsPublic { get; set; }

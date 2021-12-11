@@ -4,6 +4,6 @@ namespace DustyBot.Database.Mongo.Collections
 {
     public class BotSettings : BaseServerSettings
     {
-        public string CommandPrefix { get; set; }
+        public string? CommandPrefix { get; set; }
     }
 }

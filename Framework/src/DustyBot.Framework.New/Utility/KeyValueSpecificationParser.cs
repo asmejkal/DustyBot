@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 
@@ -19,17 +20,24 @@ namespace DustyBot.Framework.Utility
         {
             public class Match
             {
-                public string Name { get; set;  }
+                public string? Name { get; }
                 public string Value { get; set; }
+
+                public Match(string? name, string value)
+                {
+                    Name = name;
+                    Value = value ?? throw new ArgumentNullException(nameof(value));
+                }
             }
 
+            [MemberNotNullWhen(false, nameof(ErrorPart))]
             public bool Succeeded { get; }
             public ErrorType Error { get; }
-            public KeyValueSpecificationPart ErrorPart { get; }
+            public KeyValueSpecificationPart? ErrorPart { get; }
 
-            public IEnumerable<(KeyValueSpecificationPart Part, Match Match)> Matches { get; }
+            public IEnumerable<PartMatch> Matches { get; }
 
-            public ParseResult(IEnumerable<(KeyValueSpecificationPart, Match)> matches)
+            public ParseResult(IEnumerable<PartMatch> matches)
             {
                 Succeeded = true;
                 Matches = matches;
@@ -40,6 +48,25 @@ namespace DustyBot.Framework.Utility
                 Succeeded = false;
                 Error = error;
                 ErrorPart = errorPart;
+                Matches = Enumerable.Empty<PartMatch>();
+            }
+        }
+
+        public class PartMatch
+        {
+            public KeyValueSpecificationPart Part { get; }
+            public ParseResult.Match Match { get; }
+
+            public PartMatch(KeyValueSpecificationPart part, ParseResult.Match match)
+            {
+                Part = part ?? throw new ArgumentNullException(nameof(part));
+                Match = match ?? throw new ArgumentNullException(nameof(match));
+            }
+
+            public void Deconstruct(out KeyValueSpecificationPart part, out ParseResult.Match match)
+            {
+                part = Part;
+                match = Match;
             }
         }
 
@@ -52,10 +79,10 @@ namespace DustyBot.Framework.Utility
 
         public ParseResult Parse(string specification)
         {
-            var results = new List<(KeyValueSpecificationPart Part, ParseResult.Match Match)>();
-            var current = default((KeyValueSpecificationPart Part, ParseResult.Match Match));
+            var results = new List<PartMatch>();
+            var current = (PartMatch?)null;
 
-            bool AddCurrentResult()
+            bool AddCurrentResult(PartMatch current)
             {
                 current.Match.Value = current.Match.Value.Trim();
                 if (current.Part.Validator != null && !current.Part.Validator(current.Match.Name, current.Match.Value))
@@ -74,19 +101,14 @@ namespace DustyBot.Framework.Utility
 
                 if (match != null)
                 {
-                    if (current != default && !AddCurrentResult())
+                    if (current != null && !AddCurrentResult(current))
                         return new ParseResult(ErrorType.ValidationFailed, current.Part);
 
-                    current = (match.Part, new ParseResult.Match());
-                    if (match.Part.IsNameAccepted)
-                    {
-                        current.Match.Name = match.Match.Groups[1].Value;
-                        current.Match.Value = match.Match.Groups[2].Value;
-                    }
-                    else
-                    {
-                        current.Match.Value = match.Match.Groups[1].Value;
-                    }
+                    var newMatch = match.Part.IsNameAccepted
+                        ? new ParseResult.Match(match.Match.Groups[1].Value, match.Match.Groups[2].Value)
+                        : new ParseResult.Match(null, match.Match.Groups[1].Value);
+
+                    current = new PartMatch(match.Part, newMatch);
                 }
                 else if (current != default)
                 {
@@ -94,7 +116,7 @@ namespace DustyBot.Framework.Utility
                 }
             }
 
-            if (current != default && !AddCurrentResult())
+            if (current != null && !AddCurrentResult(current))
                 return new ParseResult(ErrorType.ValidationFailed, current.Part);
 
             var missingPart = _parts.FirstOrDefault(x => x.IsRequired && !results.Any(y => y.Part == x));

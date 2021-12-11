@@ -7,6 +7,6 @@ namespace DustyBot.Database.Mongo.Collections
     {
         public bool IgnoreActiveChannel { get; set; }
 
-        public HashSet<ulong> BlockedUsers { get; set; } = new HashSet<ulong>();
+        public HashSet<ulong> BlockedUsers { get; set; } = new();
     }
 }

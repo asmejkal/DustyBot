@@ -160,7 +160,7 @@ namespace DustyBot.Service.Modules
 
             bool truncateWarning = events.Count() > settings.UpcomingEventsDisplayLimit;
             if (truncateWarning)
-                events = events.SkipLast().ToList();
+                events = events.SkipLast(1).ToList();
 
             if (events.Count() <= 0)
             {

@@ -20,14 +20,14 @@ namespace DustyBot.Framework.Logging
 
         public LoggerScopeBuilder With(string key, object value)
         {
-            _correlationIds.Add(key, value);
+            _correlationIds[key] = value;
             return this;
         }
 
         public LoggerScopeBuilder With(IEnumerable<KeyValuePair<string, object>> fields)
         {
             foreach (var (key, value) in fields)
-                _correlationIds.Add(key, value);
+                _correlationIds[key] = value;
 
             return this;
         }

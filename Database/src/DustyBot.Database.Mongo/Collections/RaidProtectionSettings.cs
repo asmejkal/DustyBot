@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using DustyBot.Database.Mongo.Collections.Templates;
 using DustyBot.Database.Mongo.Models;
 using MongoDB.Bson.Serialization.Attributes;
-using MongoDB.Bson.Serialization.Options;
 
 namespace DustyBot.Database.Mongo.Collections
 {
@@ -20,8 +19,7 @@ namespace DustyBot.Database.Mongo.Collections
         public bool Enabled { get; set; }
         public ulong LogChannel { get; set; }
 
-        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
-        public Dictionary<RaidProtectionRuleType, RaidProtectionRule> Exceptions { get; set; } = new Dictionary<RaidProtectionRuleType, RaidProtectionRule>();
+        public Dictionary<RaidProtectionRuleType, RaidProtectionRule> Exceptions { get; set; } = new();
 
         [BsonIgnore]
         public MassMentionsRule MassMentionsRule => GetRule<MassMentionsRule>(RaidProtectionRuleType.MassMentionsRule);

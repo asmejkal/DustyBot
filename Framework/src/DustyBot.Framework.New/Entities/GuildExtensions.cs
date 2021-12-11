@@ -15,7 +15,17 @@ namespace DustyBot.Framework.Entities
         {
             var member = guild.GetMember(guild.Client.CurrentUser.Id);
             var roles = member.GetRoles();
+            return Discord.Permissions.CalculatePermissions(guild, channel, member, roles.Values);
+        }
 
+        public static async Task<ChannelPermissions?> FetchBotPermissionsAsync(
+            this IGatewayGuild guild, 
+            IGuildChannel channel,
+            IRestRequestOptions? options = null, 
+            CancellationToken cancellationToken = default)
+        {
+            var member = await guild.FetchMemberAsync(guild.Client.CurrentUser.Id, options, cancellationToken);
+            var roles = member.GetRoles();
             return Discord.Permissions.CalculatePermissions(guild, channel, member, roles.Values);
         }
 
@@ -47,5 +57,14 @@ namespace DustyBot.Framework.Entities
 
         public static IEnumerable<CachedTextChannel> GetTextChannels(this IGatewayGuild guild) =>
             guild.GetChannels(ChannelType.Text).Select(x => x.Value).OfType<CachedTextChannel>();
+
+        public static CachedGuildChannel? GetChannel(this IGatewayGuild guild, Snowflake channelId, ChannelType type)
+        {
+            var result = guild.GetChannel(channelId);
+            return result?.Type == type ? result : null;
+        }
+
+        public static CachedTextChannel? GetTextChannel(this IGatewayGuild guild, Snowflake channelId) =>
+            guild.GetChannel(channelId, ChannelType.Text) as CachedTextChannel;
     }
 }

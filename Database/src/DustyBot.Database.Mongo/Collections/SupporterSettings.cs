@@ -6,6 +6,6 @@ namespace DustyBot.Database.Mongo.Collections
 {
     public class SupporterSettings : BaseGlobalSettings
     {
-        public List<Supporter> Supporters { get; set; } = new List<Supporter>();
+        public List<Supporter> Supporters { get; set; } = new();
     }
 }

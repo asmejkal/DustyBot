@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Disqord.Bot;
 using DustyBot.Core.Formatting;
@@ -18,6 +19,9 @@ namespace DustyBot.Framework.Commands.TypeParsers
 
         public override ValueTask<TypeParserResult<Uri>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
         {
+            if (value.Length > 2 && value.First() == '<' && value.Last() == '>')
+                value = value[1..^1];
+            
             if (!Uri.TryCreate(value, UriKind.Absolute, out var result))
                 return Failure("Invalid URL.");
 

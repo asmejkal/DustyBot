@@ -18,6 +18,9 @@ namespace DustyBot.Framework.Commands.Parsing
         static CommandServiceExtensions()
         {
             var method = typeof(CommandService).GetMethod("ParseArgumentAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (method == null)
+                throw new InvalidOperationException("Method ParseArgumentAsync not found");
+
             ParseArgumentAsyncDelegateInstance = (ParseArgumentAsyncDelegate)Delegate.CreateDelegate(typeof(ParseArgumentAsyncDelegate), method);
         }
 

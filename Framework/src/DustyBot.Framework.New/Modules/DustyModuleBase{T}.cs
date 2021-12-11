@@ -39,5 +39,11 @@ namespace DustyBot.Framework.Modules
             message.AllowedMentions ??= LocalAllowedMentions.None;
             return new(Context, message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId));
         }
+
+        protected override DiscordResponseCommandResult Response(LocalMessage message)
+        {
+            message.AllowedMentions ??= LocalAllowedMentions.None;
+            return new DiscordCacheEnabledResponseCommandResult(Context, message);
+        }
     }
 }

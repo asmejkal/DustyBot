@@ -6,7 +6,7 @@ namespace DustyBot.Database.Mongo.Collections
 {
     public class StarboardSettings : BaseServerSettings
     {
-        public List<Starboard> Starboards { get; set; } = new List<Starboard>();
+        public List<Starboard> Starboards { get; set; } = new();
         public int NextId { get; set; } = 1;
     }
 }

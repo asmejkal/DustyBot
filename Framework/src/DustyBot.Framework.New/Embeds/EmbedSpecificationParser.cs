@@ -7,12 +7,12 @@ namespace DustyBot.Framework.Embeds
 {
     public static class EmbedSpecificationParser
     {
-        public static bool TryParse(string specification, out LocalEmbed embed, out string error)
+        public static bool TryParse(string specification, out LocalEmbed embed, out string? error)
         {
             embed = new LocalEmbed();
             error = null;
 
-            var uriValidator = new Func<string, string, bool>((name, value) => Uri.TryCreate(value, UriKind.Absolute, out _));
+            var uriValidator = new Func<string?, string, bool>((name, value) => Uri.TryCreate(value, UriKind.Absolute, out _));
             var parts = new[]
             {
                 new KeyValueSpecificationPart("title", true, false),

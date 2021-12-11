@@ -10,16 +10,16 @@ namespace DustyBot.Database.Mongo.Collections
     {
         public ulong RoleChannel { get; set; }
         public bool ClearRoleChannel { get; set; }
-        public List<AssignableRole> AssignableRoles { get; set; } = new List<AssignableRole>();
+        public List<AssignableRole> AssignableRoles { get; set; } = new();
 
-        public HashSet<ulong> AutoAssignRoles { get; set; } = new HashSet<ulong>();
+        public HashSet<ulong> AutoAssignRoles { get; set; } = new();
 
         public bool PersistentAssignableRoles { get; set; }
-        public List<ulong> AdditionalPersistentRoles { get; set; } = new List<ulong>();
+        public List<ulong> AdditionalPersistentRoles { get; set; } = new();
 
-        public Dictionary<string, GroupSettings> GroupSettings { get; set; } = new Dictionary<string, GroupSettings>();
+        [BsonDictionaryOptions(Representation = DictionaryRepresentation.Document)]
+        public Dictionary<string, GroupSettings> GroupSettings { get; set; } = new();
 
-        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
-        public Dictionary<ulong, List<ulong>> PersistentRolesData { get; set; } = new Dictionary<ulong, List<ulong>>();
+        public Dictionary<ulong, List<ulong>> PersistentRolesData { get; set; } = new();
     }
 }

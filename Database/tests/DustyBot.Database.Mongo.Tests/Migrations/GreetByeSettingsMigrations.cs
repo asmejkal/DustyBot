@@ -1,5 +1,6 @@
 ﻿using DustyBot.Database.Mongo.Collections.GreetBye.Migrations;
 using DustyBot.Database.Mongo.Tests.Utility;
+using DustyBot.Database.Mongo.Utility;
 using MongoDB.Bson;
 using Xunit;
 
@@ -20,18 +21,18 @@ namespace DustyBot.Database.Mongo.Tests.Migrations
 
             var after = new BsonDocument()
             {
-                ["Events"] = new BsonDocument()
+                ["Events"] = new BsonArray()
                 {
-                    ["Greet"] = new BsonDocument()
+                    new BsonArrayOfDocumentsDictionaryItem("Greet", new BsonDocument()
                     {
                         ["ChannelId"] = unchecked((long)ulong.MaxValue - 500),
                         ["Text"] = "greetMessage"
-                    },
-                    ["Bye"] = new BsonDocument()
+                    }),
+                    new BsonArrayOfDocumentsDictionaryItem("Bye", new BsonDocument()
                     {
                         ["ChannelId"] = unchecked((long)ulong.MaxValue - 1000),
                         ["Text"] = "byeMessage"
-                    }
+                    })
                 }
             };
 
@@ -55,9 +56,9 @@ namespace DustyBot.Database.Mongo.Tests.Migrations
 
             var after = new BsonDocument()
             {
-                ["Events"] = new BsonDocument()
+                ["Events"] = new BsonArray()
                 {
-                    ["Greet"] = new BsonDocument()
+                    new BsonArrayOfDocumentsDictionaryItem("Greet", new BsonDocument()
                     {
                         ["ChannelId"] = unchecked((long)ulong.MaxValue - 500),
                         ["Embed"] = new BsonDocument()
@@ -67,7 +68,7 @@ namespace DustyBot.Database.Mongo.Tests.Migrations
                             ["Body"] = "greetBody",
                             ["Color"] = 0xFFFFFF
                         }
-                    }
+                    })
                 }
             };
 

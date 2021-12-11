@@ -14,7 +14,7 @@ namespace DustyBot.Service.SlashModules
             var app = await Bot.FetchCurrentApplicationAsync();
 
             var commands = await Bot.FetchGuildApplicationCommandsAsync(app.Id, 272435615327322112);
-            // if (!commands.Any(x => x is ISlashCommand && x.Name == "test"))
+            if (!commands.Any(x => x is ISlashCommand && x.Name == "test"))
             {
                 var command = new LocalSlashCommand()
                     .WithName("test")

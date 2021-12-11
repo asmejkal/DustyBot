@@ -1,4 +1,5 @@
 ﻿using System;
+using DustyBot.Database.Mongo.Utility;
 using Mongo.Migration.Migrations.Document;
 using MongoDB.Bson;
 
@@ -16,7 +17,7 @@ namespace DustyBot.Database.Mongo.Collections.GreetBye.Migrations
 
         public override void Up(BsonDocument document)
         {
-            document["Events"] = new BsonDocument();
+            document["Events"] = new BsonArray();
             if (document.TryGetValue("GreetChannel", out var greetChannel))
             {
                 var greetSetting = new BsonDocument()
@@ -33,7 +34,7 @@ namespace DustyBot.Database.Mongo.Collections.GreetBye.Migrations
                     greetSetting["Embed"] = greetEmbed;
                 }
 
-                document["Events"].AsBsonDocument["Greet"] = greetSetting;
+                document["Events"].AsBsonArray.Add(new BsonArrayOfDocumentsDictionaryItem("Greet", greetSetting));
             }
 
             document.Remove("GreetChannel");
@@ -44,11 +45,11 @@ namespace DustyBot.Database.Mongo.Collections.GreetBye.Migrations
                 && document.TryGetValue("ByeMessage", out var byeMessage)
                 && !string.IsNullOrEmpty(byeMessage.ToString()))
             {
-                document["Events"]["Bye"] = new BsonDocument()
+                document["Events"].AsBsonArray.Add(new BsonArrayOfDocumentsDictionaryItem("Bye", new BsonDocument()
                 {
                     ["ChannelId"] = byeChannel,
                     ["Text"] = byeMessage
-                };
+                }));
             }
 
             document.Remove("ByeChannel");

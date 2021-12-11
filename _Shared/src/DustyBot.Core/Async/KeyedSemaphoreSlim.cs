@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 namespace DustyBot.Core.Async
 {
     public sealed class KeyedSemaphoreSlim<TKey> : IDisposable
+        where TKey : notnull
     {
         private class KeyLockScope : IDisposable
         {

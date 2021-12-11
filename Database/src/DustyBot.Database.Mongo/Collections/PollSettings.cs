@@ -6,6 +6,6 @@ namespace DustyBot.Database.Mongo.Collections
 {
     public class PollSettings : BaseServerSettings
     {
-        public List<Poll> Polls { get; set; } = new List<Poll>();
+        public List<Poll> Polls { get; set; } = new();
     }
 }

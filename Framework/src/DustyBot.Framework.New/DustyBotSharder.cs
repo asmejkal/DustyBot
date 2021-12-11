@@ -54,6 +54,9 @@ namespace DustyBot.Framework
 
         private static void ProcessDefaultAttributes(ModuleBuilder moduleBuilder)
         {
+            foreach (var submodule in moduleBuilder.Submodules)
+                ProcessDefaultAttributes(submodule);
+
             var context = new NullabilityInfoContext();
             var commandInfos = moduleBuilder.Type.GetTypeInfo().DeclaredMethods.Where(x => x.GetCustomAttribute<CommandAttribute>() != null);
 
@@ -79,6 +82,9 @@ namespace DustyBot.Framework
 
         private static void ProcessRemarkAttributes(ModuleBuilder moduleBuilder)
         {
+            foreach (var submodule in moduleBuilder.Submodules)
+                ProcessRemarkAttributes(submodule);
+
             string Build(string remarks, IEnumerable<Attribute> attributes)
             {
                 var builder = new StringBuilder(remarks);
@@ -99,6 +105,9 @@ namespace DustyBot.Framework
 
         private static void ProcessVerbCommandAttributes(ModuleBuilder moduleBuilder)
         {
+            foreach (var submodule in moduleBuilder.Submodules)
+                ProcessVerbCommandAttributes(submodule);
+
             var commandInfos = moduleBuilder.Type.GetTypeInfo().DeclaredMethods.Where(x => x.GetCustomAttribute<CommandAttribute>() != null);
             var verbCommands = moduleBuilder.Commands
                 .Zip(commandInfos)
@@ -119,13 +128,26 @@ namespace DustyBot.Framework
             {
                 foreach (var group in verbCommands.Where(x => x.Verbs!.Count > level).GroupBy(x => x.Verbs!.Take(level + 1), comparer))
                 {
-                    modules[group.Key.SkipLast(1)].AddSubmodule(x =>
+                    var parent = modules[group.Key.SkipLast(1)];
+                    var existing = parent.Submodules.FirstOrDefault(x => x.Aliases.Contains(group.Key.Last()));
+                    var commands = group.Where(x => x.Verbs!.Count == level + 1).Select(x => x.Command);
+                    if (existing == null)
                     {
-                        x.Commands.AddRange(group.Where(x => x.Verbs!.Count == level + 1).Select(x => x.Command));
-                        x.AddAlias(group.Key.Last());
+                        parent.AddSubmodule(x =>
+                        {
+                            x.AddAlias(group.Key.Last());
+                            x.Commands.AddRange(commands);
+                            modules.Add(group.Key, x);
+                        });
+                    }
+                    else
+                    {
+                        if (existing.Commands.SelectMany(x => x.Aliases).Intersect(commands.SelectMany(x => x.Aliases)).Any())
+                            throw new InvalidOperationException($"An existing command alias overlaps with a verb command in module {existing.Type?.Name ?? existing.Name}");
 
-                        modules.Add(group.Key, x);
-                    });
+                        existing.Commands.AddRange(commands);
+                        modules.Add(group.Key, existing);
+                    }
                 }
             }
         }

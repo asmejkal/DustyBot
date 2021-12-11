@@ -27,5 +27,14 @@ namespace DustyBot.Framework.Logging
 
         public LoggerScopeBuilder WithArgs(MemberLeftEventArgs e) =>
             WithGuild(e.GuildId).WithUser(e.User);
+
+        public LoggerScopeBuilder WithArgs(MessageDeletedEventArgs e) => e switch
+        {
+            { GuildId: not null } => WithGuild(e.GuildId.Value).WithMessage(e.Message),
+            _ => WithMessage(e.Message)
+        };
+
+        public LoggerScopeBuilder WithArgs(MessagesDeletedEventArgs e) =>
+            WithGuild(e.GuildId).WithChannel(e.ChannelId);
     }
 }

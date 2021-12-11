@@ -17,7 +17,7 @@ namespace DustyBot.Core.Async
             }
         };
 
-        public static void FireForget(Func<Task> action, Action<Exception> handler = null)
+        public static void FireForget(Func<Task> action, Action<Exception>? handler = null)
         {
             if (action == null)
                 throw new ArgumentNullException(nameof(action));
@@ -33,7 +33,7 @@ namespace DustyBot.Core.Async
             else
             {
                 task.ContinueWith(
-                    t => handler(t.Exception.GetBaseException()),
+                    t => handler(t.Exception!.GetBaseException()),
                     TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnFaulted);
             }
         }

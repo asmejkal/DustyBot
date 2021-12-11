@@ -58,6 +58,8 @@ namespace DustyBot.Service
                 GatewayIntent.GuildTyping |
                 GatewayIntent.Guilds;
 
+            configuration.Intents = configuration.Intents.Value | GatewayIntent.Members;
+
             if (options.TotalShards != null)
             {
                 if (options.Shards?.Any() ?? false)
@@ -69,6 +71,8 @@ namespace DustyBot.Service
             configuration.Token = options.Token;
             configuration.Prefixes = new[] { botOptions.DefaultCommandPrefix };
             configuration.UseMentionPrefix = true;
+
+            configuration.ServiceAssemblies = null;
 
             var activity = new LocalActivity($"{botOptions.DefaultCommandPrefix}help | {webOptions.WebsiteShorthand}", 
                 Disqord.ActivityType.Listening);
@@ -84,9 +88,11 @@ namespace DustyBot.Service
 
         public static void ConfigureCaching(this DefaultGatewayCacheProviderConfiguration configuration)
         {
-            configuration.SupportedTypes.Remove(typeof(CachedSharedUser));
+            configuration.MessagesPerChannel = 200;
 
-            configuration.SupportedNestedTypes.Remove(typeof(CachedMember));
+            // configuration.SupportedTypes.Remove(typeof(CachedSharedUser));
+
+            // configuration.SupportedNestedTypes.Remove(typeof(CachedMember));
             configuration.SupportedNestedTypes.Remove(typeof(CachedVoiceState));
             configuration.SupportedNestedTypes.Remove(typeof(CachedPresence));
         }

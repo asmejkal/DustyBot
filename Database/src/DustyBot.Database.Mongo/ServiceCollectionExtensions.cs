@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using DustyBot.Database.Mongo.Configuration;
+using DustyBot.Database.Mongo.Conventions;
+using DustyBot.Database.Mongo.Migrations;
+using DustyBot.Database.Mongo.Serializers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Mongo.Migration.Startup;
 using Mongo.Migration.Startup.DotNetCore;
@@ -21,6 +21,9 @@ namespace DustyBot.Database.Mongo
 
             services.AddSingleton<IMongoClient>(x =>
             {
+                ConventionsRegistrar.RegisterDefaults();
+                SerializersRegistrar.RegisterDefaults();
+
                 var options = x.GetRequiredService<IOptions<MongoDatabaseOptions>>().Value;
                 var url = MongoUrl.Create(options.ConnectionString);
                 return new MongoClient(url);
@@ -33,10 +36,19 @@ namespace DustyBot.Database.Mongo
                 return x.GetRequiredService<IMongoClient>().GetDatabase(url.DatabaseName);
             });
 
-            services.AddMigration(new MongoMigrationSettings()
+            services.AddMigration();
+            services.Replace(ServiceDescriptor.Singleton<IMongoMigrationSettings>(x =>
             {
-                DatabaseMigrationVersion = DatabaseConstants.RuntimeVersion
-            });
+                var options = x.GetRequiredService<IOptions<MongoDatabaseOptions>>().Value;
+                return new MongoMigrationSettings()
+                {
+                    DatabaseMigrationVersion = DatabaseConstants.RuntimeVersion,
+                    ConnectionString = options.ConnectionString,
+                    Database = MongoUrl.Create(options.ConnectionString).DatabaseName
+                };
+            }));
+
+            services.AddHostedService<MigrationsRunner>();
 
             return services;
         }

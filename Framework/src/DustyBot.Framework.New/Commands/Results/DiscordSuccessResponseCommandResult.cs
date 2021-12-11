@@ -4,7 +4,7 @@ using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Commands.Results
 {
-    public class DiscordSuccessResponseCommandResult : DiscordResponseCommandResult
+    public class DiscordSuccessResponseCommandResult : DiscordCacheEnabledResponseCommandResult
     {
         public DiscordSuccessResponseCommandResult(DiscordCommandContext context, LocalMessage message)
             : base(context, message)

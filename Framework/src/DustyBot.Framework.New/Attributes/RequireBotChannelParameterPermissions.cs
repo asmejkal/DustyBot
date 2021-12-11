@@ -23,10 +23,10 @@ namespace DustyBot.Framework.Attributes
         {
             var channel = (IGuildChannel)argument;
             var permissions = context.Guild.GetBotPermissions(channel);
-            
+
             return permissions.Has(Permissions) ?
                 Success() :
-                Failure($"The bot is missing permissions in {Mention.Channel(channel)} ({Permissions - permissions}).");
+                Failure($"The bot is missing permissions in {Mention.Channel(channel)} ({Permissions & (~permissions)}).");
         }
     }
 }

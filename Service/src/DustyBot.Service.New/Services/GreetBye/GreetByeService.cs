@@ -42,10 +42,9 @@ namespace DustyBot.Service.Services.GreetBye
             return Task.CompletedTask;
         }
 
-        public Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, string message)
+        public Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, string message, CancellationToken ct)
         {
-            return _settings.Modify(guildId, (GreetByeSettings s) =>
-                s.Events[type] = new(channel.Id, message));
+            return _settings.Modify(guildId, (GreetByeSettings s) => s.Events[type] = new(channel.Id, message), ct);
         }
 
         public Task SetEventEmbedAsync(
@@ -56,13 +55,15 @@ namespace DustyBot.Service.Services.GreetBye
             string body,
             Uri? image = null,
             Color? color = null,
-            string? footer = null)
+            string? footer = null, 
+            CancellationToken ct = default)
         {
-            return _settings.Modify(guildId, (GreetByeSettings s) => 
-                s.Events[type] = new(channel.Id, new GreetByeEmbed(title, body, image, color?.RawValue, footer)));
+            return _settings.Modify(guildId, 
+                (GreetByeSettings s) => s.Events[type] = new(channel.Id, new GreetByeEmbed(title, body, image, color?.RawValue, footer)),
+                ct);
         }
 
-        public Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer)
+        public Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer, CancellationToken ct)
         {
             return _settings.Modify(guildId, (GreetByeSettings s) =>
             {
@@ -71,25 +72,26 @@ namespace DustyBot.Service.Services.GreetBye
 
                 setting.Embed.Footer = footer;
                 return UpdateEventEmbedFooterResult.Success;
-            });
+            }, ct);
         }
 
-        public Task DisableEventAsync(GreetByeEventType type, Snowflake guildId)
+        public Task DisableEventAsync(GreetByeEventType type, Snowflake guildId, CancellationToken ct)
         {
-            return _settings.Modify(guildId, (GreetByeSettings s) => s.Events.Remove(type));
+            return _settings.Modify(guildId, (GreetByeSettings s) => s.Events.Remove(type), ct);
         }
 
         public async Task<TriggerEventResult> TriggerEventAsync(
             GreetByeEventType type, 
             IGatewayGuild guild, 
             IMessageGuildChannel channel, 
-            IUser user)
+            IUser user, 
+            CancellationToken ct)
         {
             var settings = await _settings.Read<GreetByeSettings>(guild.Id, false);
             if (settings == null || !settings.Events.TryGetValue(type, out var setting))
                 return TriggerEventResult.EventNotSet;
 
-            return await TriggerEventAsync(setting, guild, channel.Id, user);
+            return await TriggerEventAsync(setting, guild, channel.Id, user, ct);
         }
 
         public override void Dispose()
@@ -103,7 +105,7 @@ namespace DustyBot.Service.Services.GreetBye
             try
             {
                 using var scope = Logger.BuildScope(x => x.WithArgs(e));
-                await HandleEventAsync(GreetByeEventType.Greet, e.GuildId, e.Member);
+                await HandleEventAsync(GreetByeEventType.Greet, e.GuildId, e.Member, Bot.StoppingToken);
             }
             catch (Exception ex)
             {
@@ -116,7 +118,7 @@ namespace DustyBot.Service.Services.GreetBye
             try
             {
                 using var scope = Logger.BuildScope(x => x.WithArgs(e));
-                await HandleEventAsync(GreetByeEventType.Bye, e.GuildId, e.User);
+                await HandleEventAsync(GreetByeEventType.Bye, e.GuildId, e.User, Bot.StoppingToken);
             }
             catch (Exception ex)
             {
@@ -124,17 +126,22 @@ namespace DustyBot.Service.Services.GreetBye
             }
         }
 
-        private async ValueTask HandleEventAsync(GreetByeEventType type, Snowflake guildId, IUser user)
+        private async ValueTask HandleEventAsync(GreetByeEventType type, Snowflake guildId, IUser user, CancellationToken ct)
         {
-            var settings = await _settings.Read<GreetByeSettings>(guildId, false);
-            if (settings == null || !settings.Events.TryGetValue(GreetByeEventType.Greet, out var setting))
+            var settings = await _settings.Read<GreetByeSettings>(guildId, false, ct);
+            if (settings == null || !settings.Events.TryGetValue(type, out var setting))
                 return;
 
             if (_autobannedUsers.ContainsKey((guildId, user.Id)))
                 return;
 
             var guild = Bot.GetGuildOrThrow(guildId);
-            var channel = guild.GetChannelOrThrow(setting.ChannelId);
+            var channel = guild.GetChannel(setting.ChannelId);
+            if (channel == null)
+            {
+                Logger.LogInformation("Can't send {GreetByeEventType} message because the channel was not found", type);
+                return;
+            }
 
             using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithChannel(channel));
             if (!guild.GetBotPermissions(channel).SendMessages)
@@ -144,7 +151,7 @@ namespace DustyBot.Service.Services.GreetBye
             }
 
             Logger.LogInformation("Handling event {GreetByeEventType}", type);
-            await TriggerEventAsync(setting, guild, channel.Id, user);
+            await TriggerEventAsync(setting, guild, channel.Id, user, ct);
         }
 
         private void HandleUserAutobanned(object? sender, (Snowflake GuildId, Snowflake UserId) e)
@@ -161,7 +168,8 @@ namespace DustyBot.Service.Services.GreetBye
             GreetByeEventSetting setting,
             IGatewayGuild guild, 
             Snowflake channelId, 
-            IUser user)
+            IUser user, 
+            CancellationToken ct)
         {
             var message = new LocalMessage();
             if (setting.Text != default)
@@ -171,7 +179,7 @@ namespace DustyBot.Service.Services.GreetBye
             else
                 return TriggerEventResult.EventNotSet;
 
-            await Bot.SendMessageAsync(channelId, message);
+            await Bot.SendMessageAsync(channelId, message, cancellationToken: ct);
             return TriggerEventResult.Success;
         }
     }
