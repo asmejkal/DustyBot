@@ -3,10 +3,10 @@ using Disqord.Bot;
 using Disqord.Gateway;
 using Qmmands;
 
-namespace DustyBot.Framework.Attributes
+namespace DustyBot.Framework.Commands.Attributes
 {
     /// <summary>
-    /// Specifies that the module or command can only be executed by authors with the Administrator permission.
+    /// Specifies that the module or command can only be executed by guild administrators.
     /// </summary>
     public class RequireAuthorAdministrator : DiscordGuildCheckAttribute
     {

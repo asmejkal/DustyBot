@@ -19,21 +19,22 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="HtmlAgilityPack" Version="1.8.4" />
-		<PackageReference Include="Markdig" Version="0.23.0" />
+		<PackageReference Include="HtmlAgilityPack" Version="1.11.39" />
+		<PackageReference Include="Markdig" Version="0.26.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="6.0.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.8" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.8" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.8" />
-		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.9.10" />
-		<PackageReference Include="Serilog.Extensions.Hosting" Version="3.1.0" />
-		<PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
-		<PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
-		<PackageReference Include="Serilog.Sinks.Elasticsearch" Version="8.4.1" />
-		<PackageReference Include="SpotifyAPI.Web" Version="5.1.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.14.0" />
+		<PackageReference Include="Serilog.Extensions.Hosting" Version="4.2.0" />
+		<PackageReference Include="Serilog.Extensions.Logging" Version="3.1.0" />
+		<PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
+		<PackageReference Include="Serilog.Sinks.Elasticsearch" Version="8.5.0-alpha0003" />
+		<PackageReference Include="SpotifyAPI.Web" Version="6.2.2" />
 		<PackageReference Include="NReco.Text.AhoCorasickDoubleArrayTrie" Version="1.0.2" />
 		<PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
 			<PrivateAssets>all</PrivateAssets>

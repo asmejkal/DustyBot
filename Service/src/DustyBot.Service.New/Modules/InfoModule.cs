@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
 using Disqord.Rest;
-using DustyBot.Framework.Attributes;
+using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Modules;
 using Qmmands;

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DustyBot.Framework.Attributes
+namespace DustyBot.Framework.Commands.Attributes
 {
     [AttributeUsage(AttributeTargets.Parameter)]
     public class DefaultAttribute : Attribute

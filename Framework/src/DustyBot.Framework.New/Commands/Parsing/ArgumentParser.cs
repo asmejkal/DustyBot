@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DustyBot.Core.Parsing;
-using DustyBot.Framework.Attributes;
+using DustyBot.Framework.Commands.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Qmmands;
 
@@ -18,7 +18,7 @@ namespace DustyBot.Framework.Commands.Parsing
             public Dictionary<Parameter, object?> Results { get; } = new();
             public int TotalTokenCount { get; }
 
-            public Dictionary<(Parameter, Token), (bool IsSuccessful, object? Result)> ParseResultCache { get; } = new();
+            public Dictionary<(Parameter, Token), (IResult Result, object? Value)> ParseResultCache { get; } = new();
 
             public CommandParsingContext(CommandContext commandContext, CommandService commandService, int totalTokenCount)
             {
@@ -37,11 +37,11 @@ namespace DustyBot.Framework.Commands.Parsing
                     if (!Results.TryGetValue(param, out var values) || values is not List<object?> valuesList)
                         Results.Add(param, valuesList = new List<object?>());
 
-                    valuesList.Add(value.Result);
+                    valuesList.Add(value.Value);
                 }
                 else
                 {
-                    Results.Add(param, value.Result);
+                    Results.Add(param, value.Value);
                 }
             }
         }
@@ -74,7 +74,7 @@ namespace DustyBot.Framework.Commands.Parsing
                 count++;
                 if (tokensQueue.Count <= 0)
                 {
-                    if (param.IsOptional || param.Attributes.Any(x => x is DefaultAttribute))
+                    if (param.HasDefaultValue())
                     {
                         if (!peek)
                             context.Results.Add(param, param.DefaultValue);
@@ -122,7 +122,7 @@ namespace DustyBot.Framework.Commands.Parsing
                 // Check if the token fits the parameter description
                 if (!(remainderMatch ?? await CheckToken(token, param, context)))
                 {
-                    if (param.IsOptional || param.Attributes.Any(x => x is DefaultAttribute))
+                    if (param.HasDefaultValue())
                     {
                         if (!peek)
                             context.Results.Add(param, param.DefaultValue);
@@ -131,13 +131,17 @@ namespace DustyBot.Framework.Commands.Parsing
                     }
                     else
                     {
-                        return new InvalidParameterArgumentParserResult(context.Results, context.TotalTokenCount - tokensQueue.Count + 1, token.Value);
+                        return new InvalidParameterArgumentParserResult(
+                            context.Results, 
+                            context.TotalTokenCount - tokensQueue.Count + 1, 
+                            token.Value, 
+                            context.ParseResultCache[(param, token)].Result);
                     }
                 }
 
                 // If the parameter is optional, peek forward to check if we aren't stealing it from a required parameter
                 var lastParam = parameters.Count() == count;
-                if ((param.IsOptional || param.Attributes.Any(x => x is DefaultAttribute)) && !lastParam)
+                if (param.HasDefaultValue() && !lastParam)
                 {
                     // Perform a testing run in the state we would be in if we accepted this token
                     var remainingTokens = param.IsRemainder ? Enumerable.Empty<Token>() : tokensQueue.Skip(1);
@@ -188,21 +192,18 @@ namespace DustyBot.Framework.Commands.Parsing
         private static async Task<bool> CheckToken(Token token, Parameter parameter, CommandParsingContext context)
         {
             if (context.ParseResultCache.TryGetValue((parameter, token), out var result))
-                return result.IsSuccessful;
+                return result.Result.IsSuccessful;
 
             var (failedResult, parsedArgument) = await context.CommandService.ParseArgumentAsync(parameter, token.Value, context.CommandContext);
-            if (failedResult == null)
+            if (failedResult != null)
             {
-                var checksResult = await parameter.RunChecksAsync(parsedArgument, context.CommandContext);
-                if (checksResult.IsSuccessful)
-                {
-                    context.ParseResultCache[(parameter, token)] = (true, parsedArgument);
-                    return true;
-                }
+                context.ParseResultCache[(parameter, token)] = (failedResult, null);
+                return false;
             }
 
-            context.ParseResultCache[(parameter, token)] = (false, null);
-            return false;
+            var checksResult = await parameter.RunChecksAsync(parsedArgument, context.CommandContext);
+            context.ParseResultCache[(parameter, token)] = (checksResult, parsedArgument);
+            return checksResult.IsSuccessful;
         }
     }
 }

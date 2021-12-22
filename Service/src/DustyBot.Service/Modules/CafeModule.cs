@@ -53,7 +53,7 @@ namespace DustyBot.Service.Modules
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task AddCafeFeed(ICommand command, CancellationToken ct)
         {
-            if ((await _settings.Read<MediaSettings>(command.GuildId)).DaumCafeFeeds.Count >= ServerFeedLimit)
+            if ((await _settings.Read<YouTubeSettings>(command.GuildId)).DaumCafeFeeds.Count >= ServerFeedLimit)
             {
                 await command.ReplyError("You've reached the maximum amount of Daum Cafe feeds on this server.");
                 return;
@@ -113,7 +113,7 @@ namespace DustyBot.Service.Modules
                 return;
             }
 
-            await _settings.Modify(command.GuildId, (MediaSettings s) =>
+            await _settings.Modify(command.GuildId, (YouTubeSettings s) =>
             {
                 // Remove duplicate feeds
                 s.DaumCafeFeeds.RemoveAll(x => x.CafeId == feed.CafeId && x.BoardId == feed.BoardId && x.TargetChannel == feed.TargetChannel);
@@ -130,7 +130,7 @@ namespace DustyBot.Service.Modules
         [Comment("Run `cafe list` to see IDs for all active feeds.")]
         public async Task RemoveCafeFeed(ICommand command)
         {
-            bool removed = await _settings.Modify(command.GuildId, (MediaSettings s) =>
+            bool removed = await _settings.Modify(command.GuildId, (YouTubeSettings s) =>
             {
                 return s.DaumCafeFeeds.RemoveAll(x => x.Id == (Guid)command["FeedId"]) > 0;
             });
@@ -146,11 +146,11 @@ namespace DustyBot.Service.Modules
         [Parameter("FeedId", ParameterType.Guid)]
         public async Task RemoveCafeFeedGlobal(ICommand command)
         {
-            foreach (var settings in await _settings.Read<MediaSettings>())
+            foreach (var settings in await _settings.Read<YouTubeSettings>())
             {
                 if (settings.DaumCafeFeeds.Any(x => x.Id == command["FeedId"].AsGuid))
                 {
-                    var removed = await _settings.Modify(settings.ServerId, (MediaSettings x) => x.DaumCafeFeeds.RemoveAll(y => y.Id == command["FeedId"].AsGuid));
+                    var removed = await _settings.Modify(settings.ServerId, (YouTubeSettings x) => x.DaumCafeFeeds.RemoveAll(y => y.Id == command["FeedId"].AsGuid));
 
                     await command.ReplySuccess($"Feed has been removed from server `{settings.ServerId}`.");
                     return;
@@ -164,7 +164,7 @@ namespace DustyBot.Service.Modules
         [Permissions(GuildPermission.Administrator)]
         public async Task ListCafeFeeds(ICommand command)
         {
-            var settings = await _settings.Read<MediaSettings>(command.GuildId);
+            var settings = await _settings.Read<YouTubeSettings>(command.GuildId);
 
             string result = string.Empty;
             foreach (var feed in settings.DaumCafeFeeds)

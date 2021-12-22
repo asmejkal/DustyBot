@@ -1,45 +1,46 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace DustyBot.Core.Formatting
 {
     public static class EnumerableFormattingExtensions
     {
-        public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = ", and ")
+        public static string WordJoin(this IEnumerable<string> values, string separator = ", ", string lastSeparator = " and ")
         {
-            var it = values.GetEnumerator();
-            bool isFirst = true;
-            bool hasRemainingItems;
-            T item = default;
-            string result = null;
-
-            do
+            string? previous = null;
+            bool first = true;
+            var result = new StringBuilder();
+            foreach (var value in values)
             {
-                hasRemainingItems = it.MoveNext();
-                if (hasRemainingItems)
+                if (!first && !string.IsNullOrEmpty(previous))
                 {
-                    if (!isFirst)
-                    {
-                        if (result == null)
-                            result = item.ToString();
-                        else
-                            result += separator + item.ToString();
-                    }
+                    if (result.Length > 0)
+                        result.Append(separator);
 
-                    item = it.Current;
-                    isFirst = false;
+                    result.Append(previous);
                 }
-            } while (hasRemainingItems);
 
-            if (result == null)
-                result = item != null ? item.ToString() : string.Empty;
-            else
-                result += lastSeparator + item.ToString();
+                first = false;
+                previous = value;
+            }
 
-            return result;
+            if (!string.IsNullOrEmpty(previous))
+            {
+                if (result.Length > 0)
+                    result.Append(lastSeparator);
+
+                result.Append(previous);
+            }
+
+            return result.ToString();
         }
 
-        public static string WordJoinOr<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = ", or ") =>
+        public static string WordJoin<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = " and ") =>
+            WordJoin(values.Select(x => x?.ToString() ?? throw new ArgumentNullException(nameof(values))), separator, lastSeparator);
+
+        public static string WordJoinOr<T>(this IEnumerable<T> values, string separator = ", ", string lastSeparator = " or ") =>
             WordJoin(values, separator, lastSeparator);
 
         public static string WordJoinQuoted<T>(this IEnumerable<T> values, string quote = "`", string separator = ", ", string lastSeparator = " and ")

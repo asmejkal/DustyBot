@@ -55,7 +55,7 @@ namespace DustyBot.Service.Services
             {
                 _logger.LogInformation("Updating Daum Cafe feeds");
 
-                foreach (var settings in await _settings.Read<MediaSettings>())
+                foreach (var settings in await _settings.Read<YouTubeSettings>())
                 {
                     if (ct.IsCancellationRequested)
                         break;
@@ -143,7 +143,7 @@ namespace DustyBot.Service.Services
             // If new feed -> just store the last post ID and return
             if (feed.LastPostId < 0)
             {
-                await _settings.Modify<MediaSettings>(serverId, s =>
+                await _settings.Modify<YouTubeSettings>(serverId, s =>
                 {
                     var current = s.DaumCafeFeeds.FirstOrDefault(x => x.Id == feed.Id);
                     if (current != null && current.LastPostId < 0)
@@ -174,7 +174,7 @@ namespace DustyBot.Service.Services
                 currentPostId++;
             }
 
-            await _settings.Modify<MediaSettings>(serverId, settings =>
+            await _settings.Modify<YouTubeSettings>(serverId, settings =>
             {
                 var current = settings.DaumCafeFeeds.FirstOrDefault(x => x.Id == feed.Id);
                 if (current != null && current.LastPostId < currentPostId)

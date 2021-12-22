@@ -45,9 +45,14 @@ namespace DustyBot.Service.Services.Log
             return _settings.Modify(guildId, (LogSettings s) => s.MessageDeletedPrefixFilters.Add(prefix), ct);
         }
 
-        public Task RemovePrefixFilterAsync(Snowflake guildId, string prefix, CancellationToken ct)
+        public Task<bool> RemovePrefixFilterAsync(Snowflake guildId, string prefix, CancellationToken ct)
         {
             return _settings.Modify(guildId, (LogSettings s) => s.MessageDeletedPrefixFilters.Remove(prefix), ct);
+        }
+
+        public Task ClearPrefixFiltersAsync(Snowflake guildId, CancellationToken ct)
+        {
+            return _settings.Modify(guildId, (LogSettings s) => s.MessageDeletedPrefixFilters.Clear(), ct);
         }
 
         public async Task<IEnumerable<string>> GetPrefixFiltersAsync(Snowflake guildId, CancellationToken ct)
@@ -56,12 +61,12 @@ namespace DustyBot.Service.Services.Log
             return settings?.MessageDeletedPrefixFilters ?? Enumerable.Empty<string>();
         }
 
-        public Task AddChannelFilterAsync(Snowflake guildId, IEnumerable<ITextChannel> channels, CancellationToken ct)
+        public Task AddChannelFilterAsync(Snowflake guildId, IEnumerable<IMessageGuildChannel> channels, CancellationToken ct)
         {
             return _settings.Modify(guildId, (LogSettings s) => s.MessageDeletedChannelFilters.UnionWith(channels.Select(x => (ulong)x.Id)), ct);
         }
 
-        public Task RemoveChannelFilterAsync(Snowflake guildId, IEnumerable<ITextChannel> channels, CancellationToken ct)
+        public Task RemoveChannelFilterAsync(Snowflake guildId, IEnumerable<IMessageGuildChannel> channels, CancellationToken ct)
         {
             return _settings.Modify(guildId, (LogSettings s) => s.MessageDeletedChannelFilters.ExceptWith(channels.Select(x => (ulong)x.Id)), ct);
         }
@@ -76,11 +81,11 @@ namespace DustyBot.Service.Services.Log
         {
             try
             {
-                if (e.GuildId == null)
+                if (e.GuildId == null || e.Message == null)
                     return;
 
                 var guild = Bot.GetGuildOrThrow(e.GuildId.Value);
-                var channel = (ITextChannel)guild.GetChannelOrThrow(e.ChannelId);
+                var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
 
                 if (e.Message.Author.IsBot)
                     return;
@@ -103,7 +108,7 @@ namespace DustyBot.Service.Services.Log
                 using var scope = Logger.BuildScope(x => x.WithArgs(e).WithGuild(guild).WithChannel(channel));
                 if (!guild.GetBotPermissions(channel).SendMessages)
                 {
-                    Logger.LogInformation("Can't log bulk deleted messages because of missing permissions");
+                    Logger.LogInformation("Can't log deleted message because of missing permissions");
                     return;
                 }
 
@@ -124,11 +129,11 @@ namespace DustyBot.Service.Services.Log
             try
             {
                 var guild = Bot.GetGuildOrThrow(e.GuildId);
-                var channel = (ITextChannel)guild.GetChannelOrThrow(e.ChannelId);
+                var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
 
                 var messages = e.Messages
                     .Select(x => x.Value)
-                    .Where(x => !x.Author.IsBot)
+                    .Where(x => x != null && !x.Author.IsBot)
                     .ToList();
 
                 if (!messages.Any())
@@ -173,7 +178,7 @@ namespace DustyBot.Service.Services.Log
                     if (message.Attachments.Any())
                         builder.AppendLine(string.Join("\n", message.Attachments.Select(a => a.Url)));
 
-                    builder.Append(Markdown.Timestamp(message.CreatedAt()));
+                    builder.Append(Markdown.Timestamp(message.CreatedAt(), Markdown.TimestampFormat.ShortDateTime));
 
                     if (builder.Length > LocalEmbed.MaxDescriptionLength / 2)
                     {
@@ -220,7 +225,7 @@ namespace DustyBot.Service.Services.Log
             }
         }
 
-        private static async Task LogSingleMessageAsync(ITextChannel eventChannel, ITextChannel channel, IUserMessage message, CancellationToken ct)
+        private static async Task LogSingleMessageAsync(ITextChannel eventChannel, IMessageGuildChannel channel, IUserMessage message, CancellationToken ct)
         {
             var preface = $"**Message by {message.Author.Mention} in {channel.Mention} was deleted:**\n";
             var embed = new LocalEmbed()

@@ -16,11 +16,11 @@ namespace DustyBot.Service.Services
         private readonly string _apiKey;
         private readonly string _domain;
 
-        public PolrUrlShortenerService(IOptions<IntegrationOptions> options)
+        public PolrUrlShortenerService(IOptions<PolrOptions> options)
         {
-            _apiKey = options.Value.PolrKey ?? throw new ArgumentNullException();
-            _domain = options.Value.PolrDomain ?? throw new ArgumentNullException();
-            _linkRegex = new Regex(options.Value.PolrDomain + @"\/[^/?&#]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            _apiKey = options.Value.ApiKey ?? throw new ArgumentNullException();
+            _domain = options.Value.Domain ?? throw new ArgumentNullException();
+            _linkRegex = new Regex(options.Value.Domain + @"\/[^/?&#]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         }
 
         public bool IsShortened(string url) => _linkRegex.IsMatch(url);

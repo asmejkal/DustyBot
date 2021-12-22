@@ -5,12 +5,19 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Disqord;
+using Disqord.Bot;
 using Disqord.Bot.Sharding;
+using Disqord.Gateway;
 using Disqord.Sharding;
 using DustyBot.Core.Comparers;
-using DustyBot.Framework.Attributes;
 using DustyBot.Framework.Commands;
+using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Commands.TypeParsers;
+using DustyBot.Framework.Communication;
+using DustyBot.Framework.Entities;
+using DustyBot.Framework.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Qmmands;
@@ -19,13 +26,28 @@ namespace DustyBot.Framework
 {
     public class DustyBotSharder : DiscordBotSharder
     {
+        private readonly ICommandUsageBuilder _commandUsageBuilder;
+
         public DustyBotSharder(
             IOptions<DiscordBotSharderConfiguration> options,
             ILogger<DiscordBotSharder> logger,
             IServiceProvider services,
-            DiscordClientSharder client)
+            DiscordClientSharder client,
+            ICommandUsageBuilder commandUsageBuilder)
             : base(options, logger, services, client)
-        { 
+        {
+            _commandUsageBuilder = commandUsageBuilder;
+        }
+
+        public override DiscordCommandContext CreateCommandContext(IPrefix prefix, string input, IGatewayUserMessage message, CachedMessageGuildChannel channel)
+        {
+            var scope = Services.CreateScope();
+            DiscordCommandContext context = message.GuildId != null
+                ? new DustyGuildCommandContext(this, prefix, input, message, channel, scope)
+                : new DustyCommandContext(this, prefix, input, message, scope);
+
+            context.Services.GetRequiredService<ICommandContextAccessor>().Context = context;
+            return context;
         }
 
         protected override void MutateModule(ModuleBuilder moduleBuilder)
@@ -37,9 +59,9 @@ namespace DustyBot.Framework
             base.MutateModule(moduleBuilder);
         }
 
-        protected override ValueTask AddTypeParsersAsync(CancellationToken cancellationToken = default)
+        protected override async ValueTask AddTypeParsersAsync(CancellationToken cancellationToken = default)
         {
-            base.AddTypeParsersAsync(cancellationToken);
+            await base.AddTypeParsersAsync(cancellationToken);
 
             Commands.AddTypeParser(new DateOnlyTypeParser());
             Commands.AddTypeParser(new LocalEmbedTypeParser());
@@ -48,8 +70,63 @@ namespace DustyBot.Framework
             Commands.AddTypeParser(new RestUserTypeParser());
 
             Commands.ReplaceTypeParser(new RestMemberTypeParser());
+        }
 
-            return default;
+        protected override ValueTask<bool> BeforeExecutedAsync(DiscordCommandContext context)
+        {
+            if (context is not DiscordGuildCommandContext guildContext)
+                return new(true);
+
+            return new(guildContext.Guild.GetBotPermissions(guildContext.Channel).SendMessages);
+        }
+
+        protected override ValueTask HandleCommandResultAsync(DiscordCommandContext context, DiscordCommandResult result)
+        {
+            var logger = TryGetModuleType(context.Command.Module, out var type) 
+                ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
+
+            logger.WithScope(x => x.WithCommandContext(context)).LogInformation("Command completed with {CommandResult}", result.GetType().Name);
+
+            return base.HandleCommandResultAsync(context, result);
+        }
+
+        protected override ValueTask HandleFailedResultAsync(DiscordCommandContext context, FailedResult result)
+        {
+            if (result is not CommandNotFoundResult)
+            {
+                var logger = TryGetModuleType(context.Command.Module, out var type)
+                    ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
+
+                using var scope = logger.BuildScope(x => x.WithCommandContext(context).With("Prefix", context.Prefix).With("CommandAlias", context.Path));
+                if (context.GuildId != null)
+                    logger.LogInformation("Command {MessageContent} failed with {CommandResult}", context.Message.Content, result.GetType().Name);
+                else
+                    logger.LogInformation("Command {MessageContentRedacted} failed with {CommandResult}", context.Prefix.ToString() + context.Path, result.GetType().Name);
+            }
+
+            return base.HandleFailedResultAsync(context, result);
+        }
+
+        protected override LocalMessage? FormatFailureMessage(DiscordCommandContext context, FailedResult result)
+        {
+            if (result is CommandNotFoundResult)
+                return null;
+
+            var explanation = result switch
+            {
+                CommandNotFoundResult => null,
+                TypeParseFailedResult x => $"Parameter `{x.Parameter}` is invalid. {x.FailureReason}",
+                ChecksFailedResult checksFailedResult => string.Join(' ', checksFailedResult.FailedChecks.Select(x => x.Result.FailureReason)),
+                ParameterChecksFailedResult parameterChecksFailedResult => $"Parameter `{parameterChecksFailedResult.Parameter}` is invalid. "
+                    + string.Join(' ', parameterChecksFailedResult.FailedChecks.Select(x => x.Result.FailureReason)),
+                _ => result.FailureReason
+            };
+
+            return new LocalMessage()
+                .WithReply(context.Message.Id)
+                .WithAllowedMentions(LocalAllowedMentions.None)
+                .WithContent($"{CommunicationConstants.FailureMarker} {explanation}")
+                .WithEmbeds(_commandUsageBuilder.BuildCommandUsageEmbed(context.Command, context.Prefix));
         }
 
         private static void ProcessDefaultAttributes(ModuleBuilder moduleBuilder)
@@ -85,7 +162,7 @@ namespace DustyBot.Framework
             foreach (var submodule in moduleBuilder.Submodules)
                 ProcessRemarkAttributes(submodule);
 
-            string Build(string remarks, IEnumerable<Attribute> attributes)
+            static string Build(string remarks, IEnumerable<Attribute> attributes)
             {
                 var builder = new StringBuilder(remarks);
                 foreach (var remark in attributes.OfType<RemarkAttribute>().Select(x => x.Remark))
@@ -150,6 +227,14 @@ namespace DustyBot.Framework
                     }
                 }
             }
+        }
+
+        private static bool TryGetModuleType(Qmmands.Module module, out Type result)
+        {
+            while ((result = module.Type) == null && module.Parent != null)
+                module = module.Parent;
+
+            return result != null;
         }
     }
 }

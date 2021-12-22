@@ -9,7 +9,7 @@ namespace DustyBot.Framework.Commands.TypeParsers
     {
         public override ValueTask<TypeParserResult<TimeOnly>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
         {
-            if (!TimeOnly.TryParseExact(value, new[] { "HH:mm" }, out var time))
+            if (!TimeOnly.TryParseExact(value, new[] { @"HH\:mm" }, out var time))
                 return Failure("Invalid time format.");
 
             return Success(time);

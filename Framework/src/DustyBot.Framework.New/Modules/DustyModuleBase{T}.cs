@@ -1,12 +1,48 @@
-﻿using Disqord;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Disqord;
 using Disqord.Bot;
+using Disqord.Extensions.Interactivity.Menus.Paged;
 using DustyBot.Framework.Commands.Results;
+using DustyBot.Framework.Interactivity;
+using DustyBot.Framework.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DustyBot.Framework.Modules
 {
     public abstract class DustyModuleBase<T> : DiscordModuleBase<T>
         where T : DiscordCommandContext
     {
+        private ILogger? _logger;
+
+        protected override ILogger Logger
+        {
+            get
+            {
+                if (_logger != null)
+                    return _logger;
+
+                var logger = Context.Services.GetRequiredService<ILoggerFactory>().CreateLogger(GetType());
+                if (Context == null)
+                    return _logger = logger;
+
+                return _logger = logger.WithScope(x => x.WithCommandContext(Context));
+            }
+        }
+
+        protected override ValueTask BeforeExecutedAsync()
+        {
+            using var scope = Logger.BuildScope(x => x.With("Prefix", Context.Prefix).With("CommandAlias", Context.Path));
+            if (Context.GuildId != null)
+                Logger.LogInformation("Command {MessageContent} with {MessageAttachmentCount} attachments", Context.Message.Content, Context.Message.Attachments.Count);
+            else
+                Logger.LogInformation("Command {MessageContentRedacted} with {MessageAttachmentCount} attachments", Context.Prefix.ToString() + Context.Path, Context.Message.Attachments.Count);
+
+            return new();
+        }
+
         protected virtual DiscordSuccessCommandResult Success()
             => new(Context);
 
@@ -40,10 +76,48 @@ namespace DustyBot.Framework.Modules
             return new(Context, message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId));
         }
 
-        protected override DiscordResponseCommandResult Response(LocalMessage message)
+        protected virtual DiscordMenuCommandResult NumberedListing(
+            IEnumerable<string> items,
+            Action<LocalEmbed>? embedBuilder = null,
+            Func<int, string>? prefixFormatter = null,
+            int maxItemsPerPage = 15,
+            TimeSpan timeout = default)
         {
-            message.AllowedMentions ??= LocalAllowedMentions.None;
-            return new DiscordCacheEnabledResponseCommandResult(Context, message);
+            return Pages(new NumberedListingPageProvider(items, embedBuilder, prefixFormatter, maxItemsPerPage), timeout);
         }
+
+        protected virtual DiscordMenuCommandResult NumberedListing(
+            IEnumerable<string> items,
+            string title,
+            Func<int, string>? prefixFormatter = null,
+            int maxItemsPerPage = 15,
+            TimeSpan timeout = default)
+        {
+            return Pages(new NumberedListingPageProvider(items, x => x.WithTitle(title), prefixFormatter, maxItemsPerPage), timeout);
+        }
+
+        protected virtual DiscordMenuCommandResult Listing(
+            IEnumerable<LocalEmbedField> items,
+            Action<LocalEmbed>? embedBuilder = null,
+            int maxItemsPerPage = 10,
+            TimeSpan timeout = default)
+        {
+            return Pages(new FieldListingPageProvider(items, embedBuilder, maxItemsPerPage), timeout);
+        }
+
+        protected virtual DiscordMenuCommandResult Listing(
+            IEnumerable<LocalEmbedField> items,
+            string title,
+            int maxItemsPerPage = 10,
+            TimeSpan timeout = default)
+        {
+            return Pages(new FieldListingPageProvider(items, x => x.WithTitle(title), maxItemsPerPage), timeout);
+        }
+
+        protected virtual DiscordMenuCommandResult Table(IEnumerable<TableRow> rows, TimeSpan timeout = default)
+            => Pages(new TablePageProvider(rows), timeout);
+
+        protected override DiscordMenuCommandResult Pages(PageProvider pageProvider, TimeSpan timeout = default) => 
+            View(new AdaptivePagedView(pageProvider), timeout);
     }
 }

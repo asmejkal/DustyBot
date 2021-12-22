@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Qmmands;
 
-namespace DustyBot.Framework.Attributes
+namespace DustyBot.Framework.Commands.Attributes
 {
     public class VerbCommandAttribute : CommandAttribute
     {

@@ -1,6 +1,6 @@
-﻿using System;
+﻿    using System;
 
-namespace DustyBot.Framework.Attributes
+namespace DustyBot.Framework.Commands.Attributes
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     public class ExampleAttribute : Attribute

@@ -2,7 +2,7 @@
 
 namespace DustyBot.Framework.Utility
 {
-    public class MessageContentHelpers
+    public class MessageHelpers
     {
         private static readonly Regex MentionRegex = new(@"^<(?:@!?|@&|#)[0-9]{17,21}>$", RegexOptions.Compiled);
 

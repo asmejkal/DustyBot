@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace DustyBot.Framework.Attributes
+namespace DustyBot.Framework.Commands.Attributes
 {
     [AttributeUsage(AttributeTargets.Parameter)]
     public class DateFormatsAttribute : Attribute

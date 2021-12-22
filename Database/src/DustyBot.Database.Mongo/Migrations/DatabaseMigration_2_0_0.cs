@@ -1,4 +1,6 @@
-﻿using Mongo.Migration.Migrations.Database;
+﻿using System.Linq;
+using Mongo.Migration.Migrations.Database;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace DustyBot.Database.Mongo.Migrations
@@ -13,6 +15,30 @@ namespace DustyBot.Database.Mongo.Migrations
         public override void Up(IMongoDatabase db)
         {
             db.RenameCollection("EventsSettings", "GreetByeSettings");
+
+            var mediaSettings = db.GetCollection<BsonDocument>("MediaSettings");
+            var youTubeSettings = db.GetCollection<BsonDocument>("YouTubeSettings");
+            var daumCafeSettings = db.GetCollection<BsonDocument>("DaumCafeSettings");
+            foreach (var setting in mediaSettings.Find(Builders<BsonDocument>.Filter.Empty).ToEnumerable())
+            {
+                var songs = setting["YouTubeComebacks"];
+                foreach (var song in songs.AsBsonArray.OfType<BsonDocument>().Where(x => x.GetValue("Category", null) == null))
+                    song["Category"] = "default";
+
+                youTubeSettings.InsertOne(new BsonDocument()
+                {
+                    ["ServerId"] = setting["ServerId"],
+                    ["Songs"] = songs
+                });
+
+                daumCafeSettings.InsertOne(new BsonDocument()
+                {
+                    ["ServerId"] = setting["ServerId"],
+                    ["Feeds"] = setting["DaumCafeFeeds"]
+                });
+            }
+
+            db.DropCollection("MediaSettings");
         }
 
         public override void Down(IMongoDatabase db)

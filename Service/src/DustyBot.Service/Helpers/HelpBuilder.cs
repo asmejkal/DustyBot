@@ -1,5 +1,7 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
 using Discord;
+using Disqord;
 using DustyBot.Framework.Utility;
 using DustyBot.Service.Configuration;
 using DustyBot.Service.Definitions;
@@ -19,7 +21,7 @@ namespace DustyBot.Service.Helpers
         }
 
         public string GetModuleWebLink(string name) => 
-            DiscordHelpers.SanitiseMarkdownUri(_websiteWalker.ReferenceUrl + "#" + WebsiteWalker.GetModuleWebAnchor(name));
+            DiscordHelpers.SanitiseMarkdownUri(Uri.EscapeUriString _websiteWalker.ReferenceUrl + "#" + WebsiteWalker.GetModuleWebAnchor(name));
 
         public Embed GetModuleHelpEmbed(string name, string commandPrefix)
         {

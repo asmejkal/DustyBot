@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using Disqord;
 using DustyBot.Database.Mongo.Collections.GreetBye.Models;
-using DustyBot.Framework.Attributes;
+using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Modules;
 using DustyBot.Service.Services.GreetBye;
 using Qmmands;

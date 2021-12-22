@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -22,12 +23,12 @@ namespace DustyBot.Core.Formatting
         public static bool TryAppendLineLimited(this StringBuilder o, string value, int maxLength)
             => o.TryAppendLimited(value + '\n', maxLength);
 
-        public static string Truncate(this string value, int maxChars, string ellipsis = "...")
+        public static string Truncate(this string value, int maxChars, string ellipsis = "…")
         {
             return value.Length <= maxChars ? value : value.Substring(0, maxChars - ellipsis.Length) + ellipsis;
         }
 
-        public static string TruncateLines(this string value, int maxLines, string ellipsis = "...", bool trim = false)
+        public static string TruncateLines(this string value, int maxLines, string ellipsis = "…", bool trim = false)
         {
             var count = 0;
             for (int i = value.IndexOf('\n'); i >= 0 && i < value.Length; i = value.IndexOf('\n', i + 1))
@@ -51,7 +52,7 @@ namespace DustyBot.Core.Formatting
             {
                 StringBuilder result = new StringBuilder();
                 int whiteLineCount = 0;
-                string line;
+                string? line;
                 while ((line = reader.ReadLine()) != null)
                 {
                     if (string.IsNullOrWhiteSpace(line))
@@ -113,5 +114,12 @@ namespace DustyBot.Core.Formatting
 
             return (begin == 0 && end == value.Length - 1) ? value : value.Substring(begin, end - begin + 1);
         }
+
+        public static string Capitalize(this string input) => input switch
+        {
+            null => throw new ArgumentNullException(nameof(input)),
+            "" => throw new ArgumentException($"{nameof(input)} cannot be empty", nameof(input)),
+            _ => string.Concat(input[0].ToString().ToUpper(), input.AsSpan(1))
+        };
     }
 }

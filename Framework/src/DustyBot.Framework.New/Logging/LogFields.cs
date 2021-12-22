@@ -9,5 +9,8 @@
         public const string ChannelName = "ChannelName";
         public const string GuildId = "GuildId";
         public const string GuildName = "GuildName";
+
+        public const string CorrelationId = "CorrelationId";
+        public const string Command = "Command";
     }
 }

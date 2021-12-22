@@ -64,7 +64,7 @@ namespace DustyBot.Service.Modules
         [Comment("Use without parameters to view songs from the default category. \nUse `all` to view all songs regardless of category.")]
         public async Task Views(ICommand command)
         {
-            var settings = await _settings.Read<MediaSettings>(command.GuildId);
+            var settings = await _settings.Read<YouTubeSettings>(command.GuildId);
             string param = string.IsNullOrWhiteSpace(command["SongOrCategoryName"]) ? null : (string)command["SongOrCategoryName"];
 
             List<ComebackInfo> comebacks;
@@ -137,7 +137,7 @@ namespace DustyBot.Service.Modules
                 VideoIds = new HashSet<string>(command["YouTubeLinks"].Repeats.Select(x => Enumerable.Cast<Group>(x.AsRegex.Groups).Skip(1).First(y => !string.IsNullOrEmpty(y.Value)).Value))
             };
 
-            await _settings.Modify(command.GuildId, (MediaSettings s) =>
+            await _settings.Modify(command.GuildId, (YouTubeSettings s) =>
             {
                 s.YouTubeComebacks.Add(info);
             });
@@ -169,7 +169,7 @@ namespace DustyBot.Service.Modules
             if (string.Compare(category, "default", true) == 0 || string.IsNullOrEmpty(category))
                 category = null;
 
-            var removed = await _settings.Modify(command.GuildId, (MediaSettings s) =>
+            var removed = await _settings.Modify(command.GuildId, (YouTubeSettings s) =>
             {
                 return s.YouTubeComebacks.RemoveAll(x =>
                 {
@@ -194,7 +194,7 @@ namespace DustyBot.Service.Modules
             string originalName = string.Compare(command[0], "default", true) == 0 ? null : (string)command[0];
             string newName = string.Compare(command[1], "default", true) == 0 ? null : (string)command[1];
 
-            var result = await _settings.Modify(command.GuildId, (MediaSettings s) =>
+            var result = await _settings.Modify(command.GuildId, (YouTubeSettings s) =>
             {
                 int ccount = 0;
                 foreach (var comeback in s.YouTubeComebacks.Where(x => string.Compare(x.Category, originalName, true) == 0))
@@ -229,7 +229,7 @@ namespace DustyBot.Service.Modules
         [Command("views", "list", "Lists all songs.")]
         public async Task ListComebacks(ICommand command)
         {
-            var settings = await _settings.Read<MediaSettings>(command.GuildId, false);
+            var settings = await _settings.Read<YouTubeSettings>(command.GuildId, false);
             if (settings == null || settings.YouTubeComebacks.Count <= 0)
             {
                 await command.ReplyError("No comeback info has been set. Use the `views add` command.");
@@ -247,7 +247,7 @@ namespace DustyBot.Service.Modules
             await command.Reply(result);
         }
 
-        private string GetOtherCategoriesRecommendation(MediaSettings settings, string category, bool useMarkdown, string commandPrefix)
+        private string GetOtherCategoriesRecommendation(YouTubeSettings settings, string category, bool useMarkdown, string commandPrefix)
         {
             var otherCategories = settings.YouTubeComebacks.Select(x => x.Category)
                 .Where(x => x != category)

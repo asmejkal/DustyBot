@@ -2,8 +2,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Disqord;
-using Disqord.Extensions.Interactivity.Menus.Paged;
-using DustyBot.Framework.Attributes;
+using DustyBot.Core.Formatting;
+using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Modules;
 using DustyBot.Service.Services.Log;
 using Qmmands;
@@ -40,7 +40,7 @@ namespace DustyBot.Service.Modules
             return Success("Logging of deleted messages has been disabled.");
         }
 
-        [VerbCommand("prefix", "filter", "add"), Description("Filters out deleted messages starting with a given prefix.")]
+        [VerbCommand("prefix", "filter", "add"), Description("Filters out deleted messages starting with a given prefix (e.g. bot commands).")]
         [RequireAuthorAdministrator]
         public async Task<CommandResult> AddPrefixFilterAsync(
             [Description("messages that start with this won't be logged")] 
@@ -48,7 +48,7 @@ namespace DustyBot.Service.Modules
             string prefix)
         {
             await _service.AddPrefixFilterAsync(Context.GuildId, prefix, Bot.StoppingToken);
-            return Success($"Messages starting with `{prefix}` will not be logged.");
+            return Success($"Deleted messages starting with `{prefix}` will not be logged.");
         }
 
         [VerbCommand("prefix", "filter", "remove"), Description("Removes a filtered prefix for deleted messages.")]
@@ -58,8 +58,19 @@ namespace DustyBot.Service.Modules
             [Remainder]
             string prefix)
         {
-            await _service.RemovePrefixFilterAsync(Context.GuildId, prefix, Bot.StoppingToken);
-            return Success($"Messages starting with `{prefix}` will be logged again.");
+            return await _service.RemovePrefixFilterAsync(Context.GuildId, prefix, Bot.StoppingToken) switch
+            {
+                true => Success($"Deleted messages starting with `{prefix}` will be logged again."),
+                false => Failure($"There is no filter for prefix `{prefix}`.")
+            };
+        }
+
+        [VerbCommand("prefix", "filter", "clear"), Description("Clears all filtered prefixes for deleted messages.")]
+        [RequireAuthorAdministrator]
+        public async Task<CommandResult> ClearPrefixFiltersAsync()
+        {
+            await _service.ClearPrefixFiltersAsync(Context.GuildId, Bot.StoppingToken);
+            return Success($"Cleared all prefix filters for deleted messages.");
         }
 
         [VerbCommand("prefix", "filter", "list"), Description("Shows all filtered prefixes for deleted messages.")]
@@ -67,29 +78,29 @@ namespace DustyBot.Service.Modules
         public async Task<CommandResult> ListPrefixFiltersAsync()
         {
             var filters = await _service.GetPrefixFiltersAsync(Context.GuildId, Bot.StoppingToken);
-            return Pages(new ArrayPageProvider<string>(filters.Select(x => Markdown.Escape(x)).ToArray()));
+            return NumberedListing(filters.Select(x => Markdown.Escape(x)), "Filtered message prefixes");
         }
 
         [VerbCommand("channel", "filter", "add"), Description("Excludes one or more channels from logging of deleted messages.")]
         [RequireAuthorAdministrator]
         [Example("#roles #welcome")]
         public async Task<CommandResult> AddChannelFilterAsync(
-            [Description("deleted messages from these channels won't be logged anymore")]
-            params ITextChannel[] channels)
+            [Description("deleted messages from these channels or threads won't be logged anymore")]
+            params IMessageGuildChannel[] channels)
         {
             await _service.AddChannelFilterAsync(Context.GuildId, channels, Bot.StoppingToken);
-            return Success("Messages deleted in these channels will not be logged.");
+            return Success($"Messages deleted in {channels.Select(x => x.Mention).WordJoin()} will not be logged.");
         }
 
         [VerbCommand("channel", "filter", "remove"), Description("Removes a channel filter for deleted messages.")]
         [RequireAuthorAdministrator]
         [Example("#roles #welcome")]
         public async Task<CommandResult> RemoveChannelFilterAsync(
-            [Description("deleted messages from these channels will be logged again")]
-            params ITextChannel[] channels)
+            [Description("deleted messages from these channels or threads will be logged again")]
+            params IMessageGuildChannel[] channels)
         {
             await _service.RemoveChannelFilterAsync(Context.GuildId, channels, Bot.StoppingToken);
-            return Success("Messages deleted in these channels will be logged again.");
+            return Success($"Messages deleted in {channels.Select(x => x.Mention).WordJoin()} will be logged again.");
         }
 
         [VerbCommand("channel", "filter", "list"), Description("Shows all channels filtered out from logging of deleted messages.")]
@@ -97,7 +108,7 @@ namespace DustyBot.Service.Modules
         public async Task<CommandResult> ListChannelFiltersAsync()
         {
             var filters = await _service.GetChannelFiltersAsync(Context.GuildId, Bot.StoppingToken);
-            return Pages(new ArrayPageProvider<string>(filters.Select(x => Mention.Channel(x)).ToArray()));
+            return NumberedListing(filters.Select(x => Mention.Channel(x)), "Filtered channels");
         }
     }
 }

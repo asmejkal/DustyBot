@@ -7,7 +7,7 @@ namespace DustyBot.Service.Services.Log
 {
     public interface ILogService
     {
-        Task AddChannelFilterAsync(Snowflake guildId, IEnumerable<ITextChannel> channels, CancellationToken ct);
+        Task AddChannelFilterAsync(Snowflake guildId, IEnumerable<IMessageGuildChannel> channels, CancellationToken ct);
 
         Task AddPrefixFilterAsync(Snowflake guildId, string prefix, CancellationToken ct);
 
@@ -19,8 +19,10 @@ namespace DustyBot.Service.Services.Log
 
         Task<IEnumerable<string>> GetPrefixFiltersAsync(Snowflake guildId, CancellationToken ct);
 
-        Task RemoveChannelFilterAsync(Snowflake guildId, IEnumerable<ITextChannel> channels, CancellationToken ct);
+        Task RemoveChannelFilterAsync(Snowflake guildId, IEnumerable<IMessageGuildChannel> channels, CancellationToken ct);
 
-        Task RemovePrefixFilterAsync(Snowflake guildId, string prefix, CancellationToken ct);
+        Task<bool> RemovePrefixFilterAsync(Snowflake guildId, string prefix, CancellationToken ct);
+
+        Task ClearPrefixFiltersAsync(Snowflake guildId, CancellationToken ct);
     }
 }

@@ -19,8 +19,11 @@ namespace DustyBot.Framework.Logging
             var builder = logger.BuildScope();
             configure(builder);
 
-            return logger.WithScope(builder.CorrelationIds);
+            return logger.WithScope(builder);
         }
+
+        public static ScopedLoggerAdapter WithScope(this ILogger logger, LoggerScopeBuilder builder) => 
+            logger.WithScope(builder.CorrelationIds);
 
         public static LoggerScopeBuilder BuildScope(this ILogger logger) =>
             new LoggerScopeBuilder(logger);

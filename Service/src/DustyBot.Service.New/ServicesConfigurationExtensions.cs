@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using Disqord.Bot.Sharding;
+using Disqord.Extensions.Interactivity;
 using Disqord.Gateway;
 using Disqord.Gateway.Api;
 using Disqord.Gateway.Default;
@@ -70,7 +71,7 @@ namespace DustyBot.Service
 
             configuration.Token = options.Token;
             configuration.Prefixes = new[] { botOptions.DefaultCommandPrefix };
-            configuration.UseMentionPrefix = true;
+            configuration.UseMentionPrefix = false;
 
             configuration.ServiceAssemblies = null;
 
@@ -95,6 +96,11 @@ namespace DustyBot.Service
             // configuration.SupportedNestedTypes.Remove(typeof(CachedMember));
             configuration.SupportedNestedTypes.Remove(typeof(CachedVoiceState));
             configuration.SupportedNestedTypes.Remove(typeof(CachedPresence));
+        }
+
+        public static void ConfigureInteractivity(this InteractivityExtensionConfiguration configuration)
+        {
+            configuration.DefaultMenuTimeout = TimeSpan.FromHours(2);
         }
     }
 }

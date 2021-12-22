@@ -9,7 +9,7 @@ namespace DustyBot.Framework.Commands.TypeParsers
     {
         public override ValueTask<TypeParserResult<DateOnly>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
         {
-            if (!DateOnly.TryParseExact(value, new[] { "yyyy/M/d", "M/d" }, out var date))
+            if (!DateOnly.TryParseExact(value, new[] { @"yyyy\/M\/d", @"M\/d" }, out var date))
                 return Failure("Invalid date format.");
 
             return Success(date);
