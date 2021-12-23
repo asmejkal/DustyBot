@@ -17,25 +17,25 @@ An open-source bot for music fan Discords.
 # Required for the bot to run:
 Dusty_DefaultCommandPrefix={A command prefix for the bot}
 Dusty_OwnerID={Your Discord ID}
-Dusty_BotToken={Your bot account token}
-Dusty_MongoRootUsername=superuser
-Dusty_MongoRootPassword={Insert any random strong password here}
-Dusty_WebsiteRoot=https://dustybot.info
-Dusty_WebsiteShorthand=dustybot.info
+Dusty_Discord_Token={Your bot account token}
+Dusty_Mongo_RootUsername=superuser
+Dusty_Mongo_RootPassword={Insert any random strong password here}
+Dusty_Web_WebsiteRoot=https://dustybot.info
+Dusty_Web_WebsiteShorthand=dustybot.info
 
 # Required only for some modules
-Dusty_YouTubeKey=
-Dusty_LastFmKey=
-Dusty_SpotifyId=
-Dusty_SpotifyKey=
-Dusty_TableStorageConnectionString=
-Dusty_PapagoClientId=
-Dusty_PapagoClientSecret=
-Dusty_PolrKey=
-Dusty_PolrDomain=
-Dusty_SupportServerInvite=
-Dusty_SpotifyConnectUrl=
-Dusty_PatreonUrl=
+Dusty_YouTube_ApiKey=
+Dusty_LastFm_ApiKey=
+Dusty_Spotify_ClientId=
+Dusty_Spotify_ClientSecret=
+Dusty_TableStorage_ConnectionString=
+Dusty_Papago_ClientId=
+Dusty_Papago_ClientSecret=
+Dusty_Polr_ApiKey=
+Dusty_Polr_Domain=
+Dusty_Web_SupportServerInvite=
+Dusty_Web_SpotifyConnectUrl=
+Dusty_Web_PatreonUrl=
 ```
 
 ## Debugging in Visual Studio
