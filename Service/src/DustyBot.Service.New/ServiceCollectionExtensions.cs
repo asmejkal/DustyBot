@@ -31,10 +31,10 @@ namespace DustyBot.Service
                 x => x.Configure<IConfiguration>((o, c) => c.GetSection(ConfigurationSections.Mongo).Bind(o)),
                 x => x.Configure<IConfiguration>((o, c) => c.GetSection(ConfigurationSections.TableStorage).Bind(o)));
 
-            services.AddGreetByeServices();
-            services.AddAutomodServices();
-            services.AddLogServices();
-            services.AddYouTubeServices();
+            // services.AddGreetByeServices();
+            // services.AddAutomodServices();
+            // services.AddLogServices();
+            // services.AddYouTubeServices();
             services.AddBotServices();
             services.AddInfoServices();
             services.AddUtilityServices();

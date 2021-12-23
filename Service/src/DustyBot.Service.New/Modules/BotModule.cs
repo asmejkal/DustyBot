@@ -26,13 +26,13 @@ namespace DustyBot.Service.Modules
         {
             if (command == default)
             {
-                return Reply(_helpBuilder.BuildHelpEmbed(Context.Prefix));
+                return Success(); // Reply(_helpBuilder.BuildHelpEmbed(Context.Prefix)); // TODO
             }
             else
             {
                 var match = Bot.Commands.FindCommands(command).FirstOrDefault();
                 if (match == default)
-                    return Failure("Can't find this command.");
+                    return Success(); // Failure("Can't find this command."); TODO
 
                 return Reply(_helpBuilder.BuildCommandHelpEmbed(match.Command, Context.Prefix));
             }
