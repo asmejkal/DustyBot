@@ -60,7 +60,7 @@ namespace DustyBot.Modules
                 var verbs = command["Command"].AsString.Split(new char[0], StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(x => x.ToLowerInvariant()).ToList();
                 var findResult = TryFindRegistration(invoker, verbs);
                 if (findResult == null)
-                    throw new IncorrectParametersCommandException("This is not a recognized command.");
+                    return; // throw new IncorrectParametersCommandException("This is not a recognized command.");
 
                 var (commandRegistration, _) = findResult.Value;
 
