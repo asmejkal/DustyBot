@@ -8,25 +8,25 @@ services:
         image: ${DOCKER_REGISTRY-}dustybot-service
         container_name: dustybot-service
         environment:
-            - TableStorage__ConnectionString=${Dusty_TableStorageConnectionString}
+            - TableStorage__ConnectionString=${Dusty_TableStorage_ConnectionString}
             - Bot__DefaultCommandPrefix=${Dusty_DefaultCommandPrefix}
             - Bot__OwnerID=${Dusty_OwnerID}
-            - Discord__Token=${Dusty_BotToken}
-            - YouTube__ApiKey=${Dusty_YouTubeKey}
-            - LastFm__ApiKey=${Dusty_LastFmKey}
-            - Spotify__ClientId=${Dusty_SpotifyId}
-            - Spotify__ClientSecret=${Dusty_SpotifyKey}
-            - Papago__ClientId=${Dusty_PapagoClientId}
-            - Papago__ClientSecret=${Dusty_PapagoClientSecret}
-            - Polr__ApiKey=${Dusty_PolrKey}
-            - Polr__Domain=${Dusty_PolrDomain}
-            - Web__WebsiteRoot=${Dusty_WebsiteRoot}
-            - Web__WebsiteShorthand=${Dusty_WebsiteShorthand}
-            - Web__SupportServerInvite=${Dusty_SupportServerInvite}
-            - Web__SpotifyConnectUrl=${Dusty_SpotifyConnectUrl}
-            - Web__PatreonUrl=${Dusty_PatreonUrl}
+            - Discord__Token=${Dusty_Discord_Token}
+            - YouTube__ApiKey=${Dusty_YouTube_ApiKey}
+            - LastFm__ApiKey=${Dusty_LastFm_ApiKey}
+            - Spotify__ClientId=${Dusty_Spotify_ClientId}
+            - Spotify__ClientSecret=${Dusty_Spotify_ClientSecret}
+            - Papago__ClientId=${Dusty_Papago_ClientId}
+            - Papago__ClientSecret=${Dusty_Papago_ClientSecret}
+            - Polr__ApiKey=${Dusty_Polr_ApiKey}
+            - Polr__Domain=${Dusty_Polr_Domain}
+            - Web__WebsiteRoot=${Dusty_Web_WebsiteRoot}
+            - Web__WebsiteShorthand=${Dusty_Web_WebsiteShorthand}
+            - Web__SupportServerInvite=${Dusty_Web_SupportServerInvite}
+            - Web__SpotifyConnectUrl=${Dusty_Web_SpotifyConnectUrl}
+            - Web__PatreonUrl=${Dusty_Web_PatreonUrl}
             - "Logging__ElasticsearchNodeUri=http://dustybot-elasticsearch:9200"
-            - "Mongo__ConnectionString=mongodb://${Dusty_MongoRootUsername}:${Dusty_MongoRootPassword}@dustybot-mongodb:27017/dustybot?authSource=admin&maxPoolSize=1000"
+            - "Mongo__ConnectionString=mongodb://${Dusty_Mongo_RootUsername}:${Dusty_Mongo_RootPassword}@dustybot-mongodb:27017/dustybot?authSource=admin&maxPoolSize=1000"
         restart: always 
         networks:
             - dustybot-mongodb-net
