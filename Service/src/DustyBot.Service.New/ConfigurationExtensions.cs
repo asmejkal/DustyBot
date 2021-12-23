@@ -17,7 +17,7 @@ using Serilog.Sinks.Elasticsearch;
 
 namespace DustyBot.Service
 {
-    internal static class ServicesConfigurationExtensions
+    internal static class ConfigurationExtensions
     {
         public static void ConfigureBotLogging(this LoggerConfiguration configuration, IServiceProvider provider)
         {

@@ -17,6 +17,7 @@ using DustyBot.Framework.Commands.TypeParsers;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Logging;
+using DustyBot.Framework.Startup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -48,6 +49,29 @@ namespace DustyBot.Framework
 
             context.Services.GetRequiredService<ICommandContextAccessor>().Context = context;
             return context;
+        }
+
+        protected override ValueTask AddModulesAsync(CancellationToken cancellationToken = default)
+        {
+            var types = Services.GetService<ModuleCollection>();
+            if (types == null || !types.Any())
+                return default;
+
+            try
+            {
+                var modules = new List<Qmmands.Module>();
+                foreach (var type in types)
+                    modules.Add(Commands.AddModule(type, MutateModule));
+
+                Logger.LogInformation("Added {ModuleCount} command modules with {CommandCount} commands.", modules.Count, modules.SelectMany(CommandUtilities.EnumerateAllCommands).Count());
+            }
+            catch (CommandMappingException ex)
+            {
+                Logger.LogCritical(ex, "Failed to map command {Command} in module {Module}:", ex.Command, ex.Command.Module);
+                throw;
+            }
+
+            return default;
         }
 
         protected override void MutateModule(ModuleBuilder moduleBuilder)
