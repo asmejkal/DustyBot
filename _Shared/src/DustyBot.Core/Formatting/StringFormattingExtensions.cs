@@ -121,5 +121,11 @@ namespace DustyBot.Core.Formatting
             "" => throw new ArgumentException($"{nameof(input)} cannot be empty", nameof(input)),
             _ => string.Concat(input[0].ToString().ToUpper(), input.AsSpan(1))
         };
+
+        public static string FormatNonEmpty(this string x, string format) =>
+            string.IsNullOrEmpty(x) ? "" : string.Format(format, x);
+
+        public static string FormatNonEmpty(this string x, string format, params object?[] args) =>
+            string.IsNullOrEmpty(x) ? "" : string.Format(format, new[] { x }.Concat(args).ToArray());
     }
 }

@@ -34,7 +34,7 @@ namespace DustyBot.Service.Modules
                 if (match == default)
                     return Success(); // Failure("Can't find this command."); TODO
 
-                return Reply(_helpBuilder.BuildCommandHelpEmbed(match.Command, Context.Prefix));
+                return Result(_helpBuilder.BuildCommandHelpEmbed(match.Command, Context.Prefix));
             }
         }
     }

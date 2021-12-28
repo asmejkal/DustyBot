@@ -18,7 +18,7 @@ namespace DustyBot.Framework.Client
             IRestRequestOptions? options = null,
             CancellationToken cancellationToken = default)
         {
-            if (guild.GetBotPermissions(channel).SendMessages)
+            if (guild.CanBotSendMessages(channel))
                 return client.SendMessageAsync(channel.Id, message, options, cancellationToken);
 
             throw new MissingPermissionsException($"Bot is missing permissions to send a message in channel {channel.Id} on guild {guild.Id}");

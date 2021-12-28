@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Disqord;
 using Disqord.Bot;
 using Disqord.Bot.Sharding;
 using Disqord.Gateway;
@@ -14,7 +13,6 @@ using DustyBot.Core.Comparers;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Commands.TypeParsers;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Startup;
@@ -25,19 +23,15 @@ using Qmmands;
 
 namespace DustyBot.Framework
 {
-    public class DustyBotSharder : DiscordBotSharder
+    public abstract class DustyBotSharderBase : DiscordBotSharder
     {
-        private readonly ICommandUsageBuilder _commandUsageBuilder;
-
-        public DustyBotSharder(
+        public DustyBotSharderBase(
             IOptions<DiscordBotSharderConfiguration> options,
             ILogger<DiscordBotSharder> logger,
             IServiceProvider services,
-            DiscordClientSharder client,
-            ICommandUsageBuilder commandUsageBuilder)
+            DiscordClientSharder client)
             : base(options, logger, services, client)
         {
-            _commandUsageBuilder = commandUsageBuilder;
         }
 
         public override DiscordCommandContext CreateCommandContext(IPrefix prefix, string input, IGatewayUserMessage message, CachedMessageGuildChannel channel)
@@ -101,7 +95,7 @@ namespace DustyBot.Framework
             if (context is not DiscordGuildCommandContext guildContext)
                 return new(true);
 
-            return new(guildContext.Guild.GetBotPermissions(guildContext.Channel).SendMessages);
+            return new(guildContext.Guild.CanBotSendMessages(guildContext.Channel));
         }
 
         protected override ValueTask HandleCommandResultAsync(DiscordCommandContext context, DiscordCommandResult result)
@@ -121,36 +115,14 @@ namespace DustyBot.Framework
                 var logger = TryGetModuleType(context.Command.Module, out var type)
                     ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
 
-                using var scope = logger.BuildScope(x => x.WithCommandContext(context).With("Prefix", context.Prefix).With("CommandAlias", context.Path));
+                using var scope = logger.BuildScope(x => x.WithCommandContext(context).WithCommandUsageContext(context));
                 if (context.GuildId != null)
                     logger.LogInformation("Command {MessageContent} failed with {CommandResult}", context.Message.Content, result.GetType().Name);
                 else
-                    logger.LogInformation("Command {MessageContentRedacted} failed with {CommandResult}", context.Prefix.ToString() + context.Path, result.GetType().Name);
+                    logger.LogInformation("Command {MessageContentRedacted} failed with {CommandResult}", context.Prefix.ToString() + string.Join(' ', context.Path), result.GetType().Name);
             }
 
             return base.HandleFailedResultAsync(context, result);
-        }
-
-        protected override LocalMessage? FormatFailureMessage(DiscordCommandContext context, FailedResult result)
-        {
-            if (result is CommandNotFoundResult)
-                return null;
-
-            var explanation = result switch
-            {
-                CommandNotFoundResult => null,
-                TypeParseFailedResult x => $"Parameter `{x.Parameter}` is invalid. {x.FailureReason}",
-                ChecksFailedResult checksFailedResult => string.Join(' ', checksFailedResult.FailedChecks.Select(x => x.Result.FailureReason)),
-                ParameterChecksFailedResult parameterChecksFailedResult => $"Parameter `{parameterChecksFailedResult.Parameter}` is invalid. "
-                    + string.Join(' ', parameterChecksFailedResult.FailedChecks.Select(x => x.Result.FailureReason)),
-                _ => result.FailureReason
-            };
-
-            return new LocalMessage()
-                .WithReply(context.Message.Id)
-                .WithAllowedMentions(LocalAllowedMentions.None)
-                .WithContent($"{CommunicationConstants.FailureMarker} {explanation}")
-                .WithEmbeds(_commandUsageBuilder.BuildCommandUsageEmbed(context.Command, context.Prefix));
         }
 
         private static void ProcessDefaultAttributes(ModuleBuilder moduleBuilder)

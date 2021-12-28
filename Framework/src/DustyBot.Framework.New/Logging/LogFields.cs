@@ -12,5 +12,7 @@
 
         public const string CorrelationId = "CorrelationId";
         public const string Command = "Command";
+        public const string Prefix = "Prefix";
+        public const string CommandAlias = "CommandAlias";
     }
 }

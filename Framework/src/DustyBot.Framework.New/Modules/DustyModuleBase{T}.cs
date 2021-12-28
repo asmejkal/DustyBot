@@ -5,6 +5,7 @@ using Disqord;
 using Disqord.Bot;
 using Disqord.Extensions.Interactivity.Menus.Paged;
 using DustyBot.Framework.Commands.Results;
+using DustyBot.Framework.Entities;
 using DustyBot.Framework.Interactivity;
 using DustyBot.Framework.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,11 +35,11 @@ namespace DustyBot.Framework.Modules
 
         protected override ValueTask BeforeExecutedAsync()
         {
-            using var scope = Logger.BuildScope(x => x.With("Prefix", Context.Prefix).With("CommandAlias", Context.Path));
+            using var scope = Logger.BuildScope(x => x.WithCommandUsageContext(Context));
             if (Context.GuildId != null)
                 Logger.LogInformation("Command {MessageContent} with {MessageAttachmentCount} attachments", Context.Message.Content, Context.Message.Attachments.Count);
             else
-                Logger.LogInformation("Command {MessageContentRedacted} with {MessageAttachmentCount} attachments", Context.Prefix.ToString() + Context.Path, Context.Message.Attachments.Count);
+                Logger.LogInformation("Command {MessageContentRedacted} with {MessageAttachmentCount} attachments", Context.Prefix.ToString() + string.Join(' ', Context.Path), Context.Message.Attachments.Count);
 
             return new();
         }
@@ -58,7 +59,10 @@ namespace DustyBot.Framework.Modules
         protected virtual DiscordSuccessResponseCommandResult Success(LocalMessage message)
         {
             message.AllowedMentions ??= LocalAllowedMentions.None;
-            return new(Context, message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId));
+            if (Context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+                message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
+
+            return new(Context, message);
         }
 
         protected virtual DiscordFailureResponseCommandResult Failure(string content)
@@ -73,7 +77,28 @@ namespace DustyBot.Framework.Modules
         protected virtual DiscordFailureResponseCommandResult Failure(LocalMessage message)
         {
             message.AllowedMentions ??= LocalAllowedMentions.None;
-            return new(Context, message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId));
+            if (Context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+                message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
+
+            return new(Context, message);
+        }
+
+        protected virtual DiscordResponseCommandResult Result(string content)
+            => Result(new LocalMessage().WithContent(content));
+
+        protected virtual DiscordResponseCommandResult Result(params LocalEmbed[] embeds)
+            => Result(new LocalMessage().WithEmbeds(embeds));
+
+        protected virtual DiscordResponseCommandResult Result(string content, params LocalEmbed[] embeds)
+            => Result(new LocalMessage().WithContent(content).WithEmbeds(embeds));
+
+        protected virtual DiscordResponseCommandResult Result(LocalMessage message)
+        {
+            message.AllowedMentions ??= LocalAllowedMentions.None;
+            if (Context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+                message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
+
+            return new(Context, message);
         }
 
         protected virtual DiscordMenuCommandResult NumberedListing(

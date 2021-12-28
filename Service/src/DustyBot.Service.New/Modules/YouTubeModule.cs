@@ -42,10 +42,10 @@ namespace DustyBot.Service.Modules
             {
                 return (songOrCategoryName, recommendations.Any()) switch
                 {
-                    (YouTubeSong.DefaultCategory, false) => Reply("No songs have been added on this server."),
-                    (YouTubeSong.DefaultCategory, true) => Reply($"No songs have been added to the default category. Try categories {recommendations.WordJoinQuotedOr()}"),
-                    (_, false) => Reply($"Couldn't find a song or category named `{songOrCategoryName}`."),
-                    (_, true) => Reply($"Couldn't find a song or category named `{songOrCategoryName}`. Try categories {recommendations.WordJoinQuotedOr()}")
+                    (YouTubeSong.DefaultCategory, false) => Result("No songs have been added on this server."),
+                    (YouTubeSong.DefaultCategory, true) => Result($"No songs have been added to the default category. Try categories {recommendations.WordJoinQuotedOr()}"),
+                    (_, false) => Result($"Couldn't find a song or category named `{songOrCategoryName}`."),
+                    (_, true) => Result($"Couldn't find a song or category named `{songOrCategoryName}`. Try categories {recommendations.WordJoinQuotedOr()}")
                 };
             }
 

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
 using Disqord.Rest;
+using DustyBot.Core.Formatting;
 using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Modules;
@@ -35,8 +36,8 @@ namespace DustyBot.Service.Modules
             user ??= Context.Author;
             var avatar = type switch
             {
-                AvatarType.Server => user.GetGuildAvatarUrl(size: 2048),
-                AvatarType.Global => user.GetAvatarUrl(size: 2048),
+                AvatarType.Server => user.GetGuildAvatarUrl(CdnAssetFormat.Automatic, size: 2048),
+                AvatarType.Global => user.GetAvatarUrl(CdnAssetFormat.Automatic, size: 2048),
                 _ => throw new ArgumentOutOfRangeException()
             };
 
@@ -45,7 +46,7 @@ namespace DustyBot.Service.Modules
                 .WithUrl(avatar)
                 .WithImageUrl(avatar);
 
-            return Reply(embed);
+            return Result(embed);
         }
 
         [Command("banner"), Description("Shows a big version of a user's avatar.")]
@@ -57,16 +58,16 @@ namespace DustyBot.Service.Modules
             if (user == null)
                 user = await Bot.FetchUserAsync(Context.Author.Id);
 
-            var banner = user.GetBannerUrl(size: 4096);
+            var banner = user.GetBannerUrl(CdnAssetFormat.Automatic, size: 4096);
             if (string.IsNullOrEmpty(banner))
-                return Reply("User has no profile banner.");
+                return Result("User has no profile banner.");
 
             var embed = new LocalEmbed()
                 .WithTitle($"{user.Name}#{user.Discriminator}")
                 .WithUrl(banner)
                 .WithImageUrl(banner);
 
-            return Reply(embed);
+            return Result(embed);
         }
 
         [Command("user", "uinfo", "userinfo"), Description("Shows information about a server member.")]
@@ -76,9 +77,9 @@ namespace DustyBot.Service.Modules
             IMember? user)
         {
             user ??= Context.Author;
-            var avatar = user.GetAvatarUrl(size: 2048);
+            var avatar = user.GetAvatarUrl(CdnAssetFormat.Automatic, size: 2048);
             var embed = new LocalEmbed()
-                .WithTitle((string.IsNullOrEmpty(user.Name) ? "" : $"{user.Nick} – ") + $"{user.Name}#{user.Discriminator}")
+                .WithTitle(user.Nick.FormatNonEmpty("{0} – ") + $"{user.Name}#{user.Discriminator}")
                 .WithUrl(avatar)
                 .WithThumbnailUrl(avatar)
                 .WithFooter($"#{user.Id}");
@@ -87,7 +88,7 @@ namespace DustyBot.Service.Modules
             if (user.JoinedAt.HasValue)
             {
                 embed.AddField("Joined this server on", 
-                    $"{Markdown.Timestamp(user.JoinedAt.Value, TimestampFormat)} ({Math.Floor((now - user.JoinedAt.Value).TotalDays)} days ago)");
+                    $"{Markdown.Timestamp(user.JoinedAt.Value, TimestampFormat)} _({Math.Floor((now - user.JoinedAt.Value).TotalDays)} days ago)_");
             }
 
             if (user.Id == Context.Guild.OwnerId)
@@ -99,18 +100,16 @@ namespace DustyBot.Service.Modules
             var rolesBuilder = new StringBuilder();
             foreach (var item in roles.OrderByDescending(x => x.Value.Position).Select(x => Mention.Role(x.Value)))
             {
-                if (rolesBuilder.Length + item.Length > LocalEmbedField.MaxFieldValueLength)
+                if (!rolesBuilder.TryAppendLimited(item + " ", LocalEmbedField.MaxFieldValueLength))
                     break;
-
-                rolesBuilder.Append(item);
             }
 
             embed.AddField("Account created on", 
-                $"{Markdown.Timestamp(user.CreatedAt(), TimestampFormat)} ({Math.Floor((now - user.CreatedAt()).TotalDays)} days ago)");
+                $"{Markdown.Timestamp(user.CreatedAt(), TimestampFormat)} _({Math.Floor((now - user.CreatedAt()).TotalDays)} days ago)_");
 
             embed.AddField("Roles", rolesBuilder.Length > 0 ? rolesBuilder.ToString() : "None");
 
-            return Reply(embed);
+            return Result(embed);
         }
 
         [Command("server", "sinfo", "serverinfo"), Description("Shows information about the server.")]
@@ -119,13 +118,13 @@ namespace DustyBot.Service.Modules
             var guild = Context.Guild;
             var embed = new LocalEmbed()
                 .WithTitle(guild.Name)
-                .WithUrl(guild.GetIconUrl())
+                .WithUrl(guild.GetIconUrl(CdnAssetFormat.Automatic, size: 2048))
                 .WithThumbnailUrl(guild.GetIconUrl())
                 .WithFooter($"#{guild.Id}");
 
             var owner = await guild.GetOrFetchMemberAsync(guild.OwnerId, cancellationToken: Bot.StoppingToken);
             embed.AddField("Created on", 
-                $"{Markdown.Timestamp(guild.CreatedAt(), TimestampFormat)} ({Math.Floor((DateTimeOffset.Now - guild.CreatedAt()).TotalDays)} days ago)");
+                $"{Markdown.Timestamp(guild.CreatedAt(), TimestampFormat)} _({Math.Floor((DateTimeOffset.Now - guild.CreatedAt()).TotalDays)} days ago)_");
 
             embed.AddField("Owner", $"{owner.Name}#{owner.Discriminator}");
 
@@ -138,7 +137,22 @@ namespace DustyBot.Service.Modules
                 $"{guild.Emojis.Where(x => !x.Value.IsAnimated).Count()} static, {guild.Emojis.Where(x => x.Value.IsAnimated).Count()} animated",
                 true);
 
-            return Reply(embed);
+            return Result(embed);
+        }
+
+        [VerbCommand("server", "banner"), Description("Shows the server banner.")]
+        public CommandResult ShowServerBanner()
+        {
+            var banner = Context.Guild.GetBannerUrl(CdnAssetFormat.Automatic, size: 4096);
+            if (string.IsNullOrEmpty(banner))
+                return Result("Server has no banner.");
+
+            var embed = new LocalEmbed()
+                .WithTitle($"{Context.Guild.Name}")
+                .WithUrl(banner)
+                .WithImageUrl(banner);
+
+            return Result(embed);
         }
     }
 }

@@ -102,7 +102,6 @@ namespace DustyBot.Service
             services.AddPrefixProvider<GuildPrefixProvider>();
             services.AddDiscordClientService<ThreadJoinService>();
             services.AddScoped<HelpBuilder>();
-            services.AddScoped<ICommandUsageBuilder>(x => x.GetRequiredService<HelpBuilder>());
             services.AddScoped<WebLinkResolver>();
 
             return services;

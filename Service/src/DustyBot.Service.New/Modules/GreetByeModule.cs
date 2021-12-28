@@ -32,7 +32,7 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the greeting message.")]
             public async Task<CommandResult> SetGreetTextAsync(
                 [Description("a channel that will receive the messages")]
-                [RequireBotChannelParameterPermissions(Permission.SendMessages)]
+                [RequireBotCanSendMessages]
                 ITextChannel channel,
                 [Description("the greeting message")]
                 [Remainder]
@@ -111,7 +111,7 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the goodbye message.")]
             public async Task<CommandResult> SetByeTextAsync(
                 [Description("a channel that will receive the messages")]
-                [RequireBotChannelParameterPermissions(Permission.SendMessages)]
+                [RequireBotCanSendMessages]
                 ITextChannel channel,
                 [Description("the goodbye message")]
                 [Remainder]

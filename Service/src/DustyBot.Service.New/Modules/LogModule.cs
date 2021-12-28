@@ -25,7 +25,7 @@ namespace DustyBot.Service.Modules
         [RequireAuthorAdministrator]
         public async Task<CommandResult> EnableMessageLoggingAsync(
             [Description("a channel for the logs")]
-            [RequireBotChannelParameterPermissions(Permission.SendMessages)]
+            [RequireBotCanSendMessages]
             ITextChannel channel)
         {
             await _service.EnableMessageLoggingAsync(Context.GuildId, channel, Bot.StoppingToken);

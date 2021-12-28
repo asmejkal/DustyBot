@@ -13,7 +13,7 @@ using Qmmands;
 
 namespace DustyBot.Service.Services.Bot
 {
-    public class HelpBuilder : ICommandUsageBuilder
+    public class HelpBuilder
     {
         public Uri SupportServerInvite => new Uri(_webOptions.SupportServerInvite ?? throw new InvalidOperationException("Not configured"));
 
