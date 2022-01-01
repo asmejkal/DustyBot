@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DustyBot.Core.Collections;
 
 namespace DustyBot.Core.Parsing
 {
@@ -115,6 +116,13 @@ namespace DustyBot.Core.Parsing
 
             if (token.Length > 0)
                 yield return new Token { Begin = begin, End = value.Length, Value = token.ToString() };
+        }
+
+        public static string GetEnclosingWord(this string x, int beginIndex, int endIndex)
+        {
+            var wordBegin = x.AsSpan(0, beginIndex).LastIndexOf(x => char.IsWhiteSpace(x), defaultIndex: 0);
+            var wordEnd = x.AsSpan(endIndex).IndexOf(x => char.IsWhiteSpace(x), defaultIndex: x.Length);
+            return x[wordBegin..wordEnd];
         }
     }
 }

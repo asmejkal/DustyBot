@@ -12,9 +12,9 @@ namespace DustyBot.Database.Mongo.Utility
             var serializer = BsonSerializer.LookupSerializer<TDocument>();
             var renderedField = field.Render(serializer, BsonSerializer.SerializerRegistry);
             var pipeline = new EmptyPipelineDefinition<TDocument>()
-                .AppendStage("{$set:{" + renderedField + ":{$eq:[false,\"" + renderedField + "\"]}}}", serializer);
+                .AppendStage("{$set:{" + renderedField.FieldName + ":{$eq:[false,\"$" + renderedField.FieldName + "\"]}}}", serializer);
 
-            return Builders<TDocument>.Update.Pipeline(pipeline);
+            return builder.Pipeline(pipeline);
         }
 
         public static UpdateDefinition<TDocument> Toggle<TDocument>(this UpdateDefinitionBuilder<TDocument> builder, Expression<Func<TDocument, bool>> field)

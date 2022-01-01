@@ -1,16 +1,22 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
+using Disqord.Rest;
 using DustyBot.Database.Mongo.Collections.GreetBye.Models;
 
 namespace DustyBot.Service.Services.GreetBye
 {
-    internal class GreetByeMessageBuilder : IGreetByeMessageBuilder
+    internal class GreetByeSender : IGreetByeSender
     {
-        public string BuildText(string template, IUser user, IGatewayGuild guild) =>
-            ReplacePlaceholders(template, user, guild);
+        public Task SendTextMessageAsync(IMessageGuildChannel targetChannel, string template, IUser user, IGatewayGuild guild, CancellationToken ct)
+        {
+            var content = ReplacePlaceholders(template, user, guild);
+            return targetChannel.SendMessageAsync(new LocalMessage().WithContent(content), cancellationToken: ct);
+        }
 
-        public LocalEmbed BuildEmbed(GreetByeEmbed template, IUser user, IGatewayGuild guild)
+        public Task SendEmbedMessageAsync(IMessageGuildChannel targetChannel, GreetByeEmbed template, IUser user, IGatewayGuild guild, CancellationToken ct)
         {
             var embed = new LocalEmbed()
                 .WithTitle(ReplacePlaceholders(template.Title, user, guild))
@@ -18,7 +24,7 @@ namespace DustyBot.Service.Services.GreetBye
                 .WithThumbnailUrl(user is IMember member ? member.GetGuildAvatarUrl(size: 512) : user.GetAvatarUrl(size: 512));
 
             if (template.Color.HasValue)
-                embed.WithColor(Math.Min((int)template.Color.Value, 0xfffffe)); // 0xfffffff is a special code for blank
+                embed.WithColor(Math.Min(template.Color.Value, 0xfffffe)); // 0xfffffff is a special code for blank
 
             if (template.Image != default)
                 embed.WithImageUrl(template.Image.AbsoluteUri);
@@ -26,7 +32,7 @@ namespace DustyBot.Service.Services.GreetBye
             if (!string.IsNullOrEmpty(template.Footer))
                 embed.WithFooter(ReplacePlaceholders(template.Footer, user, guild));
 
-            return embed;
+            return targetChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed), cancellationToken: ct);
         }
 
         private static string ReplacePlaceholders(string template, IUser user, IGatewayGuild guild)

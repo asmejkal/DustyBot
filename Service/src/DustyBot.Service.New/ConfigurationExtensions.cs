@@ -28,7 +28,7 @@ namespace DustyBot.Service
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Component", "dustybot-service")
                 .Enrich.WithProperty("ComponentInstance", $"shard-{string.Join("+", discordOptions.Value.Shards ?? new[] { 0 })}")
-                .MinimumLevel.Information();
+                .MinimumLevel.Verbose();
 
             if (!string.IsNullOrEmpty(options.Value.ElasticsearchNodeUri))
             {
@@ -58,8 +58,6 @@ namespace DustyBot.Service
                 GatewayIntent.GuildMessages |
                 GatewayIntent.GuildTyping |
                 GatewayIntent.Guilds;
-
-            configuration.Intents = configuration.Intents.Value | GatewayIntent.Members;
 
             if (options.TotalShards != null)
             {

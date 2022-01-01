@@ -29,7 +29,7 @@ namespace DustyBot.Service.Modules
             [Description("use `global` to display the user's global profile avatar")]
             [Default(AvatarType.Server)]
             AvatarType? type,
-            [Description("the user; shows your own avatar if not specified")]
+            [Description("a user ID or a mention; shows your own avatar if not specified")]
             [Remainder]
             IMember? user)
         {
@@ -51,7 +51,7 @@ namespace DustyBot.Service.Modules
 
         [Command("banner"), Description("Shows a big version of a user's avatar.")]
         public async Task<CommandResult> ShowBannerAsync(
-            [Description("the user; shows your own banner if not specified")]
+            [Description("a user ID or a mention; shows your own banner if not specified")]
             [Remainder]
             IRestUser? user)
         {
@@ -72,7 +72,7 @@ namespace DustyBot.Service.Modules
 
         [Command("user", "uinfo", "userinfo"), Description("Shows information about a server member.")]
         public CommandResult ShowMemberInfo(
-            [Description("the user; shows your own info if not specified")]
+            [Description("a user ID or a mention; shows your own info if not specified")]
             [Remainder]
             IMember? user)
         {

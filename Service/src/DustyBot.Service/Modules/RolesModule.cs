@@ -537,7 +537,7 @@ namespace DustyBot.Service.Modules
                 if (!s.AssignableRoles.Any(x => x.Groups.Contains(command["GroupName"])))
                     throw new CommandException($"There's no role in group `{command["GroupName"]}` or it doesn't exist. Please add some roles first with `roles group add`.");
 
-                s.GroupSettings.GetOrCreate(command["GroupName"]).Limit = command["Limit"].AsUInt.Value;
+                s.GroupSettings.GetOrAdd(command["GroupName"]).Limit = command["Limit"].AsUInt.Value;
             });
 
             await command.ReplySuccess($"Users may now assign up to `{command["Limit"].AsUInt.Value}` roles from group `{command["GroupName"]}`.");

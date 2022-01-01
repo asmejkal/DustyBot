@@ -6,8 +6,8 @@ namespace DustyBot.Database.Services
 {
     public interface INotificationSettingsService
     {
-        Task<bool> GetIgnoreActiveChannelAsync(ulong userId, CancellationToken ct);
-        Task<bool> ToggleIgnoreActiveChannelAsync(ulong userId, CancellationToken ct);
+        Task<bool> IsActivityDetectionEnabledAsync(ulong userId, CancellationToken ct);
+        Task<bool> ToggleActivityDetectionAsync(ulong userId, CancellationToken ct);
         Task BlockUserAsync(ulong userId, ulong targetUserId, CancellationToken ct);
         Task UnblockUserAsync(ulong userId, ulong targetUserId, CancellationToken ct);
         Task<IEnumerable<ulong>> GetBlockedUsersAsync(ulong userId, CancellationToken ct);

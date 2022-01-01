@@ -36,7 +36,6 @@ namespace DustyBot.Database.Mongo
                 return x.GetRequiredService<IMongoClient>().GetDatabase(url.DatabaseName);
             });
 
-            /* TODO
             services.AddMigration();
             services.Replace(ServiceDescriptor.Singleton<IMongoMigrationSettings>(x =>
             {
@@ -49,7 +48,7 @@ namespace DustyBot.Database.Mongo
                 };
             }));
 
-            services.AddHostedService<MigrationsRunner>();*/
+            services.AddHostedService<MigrationsRunner>();
 
             return services;
         }

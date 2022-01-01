@@ -27,7 +27,7 @@ namespace DustyBot.Database.Services
                 .ExecuteAsync(ct);
         }
 
-        public async Task<bool> GetIgnoreActiveChannelAsync(ulong userId, CancellationToken ct)
+        public async Task<bool> IsActivityDetectionEnabledAsync(ulong userId, CancellationToken ct)
         {
             return await GetCollection()
                 .Find(x => x.UserId == userId)
@@ -43,7 +43,7 @@ namespace DustyBot.Database.Services
                 .FirstOrDefaultAsync(ct) ?? Enumerable.Empty<ulong>();
         }
 
-        public async Task<bool> ToggleIgnoreActiveChannelAsync(ulong userId, CancellationToken ct)
+        public async Task<bool> ToggleActivityDetectionAsync(ulong userId, CancellationToken ct)
         {
             return await GetCollection()
                 .FindOneAndUpdate(x => x.UserId == userId)

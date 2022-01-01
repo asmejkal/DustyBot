@@ -1,4 +1,5 @@
-﻿using Disqord.Gateway;
+﻿using Disqord.Bot.Hosting;
+using Disqord.Gateway;
 
 namespace DustyBot.Framework.Logging
 {
@@ -36,5 +37,17 @@ namespace DustyBot.Framework.Logging
 
         public LoggerScopeBuilder WithArgs(MessagesDeletedEventArgs e) =>
             WithGuild(e.GuildId).WithChannel(e.ChannelId);
+
+        public LoggerScopeBuilder WithArgs(BotMessageReceivedEventArgs e) => e switch
+        {
+            { GuildId: not null, Channel: not null } => WithGuild(e.GuildId.Value).WithChannel(e.Channel).WithMessage(e.Message),
+            _ => WithChannel(e.ChannelId).WithMessage(e.Message)
+        };
+
+        public LoggerScopeBuilder WithArgs(TypingStartedEventArgs e) => e switch
+        {
+            { GuildId: not null, Member: not null } => WithGuild(e.GuildId.Value).WithChannel(e.ChannelId).WithMember(e.Member),
+            _ => WithChannel(e.ChannelId)
+        };
     }
 }

@@ -26,5 +26,20 @@ namespace DustyBot.Core.Collections
             return source.Where(x => x != null)!;
         }
 #pragma warning restore SA1009 // Closing parenthesis should be spaced correctly
+
+        public static int IndexOf<TSource>(this IEnumerable<TSource> source, Func<TSource, bool> predicate)
+        {
+            int i = 0;
+
+            foreach (TSource element in source)
+            {
+                if (predicate(element))
+                    return i;
+
+                i++;
+            }
+
+            return -1;
+        }
     }
 }

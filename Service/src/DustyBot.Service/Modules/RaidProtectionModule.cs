@@ -641,7 +641,7 @@ namespace DustyBot.Service.Modules
                 {
                     await userContext.Mutex.WaitAsync();
 
-                    var offenses = userContext.Offenses.GetOrCreate(rule.Type);
+                    var offenses = userContext.Offenses.GetOrAdd(rule.Type);
                     offenses.Add(messages.Last());
                     offenses.SlideWindow(rule.OffenseWindow);
 

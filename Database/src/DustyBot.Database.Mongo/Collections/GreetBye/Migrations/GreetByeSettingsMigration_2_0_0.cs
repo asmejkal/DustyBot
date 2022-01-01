@@ -8,7 +8,7 @@ namespace DustyBot.Database.Mongo.Collections.GreetBye.Migrations
     /// <summary>
     /// Adds support for embed bye messages.
     /// </summary>
-    public sealed class GreetByeSettingsMigration_2_0_0 : DocumentMigration<GreetByeSettings>
+    public abstract class GreetByeSettingsMigration_2_0_0 : DocumentMigration<GreetByeSettings> // TODO
     {
         public GreetByeSettingsMigration_2_0_0() 
             : base("2.0.0")

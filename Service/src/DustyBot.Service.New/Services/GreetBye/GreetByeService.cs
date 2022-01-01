@@ -20,7 +20,7 @@ namespace DustyBot.Service.Services.GreetBye
 {
     internal class GreetByeService : DustyBotService, IGreetByeService, IDisposable
     {
-        private readonly IGreetByeMessageBuilder _messageBuilder;
+        private readonly IGreetByeSender _sender;
         private readonly ISettingsService _settings;
         private readonly IAutomodService _automodService;
 
@@ -28,10 +28,10 @@ namespace DustyBot.Service.Services.GreetBye
 
         public override int Priority => _automodService.Priority - 1;
 
-        public GreetByeService(IGreetByeMessageBuilder messageBuilder, ISettingsService settings, IAutomodService automodService)
+        public GreetByeService(IGreetByeSender sender, ISettingsService settings, IAutomodService automodService)
             : base()
         {
-            _messageBuilder = messageBuilder;
+            _sender = sender;
             _settings = settings;
             _automodService = automodService;
         }
@@ -91,7 +91,7 @@ namespace DustyBot.Service.Services.GreetBye
             if (settings == null || !settings.Events.TryGetValue(type, out var setting))
                 return TriggerEventResult.EventNotSet;
 
-            return await TriggerEventAsync(setting, guild, channel.Id, user, ct);
+            return await TriggerEventAsync(setting, guild, channel, user, ct);
         }
 
         public override void Dispose()
@@ -136,7 +136,7 @@ namespace DustyBot.Service.Services.GreetBye
                 return;
 
             var guild = Bot.GetGuildOrThrow(guildId);
-            var channel = guild.GetChannel(setting.ChannelId);
+            var channel = guild.GetChannel(setting.ChannelId) as IMessageGuildChannel;
             if (channel == null)
             {
                 Logger.LogInformation("Can't send {GreetByeEventType} message because the channel was not found", type);
@@ -151,7 +151,8 @@ namespace DustyBot.Service.Services.GreetBye
             }
 
             Logger.LogInformation("Handling event {GreetByeEventType}", type);
-            await TriggerEventAsync(setting, guild, channel.Id, user, ct);
+
+            await TriggerEventAsync(setting, guild, channel, user, ct);
         }
 
         private void HandleUserAutobanned(object? sender, (Snowflake GuildId, Snowflake UserId) e)
@@ -167,19 +168,17 @@ namespace DustyBot.Service.Services.GreetBye
         private async Task<TriggerEventResult> TriggerEventAsync(
             GreetByeEventSetting setting,
             IGatewayGuild guild, 
-            Snowflake channelId, 
+            IMessageGuildChannel targetChannel, 
             IUser user, 
             CancellationToken ct)
         {
-            var message = new LocalMessage();
             if (setting.Text != default)
-                message.WithContent(_messageBuilder.BuildText(setting.Text, user, guild));
+                await _sender.SendTextMessageAsync(targetChannel, setting.Text, user, guild, ct);
             else if (setting.Embed != default)
-                message.WithEmbeds(_messageBuilder.BuildEmbed(setting.Embed, user, guild));
+                await _sender.SendEmbedMessageAsync(targetChannel, setting.Embed, user, guild, ct);
             else
                 return TriggerEventResult.EventNotSet;
 
-            await Bot.SendMessageAsync(channelId, message, cancellationToken: ct);
             return TriggerEventResult.Success;
         }
     }

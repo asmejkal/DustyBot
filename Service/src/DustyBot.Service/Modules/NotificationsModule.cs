@@ -326,7 +326,7 @@ namespace DustyBot.Service.Modules
         [Comment("All notifications will be delayed by a small amount. If you start typing in the channel where someone triggered a notification, you won't be notified.\n\nUse this command again to disable.")]
         public async Task ToggleIgnoreActiveChannel(ICommand command, CancellationToken ct)
         {
-            var enabled = await _userSettings.ToggleIgnoreActiveChannelAsync(command.Author.Id, ct);
+            var enabled = await _userSettings.ToggleActivityDetectionAsync(command.Author.Id, ct);
             await command.ReplySuccess(enabled ? "You won't be notified for messages in channels you're currently being active in. This causes a small delay for all notifications." : "You will now be notified for every message instantly.");
         }
 

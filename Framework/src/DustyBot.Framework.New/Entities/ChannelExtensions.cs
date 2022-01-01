@@ -10,7 +10,7 @@ namespace DustyBot.Framework.Entities
 {
     public static class ChannelExtensions
     {
-        public static Task<IUserMessage> SendMessageAsync(
+        public static Task<IUserMessage> SendMessageCheckedAsync(
             this IMessageGuildChannel channel,
             LocalMessage message,
             IRestRequestOptions? options = null,
@@ -21,7 +21,7 @@ namespace DustyBot.Framework.Entities
                 throw new InvalidOperationException("Guild cache must be enabled");
 
             var restClient = channel.GetRestClient();
-            return restClient.SendMessageAsync(guild, channel, message, options, cancellationToken);
+            return restClient.SendMessageCheckedAsync(guild, channel, message, options, cancellationToken);
         }
     }
 }

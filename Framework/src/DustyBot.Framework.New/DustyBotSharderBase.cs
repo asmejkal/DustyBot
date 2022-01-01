@@ -5,10 +5,13 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Disqord;
 using Disqord.Bot;
 using Disqord.Bot.Sharding;
 using Disqord.Gateway;
+using Disqord.Rest;
 using Disqord.Sharding;
+using DustyBot.Core.Async;
 using DustyBot.Core.Comparers;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Commands.Attributes;
@@ -32,6 +35,39 @@ namespace DustyBot.Framework
             DiscordClientSharder client)
             : base(options, logger, services, client)
         {
+        }
+
+        public async Task<IEnumerable<CommandMatch>> FindCommandsAsync(IGatewayUserMessage message)
+        {
+            // We check if the message is suitable for execution.
+            // By default excludes bot messages.
+            if (!await CheckMessageAsync(message).ConfigureAwait(false))
+                return Enumerable.Empty<CommandMatch>();
+
+            // We get the prefixes from the prefix provider.
+            var prefixes = await Prefixes.GetPrefixesAsync(message).ConfigureAwait(false);
+            if (prefixes == null)
+                return Enumerable.Empty<CommandMatch>();
+
+            // We try to find a prefix in the message.
+            IPrefix? foundPrefix = null;
+            string? output = null;
+            foreach (var prefix in prefixes)
+            {
+                if (prefix == null)
+                    continue;
+
+                if (prefix.TryFind(message, out output))
+                {
+                    foundPrefix = prefix;
+                    break;
+                }
+            }
+
+            if (foundPrefix == null)
+                return Enumerable.Empty<CommandMatch>();
+
+            return Commands.FindCommands(output);
         }
 
         public override DiscordCommandContext CreateCommandContext(IPrefix prefix, string input, IGatewayUserMessage message, CachedMessageGuildChannel channel)
@@ -86,8 +122,9 @@ namespace DustyBot.Framework
             Commands.AddTypeParser(new TimeOnlyTypeParser());
             Commands.AddTypeParser(new UriTypeParser());
             Commands.AddTypeParser(new RestUserTypeParser());
+            Commands.AddTypeParser(new UserTypeParser());
 
-            Commands.ReplaceTypeParser(new RestMemberTypeParser());
+            Commands.ReplaceTypeParser(new MemberTypeParser());
         }
 
         protected override ValueTask<bool> BeforeExecutedAsync(DiscordCommandContext context)
@@ -116,10 +153,21 @@ namespace DustyBot.Framework
                     ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
 
                 using var scope = logger.BuildScope(x => x.WithCommandContext(context).WithCommandUsageContext(context));
-                if (context.GuildId != null)
+                if (context is DiscordGuildCommandContext guildContext)
+                {
                     logger.LogInformation("Command {MessageContent} failed with {CommandResult}", context.Message.Content, result.GetType().Name);
+
+                    if (guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
+                        && guildContext.Guild.GetBotPermissions(guildContext.Channel).ManageMessages)
+                    {
+                        TaskHelper.FireForget(() => context.Message.DeleteAsync(cancellationToken: StoppingToken),
+                            ex => Logger.LogError(ex, "Failed to hide failed command's invocation message"));
+                    }
+                }
                 else
+                {
                     logger.LogInformation("Command {MessageContentRedacted} failed with {CommandResult}", context.Prefix.ToString() + string.Join(' ', context.Path), result.GetType().Name);
+                }
             }
 
             return base.HandleFailedResultAsync(context, result);

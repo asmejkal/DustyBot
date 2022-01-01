@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
-using DustyBot.Core.Formatting;
 using DustyBot.Database.Mongo.Collections.Log;
 using DustyBot.Database.Services;
 using DustyBot.Framework.Client;
@@ -20,11 +18,13 @@ namespace DustyBot.Service.Services.Log
     internal class LogService : DustyBotService, ILogService
     {
         private readonly ISettingsService _settings;
+        private readonly ILogSender _sender;
 
-        public LogService(ISettingsService settings)
+        public LogService(ISettingsService settings, ILogSender sender)
             : base()
         {
             _settings = settings;
+            _sender = sender;
         }
 
         public Task EnableMessageLoggingAsync(Snowflake guildId, ITextChannel channel, CancellationToken ct)
@@ -81,16 +81,10 @@ namespace DustyBot.Service.Services.Log
         {
             try
             {
-                if (e.GuildId == null || e.Message == null)
+                if (e.GuildId == null || e.Message == null || e.Message.Author.IsBot)
                     return;
 
-                var guild = Bot.GetGuildOrThrow(e.GuildId.Value);
-                var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
-
-                if (e.Message.Author.IsBot)
-                    return;
-
-                var settings = await _settings.Read<LogSettings>(guild.Id, false, Bot.StoppingToken);
+                var settings = await _settings.Read<LogSettings>(e.GuildId.Value, false, Bot.StoppingToken);
                 if (settings == null)
                     return;
 
@@ -98,10 +92,13 @@ namespace DustyBot.Service.Services.Log
                 if (eventChannelId == default)
                     return;
 
+                var guild = Bot.GetGuildOrThrow(e.GuildId.Value);
+                var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
+
                 if (settings.MessageDeletedChannelFilters.Contains(channel.Id))
                     return;
 
-                var eventChannel = guild.GetTextChannel(eventChannelId);
+                var eventChannel = guild.GetChannel(eventChannelId) as IMessageGuildChannel;
                 if (eventChannel == null)
                     return;
 
@@ -115,8 +112,11 @@ namespace DustyBot.Service.Services.Log
                 if (settings.MessageDeletedPrefixFilters.Any(x => e.Message.Content.StartsWith(x)))
                     return;
 
+                if ((await Bot.FindCommandsAsync(e.Message)).Any())
+                    return;
+
                 Logger.LogInformation("Logging a deleted message");
-                await LogSingleMessageAsync(eventChannel, channel, e.Message, Bot.StoppingToken);
+                await _sender.SendDeletedMessageLogAsync(eventChannel, e.Message, channel, Bot.StoppingToken);
             }
             catch (Exception ex)
             {
@@ -128,9 +128,6 @@ namespace DustyBot.Service.Services.Log
         {
             try
             {
-                var guild = Bot.GetGuildOrThrow(e.GuildId);
-                var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
-
                 var messages = e.Messages
                     .Select(x => x.Value)
                     .Where(x => x != null && !x.Author.IsBot)
@@ -139,7 +136,7 @@ namespace DustyBot.Service.Services.Log
                 if (!messages.Any())
                     return;
 
-                var settings = await _settings.Read<LogSettings>(guild.Id, false, Bot.StoppingToken);
+                var settings = await _settings.Read<LogSettings>(e.GuildId, false, Bot.StoppingToken);
                 if (settings == null)
                     return;
 
@@ -147,10 +144,13 @@ namespace DustyBot.Service.Services.Log
                 if (eventChannelId == default)
                     return;
 
+                var guild = Bot.GetGuildOrThrow(e.GuildId);
+                var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
+
                 if (settings.MessageDeletedChannelFilters.Contains(channel.Id))
                     return;
 
-                var eventChannel = guild.GetTextChannel(eventChannelId);
+                var eventChannel = guild.GetChannel(eventChannelId) as IMessageGuildChannel;
                 if (eventChannel == null)
                     return;
 
@@ -162,80 +162,12 @@ namespace DustyBot.Service.Services.Log
                 }
 
                 Logger.LogInformation("Logging {Count} deleted messages", messages.Count);
-
-                var logs = new List<string>();
-                foreach (var message in messages)
-                {
-                    if (settings.MessageDeletedPrefixFilters.Any(x => message.Content.StartsWith(x)))
-                        continue;
-
-                    var builder = new StringBuilder();
-                    builder.AppendLine($"**Message by {message.Author.Mention} in {channel.Mention} was deleted:**");
-
-                    if (!string.IsNullOrWhiteSpace(message.Content))
-                        builder.AppendLine(message.Content);
-
-                    if (message.Attachments.Any())
-                        builder.AppendLine(string.Join("\n", message.Attachments.Select(a => a.Url)));
-
-                    builder.Append(Markdown.Timestamp(message.CreatedAt(), Markdown.TimestampFormat.ShortDateTime));
-
-                    if (builder.Length > LocalEmbed.MaxDescriptionLength / 2)
-                    {
-                        try
-                        {
-                            await LogSingleMessageAsync(eventChannel, channel, message, Bot.StoppingToken);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.WithScope(x => x.WithMessage(message)).LogError(ex, "Failed to log single deleted message in a bulk delete");
-                        }
-
-                        continue;
-                    }
-                    else
-                    {
-                        logs.Add(builder.ToString());
-                    }
-                }
-
-                var embed = new LocalEmbed();
-                var delimiter = "\n\n";
-                foreach (var log in logs)
-                {
-                    var totalLength = log.Length + delimiter.Length;
-
-                    if ((embed.Description?.Length ?? 0) + totalLength > LocalEmbed.MaxDescriptionLength)
-                    {
-                        await eventChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed));
-                        embed = new LocalEmbed();
-                    }
-                    else
-                    {
-                        embed.Description += log + delimiter;
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(embed.Description))
-                    await eventChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed));
+                await _sender.SendDeletedMessageLogsAsync(eventChannel, messages, channel, Bot.StoppingToken);
             }
             catch (Exception ex)
             {
                 Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process deleted messages");
             }
-        }
-
-        private static async Task LogSingleMessageAsync(ITextChannel eventChannel, IMessageGuildChannel channel, IUserMessage message, CancellationToken ct)
-        {
-            var preface = $"**Message by {message.Author.Mention} in {channel.Mention} was deleted:**\n";
-            var embed = new LocalEmbed()
-                .WithDescription(preface + message.Content.Truncate(LocalEmbed.MaxDescriptionLength - preface.Length))
-                .WithTimestamp(message.CreatedAt());
-
-            if (message.Attachments.Any())
-                embed.AddField("Attachments", string.Join(", ", message.Attachments.Select(a => a.Url)));
-
-            await eventChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed), cancellationToken: ct);
         }
     }
 }

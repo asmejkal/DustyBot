@@ -11,20 +11,17 @@ namespace DustyBot.Framework.Entities
 {
     public static class GuildExtensions
     {
-        public static bool CanBotSendMessages(this IGatewayGuild guild, IGuildChannel channel)
+        public static bool CanBotSendMessages(this IGatewayGuild guild, IMessageGuildChannel channel)
         {
-            var member = guild.GetMember(guild.Client.CurrentUser.Id);
-            var roles = member.GetRoles();
-            var permissions = Discord.Permissions.CalculatePermissions(guild, channel, member, roles.Values);
-            if (channel is IThreadChannel)
-                return permissions.SendMessages && permissions.SendMessagesInThreads;
-            else
-                return permissions.SendMessages;
+            var permissions = guild.GetBotPermissions(channel);
+            return channel is IThreadChannel ? permissions.SendMessagesInThreads : permissions.SendMessages;
         }
 
-        public static ChannelPermissions GetBotPermissions(this IGatewayGuild guild, IGuildChannel channel)
+        public static ChannelPermissions GetBotPermissions(this IGatewayGuild guild, IGuildChannel channel) =>
+            guild.GetPermissions(channel, guild.GetMember(guild.Client.CurrentUser.Id));
+
+        public static ChannelPermissions GetPermissions(this IGatewayGuild guild, IGuildChannel channel, IMember member)
         {
-            var member = guild.GetMember(guild.Client.CurrentUser.Id);
             var roles = member.GetRoles();
             return Discord.Permissions.CalculatePermissions(guild, channel, member, roles.Values);
         }
@@ -68,14 +65,5 @@ namespace DustyBot.Framework.Entities
 
         public static IEnumerable<CachedTextChannel> GetTextChannels(this IGatewayGuild guild) =>
             guild.GetChannels(ChannelType.Text).Select(x => x.Value).OfType<CachedTextChannel>();
-
-        public static CachedGuildChannel? GetChannel(this IGatewayGuild guild, Snowflake channelId, ChannelType type)
-        {
-            var result = guild.GetChannel(channelId);
-            return result?.Type == type ? result : null;
-        }
-
-        public static CachedTextChannel? GetTextChannel(this IGatewayGuild guild, Snowflake channelId) =>
-            guild.GetChannel(channelId, ChannelType.Text) as CachedTextChannel;
     }
 }

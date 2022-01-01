@@ -14,6 +14,7 @@ using DustyBot.Service.Services.Automod;
 using DustyBot.Service.Services.Bot;
 using DustyBot.Service.Services.GreetBye;
 using DustyBot.Service.Services.Log;
+using DustyBot.Service.Services.Notifications;
 using DustyBot.Service.Services.YouTube;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,7 @@ namespace DustyBot.Service
             // services.AddYouTubeServices();
             services.AddBotServices();
             services.AddInfoServices();
+            services.AddNotificationsServices();
             services.AddUtilityServices();
 
             return services;
@@ -66,7 +68,7 @@ namespace DustyBot.Service
             services.AddDiscordModule<GreetByeModule>();
             services.AddDiscordClientService<GreetByeService>();
             services.AddScoped<IGreetByeService>(x => x.GetRequiredService<GreetByeService>());
-            services.AddScoped<IGreetByeMessageBuilder, GreetByeMessageBuilder>();
+            services.AddScoped<IGreetByeSender, GreetByeSender>();
 
             return services;
         }
@@ -83,6 +85,7 @@ namespace DustyBot.Service
             services.AddDiscordModule<LogModule>();
             services.AddDiscordClientService<LogService>();
             services.AddScoped<ILogService>(x => x.GetRequiredService<LogService>());
+            services.AddScoped<ILogSender, LogSender>();
 
             return services;
         }
@@ -114,11 +117,24 @@ namespace DustyBot.Service
             return services;
         }
 
+        public static IServiceCollection AddNotificationsServices(this IServiceCollection services)
+        {
+            services.AddDiscordModule<NotificationsModule>();
+            services.AddDiscordClientService<NotificationsService>();
+            services.AddScoped<INotificationsService>(x => x.GetRequiredService<NotificationsService>());
+            services.AddScoped<INotificationsSender, NotificationsSender>();
+
+            return services;
+        }
+
         public static IServiceCollection AddUtilityServices(this IServiceCollection services)
         {
             services.AddScoped<IUrlShortenerService, PolrUrlShortenerService>();
             services.AddScoped<ITimerAwaiter, TimerAwaiter>();
             services.AddScoped<ITimeProvider, TimeProvider>();
+            
+            services.AddDiscordClientService<ChannelActivityWatcher>();
+            services.AddSingleton<IChannelActivityWatcher>(x => x.GetRequiredService<ChannelActivityWatcher>());
 
             return services;
         }

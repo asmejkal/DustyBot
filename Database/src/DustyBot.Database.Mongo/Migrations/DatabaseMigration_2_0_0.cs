@@ -5,7 +5,7 @@ using MongoDB.Driver;
 
 namespace DustyBot.Database.Mongo.Migrations
 {
-    public class DatabaseMigration_2_0_0 : DatabaseMigration
+    public abstract class DatabaseMigration_2_0_0 : DatabaseMigration // TODO
     {
         public DatabaseMigration_2_0_0() 
             : base("2.0.0")

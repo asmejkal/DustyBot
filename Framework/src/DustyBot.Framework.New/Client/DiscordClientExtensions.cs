@@ -11,7 +11,7 @@ namespace DustyBot.Framework.Client
 {
     public static class DiscordClientExtensions
     {
-        public static Task<IUserMessage> SendMessageAsync(this IRestClient client,
+        public static Task<IUserMessage> SendMessageCheckedAsync(this IRestClient client,
             IGatewayGuild guild,
             IMessageGuildChannel channel,
             LocalMessage message,
@@ -24,7 +24,7 @@ namespace DustyBot.Framework.Client
             throw new MissingPermissionsException($"Bot is missing permissions to send a message in channel {channel.Id} on guild {guild.Id}");
         }
 
-        public static Task<IUserMessage> SendMessageAsync(this DiscordClientBase client,
+        public static Task<IUserMessage> SendMessageCheckedAsync(this DiscordClientBase client,
             Snowflake guildId,
             Snowflake channelId,
             LocalMessage message,
@@ -40,7 +40,7 @@ namespace DustyBot.Framework.Client
             if (channel is not IMessageGuildChannel messageChannel)
                 throw new ArgumentException("Channel is not a message channel", nameof(channelId));
 
-            return SendMessageAsync(client, guild, messageChannel, message, options, cancellationToken);
+            return SendMessageCheckedAsync(client, guild, messageChannel, message, options, cancellationToken);
         }
     }
 }

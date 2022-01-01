@@ -1,21 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace DustyBot.Core.Collections
 {
     public static class DictionaryExtensions
     {
-        public static TValue GetOrCreate<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key)
+        public static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, Func<TValue> factory)
+        {
+            if (!dict.TryGetValue(key, out var val))
+                dict.Add(key, val = factory());
+
+            return val;
+        }
+
+        public static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key)
             where TValue : new()
         {
-            TValue val;
+            if (!dict.TryGetValue(key, out var val))
+                dict.Add(key, val = new());
 
-            if (!dict.TryGetValue(key, out val))
-            {
-                val = new TValue();
-                dict.Add(key, val);
-            }
+            return val;
+        }
+
+        public static async ValueTask<TValue> GetOrAddAsync<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, Func<ValueTask<TValue>> factory)
+        {
+            if (!dict.TryGetValue(key, out var val))
+                dict.Add(key, val = await factory());
 
             return val;
         }

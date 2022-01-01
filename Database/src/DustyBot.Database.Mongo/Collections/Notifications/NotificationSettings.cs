@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using DustyBot.Database.Mongo.Collections.Notifications.Models;
 using DustyBot.Database.Mongo.Collections.Templates;
-using DustyBot.Database.Mongo.Models;
+using Mongo.Migration.Documents.Attributes;
 
-namespace DustyBot.Database.Mongo.Collections
+namespace DustyBot.Database.Mongo.Collections.Notifications
 {
+    [RuntimeVersion("1.1.0")]
     public class NotificationSettings : BaseServerSettings
     {
         public List<Notification> Notifications { get; set; } = new();
@@ -16,14 +17,5 @@ namespace DustyBot.Database.Mongo.Collections
 
         public Dictionary<ulong, int> UserQuotas { get; set; } = new();
         public DateTime CurrentQuotaDate { get; set; }
-
-        public bool RaiseCount(ulong user, string loweredWord)
-        {
-            var n = Notifications.FirstOrDefault(x => x.User == user && x.LoweredWord == loweredWord);
-            if (n != null)
-                n.TriggerCount++;
-
-            return n != null;
-        }
     }
 }

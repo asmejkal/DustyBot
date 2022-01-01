@@ -1,15 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Bot;
 using Disqord.Extensions.Interactivity.Menus.Paged;
+using Disqord.Rest;
+using DustyBot.Core.Async;
+using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Commands.Results;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Interactivity;
 using DustyBot.Framework.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Qmmands;
 
 namespace DustyBot.Framework.Modules
 {
@@ -17,6 +24,12 @@ namespace DustyBot.Framework.Modules
         where T : DiscordCommandContext
     {
         private ILogger? _logger;
+
+        protected bool HideInvocation => Context is DiscordGuildCommandContext guildContext 
+            && guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
+            && guildContext.Guild.GetBotPermissions(guildContext.Channel).ManageMessages;
+
+        protected override DustyBotSharderBase Bot => (DustyBotSharderBase)base.Bot;
 
         protected override ILogger Logger
         {
@@ -33,6 +46,10 @@ namespace DustyBot.Framework.Modules
             }
         }
 
+        private bool ShouldReply => Context is DiscordGuildCommandContext guildContext
+            && !guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
+            && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory;
+
         protected override ValueTask BeforeExecutedAsync()
         {
             using var scope = Logger.BuildScope(x => x.WithCommandUsageContext(Context));
@@ -41,13 +58,19 @@ namespace DustyBot.Framework.Modules
             else
                 Logger.LogInformation("Command {MessageContentRedacted} with {MessageAttachmentCount} attachments", Context.Prefix.ToString() + string.Join(' ', Context.Path), Context.Message.Attachments.Count);
 
-            return new();
+            if (HideInvocation)
+            {
+                TaskHelper.FireForget(() => Context.Message.DeleteAsync(cancellationToken: Bot.StoppingToken),
+                    ex => Logger.LogError(ex, "Failed to hide command invocation message"));
+            }
+
+            return default;
         }
 
         protected virtual DiscordSuccessCommandResult Success()
             => new(Context);
 
-        protected virtual DiscordSuccessResponseCommandResult Success(string content)
+        protected virtual DiscordSuccessResponseCommandResult Success(string content, TimeSpan deleteAfter = default)
             => Success(new LocalMessage().WithContent(content));
 
         protected virtual DiscordSuccessResponseCommandResult Success(params LocalEmbed[] embeds)
@@ -56,13 +79,13 @@ namespace DustyBot.Framework.Modules
         protected virtual DiscordSuccessResponseCommandResult Success(string content, params LocalEmbed[] embeds)
             => Success(new LocalMessage().WithContent(content).WithEmbeds(embeds));
 
-        protected virtual DiscordSuccessResponseCommandResult Success(LocalMessage message)
+        protected virtual DiscordSuccessResponseCommandResult Success(LocalMessage message, TimeSpan deleteAfter = default)
         {
             message.AllowedMentions ??= LocalAllowedMentions.None;
-            if (Context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+            if (ShouldReply)
                 message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
 
-            return new(Context, message);
+            return new(Context, message, deleteAfter);
         }
 
         protected virtual DiscordFailureResponseCommandResult Failure(string content)
@@ -77,7 +100,7 @@ namespace DustyBot.Framework.Modules
         protected virtual DiscordFailureResponseCommandResult Failure(LocalMessage message)
         {
             message.AllowedMentions ??= LocalAllowedMentions.None;
-            if (Context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+            if (ShouldReply)
                 message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
 
             return new(Context, message);
@@ -95,7 +118,7 @@ namespace DustyBot.Framework.Modules
         protected virtual DiscordResponseCommandResult Result(LocalMessage message)
         {
             message.AllowedMentions ??= LocalAllowedMentions.None;
-            if (Context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+            if (ShouldReply)
                 message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
 
             return new(Context, message);
@@ -144,5 +167,35 @@ namespace DustyBot.Framework.Modules
 
         protected override DiscordMenuCommandResult Pages(PageProvider pageProvider, TimeSpan timeout = default) => 
             View(new AdaptivePagedView(pageProvider), timeout);
+
+        protected string GetReference(string methodName)
+        {
+            var module = GetType();
+            var method = module.GetMethod(methodName);
+            if (method == null)
+                throw new ArgumentException("Method not found", nameof(methodName));
+
+            var command = method.GetCustomAttribute<CommandAttribute>();
+            if (command == null)
+                throw new ArgumentException("Method is not a command", nameof(methodName));
+
+            var current = module;
+            var path = new StringBuilder();
+            do
+            {
+                var group = current.GetCustomAttribute<GroupAttribute>();
+                if (group != null && !string.IsNullOrEmpty(group.Aliases.FirstOrDefault()))
+                {
+                    path.Append(group.Aliases.First());
+                    path.Append(Bot.Commands.Separator);
+                }
+            } while ((current = current.DeclaringType) != null);
+
+            if (command is VerbCommandAttribute verbCommand)
+                path.Append(string.Join(Bot.Commands.Separator, verbCommand.Verbs) + Bot.Commands.Separator);
+
+            path.Append(command.Aliases.First());
+            return path.ToString();
+        }
     }
 }
