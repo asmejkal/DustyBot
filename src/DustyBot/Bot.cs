@@ -130,7 +130,7 @@ namespace DustyBot
 
                 var clientConfig = new DiscordSocketConfig
                 {
-                    MessageCacheSize = 200,
+                    MessageCacheSize = 100,
                     ConnectionTimeout = int.MaxValue,
                     ExclusiveBulkDelete = true,
                     GatewayIntents = intents
@@ -194,7 +194,7 @@ namespace DustyBot
                     components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config, shortener, proxyService, components.Client));
-                    components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
+                    // components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
                     components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.StarboardModule(components.Communicator, settings, components.Logger, userFetcher, shortener, components.Client));
                     components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger));
