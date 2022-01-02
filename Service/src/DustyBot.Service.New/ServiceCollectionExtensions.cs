@@ -5,7 +5,6 @@ using Disqord.Hosting;
 using DustyBot.Core.Miscellaneous;
 using DustyBot.Core.Services;
 using DustyBot.Database.Services;
-using DustyBot.Framework.Communication;
 using DustyBot.Framework.Startup;
 using DustyBot.Service.Configuration;
 using DustyBot.Service.Modules;

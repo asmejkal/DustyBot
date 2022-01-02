@@ -87,7 +87,7 @@ namespace DustyBot.Service
 
         public static void ConfigureCaching(this DefaultGatewayCacheProviderConfiguration configuration)
         {
-            configuration.MessagesPerChannel = 200;
+            configuration.MessagesPerChannel = 100;
 
             // configuration.SupportedTypes.Remove(typeof(CachedSharedUser));
 
