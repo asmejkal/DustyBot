@@ -11,12 +11,6 @@ namespace DustyBot.Framework.Entities
 {
     public static class GuildExtensions
     {
-        public static bool CanBotSendMessages(this IGatewayGuild guild, IMessageGuildChannel channel)
-        {
-            var permissions = guild.GetBotPermissions(channel);
-            return channel is IThreadChannel ? permissions.SendMessagesInThreads : permissions.SendMessages;
-        }
-
         public static ChannelPermissions GetBotPermissions(this IGatewayGuild guild, IGuildChannel channel) =>
             guild.GetPermissions(channel, guild.GetMember(guild.Client.CurrentUser.Id));
 

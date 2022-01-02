@@ -19,7 +19,7 @@ namespace DustyBot.Framework.Commands.Attributes
         public override ValueTask<CheckResult> CheckAsync(object argument, DiscordGuildCommandContext context)
         {
             var channel = (IMessageGuildChannel)argument;
-            return context.Guild.CanBotSendMessages(channel) ?
+            return context.Guild.GetBotPermissions(channel).SendMessages ?
                 Success() :
                 Failure($"The bot doesn't have permission to send messages in {Mention.Channel(channel)}.");
         }

@@ -136,15 +136,14 @@ namespace DustyBot.Service.Services.GreetBye
                 return;
 
             var guild = Bot.GetGuildOrThrow(guildId);
-            var channel = guild.GetChannel(setting.ChannelId) as IMessageGuildChannel;
-            if (channel == null)
+            if (guild.GetChannel(setting.ChannelId) is not IMessageGuildChannel channel)
             {
                 Logger.LogInformation("Can't send {GreetByeEventType} message because the channel was not found", type);
                 return;
             }
 
             using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithChannel(channel));
-            if (!guild.CanBotSendMessages(channel))
+            if (!guild.GetBotPermissions(channel).SendMessages)
             {
                 Logger.LogInformation("Can't send {GreetByeEventType} message because of missing permissions", type);
                 return;

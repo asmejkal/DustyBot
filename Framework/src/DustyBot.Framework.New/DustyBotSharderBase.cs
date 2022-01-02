@@ -132,7 +132,7 @@ namespace DustyBot.Framework
             if (context is not DiscordGuildCommandContext guildContext)
                 return new(true);
 
-            return new(guildContext.Guild.CanBotSendMessages(guildContext.Channel));
+            return new(guildContext.Guild.GetBotPermissions(guildContext.Channel).SendMessages);
         }
 
         protected override ValueTask HandleCommandResultAsync(DiscordCommandContext context, DiscordCommandResult result)

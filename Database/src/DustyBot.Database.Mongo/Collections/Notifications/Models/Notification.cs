@@ -9,12 +9,6 @@ namespace DustyBot.Database.Mongo.Collections.Notifications.Models
         public ulong User { get; set; }
         public int TriggerCount { get; set; }
 
-        [Obsolete]
-        public string? OriginalWord { get; set; }
-
-        [Obsolete]
-        public string? LoweredWord { get; set; }
-
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         public Notification()
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.

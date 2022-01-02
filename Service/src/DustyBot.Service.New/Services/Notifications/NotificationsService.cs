@@ -334,6 +334,9 @@ namespace DustyBot.Service.Services.Notifications
 
         private static AhoCorasickDoubleArrayTrie<Notification>? CreateTrie(NotificationSettings settings)
         {
+            if (settings == null)
+                return null;
+
             var keywords = settings.Notifications
                 .Where(x => !settings.IgnoredUsers.Contains(x.User))
                 .Select(x => KeyValuePair.Create(x.Keyword, x));

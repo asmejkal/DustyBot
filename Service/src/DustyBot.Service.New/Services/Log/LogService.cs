@@ -103,7 +103,7 @@ namespace DustyBot.Service.Services.Log
                     return;
 
                 using var scope = Logger.BuildScope(x => x.WithArgs(e).WithGuild(guild).WithChannel(channel));
-                if (!guild.CanBotSendMessages(channel))
+                if (!guild.GetBotPermissions(channel).SendMessages)
                 {
                     Logger.LogInformation("Can't log deleted message because of missing permissions");
                     return;
@@ -155,7 +155,7 @@ namespace DustyBot.Service.Services.Log
                     return;
 
                 using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithChannel(channel));
-                if (!guild.CanBotSendMessages(channel))
+                if (!guild.GetBotPermissions(channel).SendMessages)
                 {
                     Logger.LogInformation("Can't log bulk deleted messages because of missing permissions");
                     return;

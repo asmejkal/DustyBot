@@ -28,7 +28,7 @@ namespace DustyBot.Service
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Component", "dustybot-service")
                 .Enrich.WithProperty("ComponentInstance", $"shard-{string.Join("+", discordOptions.Value.Shards ?? new[] { 0 })}")
-                .MinimumLevel.Verbose();
+                .MinimumLevel.Information();
 
             if (!string.IsNullOrEmpty(options.Value.ElasticsearchNodeUri))
             {

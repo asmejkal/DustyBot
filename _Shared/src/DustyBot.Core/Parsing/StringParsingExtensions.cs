@@ -120,8 +120,14 @@ namespace DustyBot.Core.Parsing
 
         public static string GetEnclosingWord(this string x, int beginIndex, int endIndex)
         {
-            var wordBegin = x.AsSpan(0, beginIndex).LastIndexOf(x => char.IsWhiteSpace(x), defaultIndex: 0);
-            var wordEnd = x.AsSpan(endIndex).IndexOf(x => char.IsWhiteSpace(x), defaultIndex: x.Length);
+            if (beginIndex == endIndex)
+                return "";
+
+            if (beginIndex > endIndex)
+                throw new ArgumentException($"Argument {nameof(beginIndex)} must be smaller than {nameof(endIndex)}");
+
+            var wordBegin = x.AsSpan(0, beginIndex).LastIndexOf(x => char.IsWhiteSpace(x)) + 1;
+            var wordEnd = x.AsSpan(endIndex).IndexOf(x => char.IsWhiteSpace(x), defaultIndex: x.Length - endIndex) + endIndex;
             return x[wordBegin..wordEnd];
         }
     }
