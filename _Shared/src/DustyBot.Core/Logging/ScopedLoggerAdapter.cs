@@ -28,7 +28,7 @@ namespace DustyBot.Core.Logging
 
         public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             using var scope = _inner.BeginScope(_fields);
             _inner.Log(logLevel, eventId, state, exception, formatter);

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Disqord;
@@ -95,6 +96,9 @@ namespace DustyBot.Service.Services.Log
                 var guild = Bot.GetGuildOrThrow(e.GuildId.Value);
                 var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
 
+                if (channel.Type == ChannelType.PrivateThread && channel is IThreadChannel thread && thread.CurrentMember == null)
+                    return; // Only log messages from private threads if the bot was invited
+
                 if (settings.MessageDeletedChannelFilters.Contains(channel.Id))
                     return;
 
@@ -146,6 +150,9 @@ namespace DustyBot.Service.Services.Log
 
                 var guild = Bot.GetGuildOrThrow(e.GuildId);
                 var channel = (IMessageGuildChannel)guild.GetChannelOrThrow(e.ChannelId);
+
+                if (channel.Type == ChannelType.PrivateThread && channel is IThreadChannel thread && thread.CurrentMember == null)
+                    return; // Only log messages from private threads if the bot was invited
 
                 if (settings.MessageDeletedChannelFilters.Contains(channel.Id))
                     return;

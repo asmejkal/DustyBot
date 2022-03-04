@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using Disqord.Bot;
 using DustyBot.Framework.Commands.Attributes;
 using Qmmands;
 
@@ -12,5 +13,8 @@ namespace DustyBot.Framework.Commands
 
         public static bool HideInvocation(this Command x) =>
             x.Attributes.OfType<HideInvocationAttribute>().Any();
+
+        public static bool IsHidden(this Command x) =>
+            x.Attributes.Any(x => x is HiddenAttribute) || !x.IsEnabled || x.Attributes.Any(x => x is RequireBotOwnerAttribute);
     }
 }

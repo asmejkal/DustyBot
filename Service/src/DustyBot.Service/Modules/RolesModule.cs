@@ -337,7 +337,7 @@ namespace DustyBot.Service.Modules
             }
 
             if (!secondary.CanUserAssign(await command.Guild.GetCurrentUserAsync()))
-                throw new CommandException($"The bot doesn't have permission to assign the secondary role to users. Please make sure the role is below the bot's highest role in the server's role list.");
+                throw new CommandException($"The bot doesn't have permission to assign the secondary role to users. Please make sure the role is placed below the bot's highest role in the server's role list.");
 
             await _settings.Modify(command.GuildId, (RolesSettings s) =>
             {
