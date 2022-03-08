@@ -7,6 +7,7 @@ using Disqord;
 using Disqord.Gateway;
 using Disqord.Rest;
 using DustyBot.Core.Formatting;
+using DustyBot.Framework.Communication;
 
 namespace DustyBot.Service.Services.Log
 {
@@ -31,7 +32,7 @@ namespace DustyBot.Service.Services.Log
                 embed.AddField("Attachments", builder.ToString());
             }
 
-            return targetChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed), cancellationToken: ct);
+            return targetChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed).WithDisallowedMentions(), cancellationToken: ct);
         }
 
         public async Task SendDeletedMessageLogsAsync(
@@ -83,7 +84,7 @@ namespace DustyBot.Service.Services.Log
 
                 if ((embed.Description?.Length ?? 0) + totalLength > LocalEmbed.MaxDescriptionLength)
                 {
-                    yield return new LocalMessage().WithEmbeds(embed);
+                    yield return new LocalMessage().WithEmbeds(embed).WithDisallowedMentions();
                     embed = new LocalEmbed();
                 }
                 else
@@ -93,7 +94,7 @@ namespace DustyBot.Service.Services.Log
             }
 
             if (!string.IsNullOrEmpty(embed.Description))
-                yield return new LocalMessage().WithEmbeds(embed);
+                yield return new LocalMessage().WithEmbeds(embed).WithDisallowedMentions();
         }
     }
 }

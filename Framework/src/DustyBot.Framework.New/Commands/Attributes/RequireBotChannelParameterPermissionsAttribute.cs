@@ -7,11 +7,11 @@ using Qmmands;
 
 namespace DustyBot.Framework.Commands.Attributes
 {
-    public class RequireBotChannelParameterPermissions : DiscordGuildParameterCheckAttribute
+    public class RequireBotChannelParameterPermissionsAttribute : DiscordGuildParameterCheckAttribute
     {
         public Permission Permissions { get; }
 
-        public RequireBotChannelParameterPermissions(Permission permissions)
+        public RequireBotChannelParameterPermissionsAttribute(Permission permissions)
         {
             Permissions = permissions;
         }

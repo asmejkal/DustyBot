@@ -102,27 +102,27 @@ namespace DustyBot.Service.Services.GreetBye
 
         protected override async ValueTask OnMemberJoined(MemberJoinedEventArgs e)
         {
+            using var scope = Logger.WithArgs(e).BeginScope();
             try
             {
-                using var scope = Logger.BuildScope(x => x.WithArgs(e));
                 await HandleEventAsync(GreetByeEventType.Greet, e.GuildId, e.Member, Bot.StoppingToken);
             }
             catch (Exception ex)
             {
-                Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process greeting");
+                Logger.LogError(ex, "Failed to process greeting");
             }
         }
 
         protected override async ValueTask OnMemberLeft(MemberLeftEventArgs e)
         {
+            using var scope = Logger.WithArgs(e).BeginScope();
             try
             {
-                using var scope = Logger.BuildScope(x => x.WithArgs(e));
                 await HandleEventAsync(GreetByeEventType.Bye, e.GuildId, e.User, Bot.StoppingToken);
             }
             catch (Exception ex)
             {
-                Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process bye event");
+                Logger.LogError(ex, "Failed to process bye event");
             }
         }
 
@@ -142,7 +142,7 @@ namespace DustyBot.Service.Services.GreetBye
                 return;
             }
 
-            using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithChannel(channel));
+            using var scope = Logger.WithGuild(guild).WithChannel(channel).BeginScope();
             if (!guild.GetBotPermissions(channel).SendMessages)
             {
                 Logger.LogInformation("Can't send {GreetByeEventType} message because of missing permissions", type);
@@ -150,7 +150,6 @@ namespace DustyBot.Service.Services.GreetBye
             }
 
             Logger.LogInformation("Handling event {GreetByeEventType}", type);
-
             await TriggerEventAsync(setting, guild, channel, user, ct);
         }
 

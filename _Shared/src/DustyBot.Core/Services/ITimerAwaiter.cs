@@ -6,6 +6,6 @@ namespace DustyBot.Core.Services
 {
     public interface ITimerAwaiter
     {
-        Task WaitTriggerAsync(TimeSpan delay, CancellationToken ct);
+        Task DelayAsync(TimeSpan delay, CancellationToken ct);
     }
 }

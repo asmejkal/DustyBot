@@ -12,7 +12,7 @@ namespace DustyBot.Database.Mongo.Utility
             var serializer = BsonSerializer.LookupSerializer<TDocument>();
             var renderedField = field.Render(serializer, BsonSerializer.SerializerRegistry);
             var pipeline = new EmptyPipelineDefinition<TDocument>()
-                .AppendStage("{$set:{" + renderedField.FieldName + ":{$eq:[false,\"$" + renderedField.FieldName + "\"]}}}", serializer);
+                .AppendStage("{$set:{" + renderedField.FieldName + ":{$ne:[true,\"$" + renderedField.FieldName + "\"]}}}", serializer);
 
             return builder.Pipeline(pipeline);
         }

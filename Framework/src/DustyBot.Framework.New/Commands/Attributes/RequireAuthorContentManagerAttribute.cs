@@ -8,7 +8,7 @@ namespace DustyBot.Framework.Commands.Attributes
     /// <summary>
     /// Specifies that the module or command can only be executed by guild content managers.
     /// </summary>
-    public class RequireAuthorContentManager : DiscordGuildCheckAttribute
+    public class RequireAuthorContentManagerAttribute : DiscordGuildCheckAttribute
     {
         public override ValueTask<CheckResult> CheckAsync(DiscordGuildCommandContext context)
         {

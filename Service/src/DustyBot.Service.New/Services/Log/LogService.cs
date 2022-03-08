@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Disqord;
@@ -28,7 +27,7 @@ namespace DustyBot.Service.Services.Log
             _sender = sender;
         }
 
-        public Task EnableMessageLoggingAsync(Snowflake guildId, ITextChannel channel, CancellationToken ct)
+        public Task EnableMessageLoggingAsync(Snowflake guildId, IMessageGuildChannel channel, CancellationToken ct)
         {
             return _settings.Modify(guildId, (LogSettings s) => s.MessageDeletedChannel = channel.Id, ct);
         }
@@ -106,7 +105,7 @@ namespace DustyBot.Service.Services.Log
                 if (eventChannel == null)
                     return;
 
-                using var scope = Logger.BuildScope(x => x.WithArgs(e).WithGuild(guild).WithChannel(channel));
+                using var scope = Logger.WithArgs(e).WithGuild(guild).WithChannel(channel).BeginScope();
                 if (!guild.GetBotPermissions(channel).SendMessages)
                 {
                     Logger.LogInformation("Can't log deleted message because of missing permissions");
@@ -124,7 +123,7 @@ namespace DustyBot.Service.Services.Log
             }
             catch (Exception ex)
             {
-                Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process deleted messages");
+                Logger.WithArgs(e).LogError(ex, "Failed to process deleted messages");
             }
         }
 
@@ -161,7 +160,7 @@ namespace DustyBot.Service.Services.Log
                 if (eventChannel == null)
                     return;
 
-                using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithChannel(channel));
+                using var scope = Logger.WithGuild(guild).WithChannel(channel).BeginScope();
                 if (!guild.GetBotPermissions(channel).SendMessages)
                 {
                     Logger.LogInformation("Can't log bulk deleted messages because of missing permissions");
@@ -173,7 +172,7 @@ namespace DustyBot.Service.Services.Log
             }
             catch (Exception ex)
             {
-                Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process deleted messages");
+                Logger.WithArgs(e).LogError(ex, "Failed to process deleted messages");
             }
         }
     }

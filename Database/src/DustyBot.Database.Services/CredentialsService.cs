@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DustyBot.Database.Mongo.Collections;
@@ -17,9 +18,15 @@ namespace DustyBot.Database.Services
             _database = database ?? throw new ArgumentNullException(nameof(database));
         }
 
-        public Task<UserCredentials> ReadAsync(ulong userId, CancellationToken ct = default)
+        public async Task<UserCredentials?> ReadAsync(ulong userId, CancellationToken ct = default)
         {
-            return GetCollection().Find(x => x.UserId == userId).FirstOrDefaultAsync();
+            return await GetCollection().Find(x => x.UserId == userId).FirstOrDefaultAsync(ct);
+        }
+
+        public async Task<Credentials?> GetAsync(ulong userId, Guid credentialsId, CancellationToken ct = default)
+        {
+            var credentials = await ReadAsync(userId, ct);
+            return credentials?.Credentials.SingleOrDefault(x => x.Id == credentialsId);
         }
 
         public Task AddAsync(ulong userId, Credentials credentials, CancellationToken ct = default)

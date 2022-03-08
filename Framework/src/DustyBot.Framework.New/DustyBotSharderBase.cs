@@ -140,7 +140,7 @@ namespace DustyBot.Framework
             var logger = TryGetModuleType(context.Command.Module, out var type) 
                 ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
 
-            logger.WithScope(x => x.WithCommandContext(context)).LogInformation("Command completed with {CommandResult}", result.GetType().Name);
+            logger.WithCommandContext(context).LogInformation("Command completed with {CommandResult}", result.GetType().Name);
 
             return base.HandleCommandResultAsync(context, result);
         }
@@ -152,7 +152,7 @@ namespace DustyBot.Framework
                 var logger = TryGetModuleType(context.Command.Module, out var type)
                     ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
 
-                using var scope = logger.BuildScope(x => x.WithCommandContext(context).WithCommandUsageContext(context));
+                using var scope = logger.WithCommandUsageContext(context).BeginScope();
                 if (context is DiscordGuildCommandContext guildContext)
                 {
                     logger.LogInformation("Command {MessageContent} failed with {CommandResult}", context.Message.Content, result.GetType().Name);

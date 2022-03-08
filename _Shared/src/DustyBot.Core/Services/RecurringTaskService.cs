@@ -49,7 +49,7 @@ namespace DustyBot.Core.Services
         {
             try
             {
-                await _timerAwaiter.WaitTriggerAsync(_startDelay, stoppingToken);
+                await _timerAwaiter.DelayAsync(_startDelay, stoppingToken);
 
                 int executionCount = 0;
                 while (!stoppingToken.IsCancellationRequested)
@@ -74,7 +74,7 @@ namespace DustyBot.Core.Services
                             _firstExecutionTaskSource.SetResult(0);
                     }
 
-                    await _timerAwaiter.WaitTriggerAsync(_delay, stoppingToken);
+                    await _timerAwaiter.DelayAsync(_delay, stoppingToken);
                 }
             }
             catch (OperationCanceledException)

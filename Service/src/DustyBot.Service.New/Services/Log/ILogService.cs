@@ -13,7 +13,7 @@ namespace DustyBot.Service.Services.Log
 
         Task DisableMessageLoggingAsync(Snowflake guildId, CancellationToken ct);
 
-        Task EnableMessageLoggingAsync(Snowflake guildId, ITextChannel channel, CancellationToken ct);
+        Task EnableMessageLoggingAsync(Snowflake guildId, IMessageGuildChannel channel, CancellationToken ct);
 
         Task<IEnumerable<ulong>> GetChannelFiltersAsync(Snowflake guildId, CancellationToken ct);
 

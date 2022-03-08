@@ -52,26 +52,32 @@ namespace DustyBot.Service.Services.Notifications
             _channelActivityWatcher = channelActivityWatcher;
         }
 
-        public Task<AddKeywordResult> AddKeywordAsync(Snowflake guildId, Snowflake userId, string keyword, CancellationToken ct)
+        public Task<AddKeywordsResult> AddKeywordsAsync(Snowflake guildId, Snowflake userId, IEnumerable<string> keywords, CancellationToken ct)
         {
-            if (keyword.Length < MinNotificationLength)
-                return Task.FromResult(AddKeywordResult.KeywordTooShort);
-
-            if (keyword.Length > MaxNotificationLength)
-                return Task.FromResult(AddKeywordResult.KeywordTooLong);
-
             return _settings.Modify(guildId, (NotificationSettings s) =>
             {
-                var currentNotifs = s.Notifications.Where(x => x.User == userId).ToList();
-                if (currentNotifs.Any(x => string.Compare(x.Keyword, keyword, true) == 0))
-                    return AddKeywordResult.DuplicateKeyword;
+                var userNotifications = s.Notifications.Where(x => x.User == userId).ToList();
+                var newNotifications = new List<Notification>();
+                foreach (var (keyword, i) in keywords.Select((x, i) => (x, i)))
+                {
+                    if (keyword.Length < MinNotificationLength)
+                        return AddKeywordsResult.KeywordTooShort;
 
-                if (currentNotifs.Count >= MaxNotificationsPerUser)
-                    return AddKeywordResult.TooManyKeywords;
+                    if (keyword.Length > MaxNotificationLength)
+                        return AddKeywordsResult.KeywordTooLong;
 
-                s.Notifications.Add(new Notification(keyword, userId));
+                    if (userNotifications.Any(x => string.Compare(x.Keyword, keyword, true) == 0))
+                        return AddKeywordsResult.DuplicateKeyword;
+
+                    newNotifications.Add(new Notification(keyword, userId));
+                }
+
+                if (userNotifications.Count + newNotifications.Count >= MaxNotificationsPerUser)
+                    return AddKeywordsResult.TooManyKeywords;
+
+                s.Notifications.AddRange(newNotifications);
                 RefreshTrie(s);
-                return AddKeywordResult.Success;
+                return AddKeywordsResult.Success;
             }, ct);
         }
 
@@ -143,6 +149,9 @@ namespace DustyBot.Service.Services.Notifications
         public Task<bool> ToggleActivityDetectionAsync(Snowflake userId, CancellationToken ct) =>
             _userSettings.ToggleActivityDetectionAsync(userId, ct);
 
+        public Task<bool> ToggleOptOutAsync(Snowflake userId, CancellationToken ct) =>
+            _userSettings.ToggleOptOutAsync(userId, ct);
+
         public async Task<IEnumerable<Notification>> GetKeywordsAsync(Snowflake guildId, Snowflake userId, CancellationToken ct)
         {
             var settings = await _settings.Read<NotificationSettings>(guildId, false, ct);
@@ -201,17 +210,17 @@ namespace DustyBot.Service.Services.Notifications
                                 return;
 
                             if (e.Channel.Type == ChannelType.PrivateThread)
-                                return; // Not supported, checking private thread membership is too expensive or complex
+                                return; // Not supported, checking private thread membership is either too expensive or complex
 
                             await SendNotificationAsync(match.Value, message, targetUser, guild, e.Channel, Bot.StoppingToken);
                         }
                         catch (OperationCanceledException ex)
                         {
-                            Logger.WithScope(x => x.WithArgs(e).WithUser(match.Value.User)).LogWarning(ex, "Notification processing canceled");
+                            Logger.WithArgs(e).WithUser(match.Value.User).LogWarning(ex, "Notification processing canceled");
                         }
                         catch (Exception ex)
                         {
-                            Logger.WithScope(x => x.WithArgs(e).WithUser(match.Value.User)).LogError(ex, "Failed to send notification");
+                            Logger.WithArgs(e).WithUser(match.Value.User).LogError(ex, "Failed to send notification");
                         }
                     }));
                 }
@@ -220,7 +229,7 @@ namespace DustyBot.Service.Services.Notifications
             }
             catch (Exception ex)
             {
-                Logger.WithScope(x => x.WithArgs(e)).LogError(ex, "Failed to process notification");
+                Logger.WithArgs(e).LogError(ex, "Failed to process notification");
             }
         }
 
@@ -234,7 +243,14 @@ namespace DustyBot.Service.Services.Notifications
         {
             try
             {
-                using var scope = Logger.BuildScope(x => x.WithGuild(guild).WithMessage(message).WithMember(targetUser));
+                using var scope = Logger.WithGuild(guild).WithMessage(message).WithMember(targetUser).BeginScope();
+
+                // Check opt-out settings
+                if (await _userSettings.HasOptedOutAsync(message.Author.Id, ct))
+                    return;
+
+                if (await _userSettings.HasOptedOutAsync(targetUser.Id, ct))
+                    return;
 
                 // Check blocklist
                 var blockedUsers = await _userSettings.GetBlockedUsersAsync(targetUser.Id, ct);
@@ -300,7 +316,7 @@ namespace DustyBot.Service.Services.Notifications
             }
             catch (RestApiException ex) when (ex.IsError(RestApiErrorCode.CannotSendMessagesToThisUser))
             {
-                Logger.WithScope(x => x.WithGuild(guild).WithMessage(message).WithUser(notification.User))
+                Logger.WithGuild(guild).WithMessage(message).WithUser(notification.User)
                     .LogInformation("Couldn't send notification due to blocked DMs by the user");
             }
         }

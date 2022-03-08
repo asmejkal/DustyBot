@@ -24,9 +24,9 @@ namespace DustyBot.Service.Modules
         [Command("messages"), Description("Sets a channel for logging of deleted messages.")]
         [RequireAuthorAdministrator]
         public async Task<CommandResult> EnableMessageLoggingAsync(
-            [Description("a channel for the logs")]
-            [RequireBotCanSendMessages]
-            ITextChannel channel)
+            [Description("a channel or thread for the logs")]
+            [RequireBotCanSendEmbeds]
+            IMessageGuildChannel channel)
         {
             await _service.EnableMessageLoggingAsync(Context.GuildId, channel, Bot.StoppingToken);
             return Success($"Deleted messages will now be logged in the {channel.Mention} channel.");

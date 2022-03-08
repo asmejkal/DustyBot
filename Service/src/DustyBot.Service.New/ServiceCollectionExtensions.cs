@@ -105,6 +105,7 @@ namespace DustyBot.Service
             services.AddDiscordClientService<ThreadJoinService>();
             services.AddScoped<HelpBuilder>();
             services.AddScoped<WebLinkResolver>();
+            services.AddHostedService<StatusService>();
 
             return services;
         }

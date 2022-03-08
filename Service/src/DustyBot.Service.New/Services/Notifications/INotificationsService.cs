@@ -8,7 +8,7 @@ namespace DustyBot.Service.Services.Notifications
 {
     public interface INotificationsService
     {
-        Task<AddKeywordResult> AddKeywordAsync(Snowflake guildId, Snowflake userId, string keyword, CancellationToken ct);
+        Task<AddKeywordsResult> AddKeywordsAsync(Snowflake guildId, Snowflake userId, IEnumerable<string> keywords, CancellationToken ct);
         Task BlockUserAsync(Snowflake userId, Snowflake targetUserId, CancellationToken ct);
         Task ClearKeywordsAsync(Snowflake guildId, Snowflake userId, CancellationToken ct);
         Task<IEnumerable<Notification>> GetKeywordsAsync(Snowflake guildId, Snowflake userId, CancellationToken ct);
@@ -16,11 +16,12 @@ namespace DustyBot.Service.Services.Notifications
         Task<RemoveKeywordResult> RemoveKeywordAsync(Snowflake guildId, Snowflake userId, string keyword, CancellationToken ct);
         Task ResumeNotificationsAsync(Snowflake guildId, Snowflake userId, CancellationToken ct);
         Task<bool> ToggleActivityDetectionAsync(Snowflake userId, CancellationToken ct);
+        Task<bool> ToggleOptOutAsync(Snowflake userId, CancellationToken ct);
         Task<bool> ToggleIgnoredChannelAsync(Snowflake guildId, Snowflake userId, Snowflake channelId, CancellationToken ct);
         Task UnblockUserAsync(Snowflake userId, Snowflake targetUserId, CancellationToken ct);
     }
 
-    public enum AddKeywordResult
+    public enum AddKeywordsResult
     {
         Success,
         KeywordTooShort,

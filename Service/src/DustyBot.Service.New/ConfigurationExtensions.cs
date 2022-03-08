@@ -72,11 +72,6 @@ namespace DustyBot.Service
             configuration.UseMentionPrefix = false;
 
             configuration.ServiceAssemblies = null;
-
-            var activity = new LocalActivity($"{botOptions.DefaultCommandPrefix}help | {webOptions.WebsiteShorthand}", 
-                Disqord.ActivityType.Listening);
-
-            configuration.Activities = new[] { activity };
         }
 
         public static void ConfigureCommands(this CommandServiceConfiguration configuration, IConfiguration provider)

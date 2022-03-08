@@ -47,7 +47,7 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the greeting message.")]
             public async Task<CommandResult> SetGreetEmbedAsync(
                 [Description("a channel that will receive the messages")]
-                [RequireBotChannelParameterPermissions(Permission.SendEmbeds)]
+                [RequireBotCanSendEmbeds]
                 ITextChannel channel,
                 [Description("hex code of a color (e.g. `#09A5BC`)")]
                 Color? color,
@@ -126,7 +126,7 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the goodbye message.")]
             public async Task<CommandResult> SetByeEmbedAsync(
                 [Description("a channel that will receive the messages")]
-                [RequireBotChannelParameterPermissions(Permission.SendEmbeds)]
+                [RequireBotCanSendEmbeds]
                 ITextChannel channel,
                 [Description("hex code of a color (e.g. `#09A5BC`)")]
                 Color? color,

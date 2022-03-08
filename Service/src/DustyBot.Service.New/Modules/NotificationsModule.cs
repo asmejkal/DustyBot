@@ -23,20 +23,21 @@ namespace DustyBot.Service.Modules
             _service = service ?? throw new ArgumentNullException(nameof(service));
         }
 
-        [Command("add"), Description("Adds a word that will send you a notification when it is mentioned in this server."), RequireGuild]
+        [Command("add"), Description("Adds one or more words for which you want to receive notifications."), RequireGuild]
+        [Example("yeba")]
+        [Example("yeba yebs")]
         [HideInvocation]
         public async Task<CommandResult> AddKeywordAsync(
-            [Description("when this word is mentioned in this server you will receive a notification")]
-            [Remainder]
-            string keyword)
+            [Description("one or more words that will trigger notifications")]
+            params string[] keywords)
         {
-            return await _service.AddKeywordAsync(GuildContext.GuildId, Context.Author.Id, keyword, Bot.StoppingToken) switch
+            return await _service.AddKeywordsAsync(GuildContext.GuildId, Context.Author.Id, keywords, Bot.StoppingToken) switch
             {
-                AddKeywordResult.KeywordTooShort => Failure("This keyword is too short."),
-                AddKeywordResult.KeywordTooLong => Failure("This keyword is too long."),
-                AddKeywordResult.TooManyKeywords => Failure($"You have too many keywords on this server. You can remove old keywords with `{GetReference(nameof(RemoveKeywordAsync))}`."),
-                AddKeywordResult.DuplicateKeyword => Failure("You are already being notified for this keyword."),
-                AddKeywordResult.Success => Success("You will now be notified when this word is mentioned. Please make sure your privacy settings allow the bot to DM you."),
+                AddKeywordsResult.KeywordTooShort => Failure("Keyword is too short."),
+                AddKeywordsResult.KeywordTooLong => Failure("Keyword is too long."),
+                AddKeywordsResult.TooManyKeywords => Failure($"You have too many keywords on this server. You can remove old keywords with `{GetReference(nameof(RemoveKeywordAsync))}`."),
+                AddKeywordsResult.DuplicateKeyword => Failure("You are already being notified for this keyword."),
+                AddKeywordsResult.Success => Success($"You will now be notified when {(keywords.Length > 1 ? "these keywords are" : "this keyword is")} mentioned. Please make sure your privacy settings allow the bot to DM you."),
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
@@ -148,6 +149,18 @@ namespace DustyBot.Service.Modules
             }
 
             return Success("Please check your direct messages.");
+        }
+
+        [VerbCommand("opt", "out"), Description("Messages you send will not trigger anyone's notifications.")]
+        [Remark("Use this command again to opt back in.")]
+        [Remark("This applies to all servers. Keep in mind that when you opt out, you won't receive any notifications either.")]
+        public async Task<CommandResult> ToggleOptOutAsync()
+        {
+            return await _service.ToggleOptOutAsync(Context.Author.Id, Bot.StoppingToken) switch
+            {
+                true => Success("Your messages will no longer trigger anyone's notifications on all servers. You won't receive any notifications either."),
+                false => Success("Your messages may now trigger other user's notifications and you will be able to receive notifications again.")
+            };
         }
     }
 }

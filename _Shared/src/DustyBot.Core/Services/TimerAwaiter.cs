@@ -6,7 +6,7 @@ namespace DustyBot.Core.Services
 {
     public class TimerAwaiter : ITimerAwaiter
     {
-        public Task WaitTriggerAsync(TimeSpan delay, CancellationToken ct) =>
+        public Task DelayAsync(TimeSpan delay, CancellationToken ct) =>
             Task.Delay(delay, ct);
     }
 }

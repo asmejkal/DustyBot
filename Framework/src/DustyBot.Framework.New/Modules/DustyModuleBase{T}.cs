@@ -42,7 +42,7 @@ namespace DustyBot.Framework.Modules
                 if (Context == null)
                     return _logger = logger;
 
-                return _logger = logger.WithScope(x => x.WithCommandContext(Context));
+                return _logger = logger.WithCommandContext(Context);
             }
         }
 
@@ -52,7 +52,7 @@ namespace DustyBot.Framework.Modules
 
         protected override ValueTask BeforeExecutedAsync()
         {
-            using var scope = Logger.BuildScope(x => x.WithCommandUsageContext(Context));
+            using var scope = Logger.WithCommandUsageContext(Context).BeginScope();
             if (Context.GuildId != null)
                 Logger.LogInformation("Command {MessageContent} with {MessageAttachmentCount} attachments", Context.Message.Content, Context.Message.Attachments.Count);
             else

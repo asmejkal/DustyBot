@@ -12,7 +12,7 @@ namespace DustyBot.Service.Services
         {
             if (e.Thread == null || e.Thread.Type == ChannelType.PrivateThread)
                 return default;
-
+            
             return new(Bot.JoinThreadAsync(e.ThreadId, cancellationToken: Bot.StoppingToken));
         }
     }

@@ -7,9 +7,9 @@ using Qmmands;
 
 namespace DustyBot.Framework.Commands.Attributes
 {
-    public class RequireBotCanSendMessages : DiscordGuildParameterCheckAttribute
+    public class RequireBotCanSendMessagesAttribute : DiscordGuildParameterCheckAttribute
     {
-        public RequireBotCanSendMessages()
+        public RequireBotCanSendMessagesAttribute()
         {
         }
 

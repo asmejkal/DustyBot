@@ -15,11 +15,11 @@
 		<ProjectReference Include="..\..\..\Database\src\DustyBot.Database.Services\DustyBot.Database.Services.csproj" />
 		<ProjectReference Include="..\..\..\Framework\src\DustyBot.Framework.New\DustyBot.Framework.New.csproj" />
 		<ProjectReference Include="..\..\..\_Shared\src\DustyBot.Core\DustyBot.Core.csproj" />
+		<ProjectReference Include="..\..\..\_Shared\src\DustyBot.DaumCafe\DustyBot.DaumCafe.csproj" />
 		<ProjectReference Include="..\..\..\_Shared\src\DustyBot.LastFm\DustyBot.LastFm.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="HtmlAgilityPack" Version="1.11.39" />
 		<PackageReference Include="Markdig" Version="0.26.0" />
 		<PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="6.0.0">
 			<PrivateAssets>all</PrivateAssets>

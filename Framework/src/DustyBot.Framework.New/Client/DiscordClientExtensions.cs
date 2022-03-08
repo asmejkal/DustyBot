@@ -18,10 +18,14 @@ namespace DustyBot.Framework.Client
             IRestRequestOptions? options = null,
             CancellationToken cancellationToken = default)
         {
-            if (guild.GetBotPermissions(channel).SendMessages)
-                return client.SendMessageAsync(channel.Id, message, options, cancellationToken);
+            var permissions = guild.GetBotPermissions(channel);
+            if (message.Embeds != null && message.Embeds.Count > 0 && !permissions.SendEmbeds)
+                throw new MissingPermissionsException($"Bot is missing permissions to send embeds in channel {channel.Id} on guild {guild.Id}");
 
-            throw new MissingPermissionsException($"Bot is missing permissions to send a message in channel {channel.Id} on guild {guild.Id}");
+            if (!permissions.SendMessages)
+                throw new MissingPermissionsException($"Bot is missing permissions to send messages in channel {channel.Id} on guild {guild.Id}");
+
+            return client.SendMessageAsync(channel.Id, message, options, cancellationToken);
         }
 
         public static Task<IUserMessage> SendMessageCheckedAsync(this DiscordClientBase client,

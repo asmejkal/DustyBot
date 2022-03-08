@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using DustyBot.Database.Mongo.Collections;
+using DustyBot.Database.Mongo.Collections.Notifications;
 using DustyBot.Database.Mongo.Utility;
 using MongoDB.Driver;
 
@@ -51,6 +51,25 @@ namespace DustyBot.Database.Services
                 .Upsert()
                 .ReturnNew()
                 .Project(x => x.IgnoreActiveChannel)
+                .ExecuteAsync(ct);
+        }
+
+        public async Task<bool> HasOptedOutAsync(ulong userId, CancellationToken ct)
+        {
+            return await GetCollection()
+                .Find(x => x.UserId == userId)
+                .Project(x => x.OptedOut)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        public async Task<bool> ToggleOptOutAsync(ulong userId, CancellationToken ct)
+        {
+            return await GetCollection()
+                .FindOneAndUpdate(x => x.UserId == userId)
+                .With(b => b.Toggle(x => x.OptedOut))
+                .Upsert()
+                .ReturnNew()
+                .Project(x => x.OptedOut)
                 .ExecuteAsync(ct);
         }
 
