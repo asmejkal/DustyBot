@@ -46,6 +46,6 @@ Dusty_Web_PatreonUrl=
 
 ## Debugging without Docker
 1. Run and configure a Mongo DB instance, either in Docker or locally
-2. Configure required environment variables in the `DustyBot.Service` project properties (see `dustybot-service-template.yml`)
+2. Configure required environment variables in the `DustyBot.Service` project properties 
+    - See `dustybot-service-template.yml` for the list of variables
 3. Run the `DustyBot.Service` project
-4. :tada:
