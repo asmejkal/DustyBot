@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using Qmmands;
 using Serilog;
+using Serilog.Events;
 using Serilog.Sinks.Elasticsearch;
 
 namespace DustyBot.Service
@@ -28,7 +29,8 @@ namespace DustyBot.Service
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Component", "dustybot-service")
                 .Enrich.WithProperty("ComponentInstance", $"shard-{string.Join("+", discordOptions.Value.Shards ?? new[] { 0 })}")
-                .MinimumLevel.Information();
+                .MinimumLevel.Information()
+                .MinimumLevel.Override("System.Net.Http", LogEventLevel.Warning);
 
             if (!string.IsNullOrEmpty(options.Value.ElasticsearchNodeUri))
             {

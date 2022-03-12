@@ -30,7 +30,7 @@ namespace DustyBot.Service.Services.YouTube
             var result = new Dictionary<string, YouTubeVideoStatistics>();
             foreach (var chunk in ids.Chunk(MaxVideoIdsPerRequest))
             {
-                var requestUrl = $"{ApiUrl}/videos?part=statistics,snippet&id={string.Join(",", ids)}&key={_options.ApiKey}";
+                var requestUrl = $"{ApiUrl}/videos?part=statistics,snippet&id={string.Join(",", chunk)}&key={_options.ApiKey}";
                 var response = await _httpClient.GetStringAsync(requestUrl, ct);
 
                 var json = JObject.Parse(response);
