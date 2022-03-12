@@ -43,3 +43,9 @@ Dusty_Web_PatreonUrl=
 2. Create an `.env` file and copy in the environment variables listed above
 3. Open the solution and run the `docker-compose` project
 4. :tada:
+
+## Debugging without Docker
+1. Run and configure a Mongo DB instance, either in Docker or locally
+2. Configure required environment variables in the `DustyBot.Service` project properties 
+    - See `dustybot-service-template.yml` for the list of variables
+3. Run the `DustyBot.Service` project
