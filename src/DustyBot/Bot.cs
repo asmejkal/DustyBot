@@ -191,8 +191,8 @@ namespace DustyBot
                     components.Modules.Add(new Modules.ScheduleModule(components.Communicator, settings, components.Logger, client, scheduleService, userFetcher));
                     components.Modules.Add(new Modules.LastFmModule(components.Communicator, settings, lastFmServiceFactory));
                     components.Modules.Add(new Modules.SpotifyModule(components.Communicator, settings, spotifyAccountsService, config));
-                    components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
-                    components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
+                    // components.Modules.Add(new Modules.CafeModule(components.Communicator, settings));
+                    // components.Modules.Add(new Modules.ViewsModule(components.Communicator, settings));
                     components.Modules.Add(new Modules.InstagramModule(components.Communicator, settings, components.Logger, config, shortener, proxyService, components.Client));
                     // components.Modules.Add(new Modules.NotificationsModule(components.Communicator, settings, components.Logger, userFetcher));
                     components.Modules.Add(new Modules.TranslatorModule(components.Communicator, settings, components.Logger));
@@ -200,16 +200,16 @@ namespace DustyBot
                     components.Modules.Add(new Modules.PollModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.ReactionsModule(components.Communicator, settings, components.Logger, config));
                     components.Modules.Add(new Modules.RaidProtectionModule(components.Communicator, settings, components.Logger, restClient));
-                    components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
+                    // components.Modules.Add(new Modules.EventsModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.AutorolesModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.RolesModule(components.Communicator, settings, components.Logger));
                     components.Modules.Add(new Modules.AdministrationModule(components.Communicator, settings, components.Logger, client, userFetcher));
-                    components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger));
+                    // components.Modules.Add(new Modules.LogModule(components.Communicator, settings, components.Logger));
                     // components.Modules.Add(new Modules.InfoModule(components.Communicator, settings, components.Logger, userFetcher));
                     _modules = components.Modules;
 
                     //Choose services
-                    components.Services.Add(new DaumCafeService(components.Client, settings, components.Logger));
+                    // components.Services.Add(new DaumCafeService(components.Client, settings, components.Logger));
                     components.Services.Add(scheduleService);
                     _services = components.Services;
 
