@@ -6,7 +6,7 @@ using Mongo.Migration.Documents.Attributes;
 
 namespace DustyBot.Database.Mongo.Collections.Notifications
 {
-    [RuntimeVersion("1.1.0")]
+    [StartUpVersion("1.1.0"), CollectionLocation(nameof(NotificationSettings))]
     public class NotificationSettings : BaseServerSettings
     {
         public List<Notification> Notifications { get; set; } = new();

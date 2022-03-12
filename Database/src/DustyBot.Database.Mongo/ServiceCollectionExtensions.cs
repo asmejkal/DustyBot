@@ -19,11 +19,11 @@ namespace DustyBot.Database.Mongo
         {
             configure?.Invoke(services.AddOptions<MongoDatabaseOptions>());
 
+            ConventionsRegistrar.RegisterDefaults();
+            SerializersRegistrar.RegisterDefaults();
+
             services.AddSingleton<IMongoClient>(x =>
             {
-                ConventionsRegistrar.RegisterDefaults();
-                SerializersRegistrar.RegisterDefaults();
-
                 var options = x.GetRequiredService<IOptions<MongoDatabaseOptions>>().Value;
                 var url = MongoUrl.Create(options.ConnectionString);
                 return new MongoClient(url);

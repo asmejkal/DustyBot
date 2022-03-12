@@ -5,7 +5,7 @@ using Mongo.Migration.Documents.Attributes;
 
 namespace DustyBot.Database.Mongo.Collections.GreetBye
 {
-    [RuntimeVersion("2.0.0")]
+    [StartUpVersion("2.0.0"), CollectionLocation(nameof(GreetByeSettings))]
     public class GreetByeSettings : BaseServerSettings
     {
         public Dictionary<GreetByeEventType, GreetByeEventSetting> Events { get; set; } = new();

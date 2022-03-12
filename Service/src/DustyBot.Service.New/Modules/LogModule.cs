@@ -78,7 +78,7 @@ namespace DustyBot.Service.Modules
         public async Task<CommandResult> ListPrefixFiltersAsync()
         {
             var filters = await _service.GetPrefixFiltersAsync(Context.GuildId, Bot.StoppingToken);
-            return NumberedListing(filters.Select(x => Markdown.Escape(x)), "Filtered message prefixes");
+            return NumberedListing(filters.OrderBy(x => x).Select(x => Markdown.Escape(x)), "Filtered message prefixes");
         }
 
         [VerbCommand("channel", "filter", "add"), Description("Excludes one or more channels from logging of deleted messages.")]

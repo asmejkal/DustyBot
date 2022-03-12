@@ -4,7 +4,7 @@ using Mongo.Migration.Documents.Attributes;
 
 namespace DustyBot.Database.Mongo.Collections.Log
 {
-    [RuntimeVersion("2.0.0")]
+    [StartUpVersion("2.0.0"), CollectionLocation(nameof(LogSettings))]
     public class LogSettings : BaseServerSettings
     {
         public ulong MessageDeletedChannel { get; set; }

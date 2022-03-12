@@ -1,5 +1,4 @@
 ﻿using System;
-using DustyBot.Database.Mongo.Utility;
 using Mongo.Migration.Migrations.Document;
 using MongoDB.Bson;
 
@@ -18,38 +17,45 @@ namespace DustyBot.Database.Mongo.Collections.GreetBye.Migrations
         public override void Up(BsonDocument document)
         {
             document["Events"] = new BsonArray();
-            if (document.TryGetValue("GreetChannel", out var greetChannel))
+            if (document.TryGetValue("GreetChannel", out var greetChannel) && greetChannel.AsInt64 != default)
             {
                 var greetSetting = new BsonDocument()
                 {
                     ["ChannelId"] = greetChannel
                 };
 
-                if (document.TryGetValue("GreetMessage", out var greetMessage))
+                if (document.TryGetValue("GreetMessage", out var greetMessage) && !greetMessage.IsBsonNull && !string.IsNullOrEmpty(greetMessage.AsString))
                 {
                     greetSetting["Text"] = greetMessage;
                 }
-                else if (document.TryGetValue("GreetEmbed", out var greetEmbed))
+                else if (document.TryGetValue("GreetEmbed", out var greetEmbed) && !greetEmbed.IsBsonNull)
                 {
                     greetSetting["Embed"] = greetEmbed;
                 }
 
-                document["Events"].AsBsonArray.Add(new BsonArrayOfDocumentsDictionaryItem("Greet", greetSetting));
+                document["Events"].AsBsonArray.Add(new BsonDocument()
+                {
+                    ["k"] = 0,
+                    ["v"] = greetSetting
+                });
             }
 
             document.Remove("GreetChannel");
             document.Remove("GreetEmbed");
             document.Remove("GreetMessage");
 
-            if (document.TryGetValue("ByeChannel", out var byeChannel)
-                && document.TryGetValue("ByeMessage", out var byeMessage)
-                && !string.IsNullOrEmpty(byeMessage.ToString()))
+            if (document.TryGetValue("ByeChannel", out var byeChannel) && byeChannel.AsInt64 != default
+                && document.TryGetValue("ByeMessage", out var byeMessage) && !byeMessage.IsBsonNull && !string.IsNullOrEmpty(byeMessage.AsString))
             {
-                document["Events"].AsBsonArray.Add(new BsonArrayOfDocumentsDictionaryItem("Bye", new BsonDocument()
+                document["Events"].AsBsonArray.Add(new BsonDocument()
                 {
-                    ["ChannelId"] = byeChannel,
-                    ["Text"] = byeMessage
-                }));
+                    ["k"] = 1,
+                    ["v"] = new BsonDocument()
+                    {
+                        ["ChannelId"] = byeChannel,
+                        ["Text"] = byeMessage
+                    }
+                });
             }
 
             document.Remove("ByeChannel");

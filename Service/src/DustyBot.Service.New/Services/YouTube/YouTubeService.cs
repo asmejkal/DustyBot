@@ -23,14 +23,14 @@ namespace DustyBot.Service.Services.Log
             _youTubeClient = youTubeClient ?? throw new ArgumentNullException(nameof(youTubeClient));
         }
 
-        public async Task<IReadOnlyDictionary<YouTubeSong, AggregatedYouTubeVideoStatistics>> GetStatisticsAsync(
+        public async Task<IReadOnlyDictionary<YouTubeSong, AggregatedYouTubeVideoStatistics?>> GetStatisticsAsync(
             Snowflake guildId,
             string? nameOrCategoryFilter = null,
             CancellationToken ct = default)
         {
             var settings = await _settings.Read<YouTubeSettings>(guildId, false, ct);
             if (settings == null)
-                return new Dictionary<YouTubeSong, AggregatedYouTubeVideoStatistics>();
+                return new Dictionary<YouTubeSong, AggregatedYouTubeVideoStatistics?>();
 
             var songs = settings.Songs;
             if (!string.IsNullOrEmpty(nameOrCategoryFilter))
@@ -41,10 +41,12 @@ namespace DustyBot.Service.Services.Log
             }
 
             if (!songs.Any())
-                return new Dictionary<YouTubeSong, AggregatedYouTubeVideoStatistics>();
+                return new Dictionary<YouTubeSong, AggregatedYouTubeVideoStatistics?>();
 
             var statistics = await _youTubeClient.GetVideoStatisticsAsync(songs.SelectMany(x => x.VideoIds).Distinct(), ct);
-            return songs.ToDictionary(x => x, x => new AggregatedYouTubeVideoStatistics(x.VideoIds.Select(x => statistics[x])));
+            return songs.ToDictionary(x => x, x => x.VideoIds.Intersect(statistics.Keys).Any() 
+                ? new AggregatedYouTubeVideoStatistics(x.VideoIds.Intersect(statistics.Keys).Select(x => statistics[x]))
+                : null);
         }
 
         public Task AddSongAsync(Snowflake guildId, string categoryName, string songName, IEnumerable<string> videoIds, CancellationToken ct)

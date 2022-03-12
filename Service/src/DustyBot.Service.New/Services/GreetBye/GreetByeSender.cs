@@ -19,7 +19,6 @@ namespace DustyBot.Service.Services.GreetBye
         public Task SendEmbedMessageAsync(IMessageGuildChannel targetChannel, GreetByeEmbed template, IUser user, IGatewayGuild guild, CancellationToken ct)
         {
             var embed = new LocalEmbed()
-                .WithTitle(ReplacePlaceholders(template.Title, user, guild))
                 .WithDescription(ReplacePlaceholders(template.Body, user, guild))
                 .WithThumbnailUrl(user is IMember member ? member.GetGuildAvatarUrl(size: 512) : user.GetAvatarUrl(size: 512));
 
@@ -29,10 +28,17 @@ namespace DustyBot.Service.Services.GreetBye
             if (template.Image != default)
                 embed.WithImageUrl(template.Image.AbsoluteUri);
 
+            if (!string.IsNullOrEmpty(template.Title))
+                embed.WithTitle(ReplacePlaceholders(template.Title, user, guild));
+
             if (!string.IsNullOrEmpty(template.Footer))
                 embed.WithFooter(ReplacePlaceholders(template.Footer, user, guild));
 
-            return targetChannel.SendMessageAsync(new LocalMessage().WithEmbeds(embed), cancellationToken: ct);
+            var message = new LocalMessage().WithEmbeds(embed);
+            if (!string.IsNullOrEmpty(template.Text))
+                message.WithContent(ReplacePlaceholders(template.Text, user, guild));
+
+            return targetChannel.SendMessageAsync(message, cancellationToken: ct);
         }
 
         private static string ReplacePlaceholders(string template, IUser user, IGatewayGuild guild)

@@ -23,41 +23,38 @@ namespace DustyBot.Database.Mongo.Migrations
             foreach (var setting in mediaSettings.Find(Builders<BsonDocument>.Filter.Empty).ToEnumerable())
             {
                 var songs = setting["YouTubeComebacks"];
-                foreach (var song in songs.AsBsonArray.OfType<BsonDocument>().Where(x => x.GetValue("Category", BsonNull.Value).IsBsonNull))
+                foreach (var song in songs.AsBsonArray.OfType<BsonDocument>().Where(x => !x.TryGetValue("Category", out var value) || value.IsBsonNull || string.IsNullOrEmpty(value.AsString)))
                     song["Category"] = "default";
 
-                youTubeSettings.InsertOne(new BsonDocument()
+                if (songs.AsBsonArray.Any())
                 {
-                    ["_id"] = setting["_id"],
-                    ["Songs"] = songs
-                });
+                    youTubeSettings.InsertOne(new BsonDocument()
+                    {
+                        ["_id"] = setting["_id"],
+                        ["Songs"] = songs
+                    });
+                }
 
-                daumCafeSettings.InsertOne(new BsonDocument()
+                if (setting["DaumCafeFeeds"].AsBsonArray.Any())
                 {
-                    ["_id"] = setting["_id"],
-                    ["Feeds"] = setting["DaumCafeFeeds"]
-                });
+                    daumCafeSettings.InsertOne(new BsonDocument()
+                    {
+                        ["_id"] = setting["_id"],
+                        ["Feeds"] = setting["DaumCafeFeeds"]
+                    });
+                }
             }
 
             db.DropCollection("MediaSettings");
 
-            var userCredentials = db.GetCollection<BsonDocument>("UserCredentials");
-            var userDaumCafeSettings = db.GetCollection<BsonDocument>("UserDaumCafeSettings");
-            foreach (var setting in userCredentials.Find(Builders<BsonDocument>.Filter.Empty).ToEnumerable())
-            {
-                userDaumCafeSettings.InsertOne(new BsonDocument()
-                {
-                    ["_id"] = setting["_id"],
-                    ["Credentials"] = setting["Credentials"]
-                });
-            }
-
-            db.DropCollection("UserCredentials");
+            if (db.ListCollectionNames(new ListCollectionNamesOptions() { Filter = new BsonDocument("name", "UserCredentials") }).Any())
+                db.RenameCollection("UserCredentials", "UserDaumCafeSettings");
         }
 
         public override void Down(IMongoDatabase db)
         {
             db.RenameCollection("GreetByeSettings", "EventsSettings");
+            db.RenameCollection("UserDaumCafeSettings", "UserCredentials");
         }
     }
 }

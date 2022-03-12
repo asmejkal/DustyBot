@@ -65,7 +65,9 @@ namespace DustyBot.Service.Modules
                     .SelectMany(x => GetAllCommands(x)))
                     .ToList();
 
-                result.AppendLine(BuildCommandList(module.Description, commands));
+                if (commands.Any())
+                    result.AppendLine(BuildCommandList(module.Description, commands));
+
                 foreach (var submodule in module.Submodules.Where(x => !string.IsNullOrEmpty(x.Description)))
                     result.AppendLine(BuildCommandList(submodule.Description, GetAllCommands(submodule)));
 

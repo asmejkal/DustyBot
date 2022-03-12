@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Disqord;
+using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Database.Mongo.Collections.YouTube.Models;
 using DustyBot.Framework.Attributes;
@@ -55,13 +56,24 @@ namespace DustyBot.Service.Modules
                 ? $"Try also {Context.Prefix}views {string.Join(", ", recommendations)} or a song name"
                 : $"Try also {Context.Prefix}views song name";
 
-            var fields = stats.OrderByDescending(x => x.Value.FirstPublishedAt).Select(x =>
+            var fields = stats.OrderByDescending(x => x.Value?.FirstPublishedAt ?? DateTimeOffset.MinValue).Select(x =>
             {
-                return new LocalEmbedField()
-                    .WithName($":tv: {x.Key.Name}")
-                    .WithValue($"**Views: **{x.Value.Views.ToString("N0", CultureDefinitions.Display)}\n" +
+                var field = new LocalEmbedField()
+                    .WithName($":tv: {x.Key.Name}");
+
+                if (x.Value != null)
+                {
+                    field.WithValue(
+                        $"**Views: **{x.Value!.Views.ToString("N0", CultureDefinitions.Display)}\n" +
                         $"**Likes: **{x.Value.Likes.ToString("N0", CultureDefinitions.Display)}\n" +
                         $"**Published: **{(x.Value.FirstPublishedAt - DateTimeOffset.UtcNow).SimpleFormat()}");
+                }
+                else
+                {
+                    field.WithValue("Video not found");
+                }
+
+                return field;
             });
 
             return Listing(fields, x => x.WithTitle("YouTube statistics").WithFooter(recommendation), 5);
@@ -149,7 +161,7 @@ namespace DustyBot.Service.Modules
         public async Task<CommandResult> ListSongsAsync()
         {
             var songs = await _service.GetSongsAsync(Context.GuildId, Bot.StoppingToken);
-            return Table(songs.OrderBy(x => x.Category)
+            return Table(songs.OrderBy(x => x.Category).ThenBy(x => x.Name)
                 .Select(x => new TableRow().Add("Name", x.Name).Add("Category", x.Category).Add("Videos", x.VideoIds)));
         }
     }

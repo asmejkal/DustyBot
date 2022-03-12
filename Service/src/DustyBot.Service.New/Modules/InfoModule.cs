@@ -49,7 +49,7 @@ namespace DustyBot.Service.Modules
             return Result(embed);
         }
 
-        [Command("banner"), Description("Shows a big version of a user's avatar.")]
+        [Command("banner"), Description("Shows a big version of a user's banner.")]
         public async Task<CommandResult> ShowBannerAsync(
             [Description("a user ID or a mention; shows your own banner if not specified")]
             [Remainder]

@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Gateway;
-using Disqord.Rest;
 using DustyBot.Database.Mongo.Collections.GreetBye;
 using DustyBot.Database.Mongo.Collections.GreetBye.Models;
 using DustyBot.Database.Services;
@@ -42,7 +41,7 @@ namespace DustyBot.Service.Services.GreetBye
             return Task.CompletedTask;
         }
 
-        public Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, ITextChannel channel, string message, CancellationToken ct)
+        public Task SetEventTextAsync(GreetByeEventType type, Snowflake guildId, IMessageGuildChannel channel, string message, CancellationToken ct)
         {
             return _settings.Modify(guildId, (GreetByeSettings s) => s.Events[type] = new(channel.Id, message), ct);
         }
@@ -50,28 +49,34 @@ namespace DustyBot.Service.Services.GreetBye
         public Task SetEventEmbedAsync(
             GreetByeEventType type,
             Snowflake guildId,
-            ITextChannel channel,
-            string title,
-            string body,
-            Uri? image = null,
-            Color? color = null,
-            string? footer = null, 
-            CancellationToken ct = default)
+            IMessageGuildChannel channel,
+            GreetByeEmbed embed,
+            CancellationToken ct)
         {
-            return _settings.Modify(guildId, 
-                (GreetByeSettings s) => s.Events[type] = new(channel.Id, new GreetByeEmbed(title, body, image, color?.RawValue, footer)),
-                ct);
+            return _settings.Modify(guildId, (GreetByeSettings s) => s.Events[type] = new(channel.Id, embed), ct);
         }
 
-        public Task<UpdateEventEmbedFooterResult> UpdateEventEmbedFooterAsync(GreetByeEventType type, Snowflake guildId, string? footer, CancellationToken ct)
+        public Task<UpdateEventEmbedResult> UpdateEventEmbedAsync(
+            GreetByeEventType type,
+            Snowflake guildId,
+            GreetByeEmbedUpdate update,
+            CancellationToken ct)
         {
             return _settings.Modify(guildId, (GreetByeSettings s) =>
             {
                 if (!s.Events.TryGetValue(type, out var setting) || setting.Embed == null)
-                    return UpdateEventEmbedFooterResult.EventEmbedNotSet;
+                    return UpdateEventEmbedResult.EventEmbedNotSet;
 
-                setting.Embed.Footer = footer;
-                return UpdateEventEmbedFooterResult.Success;
+                if (update.Title.HasValue)
+                    setting.Embed.Title = update.Title.Value;
+
+                if (update.Text.HasValue)
+                    setting.Embed.Text = update.Text.Value;
+
+                if (update.Footer.HasValue)
+                    setting.Embed.Footer = update.Footer.Value;
+
+                return UpdateEventEmbedResult.Success;
             }, ct);
         }
 

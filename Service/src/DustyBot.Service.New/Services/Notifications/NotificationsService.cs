@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -30,7 +31,11 @@ namespace DustyBot.Service.Services.Notifications
         public const int DailyNotificationQuotaPerServer = 200;
         public static readonly TimeSpan ActivityDetectionDelay = TimeSpan.FromSeconds(8);
 
-        private static readonly Regex IgnoredKeywordRegex = new Regex(@"https?://");
+        private static readonly IReadOnlyCollection<Regex> IgnoredKeywordRegexes = new[]
+        {
+            new Regex(@"https?://", RegexOptions.Compiled),
+            new Regex(@"<a?:\S+:\d+>", RegexOptions.Compiled)
+        };
 
         private readonly ISettingsService _settings;
         private readonly INotificationSettingsService _userSettings;
@@ -191,7 +196,7 @@ namespace DustyBot.Service.Services.Notifications
                     if (match.End < content.Length && char.IsLetter(content[match.End]))
                         continue; // Inside a word (suffixed) - skip
 
-                    if (IgnoredKeywordRegex.IsMatch(content.GetEnclosingWord(match.Begin, match.End)))
+                    if (IgnoredKeywordRegexes.Any(x => x.IsMatch(content.GetEnclosingWord(match.Begin, match.End))))
                         continue;
 
                     if ((await Bot.FindCommandsAsync(message)).Any(x => x.Command.HideInvocation()))
@@ -304,7 +309,7 @@ namespace DustyBot.Service.Services.Notifications
                 }
 
                 await _sender.SendNotificationAsync(targetUser, message, notification, guild, sourceChannel, ct);
-                Logger.LogInformation("Notified user with trigger {NotificationTrigger}", notification.Keyword);
+                Logger.LogTrace("Notified user with trigger {NotificationTrigger}", notification.Keyword);
 
                 if (quotaThresholdReached)
                 {

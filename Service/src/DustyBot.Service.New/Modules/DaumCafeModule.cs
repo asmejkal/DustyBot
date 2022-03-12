@@ -78,7 +78,7 @@ namespace DustyBot.Service.Modules
         public async Task<CommandResult> ListCafeFeedsAsync()
         {
             var feeds = await _service.GetCafeFeedsAsync(Context.GuildId, Bot.StoppingToken);
-            return Table(feeds.Select(x => new TableRow()
+            return Table(feeds.OrderBy(x => x.CafeId).ThenBy(x => x.BoardId).Select(x => new TableRow()
                 .Add("Id", x.Id.ToString())
                 .Add("Board", $"{x.CafeId}/{x.BoardId}")
                 .Add("Channel", Mention.Channel(x.TargetChannel), TableColumnFlags.Unquoted)
