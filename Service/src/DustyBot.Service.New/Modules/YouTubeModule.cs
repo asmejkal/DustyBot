@@ -19,6 +19,8 @@ namespace DustyBot.Service.Modules
     [Group("views")]
     public class YouTubeModule : DustyGuildModuleBase
     {
+        private const string YouTubeLinkPattern = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
+
         private readonly IYouTubeService _service;
 
         public YouTubeModule(IYouTubeService service)
@@ -26,7 +28,7 @@ namespace DustyBot.Service.Modules
             _service = service ?? throw new ArgumentNullException(nameof(service));
         }
 
-        [Command(""), Description("Checks how your artist's songs are doing on YouTube. Songs are added by server moderators.")]
+        [Command(""), Description("Checks how your artist's songs are doing on YouTube. Songs are added by server moderators."), LongRunning]
         [Remark("Use without parameters to view songs from the default category.")]
         [Remark("Use `all` to view all songs regardless of category.")]
         public async Task<CommandResult> ShowViewsAsync(
@@ -43,9 +45,9 @@ namespace DustyBot.Service.Modules
                 return (songOrCategoryName, recommendations.Any()) switch
                 {
                     (YouTubeSong.DefaultCategory, false) => Result("No songs have been added on this server."),
-                    (YouTubeSong.DefaultCategory, true) => Result($"No songs have been added to the default category. Try categories {recommendations.WordJoinQuotedOr()}"),
+                    (YouTubeSong.DefaultCategory, true) => Result($"No songs have been added to the default category. Try categories {recommendations.WordJoinQuotedOr()}."),
                     (_, false) => Result($"Couldn't find a song or category named `{songOrCategoryName}`."),
-                    (_, true) => Result($"Couldn't find a song or category named `{songOrCategoryName}`. Try categories {recommendations.WordJoinQuotedOr()}")
+                    (_, true) => Result($"Couldn't find a song or category named `{songOrCategoryName}`. Try categories {recommendations.WordJoinQuotedOr()}.")
                 };
             }
 
@@ -59,7 +61,7 @@ namespace DustyBot.Service.Modules
                     .WithName($":tv: {x.Key.Name}")
                     .WithValue($"**Views: **{x.Value.Views.ToString("N0", CultureDefinitions.Display)}\n" +
                         $"**Likes: **{x.Value.Likes.ToString("N0", CultureDefinitions.Display)}\n" +
-                        $"**Published: **{(DateTimeOffset.UtcNow - x.Value.FirstPublishedAt).SimpleFormat()}");
+                        $"**Published: **{(x.Value.FirstPublishedAt - DateTimeOffset.UtcNow).SimpleFormat()}");
             });
 
             return Listing(fields, x => x.WithTitle("YouTube statistics").WithFooter(recommendation), 5);
@@ -71,12 +73,13 @@ namespace DustyBot.Service.Modules
         [Example("titles \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
         public async Task<CommandResult> AddSongAsync(
             [Description("if you add a song to a category, its stats will be displayed with `views CategoryName`")]
-            [Default(YouTubeSong.DefaultCategory)]
+            [Default(YouTubeSong.DefaultCategory), InverseRegex(YouTubeLinkPattern)]
             string categoryName,
             [Description("name of the song")]
+            [InverseRegex(YouTubeLinkPattern)]
             string songName,
             [Description("one or more YouTube links (stats from multiple uploads get added together)")]
-            [Pattern(@"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)")]
+            [Pattern(YouTubeLinkPattern)]
             params Match[] links)
         {
             var ids = links.Select(x => x.Groups[1].Value);
@@ -98,6 +101,20 @@ namespace DustyBot.Service.Modules
             {
                 true => Success($"Removed song `{songName}` from category `{categoryName}`."),
                 false => Failure($"Couldn't find a song with name `{songName}` in category `{categoryName}`.")
+            };
+        }
+
+        [Command("clear"), Description("Removes all songs.")]
+        [RequireAuthorContentManager]
+        public async Task<CommandResult> ClearSongsAsync(
+            [Description("specify to remove all songs in a specific category, omit to remove the default category")]
+            [Default(YouTubeSong.DefaultCategory), Remainder]
+            string categoryName)
+        {
+            return await _service.ClearSongsAsync(Context.GuildId, categoryName, Bot.StoppingToken) switch
+            {
+                > 0 => Success($"Removed all songs from category `{categoryName}`."),
+                <= 0 => Failure($"There are no songs in the specified category.")
             };
         }
 
@@ -124,7 +141,7 @@ namespace DustyBot.Service.Modules
             return await _service.MoveCategoryAsync(Context.GuildId, oldName, newName, Bot.StoppingToken) switch
             {
                 true => Success($"Moved all songs from category `{oldName}` to `{newName}`."),
-                false => Failure("There are no songs in the specified category.")
+                false => Failure($"There are no songs in the category `{oldName}`.")
             };
         }
 

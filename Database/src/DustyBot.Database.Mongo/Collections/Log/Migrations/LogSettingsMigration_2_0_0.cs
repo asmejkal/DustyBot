@@ -7,7 +7,7 @@ namespace DustyBot.Database.Mongo.Collections.Log.Migrations
     /// <summary>
     /// Adds support for embed bye messages.
     /// </summary>
-    public abstract class LogSettingsMigration_2_0_0 : DocumentMigration<LogSettings> // TODO
+    public sealed class LogSettingsMigration_2_0_0 : DocumentMigration<LogSettings>
     {
         public LogSettingsMigration_2_0_0() 
             : base("2.0.0")

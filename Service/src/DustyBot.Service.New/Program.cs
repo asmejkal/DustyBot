@@ -45,7 +45,7 @@ namespace DustyBot.Service
 
             using var host = new HostBuilder()
                 .ConfigureAppConfiguration(x => x.AddEnvironmentVariables())
-                .ConfigureServices((context, services) => services.AddBotServices(context.Configuration))
+                .ConfigureServices(x => x.AddBotServices())
                 .ConfigureDiscordBotSharder<DustyBotSharder>((context, config) => config.ConfigureBot(context.Configuration))
                 .UseSerilog((_, provider, config) => config.ConfigureBotLogging(provider))
                 .Build();

@@ -138,7 +138,6 @@ namespace DustyBot.DaumCafe
                     title != null ? WebUtility.HtmlDecode(title) : null,
                     properties.FirstOrDefault(x => x.Item1 == "og:image")?.Item2,
                     description != null ? WebUtility.HtmlDecode(description) : null);
-                
             }
         }
 
@@ -249,21 +248,21 @@ namespace DustyBot.DaumCafe
             return false;
         }
         
-        public async Task<Tuple<string, string>> GetCafeAndBoardId(string boardUrl)
+        public async Task<(string CafeId, string BoardId)> GetCafeAndBoardId(Uri boardUrl)
         {
             // Check if we're dealing with a BBS board link...
-            var match = _bbsBoardLinkRegex.Match(boardUrl);
+            var match = _bbsBoardLinkRegex.Match(boardUrl.AbsoluteUri);
             if (match.Success)
             {
                 try
                 {
                     // Gotta make an HTTP request to get the Cafe ID...
                     var content = await _client.GetStringAsync(boardUrl);
-                    var grpCodeMatch = _groupCodeRegex.Match(content);
-                    if (!grpCodeMatch.Success)
+                    var groupCodeMatch = _groupCodeRegex.Match(content);
+                    if (!groupCodeMatch.Success)
                         throw new Exception("Unexpected response.");
 
-                    return Tuple.Create(grpCodeMatch.Groups[1].Value, match.Groups[1].Value);
+                    return (groupCodeMatch.Groups[1].Value, match.Groups[1].Value);
                 }
                 catch (HttpRequestException ex)
                 {
@@ -273,12 +272,12 @@ namespace DustyBot.DaumCafe
             else
             {
                 // Nice and behaving link
-                match = _boardLinkRegex.Match(boardUrl);
+                match = _boardLinkRegex.Match(boardUrl.AbsoluteUri);
 
                 if (!match.Success)
                     throw new InvalidBoardLinkException();
 
-                return Tuple.Create(match.Groups[1].Value, match.Groups[2].Value);
+                return (match.Groups[1].Value, match.Groups[2].Value);
             }
         }
 

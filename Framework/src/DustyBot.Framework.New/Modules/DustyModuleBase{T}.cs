@@ -9,6 +9,8 @@ using Disqord.Bot;
 using Disqord.Extensions.Interactivity.Menus.Paged;
 using Disqord.Rest;
 using DustyBot.Core.Async;
+using DustyBot.Framework.Client;
+using DustyBot.Framework.Commands;
 using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Commands.Results;
 using DustyBot.Framework.Entities;
@@ -24,6 +26,7 @@ namespace DustyBot.Framework.Modules
         where T : DiscordCommandContext
     {
         private ILogger? _logger;
+        private IDisposable _typingIndicator;
 
         protected bool HideInvocation => Context is DiscordGuildCommandContext guildContext 
             && guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
@@ -64,6 +67,15 @@ namespace DustyBot.Framework.Modules
                     ex => Logger.LogError(ex, "Failed to hide command invocation message"));
             }
 
+            if (Context.Command.IsLongRunning())
+                _typingIndicator = Bot.BeginTyping(Context.ChannelId, TimeSpan.FromMinutes(1), cancellationToken: Bot.StoppingToken);
+
+            return default;
+        }
+
+        protected override ValueTask AfterExecutedAsync()
+        {
+            _typingIndicator?.Dispose();
             return default;
         }
 
@@ -179,17 +191,20 @@ namespace DustyBot.Framework.Modules
             if (command == null)
                 throw new ArgumentException("Method is not a command", nameof(methodName));
 
-            var current = module;
+            var types = new List<Type>();
+            for (var current = module; current != null; current = current.DeclaringType)
+                types.Add(current);
+
             var path = new StringBuilder();
-            do
-            {
-                var group = current.GetCustomAttribute<GroupAttribute>();
+            foreach (var type in types.AsEnumerable().Reverse())
+            { 
+                var group = type.GetCustomAttribute<GroupAttribute>();
                 if (group != null && !string.IsNullOrEmpty(group.Aliases.FirstOrDefault()))
                 {
                     path.Append(group.Aliases.First());
                     path.Append(Bot.Commands.Separator);
                 }
-            } while ((current = current.DeclaringType) != null);
+            }
 
             if (command is VerbCommandAttribute verbCommand)
                 path.Append(string.Join(Bot.Commands.Separator, verbCommand.Verbs) + Bot.Commands.Separator);

@@ -61,11 +61,19 @@ namespace DustyBot.Service.Services.Log
             }, ct);
         }
 
+        public Task<int> ClearSongsAsync(Snowflake guildId, string categoryName, CancellationToken ct)
+        {
+            return _settings.Modify(guildId, (YouTubeSettings s) =>
+            {
+                return s.Songs.RemoveAll(x => string.Compare(x.Category, categoryName, true) == 0);
+            }, ct);
+        }
+
         public Task<bool> RenameSongAsync(Snowflake guildId, string oldName, string newName, CancellationToken ct)
         {
             return _settings.Modify(guildId, (YouTubeSettings s) =>
             {
-                var songs = s.Songs.Where(x => string.Compare(x.Name, oldName, true) == 0);
+                var songs = s.Songs.Where(x => string.Compare(x.Name, oldName, true) == 0).ToList();
                 foreach (var song in songs)
                     song.Name = newName;
 
@@ -77,7 +85,7 @@ namespace DustyBot.Service.Services.Log
         {
             return _settings.Modify(guildId, (YouTubeSettings s) =>
             {
-                var songs = s.Songs.Where(x => string.Compare(x.Category, oldName, true) == 0);
+                var songs = s.Songs.Where(x => string.Compare(x.Category, oldName, true) == 0).ToList();
                 foreach (var song in songs)
                     song.Category = newName;
 

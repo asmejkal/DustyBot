@@ -36,13 +36,6 @@ namespace DustyBot.Framework.Interactivity
                     embed.WithFooter(indexText);
                 }
             }
-            else
-            {
-                if (page.Content == null)
-                    page.Content = indexText;
-                else if (page.Content.Length + indexText.Length + 1 <= LocalMessageBase.MaxContentLength)
-                    page.Content += $"\n{indexText}";
-            }
         }
 
         protected override LocalMessage GetPagelessMessage()

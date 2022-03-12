@@ -14,6 +14,7 @@ namespace DustyBot.Service.Services.Log
         Task<IReadOnlyDictionary<YouTubeSong, AggregatedYouTubeVideoStatistics>> GetStatisticsAsync(Snowflake guildId, string? nameOrCategoryFilter = null, CancellationToken ct = default);
         Task<bool> MoveCategoryAsync(Snowflake guildId, string oldName, string newName, CancellationToken ct);
         Task<bool> RemoveSongAsync(Snowflake guildId, string categoryName, string songName, CancellationToken ct);
+        Task<int> ClearSongsAsync(Snowflake guildId, string categoryName, CancellationToken ct);
         Task<bool> RenameSongAsync(Snowflake guildId, string oldName, string newName, CancellationToken ct);
         Task<IEnumerable<string>> GetCategoryRecommendationsAsync(Snowflake guildId, string excludedCategory, int limit, CancellationToken ct = default);
     }

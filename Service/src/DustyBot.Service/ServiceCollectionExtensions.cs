@@ -38,7 +38,7 @@ namespace DustyBot
             services.AddMongoDatabase();
             services.AddSingleton<ISettingsService, MongoSettingsService>();
             services.AddScoped<ISpotifyAccountsService, SpotifyAccountsService>();
-            services.AddScoped<ICredentialsService, CredentialsService>();
+            services.AddScoped<IDaumCafeSettingsService, DaumCafeSettingsService>();
             services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
             services.AddScoped<ILastFmSettingsService, LastFmSettingsService>();
 

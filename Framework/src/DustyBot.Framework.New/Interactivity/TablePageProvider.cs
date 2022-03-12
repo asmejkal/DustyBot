@@ -21,11 +21,13 @@ namespace DustyBot.Framework.Interactivity
             foreach (var row in rows)
             {
                 var lineBuilder = new StringBuilder();
-                foreach (var column in row.Columns)
+                foreach (var (name, cell) in row.Cells)
                 {
-                    var value = string.Join("` `", column.Value.Where(x => !string.IsNullOrEmpty(x)));
+                    var unquoted = cell.Flags.HasFlag(TableColumnFlags.Unquoted);
+                    var value = string.Join(unquoted ? " " : "` `", cell.Values.Where(x => !string.IsNullOrEmpty(x)));
+
                     if (!string.IsNullOrEmpty(value))
-                        lineBuilder.Append($"{column.Key}: `{value}` ");
+                        lineBuilder.Append(unquoted ? $"{name}: {value} " : $"{name}: `{value}` ");
                 }
 
                 var line = lineBuilder.ToString().Truncate(LocalMessage.MaxContentLength - 1);
@@ -38,6 +40,9 @@ namespace DustyBot.Framework.Interactivity
                     content.Append(line + '\n');
                 }  
             }
+
+            if (content.Length > 0)
+                pages.Add(new Page().WithContent(content.ToString()));
 
             Pages = pages;
         }

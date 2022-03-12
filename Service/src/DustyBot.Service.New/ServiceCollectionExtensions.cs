@@ -11,11 +11,11 @@ using DustyBot.Service.Modules;
 using DustyBot.Service.Services;
 using DustyBot.Service.Services.Automod;
 using DustyBot.Service.Services.Bot;
+using DustyBot.Service.Services.DaumCafe;
 using DustyBot.Service.Services.GreetBye;
 using DustyBot.Service.Services.Log;
 using DustyBot.Service.Services.Notifications;
 using DustyBot.Service.Services.YouTube;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Qmmands;
 
@@ -23,41 +23,42 @@ namespace DustyBot.Service
 {
     internal static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddBotServices(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddBotServices(this IServiceCollection services)
         {
-            services.AddBotOptions(configuration);
+            services.AddBotOptions();
 
             services.AddDatabaseServices(
-                x => x.Configure<IConfiguration>((o, c) => c.GetSection(ConfigurationSections.Mongo).Bind(o)),
-                x => x.Configure<IConfiguration>((o, c) => c.GetSection(ConfigurationSections.TableStorage).Bind(o)));
+                x => x.BindConfiguration(ConfigurationSections.Mongo),
+                x => x.BindConfiguration(ConfigurationSections.TableStorage));
 
-            // services.AddGreetByeServices();
-            // services.AddAutomodServices();
-            // services.AddLogServices();
-            // services.AddYouTubeServices();
-            services.AddBotServices();
+            services.AddGreetByeServices();
+            services.AddAutomodServices();
+            services.AddLogServices();
+            services.AddYouTubeServices();
+            services.AddManagementServices();
             services.AddInfoServices();
             services.AddNotificationsServices();
+            services.AddDaumCafeServices();
             services.AddUtilityServices();
 
             return services;
         }
 
-        public static IServiceCollection AddBotOptions(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddBotOptions(this IServiceCollection services)
         {
             services.Configure<InteractivityExtensionConfiguration>(x => x.ConfigureInteractivity());
             services.Configure<DefaultGatewayCacheProviderConfiguration>(x => x.ConfigureCaching());
-            services.Configure<CommandServiceConfiguration>(x => x.ConfigureCommands(configuration));
+            services.Configure<CommandServiceConfiguration>(x => x.ConfigureCommands());
 
-            services.Configure<BotOptions>(configuration.GetSection(ConfigurationSections.Bot));
-            services.Configure<DiscordOptions>(configuration.GetSection(ConfigurationSections.Discord));
-            services.Configure<LastFmOptions>(configuration.GetSection(ConfigurationSections.LastFm));
-            services.Configure<PapagoOptions>(configuration.GetSection(ConfigurationSections.Papago));
-            services.Configure<PolrOptions>(configuration.GetSection(ConfigurationSections.Polr));
-            services.Configure<SpotifyOptions>(configuration.GetSection(ConfigurationSections.Spotify));
-            services.Configure<YouTubeOptions>(configuration.GetSection(ConfigurationSections.YouTube));
-            services.Configure<LoggingOptions>(configuration.GetSection(ConfigurationSections.Logging));
-            services.Configure<WebOptions>(configuration.GetSection(ConfigurationSections.Web));
+            services.AddOptions<BotOptions>().BindConfiguration(ConfigurationSections.Bot);
+            services.AddOptions<DiscordOptions>().BindConfiguration(ConfigurationSections.Discord);
+            services.AddOptions<LastFmOptions>().BindConfiguration(ConfigurationSections.LastFm);
+            services.AddOptions<PapagoOptions>().BindConfiguration(ConfigurationSections.Papago);
+            services.AddOptions<PolrOptions>().BindConfiguration(ConfigurationSections.Polr);
+            services.AddOptions<SpotifyOptions>().BindConfiguration(ConfigurationSections.Spotify);
+            services.AddOptions<YouTubeOptions>().BindConfiguration(ConfigurationSections.YouTube);
+            services.AddOptions<LoggingOptions>().BindConfiguration(ConfigurationSections.Logging);
+            services.AddOptions<WebOptions>().BindConfiguration(ConfigurationSections.Web);
 
             return services;
         }
@@ -98,7 +99,7 @@ namespace DustyBot.Service
             return services;
         }
 
-        public static IServiceCollection AddBotServices(this IServiceCollection services)
+        public static IServiceCollection AddManagementServices(this IServiceCollection services)
         {
             services.AddDiscordModule<BotModule>();
             services.AddPrefixProvider<GuildPrefixProvider>();
@@ -123,6 +124,17 @@ namespace DustyBot.Service
             services.AddDiscordClientService<NotificationsService>();
             services.AddScoped<INotificationsService>(x => x.GetRequiredService<NotificationsService>());
             services.AddScoped<INotificationsSender, NotificationsSender>();
+
+            return services;
+        }
+
+        public static IServiceCollection AddDaumCafeServices(this IServiceCollection services)
+        {
+            services.AddDiscordModule<DaumCafeModule>();
+            services.AddDiscordClientService<DaumCafeService>();
+            services.AddScoped<IDaumCafeService>(x => x.GetRequiredService<DaumCafeService>());
+            services.AddScoped<IDaumCafePostSender, DaumCafePostSender>();
+            services.AddSingleton<IDaumCafeSessionManager, DaumCafeSessionManager>();
 
             return services;
         }

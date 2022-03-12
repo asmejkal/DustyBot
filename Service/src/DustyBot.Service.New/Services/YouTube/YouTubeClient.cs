@@ -42,7 +42,7 @@ namespace DustyBot.Service.Services.YouTube
                         id,
                         statistics.RequiredValue<int>("viewCount"),
                         statistics.RequiredValue<int>("likeCount"),
-                        item.RequiredValue("snippet").RequiredValue<DateTimeOffset>("publishedAt"));
+                        item.RequiredValue("snippet").RequiredValue<DateTime>("publishedAt"));
                 }
             }
             

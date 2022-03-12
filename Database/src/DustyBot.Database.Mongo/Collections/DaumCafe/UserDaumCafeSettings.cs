@@ -5,9 +5,9 @@ using DustyBot.Database.Mongo.Models;
 
 namespace DustyBot.Database.Mongo.Collections
 {
-    public sealed class UserCredentials : BaseUserSettings, IDisposable
+    public sealed class UserDaumCafeSettings : BaseUserSettings, IDisposable
     {
-        public List<Credentials> Credentials { get; set; } = new();
+        public List<DaumCafeCredential> Credentials { get; set; } = new();
 
         public void Dispose()
         {

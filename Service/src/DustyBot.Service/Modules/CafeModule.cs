@@ -23,11 +23,11 @@ namespace DustyBot.Service.Modules
         public const int ServerFeedLimit = 25;
 
         private readonly ISettingsService _settings;
-        private readonly ICredentialsService _credentialsService;
+        private readonly IDaumCafeSettingsService _credentialsService;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly HelpBuilder _helpBuilder;
 
-        public CafeModule(ISettingsService settings, ICredentialsService credentialsService, IFrameworkReflector frameworkReflector, HelpBuilder helpBuilder)
+        public CafeModule(ISettingsService settings, IDaumCafeSettingsService credentialsService, IFrameworkReflector frameworkReflector, HelpBuilder helpBuilder)
         {
             _settings = settings;
             _credentialsService = credentialsService;
@@ -203,7 +203,7 @@ namespace DustyBot.Service.Modules
         [Example("5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
         public async Task RemoveCredential(ICommand command, CancellationToken ct)
         {
-            var removed = await _credentialsService.RemoveAsync(command.Author.Id, (Guid)command["CredentialId"], ct);
+            var removed = await _credentialsService.RemoveCredentialAsync(command.Author.Id, (Guid)command["CredentialId"], ct);
 
             if (removed)
                 await command.ReplySuccess($"Credential has been removed.");
@@ -239,7 +239,7 @@ namespace DustyBot.Service.Modules
             await command.Reply(result);
         }
 
-        public static async Task<Credentials> GetCredential(ICredentialsService credentialsService, ulong userId, string id, CancellationToken ct)
+        public static async Task<Credentials> GetCredential(IDaumCafeSettingsService credentialsService, ulong userId, string id, CancellationToken ct)
         {
             if (!Guid.TryParse(id, out var guid))
                 throw new IncorrectParametersCommandException("Invalid ID format. Use `credential list` in a Direct Message to view all your saved credentials and their IDs.");
@@ -247,7 +247,7 @@ namespace DustyBot.Service.Modules
             return await GetCredential(credentialsService, userId, guid, ct);
         }
 
-        public static async Task<Credentials> GetCredential(ICredentialsService credentialsService, ulong userId, Guid guid, CancellationToken ct)
+        public static async Task<Credentials> GetCredential(IDaumCafeSettingsService credentialsService, ulong userId, Guid guid, CancellationToken ct)
         {
             var credentials = await credentialsService.ReadAsync(userId, ct);
             var credential = credentials?.Credentials.FirstOrDefault(x => x.Id == guid);

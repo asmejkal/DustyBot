@@ -74,10 +74,11 @@ namespace DustyBot.Service
             configuration.ServiceAssemblies = null;
         }
 
-        public static void ConfigureCommands(this CommandServiceConfiguration configuration, IConfiguration provider)
+        public static void ConfigureCommands(this CommandServiceConfiguration configuration)
         {
             configuration.DefaultArgumentParser = new ArgumentParser();
             configuration.NullableNouns = Enumerable.Empty<string>();
+            configuration.DefaultRunMode = RunMode.Parallel;
         }
 
         public static void ConfigureCaching(this DefaultGatewayCacheProviderConfiguration configuration)

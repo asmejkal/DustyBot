@@ -20,11 +20,10 @@ namespace DustyBot.Database.Mongo.Collections.DaumCafe.Models
         {
         }
 
-        public DaumCafeFeed(string cafeId, string boardId, int lastPostId, ulong targetChannel, ulong credentialUser, Guid credentialId)
+        public DaumCafeFeed(string cafeId, string boardId, ulong targetChannel, ulong credentialUser, Guid credentialId = default)
         {
             CafeId = cafeId ?? throw new ArgumentNullException(nameof(cafeId));
             BoardId = boardId ?? throw new ArgumentNullException(nameof(boardId));
-            LastPostId = lastPostId;
             TargetChannel = targetChannel;
             CredentialUser = credentialUser;
             CredentialId = credentialId;

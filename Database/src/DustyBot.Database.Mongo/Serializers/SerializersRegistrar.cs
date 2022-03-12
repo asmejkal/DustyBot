@@ -9,7 +9,7 @@ namespace DustyBot.Database.Mongo.Serializers
         public static void RegisterDefaults()
         {
             BsonSerializer.RegisterSerializer(DateTimeSerializer.LocalInstance);
-            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.CSharpLegacy));
             BsonSerializer.RegisterSerializer(new SecureStringSerializer());
         }
     }

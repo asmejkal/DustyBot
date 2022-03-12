@@ -123,6 +123,8 @@ namespace DustyBot.Framework
             Commands.AddTypeParser(new UriTypeParser());
             Commands.AddTypeParser(new RestUserTypeParser());
             Commands.AddTypeParser(new UserTypeParser());
+            Commands.AddTypeParser(new MatchTypeParser());
+            Commands.AddTypeParser(new GuidTypeParser());
 
             Commands.ReplaceTypeParser(new MemberTypeParser());
         }

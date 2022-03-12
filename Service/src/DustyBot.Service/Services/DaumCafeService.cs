@@ -26,7 +26,7 @@ namespace DustyBot.Service.Services
         private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15);
 
         private readonly ISettingsService _settings;
-        private readonly ICredentialsService _credentialsService;
+        private readonly IDaumCafeSettingsService _credentialsService;
         private readonly ILogger<DaumCafeService> _logger;
         private readonly BaseSocketClient _client;
 
@@ -35,7 +35,7 @@ namespace DustyBot.Service.Services
         public DaumCafeService(
             BaseSocketClient client, 
             ISettingsService settings,
-            ICredentialsService credentialsService,
+            IDaumCafeSettingsService credentialsService,
             ILogger<DaumCafeService> logger, 
             ITimerAwaiter timerAwaiter, 
             IServiceProvider services)
