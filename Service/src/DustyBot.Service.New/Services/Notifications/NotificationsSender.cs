@@ -36,7 +36,7 @@ namespace DustyBot.Service.Services.Notifications
         public Task SendQuotaReachedWarningAsync(IMember recipient, IGuild guild, TimeSpan expiresIn, CancellationToken ct)
         {
             var result = new LocalMessage()
-                .WithContent($"You've reached your daily notification limit on server `{guild.Name}`. Your quota will reset in `{expiresIn.SimpleFormat()}`.\n"
+                .WithContent($"You've reached your daily notification limit on server `{guild.Name}`. Your quota will reset in `{expiresIn.SimpleFormat(TimeSpanPrecision.Medium)}`.\n"
                     + "We're sorry, but this is a necessary safeguard to prevent abuse.");
 
             return recipient.SendMessageAsync(result, cancellationToken: ct);

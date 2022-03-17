@@ -206,6 +206,9 @@ namespace DustyBot.Service.Services.Notifications
                     {
                         try
                         {
+                            if (e.Channel.Type == ChannelType.PrivateThread)
+                                return; // Not supported, checking private thread membership is either too expensive or complex
+
                             var targetUser = await guild.GetOrFetchMemberAsync(match.Value.User, cancellationToken: Bot.StoppingToken);
                             if (targetUser == null)
                                 return;
@@ -213,9 +216,6 @@ namespace DustyBot.Service.Services.Notifications
                             var permissions = guild.GetPermissions(e.Channel, targetUser);
                             if (!permissions.ViewChannels || !permissions.ReadMessageHistory)
                                 return;
-
-                            if (e.Channel.Type == ChannelType.PrivateThread)
-                                return; // Not supported, checking private thread membership is either too expensive or complex
 
                             await SendNotificationAsync(match.Value, message, targetUser, guild, e.Channel, Bot.StoppingToken);
                         }

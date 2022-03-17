@@ -3,7 +3,6 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Disqord;
-using DustyBot.Core.Collections;
 using DustyBot.Core.Formatting;
 using DustyBot.Database.Mongo.Collections.YouTube.Models;
 using DustyBot.Framework.Attributes;
@@ -11,6 +10,7 @@ using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Interactivity;
 using DustyBot.Framework.Modules;
 using DustyBot.Service.Definitions;
+using DustyBot.Service.Services.Bot;
 using DustyBot.Service.Services.Log;
 using Qmmands;
 
@@ -23,10 +23,12 @@ namespace DustyBot.Service.Modules
         private const string YouTubeLinkPattern = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
 
         private readonly IYouTubeService _service;
+        private readonly WebLinkResolver _webLinkResolver;
 
-        public YouTubeModule(IYouTubeService service)
+        public YouTubeModule(IYouTubeService service, WebLinkResolver webLinkResolver)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _webLinkResolver = webLinkResolver;
         }
 
         [Command(""), Description("Checks how your artist's songs are doing on YouTube. Songs are added by server moderators."), LongRunning]
@@ -58,15 +60,13 @@ namespace DustyBot.Service.Modules
 
             var fields = stats.OrderByDescending(x => x.Value?.FirstPublishedAt ?? DateTimeOffset.MinValue).Select(x =>
             {
-                var field = new LocalEmbedField()
-                    .WithName($":tv: {x.Key.Name}");
-
+                var field = new LocalEmbedField().WithName($"{x.Key.Name}");
                 if (x.Value != null)
                 {
                     field.WithValue(
-                        $"**Views: **{x.Value!.Views.ToString("N0", CultureDefinitions.Display)}\n" +
-                        $"**Likes: **{x.Value.Likes.ToString("N0", CultureDefinitions.Display)}\n" +
-                        $"**Published: **{(x.Value.FirstPublishedAt - DateTimeOffset.UtcNow).SimpleFormat()}");
+                        $"**Views:** {x.Value!.Views.ToString("N0", CultureDefinitions.Display)}\n" +
+                        $"**Likes:** {x.Value.Likes.ToString("N0", CultureDefinitions.Display)}\n" +
+                        $"**Published:** {(x.Value.FirstPublishedAt - DateTimeOffset.UtcNow).SimpleFormat(TimeSpanPrecision.Medium)}");
                 }
                 else
                 {
@@ -76,7 +76,8 @@ namespace DustyBot.Service.Modules
                 return field;
             });
 
-            return Listing(fields, x => x.WithTitle("YouTube statistics").WithFooter(recommendation), 5);
+            var author = new LocalEmbedAuthor().WithIconUrl(_webLinkResolver.YouTubeIcon.AbsoluteUri).WithName("YouTube statistics");
+            return Listing(fields, x => x.WithAuthor(author).WithColor(0xfa0019).WithFooter(recommendation), 5);
         }
 
         [Command("add"), Description("Adds a song.")]
@@ -94,7 +95,7 @@ namespace DustyBot.Service.Modules
             [Pattern(YouTubeLinkPattern)]
             params Match[] links)
         {
-            var ids = links.Select(x => x.Groups[1].Value);
+            var ids = links.Select(x => x.Groups.Cast<Group>().Skip(1).First(y => !string.IsNullOrEmpty(y.Value)).Value);
             await _service.AddSongAsync(Context.GuildId, categoryName, songName, ids, Bot.StoppingToken);
             return Success($"Song `{songName}` has been added to category `{categoryName}` with videos {ids.WordJoinQuoted()}.");
         }

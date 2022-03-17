@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DustyBot.Database.Mongo.Collections.YouTube.Models
 {
@@ -22,6 +23,9 @@ namespace DustyBot.Database.Mongo.Collections.YouTube.Models
             Name = name ?? throw new ArgumentNullException(nameof(name));
             VideoIds = new HashSet<string>(videoIds ?? throw new ArgumentNullException(nameof(videoIds)));
             Category = category;
+
+            if (!VideoIds.Any())
+                throw new ArgumentException("Collection empty", nameof(videoIds));
         }
     }
 }

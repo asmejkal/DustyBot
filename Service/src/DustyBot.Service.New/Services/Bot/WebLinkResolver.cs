@@ -17,7 +17,8 @@ namespace DustyBot.Service.Services.Bot
         public Uri RolesGuide => new(Root, RolesGuidePath);
         public Uri ImagesFolder => new(Root, ImagesPath);
         
-        public Uri LfIcon => new(Root, ImagesPath + "/lf.png");
+        public Uri LastFmIcon => new(Root, ImagesPath + "/lf.png");
+        public Uri YouTubeIcon => new(Root, ImagesPath + "/yt2.png");
         public Uri SpotifyIcon => new(Root, ImagesPath + "/sf.png");
         public Uri InstagramIcon => new(Root, ImagesPath + "/ig.png");
 
