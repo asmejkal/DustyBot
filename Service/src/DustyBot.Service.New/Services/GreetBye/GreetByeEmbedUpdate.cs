@@ -1,4 +1,4 @@
-﻿using Disqord;
+﻿using Qommon;
 
 namespace DustyBot.Service.Services.GreetBye
 {

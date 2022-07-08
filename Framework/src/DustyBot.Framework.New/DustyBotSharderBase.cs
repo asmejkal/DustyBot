@@ -159,8 +159,7 @@ namespace DustyBot.Framework
                 {
                     logger.LogInformation("Command {MessageContent} failed with {CommandResult}", context.Message.Content, result.GetType().Name);
 
-                    if (guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
-                        && guildContext.Guild.GetBotPermissions(guildContext.Channel).ManageMessages)
+                    if (guildContext.Command.HideInvocation() && guildContext.Guild.GetBotPermissions(guildContext.Channel).ManageMessages)
                     {
                         TaskHelper.FireForget(() => context.Message.DeleteAsync(cancellationToken: StoppingToken),
                             ex => Logger.LogError(ex, "Failed to hide failed command's invocation message"));

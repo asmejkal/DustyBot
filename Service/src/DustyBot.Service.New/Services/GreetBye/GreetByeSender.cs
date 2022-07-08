@@ -20,7 +20,9 @@ namespace DustyBot.Service.Services.GreetBye
         {
             var embed = new LocalEmbed()
                 .WithDescription(ReplacePlaceholders(template.Body, user, guild))
-                .WithThumbnailUrl(user is IMember member ? member.GetGuildAvatarUrl(size: 512) : user.GetAvatarUrl(size: 512));
+                .WithThumbnailUrl(user is IMember member 
+                    ? member.GetGuildAvatarUrl(CdnAssetFormat.Automatic, size: 512) 
+                    : user.GetAvatarUrl(CdnAssetFormat.Automatic, size: 512));
 
             if (template.Color.HasValue)
                 embed.WithColor(Math.Min(template.Color.Value, 0xfffffe)); // 0xfffffff is a special code for blank

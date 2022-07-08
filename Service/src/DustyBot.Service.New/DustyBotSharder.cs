@@ -6,7 +6,9 @@ using Disqord.Bot.Sharding;
 using Disqord.Sharding;
 using DustyBot.Core.Formatting;
 using DustyBot.Framework;
+using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
+using DustyBot.Framework.Entities;
 using DustyBot.Service.Services.Bot;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -54,9 +56,11 @@ namespace DustyBot.Service
             };
 
             var message = new LocalMessage()
-                .WithReply(context.Message.Id)
-                .WithAllowedMentions(LocalAllowedMentions.None)
-                .WithContent($"{CommunicationConstants.FailureMarker} {explanation}");
+                .WithContent($"{CommunicationConstants.FailureMarker} {explanation}")
+                .WithDisallowedMentions();
+
+            if (context is DiscordGuildCommandContext guildContext && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory)
+                message = message.WithReply(context.Message.Id);
 
             if (result is TypeParseFailedResult or ChecksFailedResult or ParameterChecksFailedResult or ArgumentParseFailedResult or OverloadsFailedResult)
                 message = message.WithEmbeds(_helpBuilder.BuildCommandUsageEmbed(context.Command, context.Prefix));
@@ -72,7 +76,12 @@ namespace DustyBot.Service
             foreach (var command in moduleBuilder.Commands)
             {
                 if (!command.Cooldowns.Any(x => x.BucketType is CooldownBucketType.User))
-                    command.Cooldowns.Add(new Cooldown(5, TimeSpan.FromSeconds(7.5), CooldownBucketType.User));
+                {
+                    if (command.IsLongRunning())
+                        command.Cooldowns.Add(new Cooldown(5, TimeSpan.FromSeconds(15), CooldownBucketType.User));
+                    else
+                        command.Cooldowns.Add(new Cooldown(5, TimeSpan.FromSeconds(7.5), CooldownBucketType.User));
+                }
             }
         }
     }

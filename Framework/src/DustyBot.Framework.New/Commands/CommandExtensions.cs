@@ -17,6 +17,9 @@ namespace DustyBot.Framework.Commands
         public static bool IsLongRunning(this Command x) =>
             x.Attributes.OfType<LongRunningAttribute>().Any();
 
+        public static bool IsLongRunning(this CommandBuilder x) =>
+            x.Attributes.OfType<LongRunningAttribute>().Any();
+
         public static bool IsHidden(this Command x) =>
             x.Attributes.Any(x => x is HiddenAttribute) || !x.IsEnabled || x.Attributes.Any(x => x is RequireBotOwnerAttribute);
     }

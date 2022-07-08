@@ -48,7 +48,7 @@ namespace DustyBot.Core.Formatting
                 else if (value < TimeSpan.FromDays(365))
                     result.Append($"{value.Days}d ");
                 else
-                    result.Append($"{value.Days / 365}y {value.Days % 365}d");
+                    result.Append($"{value.Days / 365}y {value.Days % 365}d ");
             }
             else if (precision == TimeSpanPrecision.Low)
             {
@@ -65,7 +65,7 @@ namespace DustyBot.Core.Formatting
                 else if (value < TimeSpan.FromDays(365))
                     result.Append($"{value.Days}d ");
                 else
-                    result.Append($"{value.Days / 365}y {value.Days % 365}d");
+                    result.Append($"{value.Days / 365}y {value.Days % 365}d ");
             }
             else
             {

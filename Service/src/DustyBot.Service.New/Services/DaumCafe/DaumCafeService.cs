@@ -25,6 +25,7 @@ namespace DustyBot.Service.Services.DaumCafe
     internal class DaumCafeService : RecurringDustyBotService, IDaumCafeService
     {
         private const int ServerFeedLimit = 25;
+        private const int MaxPostBatchSize = 15;
         private static readonly TimeSpan UpdateFrequency = TimeSpan.FromMinutes(15);
 
         private readonly IDaumCafePostSender _postSender;
@@ -236,9 +237,9 @@ namespace DustyBot.Service.Services.DaumCafe
             if (lastPostId <= feed.LastPostId)
                 return;
 
-            var currentPostId = feed.LastPostId;
-            _logger.LogInformation("Updating feed {CafeId}/{BoardId} found {PostCount} new posts ({FirstPostId} to {LastPostId})", feed.CafeId, feed.BoardId, lastPostId - currentPostId, currentPostId + 1, lastPostId);
+            _logger.LogInformation("Updating feed {CafeId}/{BoardId} found {PostCount} new posts ({FirstPostId} to {LastPostId})", feed.CafeId, feed.BoardId, lastPostId - feed.LastPostId, feed.LastPostId + 1, lastPostId);
 
+            var currentPostId = Math.Max(feed.LastPostId, lastPostId - MaxPostBatchSize);
             while (lastPostId > currentPostId)
             {
                 var page = await session.GetPage(feed.CafeId, feed.BoardId, currentPostId + 1, ct);

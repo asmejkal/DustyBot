@@ -116,10 +116,11 @@ namespace DustyBot.Service.Modules
         public async Task<CommandResult> ShowServerInfo()
         {
             var guild = Context.Guild;
+            var iconUrl = guild.GetIconUrl(CdnAssetFormat.Automatic, size: 2048);
             var embed = new LocalEmbed()
                 .WithTitle(guild.Name)
-                .WithUrl(guild.GetIconUrl(CdnAssetFormat.Automatic, size: 2048))
-                .WithThumbnailUrl(guild.GetIconUrl())
+                .WithUrl(iconUrl)
+                .WithThumbnailUrl(iconUrl)
                 .WithFooter($"#{guild.Id}");
 
             var owner = await guild.GetOrFetchMemberAsync(guild.OwnerId, cancellationToken: Bot.StoppingToken);

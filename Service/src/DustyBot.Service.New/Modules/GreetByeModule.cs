@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Disqord;
 using DustyBot.Database.Mongo.Collections.GreetBye.Models;
@@ -52,12 +53,15 @@ namespace DustyBot.Service.Modules
                 IMessageGuildChannel channel,
                 [Description("hex code of a color (e.g. `#09A5BC`)")]
                 Color? color,
-                [Description("link to an image")]
+                [Description("link to an image (alternatively you can add it as an attachment)")]
                 Uri? image,
                 [Description("body of the greeting message")]
                 [Remainder]
                 string body)
             {
+                if (Context.Message.Attachments.Any())
+                    image ??= new(Context.Message.Attachments.First().Url);
+
                 var embed = new GreetByeEmbed(body, image: image, color: color?.RawValue);
                 await _service.SetEventEmbedAsync(GreetByeEventType.Greet, Context.GuildId, channel, embed, Bot.StoppingToken);
                 return Success("Greeting message set.");
@@ -163,12 +167,15 @@ namespace DustyBot.Service.Modules
                 IMessageGuildChannel channel,
                 [Description("hex code of a color (e.g. `#09A5BC`)")]
                 Color? color,
-                [Description("link to an image")]
+                [Description("link to an image (alternatively you can add it as an attachment)")]
                 Uri? image,
                 [Description("body of the goodbye message")]
                 [Remainder]
                 string body)
             {
+                if (Context.Message.Attachments.Any())
+                    image ??= new(Context.Message.Attachments.First().Url);
+
                 var embed = new GreetByeEmbed(body, image: image, color: color?.RawValue);
                 await _service.SetEventEmbedAsync(GreetByeEventType.Bye, Context.GuildId, channel, embed, Bot.StoppingToken);
                 return Success("Goodbye message set.");
@@ -190,7 +197,6 @@ namespace DustyBot.Service.Modules
             }
 
             [VerbCommand("embed", "set", "footer"), Description("Customize a footer for your goodbye embed message.")]
-            [RequireAuthorAdministrator]
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the footer.")]
             [Example("Member #{membercount}")]

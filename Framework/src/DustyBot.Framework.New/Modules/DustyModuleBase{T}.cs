@@ -26,10 +26,10 @@ namespace DustyBot.Framework.Modules
         where T : DiscordCommandContext
     {
         private ILogger? _logger;
-        private IDisposable _typingIndicator;
+        private IDisposable? _typingIndicator;
 
         protected bool HideInvocation => Context is DiscordGuildCommandContext guildContext 
-            && guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
+            && guildContext.Command.HideInvocation()
             && guildContext.Guild.GetBotPermissions(guildContext.Channel).ManageMessages;
 
         protected override DustyBotSharderBase Bot => (DustyBotSharderBase)base.Bot;
@@ -50,7 +50,7 @@ namespace DustyBot.Framework.Modules
         }
 
         private bool ShouldReply => Context is DiscordGuildCommandContext guildContext
-            && !guildContext.Command.Attributes.OfType<HideInvocationAttribute>().Any()
+            && !guildContext.Command.HideInvocation()
             && guildContext.Guild.GetBotPermissions(guildContext.Channel).ReadMessageHistory;
 
         protected override ValueTask BeforeExecutedAsync()

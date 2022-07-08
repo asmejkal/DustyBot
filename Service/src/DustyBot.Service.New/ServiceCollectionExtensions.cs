@@ -15,6 +15,7 @@ using DustyBot.Service.Services.DaumCafe;
 using DustyBot.Service.Services.GreetBye;
 using DustyBot.Service.Services.Log;
 using DustyBot.Service.Services.Notifications;
+using DustyBot.Service.Services.Reactions;
 using DustyBot.Service.Services.YouTube;
 using Microsoft.Extensions.DependencyInjection;
 using Qmmands;
@@ -39,7 +40,11 @@ namespace DustyBot.Service
             services.AddInfoServices();
             services.AddNotificationsServices();
             services.AddDaumCafeServices();
+            services.AddReactionsServices();
+
             services.AddUtilityServices();
+
+            services.AddDiscordClientService<TestSlashModule>();
 
             return services;
         }
@@ -135,6 +140,15 @@ namespace DustyBot.Service
             services.AddScoped<IDaumCafeService>(x => x.GetRequiredService<DaumCafeService>());
             services.AddScoped<IDaumCafePostSender, DaumCafePostSender>();
             services.AddSingleton<IDaumCafeSessionManager, DaumCafeSessionManager>();
+
+            return services;
+        }
+
+        public static IServiceCollection AddReactionsServices(this IServiceCollection services)
+        {
+            services.AddDiscordModule<ReactionsModule>();
+            services.AddDiscordClientService<ReactionsService>();
+            services.AddScoped<IReactionsService>(x => x.GetRequiredService<ReactionsService>());
 
             return services;
         }
