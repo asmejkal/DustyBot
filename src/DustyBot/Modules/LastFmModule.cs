@@ -620,7 +620,6 @@ namespace DustyBot.Modules
 
         [Command("lf", "artist", "Shows your favorite tracks and albums from a specific artist.", CommandFlags.TypingIndicator)]
         [Alias("lf", "ar")]
-        [Parameter("Period", StatsPeriodRegex, ParameterType.Regex, ParameterFlags.Optional, "how far back to check; available values are `week`, `month`, `3months`, `6months`, `year`, and `all` (default)")]
         [Parameter("User", ParameterType.GuildUser, ParameterFlags.Optional, "user (mention or ID); shows your own stats if omitted")]
         [Parameter("Artist", ParameterType.String, ParameterFlags.Remainder, "the artist's name on Last.fm (make sure you have the correct spelling)")]
         public async Task LastFmArtist(ICommand command)
@@ -628,7 +627,7 @@ namespace DustyBot.Modules
             try
             {
                 var (settings, user) = await GetLastFmSettings(command["User"].HasValue ? await command["User"].AsGuildUser : (IGuildUser)command.Author, command["User"].HasValue);
-                var period = command["Period"].HasValue ? ParseStatsPeriod(command["Period"]) : LastFmDataPeriod.Overall;
+                var period = LastFmDataPeriod.Overall;
                 if (period == LastFmDataPeriod.Day)
                     throw new IncorrectParametersCommandException("The `day` value can't be used with this command.", false);
 

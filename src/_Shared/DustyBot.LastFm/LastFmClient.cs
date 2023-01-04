@@ -300,7 +300,7 @@ namespace DustyBot.LastFm
             try
             {
                 var infoTask = GetArtistInfo(artist);
-                var request = WebRequest.CreateHttp($"https://www.last.fm/user/{User}/library/music/{Uri.EscapeDataString(artist)}?date_preset={StatsPeriodWebMapping[period]}");
+                var request = WebRequest.CreateHttp($"https://www.last.fm/user/{User}/library/music/{Uri.EscapeDataString(artist)}");
                 request.Timeout = (int)RequestTimeout.TotalMilliseconds;
                 using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 using (var reader = new StreamReader(response.GetResponseStream()))
