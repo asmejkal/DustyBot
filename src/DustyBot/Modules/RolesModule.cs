@@ -271,7 +271,7 @@ namespace DustyBot.Modules
                 if (role == null)
                     throw new CommandException($"Role `{command["RoleNameOrId"].AsRole.Id}` is not self-assignable.  Add it first with `roles add`.");
 
-                if (s.AssignableRoles.SelectMany(x => x.Names).Contains(command["Alias"]))
+                if (s.AssignableRoles.Any(x => x.Names.Contains(command["Alias"]) && command.Guild.GetRole(x.RoleId) != null))
                     throw new CommandException("A self-assignable role with this name or alias already exists");
 
                 role.Names.Add(command["Alias"]);
