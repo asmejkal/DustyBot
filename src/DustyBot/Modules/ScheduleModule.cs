@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Discord;
@@ -30,6 +31,44 @@ namespace DustyBot.Modules
     [Module("Schedule", "Helps with tracking upcoming events – please check out the <a href=\"" + WebConstants.ScheduleGuideUrl + "\">guide</a>.")]
     class ScheduleModule : Module
     {
+        public class ScheduleExport
+        {
+            public string Timezone { get; set; }
+            public List<ScheduleExportEvent> Events { get; set; }
+        }
+
+        public class ScheduleExportEvent
+        {
+            public string Date { get; set; }
+            public string Time { get; set; }
+            public string Description { get; set; }
+            public string Link { get; set; }
+            public string Tag { get; set; }
+        }
+
+        public class ExportScheduleEventComparer : EqualityComparer<ScheduleEvent>
+        {
+            public override bool Equals(ScheduleEvent x, ScheduleEvent y)
+            {
+                if (ReferenceEquals(x, y))
+                    return true;
+
+                if (x == null || y == null)
+                    return false;
+
+                return string.Equals(x.Tag, y.Tag)
+                    && DateTime.Equals(x.Date, y.Date)
+                    && bool.Equals(x.HasTime, y.HasTime)
+                    && string.Equals(x.Description, y.Description)
+                    && string.Equals(x.Link, y.Link);
+            }
+
+            public override int GetHashCode(ScheduleEvent obj)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
         public static readonly Embed Guide = new EmbedBuilder()
             .WithTitle("Guide")
             .WithDescription("The `schedule create` command creates an editable message that will contain all of your schedule (past and future events). It can be then edited by your moderators or users that have a special role.")
@@ -366,20 +405,21 @@ namespace DustyBot.Modules
             }
 
             var serializer = new JsonSerializer() { NullValueHandling = NullValueHandling.Ignore, Formatting = Formatting.Indented };
-            var events = settings.Events.Select(x => JObject.FromObject(new
+            
+            var events = settings.Events.Select(x => new ScheduleExportEvent
             {
                 Date = x.Date.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 Time = x.HasTime ? x.Date.ToString("HH:mm", CultureInfo.InvariantCulture) : null,
                 Description = x.Description,
                 Link = x.HasLink ? x.Link : null,
                 Tag = x.HasTag ? x.Tag : null,
-            }, serializer));
+            }).ToList();
 
-            var result = JObject.FromObject(new 
+            var result = new ScheduleExport
             {
                 Timezone = BuildUTCOffsetString(settings),
-                Events = new JArray(events)
-            });
+                Events = events
+            };
 
             using (var stream = new MemoryStream())
             using (var writer = new StreamWriter(stream, Encoding.UTF8))
@@ -389,6 +429,68 @@ namespace DustyBot.Modules
 
                 stream.Seek(0, SeekOrigin.Begin);
                 await command.Channel.SendFileAsync(stream, $"Schedule-{command.Guild.Name}-{DateTime.UtcNow.ToString("yyMMdd-HH-mm", CultureInfo.InvariantCulture)}.json", $"{Communicator.SuccessMarker} Exported {settings.Events.Count} events!");
+            }
+        }
+
+        [Command("schedule", "import", "Imports all events from an attached text file that was previously created by the `export` command.")]
+        public async Task ImportSchedule(ICommand command)
+        {
+            await AssertPrivileges(command.Message.Author, command.GuildId);
+
+            var attachment = command.Message.Attachments.FirstOrDefault();
+            if (attachment is null)
+                throw new CommandException("You must attach an exported text file.");
+
+            if (attachment.Size > 10 * 1024 * 1024)
+                throw new CommandException("Attachment is too large.");
+
+            try
+            {
+                var request = WebRequest.CreateHttp(attachment.Url);
+                using var response = await request.GetResponseAsync();
+                using var stream = response.GetResponseStream();
+                using var reader = new StreamReader(stream);
+                var raw = await reader.ReadToEndAsync();
+
+                var data = JsonConvert.DeserializeObject<ScheduleExport>(raw);
+                var added = 0;
+                var comparer = new ExportScheduleEventComparer();
+                var settings = await Settings.Modify(command.GuildId, (ScheduleSettings x) =>
+                {
+                    if (data.Timezone != BuildUTCOffsetString(x))
+                        throw new CommandException("Mismatched timezone.");
+
+                    foreach (var e in data.Events)
+                    {
+                        var dbEvent = new ScheduleEvent()
+                        { 
+                            Date = e.Time != null 
+                                ? DateTime.ParseExact($"{e.Date} {e.Time}", "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+                                : DateTime.ParseExact(e.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                            HasTime = e.Time != null,
+                            Description = e.Description,
+                            Link = e.Link,
+                            Tag = e.Tag
+                        };
+
+                        if (!x.Events.Contains(dbEvent, comparer))
+                        {
+                            dbEvent.Id = x.NextEventId++;
+                            x.Events.Add(dbEvent);
+                            added++;
+                        }
+                    }
+
+                    return x;
+                });
+
+                await Service.RefreshNotifications(command.GuildId, settings);
+                await command.ReplySuccess(Communicator, $"Added `{added}` events.");
+            }
+            catch (JsonException ex)
+            {
+                await Logger.Log(new LogMessage(LogSeverity.Error, "Schedule", "Failed to deserialize schedule json", ex));
+                throw new CommandException("Invalid file format.");
             }
         }
 
