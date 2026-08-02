@@ -6,10 +6,10 @@ namespace DustyBot.Framework.Commands
 {
     public static class ParameterExtensions
     {
-        public static bool HasDefaultValue(this Parameter x) =>
-            !x.IsMultiple && (x.IsOptional || x.Attributes.Any(x => x is DefaultAttribute) || x.DefaultValue != default);
+        public static bool HasDefaultValue(this IParameter x) =>
+            !x.GetTypeInformation().IsEnumerable && (x.GetTypeInformation().IsOptional || x.CustomAttributes.Any(x => x is DefaultAttribute) || x.DefaultValue.HasValue);
 
-        public static bool IsHidden(this Parameter x) =>
-            x.Attributes.Any(x => x is HiddenAttribute);
+        public static bool IsHidden(this IParameter x) =>
+            x.CustomAttributes.Any(x => x is HiddenAttribute);
     }
 }

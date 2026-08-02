@@ -10,6 +10,8 @@ using DustyBot.Framework.Utility;
 using DustyBot.Service.Configuration;
 using Microsoft.Extensions.Options;
 using Qmmands;
+using Qmmands.Text;
+using Qommon.Metadata;
 
 namespace DustyBot.Service.Services.Bot
 {
@@ -51,10 +53,10 @@ namespace DustyBot.Service.Services.Bot
                     + $"If you need further assistance or have any questions, please join the {SupportServerInvite.ToMarkdown("support server")}.");
         }
 
-        public LocalEmbed BuildCommandHelpEmbed(Command command, IPrefix commandPrefix)
+        public LocalEmbed BuildCommandHelpEmbed(ITextCommand command, IPrefix commandPrefix)
         {
             var embed = new LocalEmbed()
-                    .WithTitle($"Command {command.FullAliases.First()}")
+                    .WithTitle($"Command {command.EnumerateFullAliases().First()}")
                     .WithDescription(command.Description)
                     .WithFooter("If a parameter contains spaces, add quotes: \"he llo\". Parameters marked \"...\" need no quotes.");
 
@@ -62,13 +64,13 @@ namespace DustyBot.Service.Services.Bot
             return embed;
         }
 
-        public string BuildCommandUsage(Command command, IPrefix commandPrefix)
+        public string BuildCommandUsage(ITextCommand command, IPrefix commandPrefix)
         {
-            var usage = new StringBuilder($"{commandPrefix}{command.FullAliases.First()}");
+            var usage = new StringBuilder($"{commandPrefix}{command.EnumerateFullAliases().First()}");
             foreach (var param in command.Parameters.Where(x => !x.IsHidden()))
             {
                 var name = param.Name.Capitalize();
-                if (param.IsRemainder)
+                if (param is IPositionalParameter { IsRemainder: true })
                     name += "...";
 
                 if (param.HasDefaultValue())
@@ -95,25 +97,21 @@ namespace DustyBot.Service.Services.Bot
             if (parameters.Length > 0)
                 usage.Append(parameters + "\n\n");
 
-            if (!string.IsNullOrEmpty(command.Remarks))
-                usage.Append(command.Remarks + "\n\n");
+            var remarks = command.GetMetadataOrDefault<string>(MetadataKeys.Remarks);
+            if (!string.IsNullOrEmpty(remarks))
+                usage.Append(remarks + "\n\n");
 
             var examples = new StringBuilder();
-            foreach (var example in command.GetExamples().Select(x => $"{commandPrefix}{command.FullAliases.First()} {x}"))
-            {
-                if (examples.Length > 0)
-                    examples.AppendLine();
-
+            foreach (var example in command.GetExamples().Select(x => $"{commandPrefix}{command.EnumerateFullAliases().First()} {x}"))
                 examples.AppendLine(example);
-            }
 
             if (examples.Length > 0)
-                usage.Append("__Examples:__\n" + parameters + "\n\n");
+                usage.Append("__Examples:__\n" + examples + "\n\n");
 
             return usage.ToString();
         }
 
-        public LocalEmbed BuildCommandUsageEmbed(Command command, IPrefix commandPrefix)
+        public LocalEmbed BuildCommandUsageEmbed(ITextCommand command, IPrefix commandPrefix)
         {
             return new LocalEmbed()
                 .WithTitle("Command usage")

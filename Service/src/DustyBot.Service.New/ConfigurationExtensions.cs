@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Linq;
-using Disqord.Bot.Sharding;
+using Disqord.Bot.Hosting;
 using Disqord.Extensions.Interactivity;
 using Disqord.Gateway;
 using Disqord.Gateway.Api;
@@ -12,6 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using Qmmands;
+using Qmmands.Text;
+using Qmmands.Text.Default;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.Elasticsearch;
@@ -46,27 +48,29 @@ namespace DustyBot.Service
             }
         }
 
-        public static void ConfigureBot(this DiscordBotSharderHostingContext configuration, IConfiguration provider)
+        public static void ConfigureBot(this DiscordBotHostingContext configuration, IConfiguration provider)
         {
             var options = provider.GetSection(ConfigurationSections.Discord).Get<DiscordOptions>();
             var botOptions = provider.GetSection(ConfigurationSections.Bot).Get<BotOptions>();
             var webOptions = provider.GetSection(ConfigurationSections.Web).Get<WebOptions>();
 
-            configuration.Intents = GatewayIntent.DirectReactions |
-                GatewayIntent.DirectMessages |
-                GatewayIntent.EmojisAndStickers |
-                GatewayIntent.Members |
-                GatewayIntent.GuildReactions |
-                GatewayIntent.GuildMessages |
-                GatewayIntent.GuildTyping |
-                GatewayIntent.Guilds;
+            configuration.Intents = GatewayIntents.DirectReactions |
+                GatewayIntents.DirectMessages |
+                GatewayIntents.EmojisAndStickers |
+                GatewayIntents.Members |
+                GatewayIntents.GuildReactions |
+                GatewayIntents.GuildMessages |
+                GatewayIntents.GuildTyping |
+                GatewayIntents.Guilds |
+                GatewayIntents.MessageContent;
 
             if (options.TotalShards != null)
             {
-                if (options.Shards?.Any() ?? false)
-                    configuration.ShardIds = options.Shards.Select(x => new ShardId(x, options.TotalShards.Value));
-                else
-                    configuration.ShardCount = options.TotalShards;
+                var shardIds = options.Shards?.Any() ?? false
+                    ? options.Shards.Select(x => new ShardId(x, options.TotalShards.Value))
+                    : Enumerable.Range(0, options.TotalShards.Value).Select(x => new ShardId(x, options.TotalShards.Value));
+
+                configuration.CustomShardSet = new ShardSet(shardIds);
             }
 
             configuration.Token = options.Token;
@@ -76,11 +80,14 @@ namespace DustyBot.Service
             configuration.ServiceAssemblies = null;
         }
 
-        public static void ConfigureCommands(this CommandServiceConfiguration configuration)
+        public static void ConfigureCommands(this IServiceCollection services)
         {
-            configuration.DefaultArgumentParser = new ArgumentParser();
-            configuration.NullableNouns = Enumerable.Empty<string>();
-            configuration.DefaultRunMode = RunMode.Parallel;
+            services.AddSingleton<IArgumentParserProvider>(_ =>
+            {
+                var provider = new DefaultArgumentParserProvider();
+                provider.Add(new ArgumentParser());
+                return provider;
+            });
         }
 
         public static void ConfigureCaching(this DefaultGatewayCacheProviderConfiguration configuration)

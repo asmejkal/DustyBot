@@ -31,8 +31,8 @@ namespace DustyBot.Framework.Interactivity
             var currentRows = 0;
             foreach (var (item, i) in items.Select((x, i) => (x, i)))
             {
-                var line = item.Truncate(LocalEmbed.MaxDescriptionLength - 1);
-                if (++currentRows > maxItemsPerPage || !content.TryAppendLineLimited(line, LocalEmbed.MaxDescriptionLength))
+                var line = item.Truncate(Discord.Limits.Message.Embed.MaxDescriptionLength - 1);
+                if (++currentRows > maxItemsPerPage || !content.TryAppendLineLimited(line, Discord.Limits.Message.Embed.MaxDescriptionLength))
                 {
                     pages.Add(BuildPage(content.ToString()));
                     content.Clear();

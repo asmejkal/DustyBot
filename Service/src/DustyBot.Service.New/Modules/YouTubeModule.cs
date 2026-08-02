@@ -13,11 +13,13 @@ using DustyBot.Service.Definitions;
 using DustyBot.Service.Services.Bot;
 using DustyBot.Service.Services.Log;
 using Qmmands;
+using Qmmands.Text;
+using Disqord.Bot.Commands;
 
 namespace DustyBot.Service.Modules
 {
     [Name("YouTube"), Description("Tracks your artist's stats on YouTube.")]
-    [Group("views")]
+    [TextGroup("views")]
     public class YouTubeModule : DustyGuildModuleBase
     {
         private const string YouTubeLinkPattern = @"youtube\.com\/watch[/?].*[?&]?v=([\w\-]+)|youtu\.be\/([\w\-]+)";
@@ -31,17 +33,17 @@ namespace DustyBot.Service.Modules
             _webLinkResolver = webLinkResolver;
         }
 
-        [Command(""), Description("Checks how your artist's songs are doing on YouTube. Songs are added by server moderators."), LongRunning]
+        [TextCommand(""), Description("Checks how your artist's songs are doing on YouTube. Songs are added by server moderators."), LongRunning]
         [Remark("Use without parameters to view songs from the default category.")]
         [Remark("Use `all` to view all songs regardless of category.")]
-        public async Task<CommandResult> ShowViewsAsync(
+        public async Task<IDiscordCommandResult> ShowViewsAsync(
             [Description("show stats for this category or for a specific song")]
             [Remainder, Default(YouTubeSong.DefaultCategory)]
             string songOrCategoryName)
         {
             var filter = string.Compare(songOrCategoryName, "all", true) == 0 ? null : songOrCategoryName;
-            var stats = await _service.GetStatisticsAsync(Context.GuildId, filter, Bot.StoppingToken);
-            var recommendations = await _service.GetCategoryRecommendationsAsync(Context.GuildId, songOrCategoryName, 3, Bot.StoppingToken);
+            var stats = await _service.GetStatisticsAsync(GuildContext.GuildId, filter, Bot.StoppingToken);
+            var recommendations = await _service.GetCategoryRecommendationsAsync(GuildContext.GuildId, songOrCategoryName, 3, Bot.StoppingToken);
 
             if (!stats.Any())
             {
@@ -80,11 +82,11 @@ namespace DustyBot.Service.Modules
             return Listing(fields, x => x.WithAuthor(author).WithColor(0xfa0019).WithFooter(recommendation), 5);
         }
 
-        [Command("add"), Description("Adds a song.")]
+        [TextCommand("add"), Description("Adds a song.")]
         [RequireAuthorContentManager]
         [Example("\"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
         [Example("titles \"Starry Night\" https://www.youtube.com/watch?v=0FB2EoKTK_Q https://www.youtube.com/watch?v=LjUXm0Zy_dk\n")]
-        public async Task<CommandResult> AddSongAsync(
+        public async Task<IDiscordCommandResult> AddSongAsync(
             [Description("if you add a song to a category, its stats will be displayed with `views CategoryName`")]
             [Default(YouTubeSong.DefaultCategory), InverseRegex(YouTubeLinkPattern)]
             string categoryName,
@@ -96,13 +98,13 @@ namespace DustyBot.Service.Modules
             params Match[] links)
         {
             var ids = links.Select(x => x.Groups.Cast<Group>().Skip(1).First(y => !string.IsNullOrEmpty(y.Value)).Value);
-            await _service.AddSongAsync(Context.GuildId, categoryName, songName, ids, Bot.StoppingToken);
+            await _service.AddSongAsync(GuildContext.GuildId, categoryName, songName, ids, Bot.StoppingToken);
             return Success($"Song `{songName}` has been added to category `{categoryName}` with videos {ids.WordJoinQuoted()}.");
         }
 
-        [Command("remove"), Description("Removes a song.")]
+        [TextCommand("remove"), Description("Removes a song.")]
         [RequireAuthorContentManager]
-        public async Task<CommandResult> RemoveSongAsync(
+        public async Task<IDiscordCommandResult> RemoveSongAsync(
             [Description("specify to remove a song from a specific category, omit to remove it from the default category")]
             [Default(YouTubeSong.DefaultCategory)]
             string categoryName,
@@ -110,58 +112,58 @@ namespace DustyBot.Service.Modules
             [Remainder]
             string songName)
         {
-            return await _service.RemoveSongAsync(Context.GuildId, categoryName, songName, Bot.StoppingToken) switch
+            return await _service.RemoveSongAsync(GuildContext.GuildId, categoryName, songName, Bot.StoppingToken) switch
             {
                 true => Success($"Removed song `{songName}` from category `{categoryName}`."),
                 false => Failure($"Couldn't find a song with name `{songName}` in category `{categoryName}`.")
             };
         }
 
-        [Command("clear"), Description("Removes all songs.")]
+        [TextCommand("clear"), Description("Removes all songs.")]
         [RequireAuthorContentManager]
-        public async Task<CommandResult> ClearSongsAsync(
+        public async Task<IDiscordCommandResult> ClearSongsAsync(
             [Description("specify to remove all songs in a specific category, omit to remove the default category")]
             [Default(YouTubeSong.DefaultCategory), Remainder]
             string categoryName)
         {
-            return await _service.ClearSongsAsync(Context.GuildId, categoryName, Bot.StoppingToken) switch
+            return await _service.ClearSongsAsync(GuildContext.GuildId, categoryName, Bot.StoppingToken) switch
             {
                 > 0 => Success($"Removed all songs from category `{categoryName}`."),
                 <= 0 => Failure($"There are no songs in the specified category.")
             };
         }
 
-        [Command("rename"), Description("Renames a song.")]
+        [TextCommand("rename"), Description("Renames a song.")]
         [RequireAuthorContentManager]
-        public async Task<CommandResult> RenameSongAsync(string oldName, string newName)
+        public async Task<IDiscordCommandResult> RenameSongAsync(string oldName, string newName)
         {
-            return await _service.RenameSongAsync(Context.GuildId, oldName, newName, Bot.StoppingToken) switch
+            return await _service.RenameSongAsync(GuildContext.GuildId, oldName, newName, Bot.StoppingToken) switch
             {
                 true => Success($"Renamed song `{oldName}` to `{newName}`."),
                 false => Failure("There are no songs with the specified name.")
             };
         }
 
-        [Command("move"), Description("Moves all songs from one category to another.")]
+        [TextCommand("move"), Description("Moves all songs from one category to another.")]
         [RequireAuthorContentManager]
         [Remark($"Use `{YouTubeSong.DefaultCategory}` to move songs from/to the default category.")]
-        public async Task<CommandResult> MoveCategoryAsync(
+        public async Task<IDiscordCommandResult> MoveCategoryAsync(
             [Description("current category")]
             string oldName,
             [Description("new category")]
             string newName)
         {
-            return await _service.MoveCategoryAsync(Context.GuildId, oldName, newName, Bot.StoppingToken) switch
+            return await _service.MoveCategoryAsync(GuildContext.GuildId, oldName, newName, Bot.StoppingToken) switch
             {
                 true => Success($"Moved all songs from category `{oldName}` to `{newName}`."),
                 false => Failure($"There are no songs in the category `{oldName}`.")
             };
         }
 
-        [Command("list"), Description("Lists all added songs.")]
-        public async Task<CommandResult> ListSongsAsync()
+        [TextCommand("list"), Description("Lists all added songs.")]
+        public async Task<IDiscordCommandResult> ListSongsAsync()
         {
-            var songs = await _service.GetSongsAsync(Context.GuildId, Bot.StoppingToken);
+            var songs = await _service.GetSongsAsync(GuildContext.GuildId, Bot.StoppingToken);
             return Table(songs.OrderBy(x => x.Category).ThenBy(x => x.Name)
                 .Select(x => new TableRow().Add("Name", x.Name).Add("Category", x.Category).Add("Videos", x.VideoIds)));
         }

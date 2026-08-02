@@ -2,11 +2,14 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Disqord;
+using Disqord.Gateway;
 using DustyBot.Database.Mongo.Collections.GreetBye.Models;
 using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Modules;
 using DustyBot.Service.Services.GreetBye;
 using Qmmands;
+using Qmmands.Text;
+using Disqord.Bot.Commands;
 
 namespace DustyBot.Service.Modules
 {
@@ -20,7 +23,7 @@ namespace DustyBot.Service.Modules
             _service = service;
         }
 
-        [Group("greet"), Description("Greet members that join your server.")]
+        [TextGroup("greet"), Description("Greet members that join your server.")]
         public class GreetSubmodule : GreetByeModule
         {
             public GreetSubmodule(IGreetByeService service) 
@@ -28,10 +31,10 @@ namespace DustyBot.Service.Modules
             {
             }
 
-            [Command("text"), Description("Sets a text greeting message.")]
+            [TextCommand("text"), Description("Sets a text greeting message.")]
             [RequireAuthorAdministrator]
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the greeting message.")]
-            public async Task<CommandResult> SetGreetTextAsync(
+            public async Task<IDiscordCommandResult> SetGreetTextAsync(
                 [Description("a channel that will receive the messages")]
                 [RequireBotCanSendMessages]
                 IMessageGuildChannel channel,
@@ -39,15 +42,15 @@ namespace DustyBot.Service.Modules
                 [Remainder]
                 string message)
             {
-                await _service.SetEventTextAsync(GreetByeEventType.Greet, Context.GuildId, channel, message, Bot.StoppingToken);
+                await _service.SetEventTextAsync(GreetByeEventType.Greet, GuildContext.GuildId, channel, message, Bot.StoppingToken);
                 return Success("Greeting message set.");
             }
 
-            [Command("embed"), Description("Sets an embed greeting message.")]
+            [TextCommand("embed"), Description("Sets an embed greeting message.")]
             [RequireAuthorAdministrator]
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the message.")]
             [Example("#general #09A5BC https://imgur.com/picture.jpg \nHello, {mention}.\nDon't forget to check out the #rules!")]
-            public async Task<CommandResult> SetEmbedAsync(
+            public async Task<IDiscordCommandResult> SetEmbedAsync(
                 [Description("a channel or thread that will receive the messages")]
                 [RequireBotCanSendEmbeds]
                 IMessageGuildChannel channel,
@@ -63,7 +66,7 @@ namespace DustyBot.Service.Modules
                     image ??= new(Context.Message.Attachments.First().Url);
 
                 var embed = new GreetByeEmbed(body, image: image, color: color?.RawValue);
-                await _service.SetEventEmbedAsync(GreetByeEventType.Greet, Context.GuildId, channel, embed, Bot.StoppingToken);
+                await _service.SetEventEmbedAsync(GreetByeEventType.Greet, GuildContext.GuildId, channel, embed, Bot.StoppingToken);
                 return Success("Greeting message set.");
             }
 
@@ -72,9 +75,9 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the title.")]
             [Example("Welcome to {server}, {name}!")]
-            public async Task<CommandResult> SetEmbedTitleAsync([Remainder] string? text)
+            public async Task<IDiscordCommandResult> SetEmbedTitleAsync([Remainder] string? text)
             {
-                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Greet, Context.GuildId, new GreetByeEmbedUpdate() { Title = text }, Bot.StoppingToken) switch
+                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Greet, GuildContext.GuildId, new GreetByeEmbedUpdate() { Title = text }, Bot.StoppingToken) switch
                 {
                     UpdateEventEmbedResult.EventEmbedNotSet => Failure($"You first need to set a greeting embed with {GetReference(nameof(SetEmbedAsync))}."),
                     UpdateEventEmbedResult.Success => Success("Greeting embed title has been set."),
@@ -87,9 +90,9 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the footer.")]
             [Example("Member #{membercount}")]
-            public async Task<CommandResult> SetEmbedFooterAsync([Remainder] string? text)
+            public async Task<IDiscordCommandResult> SetEmbedFooterAsync([Remainder] string? text)
             {
-                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Greet, Context.GuildId, new GreetByeEmbedUpdate() { Footer = text }, Bot.StoppingToken) switch
+                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Greet, GuildContext.GuildId, new GreetByeEmbedUpdate() { Footer = text }, Bot.StoppingToken) switch
                 {
                     UpdateEventEmbedResult.EventEmbedNotSet => Failure("You need to set a greeting embed first."),
                     UpdateEventEmbedResult.Success => Success("Greeting embed footer has been set."),
@@ -102,11 +105,11 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the text.")]
             [Example("Welcome, {mention}!")]
-            public async Task<CommandResult> SetEmbedTextAsync(
+            public async Task<IDiscordCommandResult> SetEmbedTextAsync(
                 [Description("text that will show above the embed")]
                 [Remainder] string? text)
             {
-                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Greet, Context.GuildId, new GreetByeEmbedUpdate() { Text = text }, Bot.StoppingToken) switch
+                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Greet, GuildContext.GuildId, new GreetByeEmbedUpdate() { Text = text }, Bot.StoppingToken) switch
                 {
                     UpdateEventEmbedResult.EventEmbedNotSet => Failure("You need to set a greeting embed first."),
                     UpdateEventEmbedResult.Success => Success("Greeting embed text has been set."),
@@ -114,10 +117,10 @@ namespace DustyBot.Service.Modules
                 };
             }
 
-            [Command("test"), Description("Sends a sample greeting message in this channel.")]
-            public async Task<CommandResult> TestGreetAsync()
+            [TextCommand("test"), Description("Sends a sample greeting message in this channel.")]
+            public async Task<IDiscordCommandResult> TestGreetAsync()
             {
-                return await _service.TriggerEventAsync(GreetByeEventType.Greet, Context.Guild, Context.Channel, Context.Author, Bot.StoppingToken) switch
+                return await _service.TriggerEventAsync(GreetByeEventType.Greet, Bot.GetGuild(GuildContext.GuildId)!, GuildContext.Channel, Context.Author, Bot.StoppingToken) switch
                 {
                     TriggerEventResult.EventNotSet => Failure("You need to set a greeting first."),
                     TriggerEventResult.Success => Success(),
@@ -125,16 +128,16 @@ namespace DustyBot.Service.Modules
                 };
             }
 
-            [Command("disable"), Description("Disables greeting messages.")]
+            [TextCommand("disable"), Description("Disables greeting messages.")]
             [RequireAuthorAdministrator]
-            public async Task<CommandResult> DisableGreetAsync()
+            public async Task<IDiscordCommandResult> DisableGreetAsync()
             {
-                await _service.DisableEventAsync(GreetByeEventType.Greet, Context.GuildId, Bot.StoppingToken);
+                await _service.DisableEventAsync(GreetByeEventType.Greet, GuildContext.GuildId, Bot.StoppingToken);
                 return Success("Greeting has been disabled.");
             }
         }
 
-        [Group("bye"), Description("Say goodbye to members that leave your server.")]
+        [TextGroup("bye"), Description("Say goodbye to members that leave your server.")]
         public class ByeSubmodule : GreetByeModule
         {
             public ByeSubmodule(IGreetByeService service)
@@ -142,10 +145,10 @@ namespace DustyBot.Service.Modules
             {
             }
 
-            [Command("text"), Description("Sets a text goodbye message.")]
+            [TextCommand("text"), Description("Sets a text goodbye message.")]
             [RequireAuthorAdministrator]
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the goodbye message.")]
-            public async Task<CommandResult> SetByeTextAsync(
+            public async Task<IDiscordCommandResult> SetByeTextAsync(
                 [Description("a channel that will receive the messages")]
                 [RequireBotCanSendMessages]
                 IMessageGuildChannel channel,
@@ -153,15 +156,15 @@ namespace DustyBot.Service.Modules
                 [Remainder]
                 string message)
             {
-                await _service.SetEventTextAsync(GreetByeEventType.Bye, Context.GuildId, channel, message, Bot.StoppingToken);
+                await _service.SetEventTextAsync(GreetByeEventType.Bye, GuildContext.GuildId, channel, message, Bot.StoppingToken);
                 return Success("Goodbye message set.");
             }
 
-            [Command("embed"), Description("Sets an embed greeting message.")]
+            [TextCommand("embed"), Description("Sets an embed greeting message.")]
             [RequireAuthorAdministrator]
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders in the message.")]
             [Example("#general #09A5BC https://imgur.com/picture.jpg \nHello, {mention}.\nDon't forget to check out the #rules!")]
-            public async Task<CommandResult> SetEmbedAsync(
+            public async Task<IDiscordCommandResult> SetEmbedAsync(
                 [Description("a channel or thread that will receive the messages")]
                 [RequireBotCanSendEmbeds]
                 IMessageGuildChannel channel,
@@ -177,7 +180,7 @@ namespace DustyBot.Service.Modules
                     image ??= new(Context.Message.Attachments.First().Url);
 
                 var embed = new GreetByeEmbed(body, image: image, color: color?.RawValue);
-                await _service.SetEventEmbedAsync(GreetByeEventType.Bye, Context.GuildId, channel, embed, Bot.StoppingToken);
+                await _service.SetEventEmbedAsync(GreetByeEventType.Bye, GuildContext.GuildId, channel, embed, Bot.StoppingToken);
                 return Success("Goodbye message set.");
             }
 
@@ -186,9 +189,9 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the title.")]
             [Example("Welcome to {server}, {name}!")]
-            public async Task<CommandResult> SetEmbedTitleAsync([Remainder] string? text)
+            public async Task<IDiscordCommandResult> SetEmbedTitleAsync([Remainder] string? text)
             {
-                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Bye, Context.GuildId, new GreetByeEmbedUpdate() { Title = text }, Bot.StoppingToken) switch
+                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Bye, GuildContext.GuildId, new GreetByeEmbedUpdate() { Title = text }, Bot.StoppingToken) switch
                 {
                     UpdateEventEmbedResult.EventEmbedNotSet => Failure($"You first need to set a goodbye embed with {GetReference(nameof(SetEmbedAsync))}."),
                     UpdateEventEmbedResult.Success => Success("Goodbye embed title has been set."),
@@ -200,9 +203,9 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the footer.")]
             [Example("Member #{membercount}")]
-            public async Task<CommandResult> SetEmbedFooterAsync([Remainder] string? text)
+            public async Task<IDiscordCommandResult> SetEmbedFooterAsync([Remainder] string? text)
             {
-                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Bye, Context.GuildId, new GreetByeEmbedUpdate() { Footer = text }, Bot.StoppingToken) switch
+                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Bye, GuildContext.GuildId, new GreetByeEmbedUpdate() { Footer = text }, Bot.StoppingToken) switch
                 {
                     UpdateEventEmbedResult.EventEmbedNotSet => Failure("You need to set a goodbye embed first."),
                     UpdateEventEmbedResult.Success => Success("Goodbye embed footer has been set."),
@@ -215,11 +218,11 @@ namespace DustyBot.Service.Modules
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the text.")]
             [Example("Welcome, {mention}!")]
-            public async Task<CommandResult> SetEmbedTextAsync(
+            public async Task<IDiscordCommandResult> SetEmbedTextAsync(
                 [Description("text that will show above the embed")]
                 [Remainder] string? text)
             {
-                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Bye, Context.GuildId, new GreetByeEmbedUpdate() { Text = text }, Bot.StoppingToken) switch
+                return await _service.UpdateEventEmbedAsync(GreetByeEventType.Bye, GuildContext.GuildId, new GreetByeEmbedUpdate() { Text = text }, Bot.StoppingToken) switch
                 {
                     UpdateEventEmbedResult.EventEmbedNotSet => Failure("You need to set a goodbye embed first."),
                     UpdateEventEmbedResult.Success => Success("Goodbye embed text has been set."),
@@ -227,10 +230,10 @@ namespace DustyBot.Service.Modules
                 };
             }
 
-            [Command("test"), Description("Sends a sample goodbye message in this channel.")]
-            public async Task<CommandResult> TestByeAsync()
+            [TextCommand("test"), Description("Sends a sample goodbye message in this channel.")]
+            public async Task<IDiscordCommandResult> TestByeAsync()
             {
-                return await _service.TriggerEventAsync(GreetByeEventType.Bye, Context.Guild, Context.Channel, Context.Author, Bot.StoppingToken) switch
+                return await _service.TriggerEventAsync(GreetByeEventType.Bye, Bot.GetGuild(GuildContext.GuildId)!, GuildContext.Channel, Context.Author, Bot.StoppingToken) switch
                 {
                     TriggerEventResult.EventNotSet => Failure("You need to set a goodbye message first."),
                     TriggerEventResult.Success => Success(),
@@ -238,11 +241,11 @@ namespace DustyBot.Service.Modules
                 };
             }
 
-            [Command("disable"), Description("Disables goodbye messages.")]
+            [TextCommand("disable"), Description("Disables goodbye messages.")]
             [RequireAuthorAdministrator]
-            public async Task<CommandResult> DisableByeAsync()
+            public async Task<IDiscordCommandResult> DisableByeAsync()
             {
-                await _service.DisableEventAsync(GreetByeEventType.Bye, Context.GuildId, Bot.StoppingToken);
+                await _service.DisableEventAsync(GreetByeEventType.Bye, GuildContext.GuildId, Bot.StoppingToken);
                 return Success("Goodbye message has been disabled.");
             }
         }

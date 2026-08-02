@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Qmmands;
+using Qmmands.Text;
 
 namespace DustyBot.Framework.Commands.Attributes
 {
-    public class VerbCommandAttribute : CommandAttribute
+    public class VerbCommandAttribute : TextCommandAttribute
     {
         public IReadOnlyCollection<string> Verbs { get; }
 

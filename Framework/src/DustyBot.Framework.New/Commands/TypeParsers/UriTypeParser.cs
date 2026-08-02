@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
 using DustyBot.Core.Formatting;
 using Qmmands;
 
@@ -17,12 +17,13 @@ namespace DustyBot.Framework.Commands.TypeParsers
             "attachment"
         };
 
-        public override ValueTask<TypeParserResult<Uri>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
+        public override ValueTask<ITypeParserResult<Uri>> ParseAsync(IDiscordCommandContext context, IParameter parameter, ReadOnlyMemory<char> value)
         {
-            if (value.Length > 2 && value.First() == '<' && value.Last() == '>')
-                value = value[1..^1];
+            var stringValue = value.Span.ToString();
+            if (value.Length > 2 && stringValue.First() == '<' && stringValue.Last() == '>')
+                stringValue = stringValue[1..^1];
             
-            if (!Uri.TryCreate(value, UriKind.Absolute, out var result))
+            if (!Uri.TryCreate(stringValue, UriKind.Absolute, out var result))
                 return Failure("Invalid URL.");
 
             if (!AllowedSchemes.Contains(result.Scheme))

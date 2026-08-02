@@ -16,12 +16,7 @@ namespace DustyBot.Framework.Entities
             IRestRequestOptions? options = null,
             CancellationToken cancellationToken = default)
         {
-            var client = channel.GetGatewayClient();
-            if (!client.CacheProvider.TryGetGuilds(out var guilds) || !guilds.TryGetValue(channel.GuildId, out var guild))
-                throw new InvalidOperationException("Guild cache must be enabled");
-
-            var restClient = channel.GetRestClient();
-            return restClient.SendMessageCheckedAsync(guild, channel, message, options, cancellationToken);
+            return ((DiscordClientBase)channel.Client).SendMessageCheckedAsync(channel.GuildId, channel.Id, message, options, cancellationToken);
         }
     }
 }

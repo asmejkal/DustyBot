@@ -9,5 +9,11 @@ namespace DustyBot.Core.Logging
             LoggerScopeBuilder builder => builder.With(key, value),
             _ => new LoggerScopeBuilder(logger).With(key, value)
         };
+
+        public static LoggerScopeBuilder GetScopeBuilder(this ILogger logger) => logger switch
+        {
+            LoggerScopeBuilder builder => builder,
+            _ => new LoggerScopeBuilder(logger)
+        };
     }
 }

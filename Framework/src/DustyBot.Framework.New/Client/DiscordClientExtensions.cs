@@ -9,7 +9,8 @@ namespace DustyBot.Framework.Client
 {
     public static class DiscordClientExtensions
     {
-        public static Task<IUserMessage> SendMessageCheckedAsync(this DiscordClientBase client,
+        public static Task<IUserMessage> SendMessageCheckedAsync(
+            this DiscordClientBase client,
             Snowflake guildId,
             Snowflake channelId,
             LocalMessage message,

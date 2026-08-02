@@ -7,11 +7,13 @@ using DustyBot.Framework.Modules;
 using DustyBot.Service.Services.Translator;
 using Microsoft.Extensions.Logging;
 using Qmmands;
+using Qmmands.Text;
+using Disqord.Bot.Commands;
 
 namespace DustyBot.Service.Modules
 {
     [Name("Translator"), Description("Translate text between languages.")]
-    [Group("reactions", "reaction")]
+    [TextGroup("reactions", "reaction")]
     public class TranslatorModule : DustyGuildModuleBase
     {
         private const string LanguageRegex = @"^[a-zA-Z]{2}(?:-[a-zA-Z]{2})?$";
@@ -23,7 +25,7 @@ namespace DustyBot.Service.Modules
             _service = service;
         }
 
-        [Command("translate", "tr", "번역"), Description("Translates a piece of text."), LongRunning]
+        [TextCommand("translate", "tr", "번역"), Description("Translates a piece of text."), LongRunning]
         [Remark("Korean = `ko`")]
         [Remark("Japan = `ja`")]
         [Remark("English = `en`")]
@@ -39,7 +41,7 @@ namespace DustyBot.Service.Modules
         [Remark("Thai = `th`")]
         [Remark("Indonesian = `id`")]
         [Example("ko en 사랑해")]
-        public async Task<CommandResult> TranslateAsync(
+        public async Task<IDiscordCommandResult> TranslateAsync(
             [Description("the language of the message")]
             [Regex(LanguageRegex)]
             string from,

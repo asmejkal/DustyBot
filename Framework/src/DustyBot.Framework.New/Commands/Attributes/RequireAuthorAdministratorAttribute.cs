@@ -1,5 +1,5 @@
-﻿using System.Threading.Tasks;
-using Disqord.Bot;
+using System.Threading.Tasks;
+using Disqord.Bot.Commands;
 using Disqord.Gateway;
 using Qmmands;
 
@@ -10,13 +10,13 @@ namespace DustyBot.Framework.Commands.Attributes
     /// </summary>
     public class RequireAuthorAdministratorAttribute : DiscordGuildCheckAttribute
     {
-        public override ValueTask<CheckResult> CheckAsync(DiscordGuildCommandContext context)
+        public override ValueTask<IResult> CheckAsync(IDiscordGuildCommandContext context)
         {
-            var permissions = context.Author.GetPermissions();
-            if (permissions.Administrator)
-                return Success();
+            var permissions = context.Author.CalculateGuildPermissions();
+            if (permissions.HasFlag(Disqord.Permissions.Administrator))
+                return new(Qmmands.Results.Success);
 
-            return Failure("Only server administrators can use this command.");
+            return new(Qmmands.Results.Failure("Only server administrators can use this command."));
         }
     }
 }

@@ -18,12 +18,15 @@ namespace DustyBot.Framework.Commands.Attributes
             Regex = new Regex(pattern, options);
         }
 
-        public override ValueTask<CheckResult> CheckAsync(object argument, CommandContext context)
-        {
-            if (Regex.IsMatch((string)argument))
-                return Failure($"The parameter doesn't match the expected format.");
+        public override bool CanCheck(IParameter parameter, object? value)
+            => value is string;
 
-            return Success();
+        public override ValueTask<IResult> CheckAsync(ICommandContext context, IParameter parameter, object? value)
+        {
+            if (Regex.IsMatch((string)value!))
+                return new(Qmmands.Results.Failure("The parameter doesn't match the expected format."));
+
+            return new(Qmmands.Results.Success);
         }
     }
 }

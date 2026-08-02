@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,41 +12,33 @@ namespace DustyBot.Framework.Entities
 {
     public static class GuildExtensions
     {
-        public static ChannelPermissions GetBotPermissions(this IGatewayGuild guild, IGuildChannel channel) =>
-            guild.GetPermissions(channel, guild.GetMember(guild.Client.CurrentUser.Id));
+        public static IMember GetMemberOrThrow(this IGatewayGuild guild, Snowflake memberId) =>
+            guild.GetMember(memberId) ?? throw new InvalidOperationException($"Guild member {memberId} is missing in cache");
 
-        public static ChannelPermissions GetPermissions(this IGatewayGuild guild, IGuildChannel channel, IMember member)
+        public static Permissions GetBotPermissions(this IGatewayGuild guild, IGuildChannel channel) =>
+            guild.GetPermissions(channel, guild.GetMemberOrThrow(guild.Client.CurrentUser.Id));
+
+        public static Permissions GetPermissions(this IGatewayGuild guild, IGuildChannel channel, IMember member)
         {
             var roles = member.GetRoles();
-            return Discord.Permissions.CalculatePermissions(guild, channel, member, roles.Values);
-        }
-
-        public static async Task<ChannelPermissions?> FetchBotPermissionsAsync(
-            this IGatewayGuild guild, 
-            IGuildChannel channel,
-            IRestRequestOptions? options = null, 
-            CancellationToken cancellationToken = default)
-        {
-            var member = await guild.FetchMemberAsync(guild.Client.CurrentUser.Id, options, cancellationToken);
-            var roles = member.GetRoles();
-            return Discord.Permissions.CalculatePermissions(guild, channel, member, roles.Values);
+            return Discord.PermissionCalculation.CalculateChannelPermissions(guild, channel, member, roles.Values.ToArray());
         }
 
         public static CachedGuildChannel GetChannelOrThrow(this IGatewayGuild guild, Snowflake channelId) =>
             guild.Client.GetChannelOrThrow(guild.Id, channelId);
 
-        public static CachedRole GetRole(this IGatewayGuild guild, Snowflake roleId) =>
+        public static CachedRole? GetRole(this IGatewayGuild guild, Snowflake roleId) =>
             guild.Client.GetRole(guild.Id, roleId);
 
         public static IReadOnlyDictionary<Snowflake, CachedRole> GetRoles(this IGatewayGuild guild) =>
             guild.Client.GetRoles(guild.Id);
 
-        public static CachedRole GetEveryoneRole(this IGatewayGuild guild) =>
+        public static CachedRole? GetEveryoneRole(this IGatewayGuild guild) =>
             guild.Client.GetRole(guild.Id, guild.Id);
 
         public static Snowflake GetEveryoneRoleId(this IGuild guild) => guild.Id;
 
-        public static async Task<IMember> GetOrFetchMemberAsync(
+        public static async Task<IMember?> GetOrFetchMemberAsync(
             this IGatewayGuild guild, 
             Snowflake memberId, 
             IRestRequestOptions? options = null, 

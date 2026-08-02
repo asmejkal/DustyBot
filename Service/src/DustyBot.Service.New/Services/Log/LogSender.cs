@@ -8,6 +8,7 @@ using Disqord.Gateway;
 using Disqord.Rest;
 using DustyBot.Core.Formatting;
 using DustyBot.Framework.Communication;
+using Qommon;
 
 namespace DustyBot.Service.Services.Log
 {
@@ -17,7 +18,7 @@ namespace DustyBot.Service.Services.Log
         {
             var preface = $"**Message by {message.Author.Mention} in {channel.Mention} was deleted:**\n";
             var embed = new LocalEmbed()
-                .WithDescription(preface + message.Content.Truncate(LocalEmbed.MaxDescriptionLength - preface.Length))
+                .WithDescription(preface + message.Content.Truncate(Discord.Limits.Message.Embed.MaxDescriptionLength - preface.Length))
                 .WithTimestamp(message.CreatedAt());
 
             if (message.Attachments.Any())
@@ -25,7 +26,7 @@ namespace DustyBot.Service.Services.Log
                 var builder = new StringBuilder();
                 foreach (var attachment in message.Attachments)
                 {
-                    if (!builder.TryAppendLineLimited(attachment.Url, LocalEmbedField.MaxFieldValueLength))
+                    if (!builder.TryAppendLineLimited(attachment.Url, Discord.Limits.Message.Embed.Field.MaxValueLength))
                         break;
                 }
 
@@ -58,7 +59,7 @@ namespace DustyBot.Service.Services.Log
                 {
                     foreach (var attachment in message.Attachments)
                     {
-                        if (!attachments.TryAppendLineLimited(attachment.Url, LocalEmbed.MaxDescriptionLength / 2))
+                        if (!attachments.TryAppendLineLimited(attachment.Url, Discord.Limits.Message.Embed.MaxDescriptionLength / 2))
                             break;
                     }
 
@@ -68,7 +69,7 @@ namespace DustyBot.Service.Services.Log
                 var builder = new StringBuilder(preface);
                 if (!string.IsNullOrWhiteSpace(message.Content))
                 {
-                    builder.Append(message.Content.Truncate(LocalEmbed.MaxDescriptionLength - preface.Length - footer.Length - attachments.Length - 1));
+                    builder.Append(message.Content.Truncate(Discord.Limits.Message.Embed.MaxDescriptionLength - preface.Length - footer.Length - attachments.Length - 1));
                     builder.Append('\n');
                 }
 
@@ -82,18 +83,18 @@ namespace DustyBot.Service.Services.Log
             {
                 var totalLength = log.Length + delimiter.Length;
 
-                if ((embed.Description?.Length ?? 0) + totalLength > LocalEmbed.MaxDescriptionLength)
+                if ((embed.Description.GetValueOrDefault()?.Length ?? 0) + totalLength > Discord.Limits.Message.Embed.MaxDescriptionLength)
                 {
                     yield return new LocalMessage().WithEmbeds(embed).WithDisallowedMentions();
                     embed = new LocalEmbed();
                 }
                 else
                 {
-                    embed.Description += log + delimiter;
+                    embed.Description = embed.Description.GetValueOrDefault() + log + delimiter;
                 }
             }
 
-            if (!string.IsNullOrEmpty(embed.Description))
+            if (!string.IsNullOrEmpty(embed.Description.GetValueOrDefault()))
                 yield return new LocalMessage().WithEmbeds(embed).WithDisallowedMentions();
         }
     }

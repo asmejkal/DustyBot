@@ -1,7 +1,7 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Disqord;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
+using Disqord.Gateway;
 using DustyBot.Framework.Entities;
 using Qmmands;
 
@@ -13,15 +13,16 @@ namespace DustyBot.Framework.Commands.Attributes
         {
         }
 
-        public override bool CheckType(Type type)
-            => typeof(IMessageGuildChannel).IsAssignableFrom(type);
+        public override bool CanCheck(IParameter parameter, object? value)
+            => value is IMessageGuildChannel;
 
-        public override ValueTask<CheckResult> CheckAsync(object argument, DiscordGuildCommandContext context)
+        public override ValueTask<IResult> CheckAsync(IDiscordGuildCommandContext context, IParameter parameter, object? argument)
         {
-            var channel = (IMessageGuildChannel)argument;
-            return context.Guild.GetBotPermissions(channel).SendMessages ?
-                Success() :
-                Failure($"The bot doesn't have permission to send messages in {Mention.Channel(channel)}.");
+            var channel = (IMessageGuildChannel)argument!;
+            var guild = context.Bot.GetGuild(context.GuildId);
+            return new(guild is not null && guild.GetBotPermissions(channel).HasFlag(Permissions.SendMessages)
+                ? Qmmands.Results.Success
+                : Qmmands.Results.Failure($"The bot doesn't have permission to send messages in {Mention.Channel(channel)}."));
         }
     }
 }

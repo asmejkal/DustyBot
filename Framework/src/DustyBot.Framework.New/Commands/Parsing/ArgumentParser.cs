@@ -6,6 +6,9 @@ using DustyBot.Core.Parsing;
 using DustyBot.Framework.Commands.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Qmmands;
+using Qmmands.Text;
+using Qmmands.Text.Default;
+using Qommon;
 
 namespace DustyBot.Framework.Commands.Parsing
 {
@@ -13,31 +16,40 @@ namespace DustyBot.Framework.Commands.Parsing
     {
         private class CommandParsingContext
         {
-            public CommandContext CommandContext { get; }
-            public CommandService CommandService { get; }
-            public Dictionary<Parameter, object?> Results { get; } = new();
+            public ITextCommandContext CommandContext { get; }
+            public ICommandService CommandService { get; }
+            public Dictionary<IParameter, object?> Results { get; } = new();
             public int TotalTokenCount { get; }
 
-            public Dictionary<(Parameter, Token), (IResult Result, object? Value)> ParseResultCache { get; } = new();
+            public Dictionary<(IParameter, Token), (IResult Result, object? Value)> ParseResultCache { get; } = new();
 
-            public CommandParsingContext(CommandContext commandContext, CommandService commandService, int totalTokenCount)
+            // Enumerable ("params"/array) parameters go here instead of Results, as raw per-token strings
+            // rather than already-parsed values: Qmmands' own TypeParse execution step reads RawArguments
+            // to build the parameter's actual declared collection type (T[] vs List<T>), which a plain
+            // List<object?> in Arguments can't satisfy (Qmmands validates the bound argument's runtime type
+            // against the parameter, with no implicit list-to-array conversion). TypeParse only fills in
+            // parameters absent from Arguments, so single-value parameters (already fully resolved below)
+            // are left alone.
+            public Dictionary<IParameter, List<ReadOnlyMemory<char>>> RawArguments { get; } = new();
+
+            public CommandParsingContext(ITextCommandContext commandContext, ICommandService commandService, int totalTokenCount)
             {
                 CommandContext = commandContext ?? throw new ArgumentNullException(nameof(commandContext));
                 CommandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
                 TotalTokenCount = totalTokenCount;
             }
 
-            public void PromoteResultFromCache(Parameter param, Token token)
+            public void PromoteResultFromCache(IParameter param, Token token)
             {
                 if (!ParseResultCache.TryGetValue((param, token), out var value))
                     throw new InvalidOperationException("Parse result missing in cache.");
 
-                if (param.IsMultiple)
+                if (param.GetTypeInformation().IsEnumerable)
                 {
-                    if (!Results.TryGetValue(param, out var values) || values is not List<object?> valuesList)
-                        Results.Add(param, valuesList = new List<object?>());
+                    if (!RawArguments.TryGetValue(param, out var rawValues))
+                        RawArguments.Add(param, rawValues = new List<ReadOnlyMemory<char>>());
 
-                    valuesList.Add(value.Value);
+                    rawValues.Add(token.Value.AsMemory());
                 }
                 else
                 {
@@ -46,24 +58,29 @@ namespace DustyBot.Framework.Commands.Parsing
             }
         }
 
+        private readonly IReadOnlyDictionary<char, char> _quotationMarks = DefaultArgumentParserConfiguration.DefaultQuotationMarks;
+
+        public bool SupportsOptionalParameters => true;
+
         public ArgumentParser()
         {
         }
 
-        public ValueTask<ArgumentParserResult> ParseAsync(CommandContext context)
+        public ValueTask<IArgumentParserResult> ParseAsync(ITextCommandContext context)
         {
-            var commandService = context.Services.GetRequiredService<CommandService>();
+            var commandService = context.Services.GetRequiredService<ICommandService>();
 
-            var tokens = context.RawArguments.Tokenize(commandService.QuotationMarkMap).ToList();
+            var arguments = context.RawArgumentString.Span.ToString();
+            var tokens = arguments.Tokenize(_quotationMarks).ToList();
             var parsingContext = new CommandParsingContext(context, commandService, tokens.Count);
 
-            return ParseParameters(context.RawArguments, tokens, context.Command.Parameters, parsingContext);
+            return ParseParameters(arguments, tokens, context.Command.Parameters, parsingContext);
         }
 
-        private async ValueTask<ArgumentParserResult> ParseParameters(
+        private async ValueTask<IArgumentParserResult> ParseParameters(
             string body, 
             IEnumerable<Token> tokens, 
-            IEnumerable<Parameter> parameters, 
+            IEnumerable<ITextParameter> parameters, 
             CommandParsingContext context,
             bool peek = false)
         {
@@ -77,7 +94,7 @@ namespace DustyBot.Framework.Commands.Parsing
                     if (param.HasDefaultValue())
                     {
                         if (!peek)
-                            context.Results.Add(param, param.DefaultValue);
+                            context.Results.Add(param, param.DefaultValue.GetValueOrDefault());
 
                         continue;
                     }
@@ -91,15 +108,16 @@ namespace DustyBot.Framework.Commands.Parsing
 
                 // Extend the current token in case this parameter requires a remainder
                 bool? remainderMatch = null;
-                if (param.IsRemainder)
+                var isRemainderParam = param is IPositionalParameter positionalParam && positionalParam.IsRemainder;
+                if (isRemainderParam)
                 {
                     string value = body.Substring(token.Begin);
                     Token remainder;
 
                     // Handle the case when a user surrounds the remainder with quotes (even though they don't have to)
                     if (value.Length >= 2 
-                        && context.CommandService.QuotationMarkMap.ContainsKey(value.First()) 
-                        && context.CommandService.QuotationMarkMap[value.First()] == value.Last())
+                        && _quotationMarks.ContainsKey(value.First()) 
+                        && _quotationMarks[value.First()] == value.Last())
                     {
                         remainder = new Token() { Begin = token.Begin + 1, End = body.Length - 1, Value = value.Substring(1, value.Length - 2) };
                     }
@@ -113,7 +131,7 @@ namespace DustyBot.Framework.Commands.Parsing
                     {
                         token = remainder;
                     }
-                    else if (param.IsMultiple)
+                    else if (param.GetTypeInformation().IsEnumerable)
                     {
                         remainderMatch = null; // Give it a second chance as a repeatable parameter
                     }
@@ -125,7 +143,7 @@ namespace DustyBot.Framework.Commands.Parsing
                     if (param.HasDefaultValue())
                     {
                         if (!peek)
-                            context.Results.Add(param, param.DefaultValue);
+                            context.Results.Add(param, param.DefaultValue.GetValueOrDefault());
 
                         continue;
                     }
@@ -144,13 +162,13 @@ namespace DustyBot.Framework.Commands.Parsing
                 if (param.HasDefaultValue() && !lastParam)
                 {
                     // Perform a testing run in the state we would be in if we accepted this token
-                    var remainingTokens = param.IsRemainder ? Enumerable.Empty<Token>() : tokensQueue.Skip(1);
+                    var remainingTokens = isRemainderParam ? Enumerable.Empty<Token>() : tokensQueue.Skip(1);
                     var peekResult = await ParseParameters(body, remainingTokens, parameters.Skip(count), context, peek: true);
 
                     if (!peekResult.IsSuccessful)
                     {
                         if (!peek)
-                            context.Results.Add(param, param.DefaultValue);
+                            context.Results.Add(param, param.DefaultValue.GetValueOrDefault());
 
                         continue; // The parsing would fail, so we can't take this token
                     }
@@ -167,7 +185,7 @@ namespace DustyBot.Framework.Commands.Parsing
                     tokensQueue.Dequeue();
 
                 // If this is a repeatable (last) parameter, try to consume all remaining tokens
-                if (lastParam && param.IsMultiple)
+                if (lastParam && param.GetTypeInformation().IsEnumerable)
                 {
                     while (tokensQueue.Any())
                     {
@@ -186,24 +204,74 @@ namespace DustyBot.Framework.Commands.Parsing
             if (tokensQueue.Count > 0)
                 return new FailureArgumentParserResult(context.Results, ArgumentParserFailureType.TooManyParameters);
 
-            return new SuccessArgumentParserResult(context.Results);
+            return new SuccessArgumentParserResult(context.Results, BuildRawArguments(context.RawArguments));
         }
 
-        private static async Task<bool> CheckToken(Token token, Parameter parameter, CommandParsingContext context)
+        private static IDictionary<IParameter, MultiString>? BuildRawArguments(Dictionary<IParameter, List<ReadOnlyMemory<char>>> rawArguments)
+        {
+            if (rawArguments.Count == 0)
+                return null;
+
+            return rawArguments.ToDictionary(x => x.Key, x => new MultiString(x.Value));
+        }
+
+        private static async Task<bool> CheckToken(Token token, ITextParameter parameter, CommandParsingContext context)
         {
             if (context.ParseResultCache.TryGetValue((parameter, token), out var result))
                 return result.Result.IsSuccessful;
 
-            var (failedResult, parsedArgument) = await context.CommandService.ParseArgumentAsync(parameter, token.Value, context.CommandContext);
-            if (failedResult != null)
+            var value = token.Value.AsMemory();
+            var typeParserProvider = context.CommandContext.Services.GetRequiredService<ITypeParserProvider>();
+            var typeParser = typeParserProvider.GetParser(parameter);
+
+            object? parsedArgument;
+            if (typeParser != null)
             {
-                context.ParseResultCache[(parameter, token)] = (failedResult, null);
-                return false;
+                var typeParserResult = await typeParser.ParseAsync(context.CommandContext, parameter, value).ConfigureAwait(false);
+                if (!typeParserResult.IsSuccessful)
+                {
+                    context.ParseResultCache[(parameter, token)] = (new TypeParseFailedResult(parameter, value, typeParserResult.FailureReason), null);
+                    return false;
+                }
+
+                parsedArgument = typeParserResult.ParsedValue.GetValueOrDefault();
+            }
+            else if (parameter.GetTypeInformation().IsStringLike)
+            {
+                parsedArgument = token.Value;
+            }
+            else
+            {
+                throw new InvalidOperationException($"No type parser found for parameter {parameter.Name}.");
             }
 
-            var checksResult = await parameter.RunChecksAsync(parsedArgument, context.CommandContext);
+            var checksResult = await RunParameterChecksAsync(parameter, parsedArgument, context.CommandContext).ConfigureAwait(false);
             context.ParseResultCache[(parameter, token)] = (checksResult, parsedArgument);
             return checksResult.IsSuccessful;
+        }
+
+        private static async Task<IResult> RunParameterChecksAsync(ITextParameter parameter, object? argument, ITextCommandContext context)
+        {
+            foreach (var check in parameter.Checks)
+            {
+                if (!check.CanCheck(parameter, argument))
+                    continue;
+
+                var result = await check.CheckAsync(context, parameter, argument).ConfigureAwait(false);
+                if (!result.IsSuccessful)
+                    return result;
+            }
+
+            return Qmmands.Results.Success;
+        }
+
+        public void Validate(ITextCommand command)
+        {
+            foreach (var parameter in command.Parameters)
+            {
+                if (parameter is not IPositionalParameter)
+                    throw new ArgumentException($"The command {command.Name} can not be parsed by {nameof(ArgumentParser)} because it contains non-positional parameters.", nameof(command));
+            }
         }
     }
 }

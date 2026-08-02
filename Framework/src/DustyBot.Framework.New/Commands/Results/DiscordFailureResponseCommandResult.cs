@@ -1,15 +1,16 @@
 ﻿using Disqord;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
+using Disqord.Bot.Commands.Text;
 using DustyBot.Framework.Communication;
 
 namespace DustyBot.Framework.Commands.Results
 {
-    public class DiscordFailureResponseCommandResult : DiscordResponseCommandResult
+    public class DiscordFailureResponseCommandResult : DiscordTextResponseCommandResult
     {
-        public DiscordFailureResponseCommandResult(DiscordCommandContext context, LocalMessage message)
+        public DiscordFailureResponseCommandResult(IDiscordCommandContext context, LocalMessage message)
             : base(context, message)
         {
-            if (!string.IsNullOrEmpty(Message.Content))
+            if (Message.Content.HasValue)
                 Message.Content = $"{CommunicationConstants.FailureMarker} {Message.Content}";
         }
     }

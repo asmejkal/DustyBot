@@ -148,7 +148,7 @@ namespace DustyBot.Service.Services.GreetBye
             }
 
             using var scope = Logger.WithGuild(guild).WithChannel(channel).BeginScope();
-            if (!guild.GetBotPermissions(channel).SendMessages)
+            if (!guild.GetBotPermissions(channel).HasFlag(Permissions.SendMessages))
             {
                 Logger.LogInformation("Can't send {GreetByeEventType} message because of missing permissions", type);
                 return;

@@ -1,16 +1,25 @@
 ﻿using System.Collections.Generic;
 using Qmmands;
+using Qmmands.Text;
+using Qommon;
 
 namespace DustyBot.Framework.Commands.Parsing
 {
-    public class SuccessArgumentParserResult : ArgumentParserResult
+    public class SuccessArgumentParserResult : IArgumentParserResult
     {
-        public override bool IsSuccessful => true;
-        public override string? FailureReason => null;
+        public bool IsSuccessful => true;
+        public string? FailureReason => null;
 
-        public SuccessArgumentParserResult(IReadOnlyDictionary<Parameter, object?> arguments)
-            : base(arguments)
+        public IDictionary<IParameter, object?>? Arguments { get; }
+
+        public IDictionary<IParameter, MultiString>? RawArguments { get; }
+
+        public SuccessArgumentParserResult(
+            IDictionary<IParameter, object?> arguments,
+            IDictionary<IParameter, MultiString>? rawArguments = null)
         {
+            Arguments = arguments;
+            RawArguments = rawArguments;
         }
     }
 }

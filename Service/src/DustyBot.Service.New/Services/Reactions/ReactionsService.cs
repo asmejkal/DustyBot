@@ -244,7 +244,7 @@ namespace DustyBot.Service.Services.Reactions
 
                 var guild = Bot.GetGuildOrThrow(e.GuildId.Value);
                 var permissions = guild.GetBotPermissions(e.Channel);
-                if (!permissions.SendMessages)
+                if (!permissions.HasFlag(Permissions.SendMessages))
                     return;
 
                 var filtered = settings.Reactions.Where(x => string.Compare(x.Trigger, e.Message.Content, true) == 0).ToList();
@@ -259,11 +259,11 @@ namespace DustyBot.Service.Services.Reactions
                     var warning = new LocalMessage()
                         .WithContent($"This reaction is on cooldown. Please try again in `{cooldownRemaining.SimpleFormat(TimeSpanPrecision.Medium)}`.");
                         
-                    if (permissions.ReadMessageHistory)
+                    if (permissions.HasFlag(Permissions.ReadMessageHistory))
                         warning = warning.WithReply(e.MessageId);
 
                     var botMessage = await e.Channel.SendMessageAsync(warning, cancellationToken: Bot.StoppingToken);
-                    if (permissions.ManageMessages)
+                    if (permissions.HasFlag(Permissions.ManageMessages))
                     {
                         await Task.Delay(3000);
                         await Task.WhenAll(new[] { message, botMessage }.Select(x => x.DeleteAsync(cancellationToken: Bot.StoppingToken)));

@@ -1,5 +1,5 @@
 ﻿using System.Linq;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
 using DustyBot.Framework.Commands.Attributes;
 using Qmmands;
 
@@ -7,7 +7,7 @@ namespace DustyBot.Framework.Commands
 {
     public static class ModuleExtensions
     {
-        public static bool IsHidden(this Module x) =>
-            x.Attributes.Any(x => x is HiddenAttribute) || !x.IsEnabled || x.Attributes.Any(x => x is RequireBotOwnerAttribute);
+        public static bool IsHidden(this IModule x) =>
+            x.CustomAttributes.Any(x => x is HiddenAttribute) || x.CustomAttributes.Any(x => x is RequireBotOwnerAttribute);
     }
 }

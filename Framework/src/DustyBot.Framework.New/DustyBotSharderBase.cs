@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -7,10 +8,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Bot;
-using Disqord.Bot.Sharding;
+using Disqord.Bot.Commands;
+using Disqord.Bot.Commands.Text;
 using Disqord.Gateway;
 using Disqord.Rest;
-using Disqord.Sharding;
 using DustyBot.Core.Async;
 using DustyBot.Core.Comparers;
 using DustyBot.Framework.Commands;
@@ -23,171 +24,178 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Qmmands;
+using Qmmands.Default;
+using Qmmands.Text;
+using Qommon.Collections;
+using Qommon.Metadata;
 
 namespace DustyBot.Framework
 {
-    public abstract class DustyBotSharderBase : DiscordBotSharder
+    public abstract class DustyBotSharderBase : DiscordBot
     {
         public DustyBotSharderBase(
-            IOptions<DiscordBotSharderConfiguration> options,
-            ILogger<DiscordBotSharder> logger,
+            IOptions<DiscordBotConfiguration> options,
+            ILogger<DiscordBot> logger,
             IServiceProvider services,
-            DiscordClientSharder client)
+            DiscordClient client)
             : base(options, logger, services, client)
         {
         }
 
-        public async Task<IEnumerable<CommandMatch>> FindCommandsAsync(IGatewayUserMessage message)
+        public async Task<IEnumerable<ITextCommandMatch>> FindCommandsAsync(IGatewayUserMessage message)
         {
             // We check if the message is suitable for execution.
             // By default excludes bot messages.
-            if (!await CheckMessageAsync(message).ConfigureAwait(false))
-                return Enumerable.Empty<CommandMatch>();
+            if (!await OnMessage(message).ConfigureAwait(false))
+                return Enumerable.Empty<ITextCommandMatch>();
 
             // We get the prefixes from the prefix provider.
             var prefixes = await Prefixes.GetPrefixesAsync(message).ConfigureAwait(false);
             if (prefixes == null)
-                return Enumerable.Empty<CommandMatch>();
+                return Enumerable.Empty<ITextCommandMatch>();
 
             // We try to find a prefix in the message.
-            IPrefix? foundPrefix = null;
-            string? output = null;
             foreach (var prefix in prefixes)
             {
                 if (prefix == null)
                     continue;
 
-                if (prefix.TryFind(message, out output))
+                if (prefix.TryFind(message, out var output))
                 {
-                    foundPrefix = prefix;
-                    break;
+                    return Commands.GetCommandMapProvider().GetRequiredMap<ITextCommandMap>().FindMatches(output);
                 }
             }
 
-            if (foundPrefix == null)
-                return Enumerable.Empty<CommandMatch>();
-
-            return Commands.FindCommands(output);
+            return Enumerable.Empty<ITextCommandMatch>();
         }
 
-        public override DiscordCommandContext CreateCommandContext(IPrefix prefix, string input, IGatewayUserMessage message, CachedMessageGuildChannel channel)
+        public override IDiscordTextCommandContext CreateTextCommandContext(IPrefix prefix, ReadOnlyMemory<char> input, IGatewayUserMessage message, IMessageGuildChannel? channel)
         {
-            var scope = Services.CreateScope();
-            DiscordCommandContext context = message.GuildId != null
-                ? new DustyGuildCommandContext(this, prefix, input, message, channel, scope)
-                : new DustyCommandContext(this, prefix, input, message, scope);
-
-            context.Services.GetRequiredService<ICommandContextAccessor>().Context = context;
+            var context = base.CreateTextCommandContext(prefix, input, message, channel);
+            context.SetMetadata(MetadataKeys.CorrelationId, Guid.NewGuid());
             return context;
         }
 
-        protected override ValueTask AddModulesAsync(CancellationToken cancellationToken = default)
+        protected override ValueTask InitializeModules(CancellationToken cancellationToken = default)
         {
             var types = Services.GetService<ModuleCollection>();
             if (types == null || !types.Any())
                 return default;
 
-            try
-            {
-                var modules = new List<Qmmands.Module>();
-                foreach (var type in types)
-                    modules.Add(Commands.AddModule(type, MutateModule));
+            var modules = new List<IModule>();
+            foreach (var type in types)
+                modules.Add(Commands.AddModule(type.GetTypeInfo(), MutateModule));
 
-                Logger.LogInformation("Added {ModuleCount} command modules with {CommandCount} commands.", modules.Count, modules.SelectMany(CommandUtilities.EnumerateAllCommands).Count());
-            }
-            catch (CommandMappingException ex)
-            {
-                Logger.LogCritical(ex, "Failed to map command {Command} in module {Module}:", ex.Command, ex.Command.Module);
-                throw;
-            }
+            Logger.LogInformation("Added {ModuleCount} command modules with {CommandCount} commands.", modules.Count, modules.SelectMany(CommandUtilities.EnumerateAllCommands).Count());
 
             return default;
         }
 
-        protected override void MutateModule(ModuleBuilder moduleBuilder)
+        protected override void MutateModule(IModuleBuilder moduleBuilder)
         {
-            ProcessDefaultAttributes(moduleBuilder);
-            ProcessRemarkAttributes(moduleBuilder);
-            ProcessVerbCommandAttributes(moduleBuilder);
+            if (moduleBuilder is ITextModuleBuilder textModuleBuilder)
+            {
+                ProcessDefaultAttributes(textModuleBuilder);
+                ProcessRemarkAttributes(textModuleBuilder);
+                ProcessVerbCommandAttributes(textModuleBuilder);
+            }
 
             base.MutateModule(moduleBuilder);
         }
 
-        protected override async ValueTask AddTypeParsersAsync(CancellationToken cancellationToken = default)
+        protected override async ValueTask AddTypeParsers(DefaultTypeParserProvider typeParserProvider, CancellationToken cancellationToken)
         {
-            await base.AddTypeParsersAsync(cancellationToken);
+            await base.AddTypeParsers(typeParserProvider, cancellationToken);
 
-            Commands.AddTypeParser(new DateOnlyTypeParser());
-            Commands.AddTypeParser(new LocalEmbedTypeParser());
-            Commands.AddTypeParser(new TimeOnlyTypeParser());
-            Commands.AddTypeParser(new UriTypeParser());
-            Commands.AddTypeParser(new RestUserTypeParser());
-            Commands.AddTypeParser(new UserTypeParser());
-            Commands.AddTypeParser(new MatchTypeParser());
-            Commands.AddTypeParser(new GuidTypeParser());
+            typeParserProvider.AddParser(new DateOnlyTypeParser());
+            typeParserProvider.AddParser(new LocalEmbedTypeParser());
+            typeParserProvider.AddParser(new TimeOnlyTypeParser());
+            typeParserProvider.AddParser(new UriTypeParser());
+            typeParserProvider.AddParser(new RestUserTypeParser());
+            typeParserProvider.AddParser(new UserTypeParser());
+            typeParserProvider.AddParser(new MatchTypeParser());
+            typeParserProvider.AddParser(new GuidTypeParser());
 
-            Commands.ReplaceTypeParser(new MemberTypeParser());
+            typeParserProvider.ReplaceParser(new MemberTypeParser());
         }
 
-        protected override ValueTask<bool> BeforeExecutedAsync(DiscordCommandContext context)
+        protected override ValueTask<IResult> OnBeforeExecuted(IDiscordCommandContext context)
         {
-            if (context is not DiscordGuildCommandContext guildContext)
-                return new(true);
+            if (context is not IDiscordTextGuildCommandContext guildContext)
+                return new(Results.Success);
 
-            return new(guildContext.Guild.GetBotPermissions(guildContext.Channel).SendMessages);
+            var guild = guildContext.Bot.GetGuild(guildContext.GuildId);
+            var channel = guildContext.Channel;
+            if (guild is not null && channel is not null && guild.GetBotPermissions(channel).HasFlag(Permissions.ManageMessages))
+                return new(Results.Success);
+            else
+                return new(Results.Failure("Can't send messages in the given channel"));
         }
 
-        protected override ValueTask HandleCommandResultAsync(DiscordCommandContext context, DiscordCommandResult result)
+        protected override ValueTask OnCommandResult(IDiscordCommandContext context, IDiscordCommandResult result)
         {
-            var logger = TryGetModuleType(context.Command.Module, out var type) 
+            if (context.Command is not null)
+            {
+                var logger = TryGetModuleType(context.Command.Module, out var type)
                 ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
 
-            logger.WithCommandContext(context).LogInformation("Command completed with {CommandResult}", result.GetType().Name);
+                logger.WithCommandContext(context).LogInformation("Command completed with {CommandResult}", result.GetType().Name);
+            }
 
-            return base.HandleCommandResultAsync(context, result);
+            return base.OnCommandResult(context, result);
         }
 
-        protected override ValueTask HandleFailedResultAsync(DiscordCommandContext context, FailedResult result)
+        protected override ValueTask OnFailedResult(IDiscordCommandContext context, IResult result)
         {
-            if (result is not CommandNotFoundResult)
+            if (result is not CommandNotFoundResult && context is IDiscordTextCommandContext textContext && context.Command is not null)
             {
                 var logger = TryGetModuleType(context.Command.Module, out var type)
                     ? Services.GetRequiredService<ILoggerFactory>().CreateLogger(type) : Logger;
 
-                using var scope = logger.WithCommandUsageContext(context).BeginScope();
-                if (context is DiscordGuildCommandContext guildContext)
+                using var scope = logger.WithCommandUsageContext(textContext).BeginScope();
+                if (context is IDiscordTextGuildCommandContext guildContext)
                 {
-                    logger.LogInformation("Command {MessageContent} failed with {CommandResult}", context.Message.Content, result.GetType().Name);
+                    logger.LogInformation("Command {MessageContent} failed with {CommandResult}", textContext.Message.Content, result.GetType().Name);
 
-                    if (guildContext.Command.HideInvocation() && guildContext.Guild.GetBotPermissions(guildContext.Channel).ManageMessages)
+                    if (context.Command.HideInvocation())
                     {
-                        TaskHelper.FireForget(() => context.Message.DeleteAsync(cancellationToken: StoppingToken),
-                            ex => Logger.LogError(ex, "Failed to hide failed command's invocation message"));
+                        var guild = guildContext.Bot.GetGuild(guildContext.GuildId);
+                        var channel = guildContext.Channel;
+                        if (guild is not null && channel is not null && guild.GetBotPermissions(channel).HasFlag(Permissions.ManageMessages))
+                        {
+                            TaskHelper.FireForget(() => guildContext.Message.DeleteAsync(cancellationToken: StoppingToken),
+                                ex => Logger.LogError(ex, "Failed to hide failed command's invocation message"));
+                        }
                     }
                 }
                 else
                 {
-                    logger.LogInformation("Command {MessageContentRedacted} failed with {CommandResult}", context.Prefix.ToString() + string.Join(' ', context.Path), result.GetType().Name);
+                    logger.LogInformation("Command {MessageContentRedacted} failed with {CommandResult}", 
+                        textContext.Prefix + string.Join(' ', textContext.Path ?? Enumerable.Empty<ReadOnlyMemory<char>>()),
+                        result.GetType().Name);
                 }
             }
 
-            return base.HandleFailedResultAsync(context, result);
+            return base.OnFailedResult(context, result);
         }
 
-        private static void ProcessDefaultAttributes(ModuleBuilder moduleBuilder)
+        private static void ProcessDefaultAttributes(ITextModuleBuilder moduleBuilder)
         {
-            foreach (var submodule in moduleBuilder.Submodules)
-                ProcessDefaultAttributes(submodule);
+            // Skip the synthetic "verb" submodules ProcessVerbCommandAttributes builds below: their command
+            // builders' MethodInfo/ParameterInfo belong to some other, real module - nothing here to
+            // (re-)process for them (see the IsVerbModule doc comment for why TypeInfo can't be used here).
+            if (moduleBuilder.GetMetadataOrDefault<bool>(MetadataKeys.IsVerbModule))
+                return;
 
             var context = new NullabilityInfoContext();
-            var commandInfos = moduleBuilder.Type.GetTypeInfo().DeclaredMethods.Where(x => x.GetCustomAttribute<CommandAttribute>() != null);
-
-            foreach (var (command, commandInfo) in moduleBuilder.Commands.Zip(commandInfos))
+            foreach (var command in moduleBuilder.Commands)
             {
-                var parameterInfos = commandInfo.GetParameters();
-                foreach (var (parameter, parameterInfo) in command.Parameters.Zip(parameterInfos))
+                foreach (var parameter in command.Parameters)
                 {
-                    var attribute = parameter.Attributes.OfType<DefaultAttribute>().FirstOrDefault();
+                    if (parameter.ParameterInfo is not ParameterInfo parameterInfo)
+                        continue;
+
+                    var attribute = parameter.CustomAttributes.OfType<DefaultAttribute>().FirstOrDefault();
                     if (attribute != null)
                     {
                         parameter.DefaultValue = attribute.DefaultValue;
@@ -196,44 +204,47 @@ namespace DustyBot.Framework
                     {
                         var nullableInfo = context.Create(parameterInfo);
                         if (nullableInfo.ReadState == NullabilityState.Nullable)
-                            parameter.AddAttribute(new DefaultAttribute(null));
+                            parameter.CustomAttributes.Add(new DefaultAttribute(null));
                     }
                 }
             }
         }
 
-        private static void ProcessRemarkAttributes(ModuleBuilder moduleBuilder)
+        private static void ProcessRemarkAttributes(ITextModuleBuilder moduleBuilder)
         {
-            foreach (var submodule in moduleBuilder.Submodules)
-                ProcessRemarkAttributes(submodule);
+            // See the comment in ProcessDefaultAttributes: skip synthetic modules, their commands already
+            // had their remarks built once while still attached to their real, original module.
+            if (moduleBuilder.GetMetadataOrDefault<bool>(MetadataKeys.IsVerbModule))
+                return;
 
-            static string Build(string remarks, IEnumerable<Attribute> attributes)
+            static string Build(string? remarks, IEnumerable<Attribute> attributes)
             {
-                var builder = new StringBuilder(remarks);
+                var builder = new StringBuilder(remarks ?? "");
                 foreach (var remark in attributes.OfType<RemarkAttribute>().Select(x => x.Remark))
                     builder.AppendLine(remark);
 
                 return builder.ToString();
             }
 
-            moduleBuilder.Remarks = Build(moduleBuilder.Remarks, moduleBuilder.Attributes);
+            moduleBuilder.SetMetadata(MetadataKeys.Remarks, Build(moduleBuilder.GetMetadataOrDefault<string>(MetadataKeys.Remarks), moduleBuilder.CustomAttributes));
             foreach (var command in moduleBuilder.Commands)
             {
-                command.Remarks = Build(command.Remarks, command.Attributes);
-                foreach (var parameter in command.Parameters)
-                    parameter.Remarks = Build(parameter.Remarks, parameter.Attributes);
+                command.SetMetadata(MetadataKeys.Remarks, Build(command.GetMetadataOrDefault<string>(MetadataKeys.Remarks), command.CustomAttributes));
             }
         }
 
-        private static void ProcessVerbCommandAttributes(ModuleBuilder moduleBuilder)
+        private static void ProcessVerbCommandAttributes(ITextModuleBuilder moduleBuilder)
         {
-            foreach (var submodule in moduleBuilder.Submodules)
-                ProcessVerbCommandAttributes(submodule);
+            // Critical, not just a fast path: without this, relocated commands' MethodInfo still points at
+            // their original [VerbCommand]-decorated method, so re-running this against the synthetic
+            // module they just got moved into would relocate them again into a brand new nested copy - and
+            // since base.MutateModule visits every submodule it finds, including newly created ones, that
+            // recurses forever (stack overflow) instead of terminating once the tree settles.
+            if (moduleBuilder.GetMetadataOrDefault<bool>(MetadataKeys.IsVerbModule))
+                return;
 
-            var commandInfos = moduleBuilder.Type.GetTypeInfo().DeclaredMethods.Where(x => x.GetCustomAttribute<CommandAttribute>() != null);
             var verbCommands = moduleBuilder.Commands
-                .Zip(commandInfos)
-                .Select(x => (Command: x.First, Verbs: x.Second.GetCustomAttribute<VerbCommandAttribute>()?.Verbs.ToList()))
+                .Select(x => (Command: x, Verbs: x.MethodInfo?.GetCustomAttribute<VerbCommandAttribute>()?.Verbs.ToList()))
                 .Where(x => x.Verbs != null)
                 .ToList();
 
@@ -241,7 +252,7 @@ namespace DustyBot.Framework
                 moduleBuilder.Commands.Remove(verbCommand.Command);
 
             var comparer = new SequenceEqualityComparer<string>();
-            var modules = new Dictionary<IEnumerable<string>, ModuleBuilder>(comparer)
+            var modules = new Dictionary<IEnumerable<string>, ITextModuleBuilder>(comparer)
             {
                 { Enumerable.Empty<string>(), moduleBuilder }
             };
@@ -255,17 +266,21 @@ namespace DustyBot.Framework
                     var commands = group.Where(x => x.Verbs!.Count == level + 1).Select(x => x.Command);
                     if (existing == null)
                     {
-                        parent.AddSubmodule(x =>
-                        {
-                            x.AddAlias(group.Key.Last());
-                            x.Commands.AddRange(commands);
-                            modules.Add(group.Key, x);
-                        });
+                        // Must carry the source TypeInfo forward: command execution instantiates
+                        // command.Module.TypeInfo to invoke the method on, and these commands' MethodInfo
+                        // still belongs to moduleBuilder's own type, not some new synthetic one.
+                        var newModuleBuilder = new TextModuleBuilder(parent, moduleBuilder.TypeInfo!);
+                        newModuleBuilder.SetMetadata(MetadataKeys.IsVerbModule, true);
+                        newModuleBuilder.Aliases.Add(group.Key.Last());
+                        newModuleBuilder.Commands.AddRange(commands);
+                        modules.Add(group.Key, newModuleBuilder);
+
+                        parent.Submodules.Add(newModuleBuilder);
                     }
                     else
                     {
                         if (existing.Commands.SelectMany(x => x.Aliases).Intersect(commands.SelectMany(x => x.Aliases)).Any())
-                            throw new InvalidOperationException($"An existing command alias overlaps with a verb command in module {existing.Type?.Name ?? existing.Name}");
+                            throw new InvalidOperationException($"An existing command alias overlaps with a verb command in module {existing.TypeInfo?.Name ?? existing.Name}");
 
                         existing.Commands.AddRange(commands);
                         modules.Add(group.Key, existing);
@@ -274,9 +289,9 @@ namespace DustyBot.Framework
             }
         }
 
-        private static bool TryGetModuleType(Qmmands.Module module, out Type result)
+        private static bool TryGetModuleType(IModule module, [NotNullWhen(true)] out Type? result)
         {
-            while ((result = module.Type) == null && module.Parent != null)
+            while ((result = module.TypeInfo) == null && module.Parent != null)
                 module = module.Parent;
 
             return result != null;

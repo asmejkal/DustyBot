@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using Qmmands;
+using Qmmands.Text;
+using Qommon;
 
 namespace DustyBot.Framework.Commands.Parsing
 {
-    public class FailureArgumentParserResult : ArgumentParserResult
+    public class FailureArgumentParserResult : IArgumentParserResult
     {
-        public override bool IsSuccessful => false;
-        public override string FailureReason => Type switch
+        public bool IsSuccessful => false;
+        public string FailureReason => Type switch
         {
             ArgumentParserFailureType.NotEnoughParameters => "One or more required parameters are missing.",
             ArgumentParserFailureType.TooManyParameters => "Incorrect or too many parameters.",
@@ -16,9 +18,13 @@ namespace DustyBot.Framework.Commands.Parsing
 
         public ArgumentParserFailureType Type { get; }
 
-        public FailureArgumentParserResult(IReadOnlyDictionary<Parameter, object?> arguments, ArgumentParserFailureType type)
-            : base(arguments)
+        public IDictionary<IParameter, object?>? Arguments { get; }
+
+        public IDictionary<IParameter, MultiString>? RawArguments { get; }
+
+        public FailureArgumentParserResult(IDictionary<IParameter, object?> arguments, ArgumentParserFailureType type)
         {
+            Arguments = arguments;
             Type = type;
         }
     }

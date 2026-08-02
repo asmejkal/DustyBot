@@ -1,6 +1,7 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Disqord;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
 using DustyBot.Framework.Embeds;
 using Qmmands;
 
@@ -8,9 +9,9 @@ namespace DustyBot.Framework.Commands.TypeParsers
 {
     public class LocalEmbedTypeParser : DiscordTypeParser<LocalEmbed>
     {
-        public override ValueTask<TypeParserResult<LocalEmbed>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
+        public override ValueTask<ITypeParserResult<LocalEmbed>> ParseAsync(IDiscordCommandContext context, IParameter parameter, ReadOnlyMemory<char> value)
         {
-            if (!EmbedSpecificationParser.TryParse(value, out var embed, out var error))
+            if (!EmbedSpecificationParser.TryParse(value.Span.ToString(), out var embed, out var error))
                 return Failure(error);
 
             return Success(embed);

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using Disqord;
 using DustyBot.Core.Parsing;
 using DustyBot.Framework.Utility;
@@ -7,7 +8,7 @@ namespace DustyBot.Framework.Embeds
 {
     public static class EmbedSpecificationParser
     {
-        public static bool TryParse(string specification, out LocalEmbed embed, out string? error)
+        public static bool TryParse(string specification, out LocalEmbed embed, [NotNullWhen(false)] out string? error)
         {
             embed = new LocalEmbed();
             error = null;
@@ -50,17 +51,17 @@ namespace DustyBot.Framework.Embeds
                 switch (part.Token)
                 {
                     case "title": embed.WithTitle(match.Value); break;
-                    case "author": (embed.Author ??= new LocalEmbedAuthor()).WithName(match.Value); break;
-                    case "author link": (embed.Author ??= new LocalEmbedAuthor()).WithUrl(match.Value); break;
-                    case "author icon": (embed.Author ??= new LocalEmbedAuthor()).WithIconUrl(match.Value); break;
+                    case "author": (embed.Author.HasValue ? embed.Author : embed.Author = new LocalEmbedAuthor()).Value.WithName(match.Value); break;
+                    case "author link": (embed.Author.HasValue ? embed.Author : embed.Author = new LocalEmbedAuthor()).Value.WithUrl(match.Value); break;
+                    case "author icon": (embed.Author.HasValue ? embed.Author : embed.Author = new LocalEmbedAuthor()).Value.WithIconUrl(match.Value); break;
                     case "image": embed.WithImageUrl(match.Value); break;
                     case "color": embed.WithColor(HexColorParser.Parse(match.Value)); break;
                     case "thumbnail": embed.WithThumbnailUrl(match.Value); break;
                     case "description": embed.WithDescription(match.Value); break;
-                    case "footer": (embed.Footer ??= new LocalEmbedFooter()).WithText(match.Value); break;
-                    case "footer icon": (embed.Footer ??= new LocalEmbedFooter()).WithIconUrl(match.Value); break;
-                    case "field": embed.AddField(match.Name, match.Value, false); break;
-                    case "inline field": embed.AddField(match.Name, match.Value, true); break;
+                    case "footer": (embed.Footer.HasValue ? embed.Footer : embed.Footer = new LocalEmbedFooter()).Value.WithText(match.Value); break;
+                    case "footer icon": (embed.Footer.HasValue ? embed.Footer : embed.Footer = new LocalEmbedFooter()).Value.WithIconUrl(match.Value); break;
+                    case "field": embed.AddField(match.Name ?? "", match.Value, false); break;
+                    case "inline field": embed.AddField(match.Name ?? "", match.Value, true); break;
                 }
             }
 

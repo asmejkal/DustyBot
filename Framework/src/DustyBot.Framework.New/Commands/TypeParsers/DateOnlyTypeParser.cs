@@ -1,15 +1,15 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
 using Qmmands;
 
 namespace DustyBot.Framework.Commands.TypeParsers
 {
     public class DateOnlyTypeParser : DiscordTypeParser<DateOnly>
     {
-        public override ValueTask<TypeParserResult<DateOnly>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
+        public override ValueTask<ITypeParserResult<DateOnly>> ParseAsync(IDiscordCommandContext context, IParameter parameter, ReadOnlyMemory<char> value)
         {
-            if (!DateOnly.TryParseExact(value, new[] { @"yyyy\/M\/d", @"M\/d" }, out var date))
+            if (!DateOnly.TryParseExact(value.Span, new[] { @"yyyy\/M\/d", @"M\/d" }, out var date))
                 return Failure("Invalid date format.");
 
             return Success(date);

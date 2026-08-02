@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading.Tasks;
 using Disqord.Bot;
+using Disqord.Bot.Commands.Text;
 using Disqord.Gateway;
 using DustyBot.Database.Mongo.Collections;
 using DustyBot.Database.Services;
@@ -22,7 +23,7 @@ namespace DustyBot.Service.Services
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
-        public async ValueTask<IEnumerable<IPrefix>> GetPrefixesAsync(IGatewayUserMessage message)
+        public async ValueTask<IEnumerable<IPrefix>?> GetPrefixesAsync(IGatewayUserMessage message)
         {
             if (message.GuildId != null)
             {

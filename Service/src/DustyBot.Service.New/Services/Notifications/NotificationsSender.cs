@@ -24,7 +24,7 @@ namespace DustyBot.Service.Services.Notifications
 
             var embed = new LocalEmbed()
                 .WithAuthor(message.Author.Name, message.Author.GetAvatarUrl(), message.GetJumpUrl())
-                .WithDescription(message.Content.Truncate(LocalEmbed.MaxDescriptionLength - footer.Length) + footer);
+                .WithDescription(message.Content.Truncate(Discord.Limits.Message.Embed.MaxDescriptionLength - footer.Length) + footer);
 
             var result = new LocalMessage()
                 .WithContent($"{DefaultEmoji.Bell} `{message.Author.Name}` mentioned `{notification.Keyword}` on `{guild.Name}`:")

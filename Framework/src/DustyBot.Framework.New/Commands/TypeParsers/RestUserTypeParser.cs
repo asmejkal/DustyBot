@@ -1,19 +1,21 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Disqord;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
 using Disqord.Rest;
 using Qmmands;
+using Qommon;
 
 namespace DustyBot.Framework.Commands.TypeParsers
 {
     public class RestUserTypeParser : DiscordTypeParser<IRestUser>
     {
-        public override async ValueTask<TypeParserResult<IRestUser>> ParseAsync(Parameter parameter, string value, DiscordCommandContext context)
+        public override async ValueTask<ITypeParserResult<IRestUser>> ParseAsync(IDiscordCommandContext context, IParameter parameter, ReadOnlyMemory<char> value)
         {
-            if (Snowflake.TryParse(value, out var id) || Mention.TryParseUser(value, out id))
+            if (Snowflake.TryParse(value.Span, out var id) || Mention.TryParseUser(value.Span, out id))
             {
                 var result = await context.Bot.FetchUserAsync(id, cancellationToken: context.Bot.StoppingToken).ConfigureAwait(false);
-                return result != null ? Success(result) : Failure("User not found.");
+                return result is not null ? Success(Optional.Create(result)) : Failure("User not found.");
             }
 
             return Failure("Must be a mention or an ID.");

@@ -44,8 +44,6 @@ namespace DustyBot.Service
 
             services.AddUtilityServices();
 
-            services.AddDiscordClientService<TestSlashModule>();
-
             return services;
         }
 
@@ -53,7 +51,7 @@ namespace DustyBot.Service
         {
             services.Configure<InteractivityExtensionConfiguration>(x => x.ConfigureInteractivity());
             services.Configure<DefaultGatewayCacheProviderConfiguration>(x => x.ConfigureCaching());
-            services.Configure<CommandServiceConfiguration>(x => x.ConfigureCommands());
+            services.ConfigureCommands();
 
             services.AddOptions<BotOptions>().BindConfiguration(ConfigurationSections.Bot);
             services.AddOptions<DiscordOptions>().BindConfiguration(ConfigurationSections.Discord);

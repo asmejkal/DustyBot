@@ -8,46 +8,50 @@ namespace DustyBot.Framework.Embeds
         public static string ToSpecification(this LocalEmbed embed)
         {
             var description = new StringBuilder();
-            if (!string.IsNullOrEmpty(embed.Title))
-                description.AppendLine($"Title: {embed.Title}");
+            if (embed.Title.HasValue)
+                description.AppendLine($"Title: {embed.Title.Value}");
 
-            if (embed.Author != null && !string.IsNullOrEmpty(embed.Author.Name))
+            if (embed.Author.HasValue && embed.Author.Value.Name.HasValue)
             {
-                description.AppendLine($"Author: {embed.Author.Name}");
+                description.AppendLine($"Author: {embed.Author.Value.Name}");
 
-                if (!string.IsNullOrEmpty(embed.Author.Url))
-                    description.AppendLine($"Author Link: {embed.Author.Url}");
+                if (embed.Author.Value.Url.HasValue)
+                    description.AppendLine($"Author Link: {embed.Author.Value.Url.Value}");
 
-                if (!string.IsNullOrEmpty(embed.Author.IconUrl))
-                    description.AppendLine($"Author Icon: {embed.Author.IconUrl}");
+                if (embed.Author.Value.IconUrl.HasValue)
+                    description.AppendLine($"Author Icon: {embed.Author.Value.IconUrl.Value}");
             }
 
-            if (!string.IsNullOrEmpty(embed.ImageUrl))
-                description.AppendLine($"Image: {embed.ImageUrl}");
+            if (embed.ImageUrl.HasValue)
+                description.AppendLine($"Image: {embed.ImageUrl.Value}");
 
-            if (!string.IsNullOrEmpty(embed.ThumbnailUrl))
-                description.AppendLine($"Thumbnail: {embed.ThumbnailUrl}");
+            if (embed.ThumbnailUrl.HasValue)
+                description.AppendLine($"Thumbnail: {embed.ThumbnailUrl.Value}");
 
             if (embed.Color.HasValue)
                 description.AppendLine($"Color: {embed.Color.Value}");
 
-            description.AppendLine($"Description: {embed.Description}");
+            if (embed.Description.HasValue)
+                description.AppendLine($"Description: {embed.Description.Value}");
 
-            if (embed.Footer != null && !string.IsNullOrEmpty(embed.Footer.Text))
+            if (embed.Footer.HasValue && embed.Footer.Value.Text.HasValue)
             {
-                description.AppendLine($"Footer: {embed.Footer.Text}");
+                description.AppendLine($"Footer: {embed.Footer.Value.Text.Value}");
 
-                if (!string.IsNullOrEmpty(embed.Footer.IconUrl))
-                    description.AppendLine($"Footer Icon: {embed.Footer.IconUrl}");
+                if (embed.Footer.Value.IconUrl.HasValue)
+                    description.AppendLine($"Footer Icon: {embed.Footer.Value.IconUrl.Value}");
             }
 
-            foreach (var field in embed.Fields)
+            if (embed.Fields.HasValue)
             {
-                if (field.IsInline)
-                    description.AppendLine($"Inline Field ({field.Name}): {field.Value}");
-                else
-                    description.AppendLine($"Field ({field.Name}): {field.Value}");
-            }
+                foreach (var field in embed.Fields.Value)
+                {
+                    if (field.IsInline.HasValue && field.IsInline.Value)
+                        description.AppendLine($"Inline Field ({field.Name.Value}): {field.Value.Value}");
+                    else
+                        description.AppendLine($"Field ({field.Name.Value}): {field.Value.Value}");
+                }
+            }            
 
             return description.ToString();
         }

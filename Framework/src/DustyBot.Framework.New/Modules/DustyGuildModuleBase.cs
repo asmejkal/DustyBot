@@ -1,8 +1,9 @@
-﻿using DustyBot.Framework.Commands;
+using Disqord.Bot.Commands;
 
 namespace DustyBot.Framework.Modules
 {
-    public abstract class DustyGuildModuleBase : DustyGuildModuleBase<DustyGuildCommandContext>
+    [RequireGuild]
+    public abstract class DustyGuildModuleBase : DustyModuleBase
     {
     }
 }

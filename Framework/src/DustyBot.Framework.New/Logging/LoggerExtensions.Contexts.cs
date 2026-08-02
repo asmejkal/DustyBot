@@ -1,8 +1,13 @@
 ﻿using System;
-using Disqord.Bot;
+using System.Linq;
+using Disqord.Bot.Commands;
+using Disqord.Bot.Commands.Text;
+using Disqord.Gateway;
 using DustyBot.Core.Logging;
 using DustyBot.Framework.Commands;
 using Microsoft.Extensions.Logging;
+using Qmmands.Text;
+using Qommon.Metadata;
 
 namespace DustyBot.Framework.Logging
 {
@@ -11,19 +16,35 @@ namespace DustyBot.Framework.Logging
         public static LoggerScopeBuilder WithCorrelationId(this ILogger logger, Guid correlationId) =>
             logger.With(LogFields.CorrelationId, correlationId);
 
-        public static LoggerScopeBuilder WithCommandContext(this ILogger logger, DiscordCommandContext x)
+        public static LoggerScopeBuilder WithCommandContext(this ILogger logger, IDiscordCommandContext x)
         {
-            var scope = x switch
-            {
-                DustyGuildCommandContext y => logger.WithCorrelationId(y.CorrelationId).WithGuild(y.Guild).WithMember(y.Author),
-                DustyCommandContext y => logger.WithCorrelationId(y.CorrelationId),
-                _ => logger
-            };
+            var scope = logger.GetScopeBuilder();
+            if (x.TryGetMetadata<Guid>(MetadataKeys.CorrelationId, out var correlationId))
+                scope.WithCorrelationId(correlationId);
 
-            return scope.With(LogFields.Command, x.Command.FullAliases[0]).WithMessage(x.Message);
+            if (x is IDiscordGuildCommandContext guildCommandContext)
+            {
+                var guild = x.Bot.GetGuild(guildCommandContext.GuildId);
+                if (guild is not null)
+                    scope.WithGuild(guild);
+                else
+                    scope.WithGuild(guildCommandContext.GuildId);
+
+                scope.WithMember(guildCommandContext.Author);
+            }
+
+            if (x is IDiscordTextCommandContext textCommandContext)
+            {
+                if (textCommandContext.Command is not null)
+                    scope.With(LogFields.Command, textCommandContext.Command?.EnumerateFullAliases().First());
+
+                scope.WithMessage(textCommandContext.Message);
+            }
+
+            return scope;
         }
 
-        public static LoggerScopeBuilder WithCommandUsageContext(this ILogger logger, DiscordCommandContext x) =>
+        public static LoggerScopeBuilder WithCommandUsageContext(this ILogger logger, IDiscordTextCommandContext x) =>
             logger.With(LogFields.Prefix, x.Prefix).With(LogFields.CommandAlias, x.Path);
     }
 }

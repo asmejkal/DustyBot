@@ -26,7 +26,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Disqord\src\Disqord\Disqord.csproj" />
     <ProjectReference Include="..\..\..\_Shared\src\DustyBot.Core\DustyBot.Core.csproj" />
   </ItemGroup>
 

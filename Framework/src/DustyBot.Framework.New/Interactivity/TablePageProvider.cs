@@ -30,8 +30,8 @@ namespace DustyBot.Framework.Interactivity
                         lineBuilder.Append(unquoted ? $"{name}: {value} " : $"{name}: `{value}` ");
                 }
 
-                var line = lineBuilder.ToString().Truncate(LocalMessage.MaxContentLength - 1);
-                if (++currentRows > maxRowsPerPage || !content.TryAppendLineLimited(line.ToString(), LocalMessage.MaxContentLength))
+                var line = lineBuilder.ToString().Truncate(Discord.Limits.Message.MaxContentLength - 1);
+                if (++currentRows > maxRowsPerPage || !content.TryAppendLineLimited(line.ToString(), Discord.Limits.Message.MaxContentLength))
                 {
                     pages.Add(new Page().WithContent(content.ToString()));
                     content.Clear();

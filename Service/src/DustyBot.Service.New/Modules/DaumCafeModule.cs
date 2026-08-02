@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -9,11 +9,13 @@ using DustyBot.Framework.Modules;
 using DustyBot.Service.Communication;
 using DustyBot.Service.Services.DaumCafe;
 using Qmmands;
+using Qmmands.Text;
+using Disqord.Bot.Commands;
 
 namespace DustyBot.Service.Modules
 {
     [Name("Daum Cafe"), Description("Daum Cafe feeds, including private boards.")]
-    [Group("cafe")]
+    [TextGroup("cafe")]
     public class DaumCafeModule : DustyGuildModuleBase
     {
         private readonly IDaumCafeService _service;
@@ -23,41 +25,37 @@ namespace DustyBot.Service.Modules
             _service = service;
         }
 
-        [Command("add"), Description("Adds a Daum Cafe board feed."), LongRunning]
+        [TextCommand("add"), Description("Adds a Daum Cafe board feed."), LongRunning]
         [RequireAuthorContentManager]
-        [Remark("**You will not get post previews** for level restricted boards unless you add a credential. But if the board is public, the bot will still update with links to new posts.")]
-        [Remark("Currently only Daum accounts are supported.")]
+        [Remark("**You will not get post previews** for level restricted boards. But if the board is public, the bot will still update with links to new posts.")]
         [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel")]
-        [Example("http://cafe.daum.net/mamamoo/2b6v #my-channel 5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
-        public async Task<CommandResult> AddCafeFeedAsync(
+        public async Task<IDiscordCommandResult> AddCafeFeedAsync(
             [Description("link to a Daum Cafe board section (either a comment board or a forum board), ex. http://cafe.daum.net/mamamoo/2b6v")]
             Uri boardSectionLink,
             [Description("channel or thread that will receive the updates")]
             [RequireBotCanSendEmbeds]
-            IMessageGuildChannel channel,
-            [Description("credentials to an account that can view this board (see the `credentials` commands on how to add a credential)")]
-            Guid? credentialId)
+            IMessageGuildChannel channel)
         {
-            return await _service.AddCafeFeedAsync(Context.GuildId, Context.Author.Id, boardSectionLink, channel, credentialId, Bot.StoppingToken) switch
+            return await _service.AddCafeFeedAsync(GuildContext.GuildId, Context.Author.Id, boardSectionLink, channel, null, Bot.StoppingToken) switch
             {
                 AddCafeFeedResult.Success => Success("Cafe feed has been added!"),
-                AddCafeFeedResult.SuccessWithoutPreviews => Success($"Cafe feed has been added!\n{DefaultEmoji.WarningSign} The bot will post updates but it won't show previews because it can't view posts on this board. To get previews you need to provide credentials to an account that can view posts on this board."),
+                AddCafeFeedResult.SuccessWithoutPreviews => Success($"Cafe feed has been added!\n{DefaultEmoji.WarningSign} The bot will post updates but it won't show previews because it can't view posts on this board."),
                 AddCafeFeedResult.TooManyFeeds => Failure("You've reached the maximum amount of Daum Cafe feeds on this server."),
                 AddCafeFeedResult.InvalidBoardLink => Failure("Unrecognized board link."),
-                AddCafeFeedResult.InaccessibleBoard => Failure("The bot cannot access this board. " + (credentialId.HasValue ? "Check if the provided account can view this board." : "You might need to provide credentials to an account that can view this board.")),
-                AddCafeFeedResult.LoginFailed => Failure("Failed to login with the supplied credential."),
+                AddCafeFeedResult.InaccessibleBoard => Failure("The bot cannot access this board."),
+                AddCafeFeedResult.LoginFailed => Failure("Failed to add this feed."),
                 AddCafeFeedResult.CountryBlock => Failure($"Your account is country blocked.\nUnblock it on <https://member.daum.net/security/country.daum>. Allow either all countries (모든 국가 허용) or just the country where the bot is hosted (허용 국가 지정 (최대 5개) -> 추가). Contact the bot owner to get information about the bot's location."),
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
 
-        [Command("remove"), Description("Removes a Daum Cafe board feed.")]
+        [TextCommand("remove"), Description("Removes a Daum Cafe board feed.")]
         [RequireAuthorContentManager]
-        public async Task<CommandResult> RemoveCafeFeedAsync(
+        public async Task<IDiscordCommandResult> RemoveCafeFeedAsync(
             [Description("a feed ID, use `cafe list` to see IDs of all active feeds")]
             Guid feedId)
         {
-            return await _service.RemoveCafeFeedAsync(Context.GuildId, feedId, Bot.StoppingToken) switch
+            return await _service.RemoveCafeFeedAsync(GuildContext.GuildId, feedId, Bot.StoppingToken) switch
             {
                 RemoveCafeFeedResult.Success => Success("Feed has been removed."),
                 RemoveCafeFeedResult.NotFound => Failure("A feed with this ID does not exist."),
@@ -65,19 +63,19 @@ namespace DustyBot.Service.Modules
             };
         }
 
-        [Command("clear"), Description("Removes all feeds.")]
+        [TextCommand("clear"), Description("Removes all feeds.")]
         [RequireAuthorContentManager]
-        public async Task<CommandResult> ClearCafeFeedsAsync()
+        public async Task<IDiscordCommandResult> ClearCafeFeedsAsync()
         {
-            await _service.ClearCafeFeedsAsync(Context.GuildId, Bot.StoppingToken);
+            await _service.ClearCafeFeedsAsync(GuildContext.GuildId, Bot.StoppingToken);
             return Success("All feeds have been removed.");
         }
 
-        [Command("list"), Description("Lists all active Daum Cafe board feeds.")]
+        [TextCommand("list"), Description("Lists all active Daum Cafe board feeds.")]
         [RequireAuthorContentManager]
-        public async Task<CommandResult> ListCafeFeedsAsync()
+        public async Task<IDiscordCommandResult> ListCafeFeedsAsync()
         {
-            var feeds = await _service.GetCafeFeedsAsync(Context.GuildId, Bot.StoppingToken);
+            var feeds = await _service.GetCafeFeedsAsync(GuildContext.GuildId, Bot.StoppingToken);
             return Table(feeds.OrderBy(x => x.CafeId).ThenBy(x => x.BoardId).Select(x => new TableRow()
                 .Add("Id", x.Id.ToString())
                 .Add("Board", $"{x.CafeId}/{x.BoardId}")
@@ -85,8 +83,7 @@ namespace DustyBot.Service.Modules
                 .Add("Credential", x.CredentialId != default ? x.CredentialId.ToString() : null)));
         }
 
-        [Group("credential", "credentials"), Description("To access private boards, the bot requires a Daum account.")]
-        [RequireDirectMessage]
+        [TextGroup("credential", "credentials"), Description("Manage saved Daum accounts used to access private boards. Adding new credentials is no longer supported; existing ones can still be viewed and cleared.")]
         public class CredentialsSubmodule : DustyModuleBase
         {
             private readonly IDaumCafeService _service;
@@ -96,40 +93,28 @@ namespace DustyBot.Service.Modules
                 _service = service;
             }
 
-            [Command("add"), Description("Saves a credential. Direct message only.")]
+            [TextCommand("add"), Description("Discontinued. Adding new credentials is no longer supported.")]
             [HideInvocation]
-            [Remark("Your credentials are stored securely and retrieved by the bot only when necessary.")]
-            [Example("johndoe1 mysecretpassword \"Google Mail\"")]
-            public async Task<CommandResult> AddCredentialAsync(
-            string login,
-            string password,
-            [Description("type anything for you to recognize these credentials later")]
-            string description)
+            public IDiscordCommandResult AddCredentialAsync([Remainder] string? args = null)
             {
-                var id = await _service.AddCredentialAsync(Context.Author.Id, login, password, description, Bot.StoppingToken);
-                return Success($"A credential with ID `{id}` has been added! Use `{GetReference(nameof(ListCredentialsAsync))}` to view all your saved credentials.");
+                return Failure($"Adding new credentials is no longer supported. Existing credentials can still be viewed with `{GetReference(nameof(ListCredentialsAsync))}` and removed with `{GetReference(nameof(ClearCredentialsAsync))}`.");
             }
 
-            [Command("remove"), Description("Removes a saved credential.")]
-            [Example("5a688c9f-72b0-47fa-bbc0-96f82d400a14")]
-            public async Task<CommandResult> RemoveCredentialAsync(Guid credentialId)
+            [TextCommand("remove"), Description("Discontinued. Removing individual credentials is no longer supported — use `clear` to remove all of them.")]
+            public IDiscordCommandResult RemoveCredentialAsync([Remainder] string? args = null)
             {
-                return await _service.RemoveCredentialAsync(Context.Author.Id, credentialId, Bot.StoppingToken) switch
-                {
-                    true => Success("Credential has been removed."),
-                    false => Failure($"Couldn't find a credential with this ID. Use `{GetReference(nameof(ListCredentialsAsync))}` to view all your saved credentials and their IDs.")
-                };
+                return Failure($"Removing individual credentials is no longer supported. Use `{GetReference(nameof(ClearCredentialsAsync))}` to remove all your saved credentials.");
             }
 
-            [Command("clear"), Description("Removes all your saved credentials.")]
-            public async Task<CommandResult> ClearCredentialsAsync()
+            [TextCommand("clear"), Description("Removes all your saved credentials.")]
+            public async Task<IDiscordCommandResult> ClearCredentialsAsync()
             {
                 await _service.ClearCredentialsAsync(Context.Author.Id, Bot.StoppingToken);
                 return Success("All of your credentials have been removed.");
             }
 
-            [Command("list"), Description("Lists all your saved credentials.")]
-            public async Task<CommandResult> ListCredentialsAsync()
+            [TextCommand("list"), Description("Lists all your saved credentials.")]
+            public async Task<IDiscordCommandResult> ListCredentialsAsync()
             {
                 var credentials = await _service.GetCredentials(Context.Author.Id, Bot.StoppingToken);
                 return Table(credentials.Select(x => new TableRow().Add("Name", x.Name).Add("Id", x.Id.ToString())));

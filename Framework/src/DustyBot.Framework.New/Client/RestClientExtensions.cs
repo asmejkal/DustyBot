@@ -30,10 +30,10 @@ namespace DustyBot.Framework.Client
             CancellationToken cancellationToken = default)
         {
             var permissions = guild.GetBotPermissions(channel);
-            if (message.Embeds != null && message.Embeds.Count > 0 && !permissions.SendEmbeds)
+            if (message.Embeds.HasValue && message.Embeds.Value.Count > 0 && !permissions.HasFlag(Permissions.SendEmbeds))
                 throw new MissingPermissionsException($"Bot is missing permissions to send embeds in channel {channel.Id} on guild {guild.Id}");
 
-            if (!permissions.SendMessages)
+            if (!permissions.HasFlag(Permissions.SendMessages))
                 throw new MissingPermissionsException($"Bot is missing permissions to send messages in channel {channel.Id} on guild {guild.Id}");
 
             return client.SendMessageAsync(channel.Id, message, options, cancellationToken);

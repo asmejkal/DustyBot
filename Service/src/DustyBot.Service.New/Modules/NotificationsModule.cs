@@ -4,16 +4,19 @@ using System.Text;
 using System.Threading.Tasks;
 using Disqord;
 using Disqord.Bot;
+using Disqord.Gateway;
 using Disqord.Rest;
 using DustyBot.Framework.Commands.Attributes;
 using DustyBot.Framework.Modules;
 using DustyBot.Service.Services.Notifications;
 using Qmmands;
+using Qmmands.Text;
+using Disqord.Bot.Commands;
 
 namespace DustyBot.Service.Modules
 {
     [Name("Notifications"), Description("Get notified when anyone mentions a specific word.")]
-    [Group("notifications", "notification", "notif", "noti")]
+    [TextGroup("notifications", "notification", "notif", "noti")]
     public class NotificationsModule : DustyModuleBase
     {
         private readonly INotificationsService _service;
@@ -23,11 +26,12 @@ namespace DustyBot.Service.Modules
             _service = service ?? throw new ArgumentNullException(nameof(service));
         }
 
-        [Command("add"), Description("Adds one or more words for which you want to receive notifications."), RequireGuild]
+        [TextCommand("add"), Description("Adds one or more words for which you want to receive notifications.")]
+        [RequireGuild]
         [Example("yeba")]
         [Example("yeba yebs")]
         [HideInvocation]
-        public async Task<CommandResult> AddKeywordAsync(
+        public async Task<IDiscordCommandResult> AddKeywordAsync(
             [Description("one or more words that will trigger notifications")]
             params string[] keywords)
         {
@@ -42,9 +46,10 @@ namespace DustyBot.Service.Modules
             };
         }
 
-        [Command("remove"), Description("Removes a notified word."), RequireGuild]
+        [TextCommand("remove"), Description("Removes a notified word.")]
+        [RequireGuild]
         [HideInvocation]
-        public async Task<CommandResult> RemoveKeywordAsync(
+        public async Task<IDiscordCommandResult> RemoveKeywordAsync(
             [Description("a word you don't want to be notified for anymore")]
             [Remainder]
             string keyword)
@@ -57,32 +62,35 @@ namespace DustyBot.Service.Modules
             };
         }
 
-        [Command("clear"), Description("Removes all notified words on this server."), RequireGuild]
-        public async Task<CommandResult> ClearKeywordsAsync()
+        [TextCommand("clear"), Description("Removes all notified words on this server.")]
+        [RequireGuild]
+        public async Task<IDiscordCommandResult> ClearKeywordsAsync()
         {
             await _service.ClearKeywordsAsync(GuildContext.GuildId, Context.Author.Id, Bot.StoppingToken);
             return Success("You will no longer be notified on this server.");
         }
 
-        [Command("pause"), Description("Disables all notifications on this server until you turn them back on."), RequireGuild]
-        public async Task<CommandResult> PauseNotificationsAsync()
+        [TextCommand("pause"), Description("Disables all notifications on this server until you turn them back on.")]
+        [RequireGuild]
+        public async Task<IDiscordCommandResult> PauseNotificationsAsync()
         {
             await _service.PauseNotificationsAsync(GuildContext.GuildId, Context.Author.Id, Bot.StoppingToken);
             return Success($"You won't get notifications on this server until you use `{GetReference(nameof(ResumeNotificationsAsync))}`.");
         }
 
-        [Command("resume", "unpause"), Description("Turns paused notifications back on."), RequireGuild]
-        public async Task<CommandResult> ResumeNotificationsAsync()
+        [TextCommand("resume", "unpause"), Description("Turns paused notifications back on.")]
+        [RequireGuild]
+        public async Task<IDiscordCommandResult> ResumeNotificationsAsync()
         {
             await _service.ResumeNotificationsAsync(GuildContext.GuildId, Context.Author.Id, Bot.StoppingToken);
             return Success("You will get notifications on this server again.");
         }
 
-        [Command("block"), Description("Blocks a person from triggering your notifications.")]
+        [TextCommand("block"), Description("Blocks a person from triggering your notifications.")]
         [HideInvocation]
         [Remark("You will not get notifications for any messages from a blocked person.")]
         [Remark("This command can be used in a DM. See [this guide](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) if you don't know how to find the user ID.")]
-        public async Task<CommandResult> BlockUserAsync(
+        public async Task<IDiscordCommandResult> BlockUserAsync(
             [Description("a user ID or a mention")]
             IUser user)
         {
@@ -90,10 +98,10 @@ namespace DustyBot.Service.Modules
             return Success("You will no longer receive notifications for any messages from this person.", TimeSpan.FromSeconds(3));
         }
 
-        [Command("unblock"), Description("Unblocks a person.")]
+        [TextCommand("unblock"), Description("Unblocks a person.")]
         [HideInvocation]
         [Remark("This command can be used in a DM. You will receive notifications for messages from this person again.")]
-        public async Task<CommandResult> UnblockUserAsync(
+        public async Task<IDiscordCommandResult> UnblockUserAsync(
             [Description("a user ID or a mention")]
             IUser user)
         {
@@ -101,8 +109,9 @@ namespace DustyBot.Service.Modules
             return Success("You will receive notifications for messages from this person again.", TimeSpan.FromSeconds(3));
         }
 
-        [VerbCommand("ignore", "channel"), Description("Ignore messages in this channel or thread for notifications. Use again to un-ignore."), RequireGuild]
-        public async Task<CommandResult> ToggleIgnoredChannelAsync()
+        [VerbCommand("ignore", "channel"), Description("Ignore messages in this channel or thread for notifications. Use again to un-ignore.")]
+        [RequireGuild]
+        public async Task<IDiscordCommandResult> ToggleIgnoredChannelAsync()
         {
             return await _service.ToggleIgnoredChannelAsync(GuildContext.GuildId, Context.Author.Id, Context.ChannelId, Bot.StoppingToken) switch
             {
@@ -114,7 +123,7 @@ namespace DustyBot.Service.Modules
         [VerbCommand("ignore", "active", "channel"), Description("Skip notifications from channels that you're currently active in.")]
         [Remark("All notifications will be delayed by a small amount. If a keyword is mentioned and you start typing a response before the notification arrives, you won't be notified.")]
         [Remark("Use this command again to disable.")]
-        public async Task<CommandResult> ToggleActivityDetectionAsync()
+        public async Task<IDiscordCommandResult> ToggleActivityDetectionAsync()
         {
             return await _service.ToggleActivityDetectionAsync(Context.Author.Id, Bot.StoppingToken) switch
             {
@@ -123,9 +132,10 @@ namespace DustyBot.Service.Modules
             };
         }
 
-        [Command("list"), Description("Lists all your notified words on this server."), RequireGuild]
+        [TextCommand("list"), Description("Lists all your notified words on this server.")]
+        [RequireGuild]
         [Remark("Sends a direct message.")]
-        public async Task<CommandResult> ListKeywordsAsync()
+        public async Task<IDiscordCommandResult> ListKeywordsAsync()
         {
             var keywords = await _service.GetKeywordsAsync(GuildContext.GuildId, Context.Author.Id, Bot.StoppingToken);
             var result = new StringBuilder();
@@ -136,7 +146,7 @@ namespace DustyBot.Service.Modules
                 return Result($"You don't have any notified words on this server. Use `{GetReference(nameof(AddKeywordAsync))}` to add some.");
 
             var embed = new LocalEmbed()
-                .WithAuthor($"Your notifications on {GuildContext.Guild.Name}", GuildContext.Guild.GetIconUrl())
+                .WithAuthor($"Your notifications on {Bot.GetGuild(GuildContext.GuildId)!.Name}", Bot.GetGuild(GuildContext.GuildId)!.GetIconUrl())
                 .WithDescription(result.ToString());
 
             try
@@ -154,7 +164,7 @@ namespace DustyBot.Service.Modules
         [VerbCommand("opt", "out"), Description("Messages you send will not trigger anyone's notifications.")]
         [Remark("Use this command again to opt back in.")]
         [Remark("This applies to all servers. Keep in mind that when you opt out, you won't receive any notifications either.")]
-        public async Task<CommandResult> ToggleOptOutAsync()
+        public async Task<IDiscordCommandResult> ToggleOptOutAsync()
         {
             return await _service.ToggleOptOutAsync(Context.Author.Id, Bot.StoppingToken) switch
             {

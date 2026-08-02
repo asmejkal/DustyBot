@@ -1,7 +1,7 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Disqord;
-using Disqord.Bot;
+using Disqord.Bot.Commands;
+using Disqord.Gateway;
 using DustyBot.Framework.Entities;
 using Qmmands;
 
@@ -9,24 +9,27 @@ namespace DustyBot.Framework.Commands.Attributes
 {
     public class RequireBotChannelParameterPermissionsAttribute : DiscordGuildParameterCheckAttribute
     {
-        public Permission Permissions { get; }
+        public Permissions Permissions { get; }
 
-        public RequireBotChannelParameterPermissionsAttribute(Permission permissions)
+        public RequireBotChannelParameterPermissionsAttribute(Permissions permissions)
         {
             Permissions = permissions;
         }
 
-        public override bool CheckType(Type type)
-            => typeof(IGuildChannel).IsAssignableFrom(type);
+        public override bool CanCheck(IParameter parameter, object? value)
+            => value is IGuildChannel;
 
-        public override ValueTask<CheckResult> CheckAsync(object argument, DiscordGuildCommandContext context)
+        public override ValueTask<IResult> CheckAsync(IDiscordGuildCommandContext context, IParameter parameter, object? argument)
         {
-            var channel = (IGuildChannel)argument;
-            var permissions = context.Guild.GetBotPermissions(channel);
+            var channel = (IGuildChannel)argument!;
+            var guild = context.Bot.GetGuild(context.GuildId);
+            if (guild is null)
+                return new(Qmmands.Results.Failure("Guild is not cached."));
 
-            return permissions.Has(Permissions) ?
-                Success() :
-                Failure($"The bot is missing permissions in {Mention.Channel(channel)} ({Permissions & (~permissions)}).");
+            var permissions = guild.GetBotPermissions(channel);
+            return new(permissions.HasFlag(Permissions)
+                ? Qmmands.Results.Success
+                : Qmmands.Results.Failure($"The bot is missing permissions in {Mention.Channel(channel)} ({Permissions & ~permissions})."));
         }
     }
 }

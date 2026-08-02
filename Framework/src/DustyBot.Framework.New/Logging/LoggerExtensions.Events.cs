@@ -33,8 +33,9 @@ namespace DustyBot.Framework.Logging
 
         public static LoggerScopeBuilder WithArgs(this ILogger logger, MessageDeletedEventArgs e) => e switch
         {
-            { GuildId: not null } => logger.WithGuild(e.GuildId.Value).WithMessage(e.Message),
-            _ => logger.WithMessage(e.Message)
+            { GuildId: not null, Message: not null } => logger.WithGuild(e.GuildId.Value).WithMessage(e.Message),
+            { Message: not null } => logger.WithMessage(e.Message),
+            _ => logger.GetScopeBuilder()
         };
 
         public static LoggerScopeBuilder WithArgs(this ILogger logger, MessagesDeletedEventArgs e) =>

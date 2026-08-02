@@ -214,7 +214,7 @@ namespace DustyBot.Service.Services.Notifications
                                 return;
 
                             var permissions = guild.GetPermissions(e.Channel, targetUser);
-                            if (!permissions.ViewChannels || !permissions.ReadMessageHistory)
+                            if (!permissions.HasFlag(Permissions.ViewChannels) || !permissions.HasFlag(Permissions.ReadMessageHistory))
                                 return;
 
                             await SendNotificationAsync(match.Value, message, targetUser, guild, e.Channel, Bot.StoppingToken);
