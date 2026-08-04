@@ -22,6 +22,7 @@ namespace DustyBot
         public static void AddBotServices(this IServiceCollection services, IConfiguration config)
         {
             // Configuration
+            services.Configure<BotIntegrationOptions>(config);
             services.Configure<BotOptions>(config);
             services.Configure<DatabaseOptions>(config);
             services.Configure<DiscordOptions>(config);

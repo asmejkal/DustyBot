@@ -126,7 +126,7 @@ namespace DustyBot.Framework
 
             var guild = guildContext.Bot.GetGuild(guildContext.GuildId);
             var channel = guildContext.Channel;
-            if (guild is not null && channel is not null && guild.GetBotPermissions(channel).HasFlag(Permissions.ManageMessages))
+            if (guild is not null && channel is not null && guild.GetBotPermissions(channel).HasFlag(Permissions.SendMessages))
                 return new(Results.Success);
             else
                 return new(Results.Failure("Can't send messages in the given channel"));

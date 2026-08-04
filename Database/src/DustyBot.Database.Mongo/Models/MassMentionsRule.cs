@@ -11,6 +11,13 @@ namespace DustyBot.Database.Mongo.Models
             return base.ToString() + $"; MentionsLimit={MentionsLimit}";
         }
 
+        public override RaidProtectionRule Clone()
+        {
+            var result = Clone<MassMentionsRule>();
+            result.MentionsLimit = MentionsLimit;
+            return result;
+        }
+
         protected override void Fill(Dictionary<string, string> pairs)
         {
             base.Fill(pairs);

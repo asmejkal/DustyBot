@@ -13,6 +13,14 @@ namespace DustyBot.Database.Mongo.Models
             return base.ToString() + $"; Window={Window.TotalSeconds}; Threshold={Threshold}";
         }
 
+        public override RaidProtectionRule Clone()
+        {
+            var result = Clone<SpamRule>();
+            result.Window = Window;
+            result.Threshold = Threshold;
+            return result;
+        }
+
         protected override void Fill(Dictionary<string, string> pairs)
         {
             base.Fill(pairs);

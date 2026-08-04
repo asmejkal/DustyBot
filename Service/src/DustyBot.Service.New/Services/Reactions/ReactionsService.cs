@@ -19,7 +19,9 @@ using DustyBot.Framework.Client;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Services;
+using DustyBot.Service.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DustyBot.Service.Services.Reactions
 {
@@ -27,13 +29,15 @@ namespace DustyBot.Service.Services.Reactions
     {
         private readonly ISettingsService _settings;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
 
         private readonly Random _rng = new();
 
-        public ReactionsService(ISettingsService settings, IHttpClientFactory httpClientFactory)
+        public ReactionsService(ISettingsService settings, IHttpClientFactory httpClientFactory, IOptions<BotIntegrationOptions> botIntegrationOptions)
         {
             _settings = settings;
             _httpClientFactory = httpClientFactory;
+            _botIntegrationOptions = botIntegrationOptions;
         }
 
         public Task<int> AddReactionAsync(Snowflake guildId, string trigger, string response, CancellationToken ct)
@@ -41,7 +45,7 @@ namespace DustyBot.Service.Services.Reactions
             return _settings.Modify(guildId, (ReactionsSettings s) =>
             {
                 var id = s.NextReactionId++;
-                s.Reactions.Add(new Reaction(s.NextReactionId++, trigger, response));
+                s.Reactions.Add(new Reaction(id, trigger, response));
                 return id;
             }, ct);
         }
@@ -235,7 +239,12 @@ namespace DustyBot.Service.Services.Reactions
                 if (e.GuildId == null)
                     return;
 
-                if (e.Message is not IGatewayUserMessage message || message.Author.IsBot)
+                if (e.Message is not IGatewayUserMessage message)
+                    return;
+
+                // Bot messages are ignored by default (to avoid bot-to-bot feedback loops), except for
+                // explicitly whitelisted bot accounts (e.g. the integration test suite's tester bots).
+                if (message.Author.IsBot && _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(message.Author.Id) != true)
                     return;
 
                 var settings = await _settings.Read<ReactionsSettings>(e.GuildId.Value, false, Bot.StoppingToken);

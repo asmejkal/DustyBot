@@ -20,9 +20,11 @@ using DustyBot.Framework.Exceptions;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Utility;
+using DustyBot.Service.Configuration;
 using DustyBot.Service.Definitions;
 using DustyBot.Service.Helpers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DustyBot.Service.Modules
 {
@@ -98,22 +100,25 @@ namespace DustyBot.Service.Modules
         private readonly ISettingsService _settings;
         private readonly ILogger _logger;
         private readonly WebsiteWalker _websiteWalker;
-        
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
+
         private readonly KeyedSemaphoreSlim<ulong> _roleAssignmentUserMutex = new KeyedSemaphoreSlim<ulong>(1);
         private readonly ConcurrentDictionary<ulong, RoleStats> _roleStatsCache = new ConcurrentDictionary<ulong, RoleStats>();
 
         public RolesModule(
-            BaseSocketClient client, 
-            ICommunicator communicator, 
-            ISettingsService settings, 
-            ILogger<RolesModule> logger, 
-            WebsiteWalker websiteWalker)
+            BaseSocketClient client,
+            ICommunicator communicator,
+            ISettingsService settings,
+            ILogger<RolesModule> logger,
+            WebsiteWalker websiteWalker,
+            IOptions<BotIntegrationOptions> botIntegrationOptions)
         {
             _client = client;
             _communicator = communicator;
             _settings = settings;
             _logger = logger;
             _websiteWalker = websiteWalker;
+            _botIntegrationOptions = botIntegrationOptions;
 
             _client.MessageReceived += HandleMessageReceived;
             _client.UserJoined += HandleUserJoined;
@@ -670,7 +675,7 @@ namespace DustyBot.Service.Modules
                     if (user == null)
                         return;
 
-                    if (user.IsBot)
+                    if (user.IsBot && _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(user.Id) != true)
                         return;
 
                     var settings = await _settings.Read<RolesSettings>(channel.Guild.Id, false);

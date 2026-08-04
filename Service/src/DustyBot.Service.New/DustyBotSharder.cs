@@ -12,6 +12,7 @@ using DustyBot.Framework;
 using DustyBot.Framework.Commands;
 using DustyBot.Framework.Communication;
 using DustyBot.Framework.Entities;
+using DustyBot.Service.Configuration;
 using DustyBot.Service.Modules;
 using DustyBot.Service.Services.Bot;
 using Microsoft.Extensions.Logging;
@@ -25,16 +26,29 @@ namespace DustyBot.Service
     public class DustyBotSharder : DustyBotSharderBase
     {
         private readonly HelpBuilder _helpBuilder;
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
 
         public DustyBotSharder(
             IOptions<DiscordBotConfiguration> options,
             ILogger<DiscordBot> logger,
             IServiceProvider services,
             DiscordClient client,
-            HelpBuilder helpBuilder)
+            HelpBuilder helpBuilder,
+            IOptions<BotIntegrationOptions> botIntegrationOptions)
             : base(options, logger, services, client)
         {
             _helpBuilder = helpBuilder;
+            _botIntegrationOptions = botIntegrationOptions;
+        }
+
+        protected override ValueTask<bool> OnMessage(IGatewayUserMessage message)
+        {
+            // Lets explicitly allowed bot accounts drive commands (e.g. the integration test suite's tester
+            // bots); AllowedInteractionBotIds is null unless configured, so this is a no-op everywhere else.
+            if (_botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(message.Author.Id) == true)
+                return new(true);
+
+            return base.OnMessage(message);
         }
 
         protected override async ValueTask AddTypeParsers(DefaultTypeParserProvider typeParserProvider, CancellationToken cancellationToken)

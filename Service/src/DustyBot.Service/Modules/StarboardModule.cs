@@ -21,9 +21,11 @@ using DustyBot.Framework.Logging;
 using DustyBot.Framework.Modules.Attributes;
 using DustyBot.Framework.Reflection;
 using DustyBot.Framework.Utility;
+using DustyBot.Service.Configuration;
 using DustyBot.Service.Definitions;
 using DustyBot.Service.Helpers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DustyBot.Service.Modules
 {
@@ -40,17 +42,19 @@ namespace DustyBot.Service.Modules
         private readonly IUrlShortener _urlShortener;
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly HelpBuilder _helpBuilder;
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
         private readonly KeyedSemaphoreSlim<(ulong GuildId, int BoardId)> _processingMutex = new KeyedSemaphoreSlim<(ulong GuildId, int BoardId)>(1);
 
         public StarboardModule(
-            BaseSocketClient client, 
-            ICommunicator communicator, 
-            ISettingsService settings, 
-            ILogger<StarboardModule> logger, 
-            IUserFetcher userFetcher, 
-            IUrlShortener urlShortener, 
+            BaseSocketClient client,
+            ICommunicator communicator,
+            ISettingsService settings,
+            ILogger<StarboardModule> logger,
+            IUserFetcher userFetcher,
+            IUrlShortener urlShortener,
             IFrameworkReflector frameworkReflector,
-            HelpBuilder helpBuilder)
+            HelpBuilder helpBuilder,
+            IOptions<BotIntegrationOptions> botIntegrationOptions)
         {
             _client = client;
             _communicator = communicator;
@@ -60,11 +64,15 @@ namespace DustyBot.Service.Modules
             _urlShortener = urlShortener;
             _frameworkReflector = frameworkReflector;
             _helpBuilder = helpBuilder;
+            _botIntegrationOptions = botIntegrationOptions;
 
             _client.ReactionAdded += HandleReactionAdded;
             _client.ReactionRemoved += HandleReactionRemoved;
             _client.MessageDeleted += HandleMessageDeleted;
         }
+
+        private bool IsBlockedBotAuthor(IUser author) =>
+            author.IsBot && _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(author.Id) != true;
 
         [Command("starboard", "help", "Shows help for this module.", CommandFlags.Hidden)]
         [Alias("starboard")]
@@ -463,7 +471,7 @@ namespace DustyBot.Service.Modules
 
             var logger = _logger.WithScope(message);
 
-            if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || message.Author.IsBot)
+            if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || IsBlockedBotAuthor(message.Author))
                 return;
 
             if (string.IsNullOrEmpty(message.Content) && message.Attachments.Count <= 0)
@@ -603,7 +611,7 @@ namespace DustyBot.Service.Modules
 
             var logger = _logger.WithScope(message);
 
-            if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || message.Author.IsBot)
+            if ((!board.AllowSelfStars && message.Author.Id == reaction.UserId) || IsBlockedBotAuthor(message.Author))
                 return;
 
             if (string.IsNullOrEmpty(message.Content) && message.Attachments.Count <= 0)

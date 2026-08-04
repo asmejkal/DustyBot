@@ -18,6 +18,7 @@ using DustyBot.Service.Services.Notifications;
 using DustyBot.Service.Services.Reactions;
 using DustyBot.Service.Services.YouTube;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Qmmands;
 
 namespace DustyBot.Service
@@ -62,6 +63,7 @@ namespace DustyBot.Service
             services.AddOptions<YouTubeOptions>().BindConfiguration(ConfigurationSections.YouTube);
             services.AddOptions<LoggingOptions>().BindConfiguration(ConfigurationSections.Logging);
             services.AddOptions<WebOptions>().BindConfiguration(ConfigurationSections.Web);
+            services.AddOptions<BotIntegrationOptions>().BindConfiguration(ConfigurationSections.BotIntegration);
 
             return services;
         }

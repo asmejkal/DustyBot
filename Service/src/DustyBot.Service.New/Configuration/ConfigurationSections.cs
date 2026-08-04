@@ -13,5 +13,6 @@
         public const string YouTube = "YouTube";
         public const string Logging = "Logging";
         public const string Web = "Web";
+        public const string BotIntegration = "BotIntegration";
     }
 }

@@ -200,6 +200,7 @@ namespace DustyBot.Service.Modules
             }
 
             [VerbCommand("embed", "set", "footer"), Description("Customize a footer for your goodbye embed message.")]
+            [RequireAuthorAdministrator]
             [Remark($"You can use {GreetByeMessagePlaceholders.PlaceholderList} placeholders.")]
             [Remark("Use without parameters to hide the footer.")]
             [Example("Member #{membercount}")]

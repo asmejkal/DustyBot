@@ -11,7 +11,9 @@ using DustyBot.Framework.Client;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Services;
+using DustyBot.Service.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DustyBot.Service.Services.Log
 {
@@ -19,12 +21,14 @@ namespace DustyBot.Service.Services.Log
     {
         private readonly ISettingsService _settings;
         private readonly ILogSender _sender;
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
 
-        public LogService(ISettingsService settings, ILogSender sender)
+        public LogService(ISettingsService settings, ILogSender sender, IOptions<BotIntegrationOptions> botIntegrationOptions)
             : base()
         {
             _settings = settings;
             _sender = sender;
+            _botIntegrationOptions = botIntegrationOptions;
         }
 
         public Task EnableMessageLoggingAsync(Snowflake guildId, IMessageGuildChannel channel, CancellationToken ct)
@@ -81,7 +85,12 @@ namespace DustyBot.Service.Services.Log
         {
             try
             {
-                if (e.GuildId == null || e.Message == null || e.Message.Author.IsBot)
+                if (e.GuildId == null || e.Message == null)
+                    return;
+
+                // Bot messages are ignored by default (to avoid bot-to-bot feedback loops), except for
+                // explicitly whitelisted bot accounts (e.g. the integration test suite's tester bots).
+                if (e.Message.Author.IsBot && _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(e.Message.Author.Id) != true)
                     return;
 
                 var settings = await _settings.Read<LogSettings>(e.GuildId.Value, false, Bot.StoppingToken);
@@ -133,7 +142,7 @@ namespace DustyBot.Service.Services.Log
             {
                 var messages = e.Messages
                     .Select(x => x.Value)
-                    .Where(x => x != null && !x.Author.IsBot)
+                    .Where(x => x != null && (!x.Author.IsBot || _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(x.Author.Id) == true))
                     .ToList();
 
                 if (!messages.Any())

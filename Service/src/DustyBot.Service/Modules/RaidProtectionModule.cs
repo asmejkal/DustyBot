@@ -116,6 +116,7 @@ namespace DustyBot.Service.Modules
         private readonly IFrameworkReflector _frameworkReflector;
         private readonly HelpBuilder _helpBuilder;
         private readonly IOptions<WebOptions> _webOptions;
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
 
         private readonly GlobalContext _context = new GlobalContext();
 
@@ -130,7 +131,8 @@ namespace DustyBot.Service.Modules
             DiscordRestClient restClient, 
             IFrameworkReflector frameworkReflector,
             HelpBuilder helpBuilder,
-            IOptions<WebOptions> webOptions)
+            IOptions<WebOptions> webOptions,
+            IOptions<BotIntegrationOptions> botIntegrationOptions)
         {
             _client = client;
             _communicator = communicator;
@@ -140,6 +142,7 @@ namespace DustyBot.Service.Modules
             _frameworkReflector = frameworkReflector;
             _helpBuilder = helpBuilder;
             _webOptions = webOptions;
+            _botIntegrationOptions = botIntegrationOptions;
 
             _client.MessageReceived += HandleMessageReceived;
         }
@@ -217,7 +220,6 @@ namespace DustyBot.Service.Modules
         }
 
         [Command("raid", "protection", "set", "max", "offenses", "Sets how many violations of a rule may happen before the user gets muted.")]
-        [Alias("raid-protection", "rules")]
         [Permissions(GuildPermission.BanMembers)]
         [Parameter("RuleName", ParameterType.String, "name of one of the rules from the `raid protection rules` command")]
         [Parameter("MaxOffenseCount", ParameterType.Int, "maximum number of offenses for this rule before the user gets muted")]
@@ -232,7 +234,10 @@ namespace DustyBot.Service.Modules
 
             await _settings.Modify(command.GuildId, (RaidProtectionSettings x) =>
             {
-                var rule = x.GetRule<RaidProtectionRule>(type);
+                // GetRule<T> returns the shared static RaidProtectionSettings.DefaultRules instance when this
+                // guild has no override yet - clone it first so this doesn't change the default for every other
+                // guild still on defaults too.
+                var rule = x.GetRule<RaidProtectionRule>(type).Clone();
                 rule.MaxOffenseCount = maxOffenseCount;
 
                 x.SetException(type, rule);
@@ -407,7 +412,7 @@ namespace DustyBot.Service.Modules
                     if (user == null)
                         return;
 
-                    if (user.IsBot)
+                    if (user.IsBot && _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(user.Id) != true)
                         return;
 
                     var settings = await _settings.Read<RaidProtectionSettings>(channel.GuildId, false);

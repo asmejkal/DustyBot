@@ -94,23 +94,24 @@ namespace DustyBot.Framework.Modules
         protected virtual DiscordSuccessCommandResult Success()
             => new(Context);
 
-        protected virtual DiscordSuccessResponseCommandResult Success(string content, TimeSpan deleteAfter = default)
-            => Success(new LocalMessage().WithContent(content));
+        protected virtual IDiscordCommandResult Success(string content, TimeSpan deleteAfter = default)
+            => Success(new LocalMessage().WithContent(content), deleteAfter);
 
-        protected virtual DiscordSuccessResponseCommandResult Success(params LocalEmbed[] embeds)
+        protected virtual IDiscordCommandResult Success(params LocalEmbed[] embeds)
             => Success(new LocalMessage().WithEmbeds(embeds));
 
-        protected virtual DiscordSuccessResponseCommandResult Success(string content, params LocalEmbed[] embeds)
+        protected virtual IDiscordCommandResult Success(string content, params LocalEmbed[] embeds)
             => Success(new LocalMessage().WithContent(content).WithEmbeds(embeds));
 
-        protected virtual DiscordSuccessResponseCommandResult Success(LocalMessage message, TimeSpan deleteAfter = default)
+        protected virtual IDiscordCommandResult Success(LocalMessage message, TimeSpan deleteAfter = default)
         {
             if (!message.AllowedMentions.HasValue)
                 message.AllowedMentions = LocalAllowedMentions.None;
             if (ShouldReply)
                 message = message.WithReply(Context.Message.Id, Context.ChannelId, Context.GuildId);
 
-            return new(Context, message);
+            var result = new DiscordSuccessResponseCommandResult(Context, message);
+            return deleteAfter != default ? result.DeleteAfter(deleteAfter) : result;
         }
 
         protected virtual DiscordFailureResponseCommandResult Failure(string content)

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copy this file to "IntegrationTests.runsettings" (gitignored - it will hold live bot tokens) and fill in the
+  values below. Then in Visual Studio: Test > Configure Run Settings > Select Solution Wide runsettings File,
+  and pick your copy. Test Explorer will pass these as environment variables to the test host process.
+  See README.md for what each value refers to and how to obtain it.
+-->
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <IntegrationTests__AdminTesterBotToken></IntegrationTests__AdminTesterBotToken>
+      <IntegrationTests__LowPrivTesterBotToken></IntegrationTests__LowPrivTesterBotToken>
+      <IntegrationTests__TargetBotId></IntegrationTests__TargetBotId>
+      <IntegrationTests__GuildId></IntegrationTests__GuildId>
+      <IntegrationTests__CommandPrefix></IntegrationTests__CommandPrefix>
+      <!-- Optional; defaults to 600 (10 minutes) if omitted. -->
+      <IntegrationTests__RejoinTimeoutSeconds></IntegrationTests__RejoinTimeoutSeconds>
+      <!-- Optional; defaults to 600 (10 minutes) if omitted. -->
+      <IntegrationTests__SpotifyConnectTimeoutSeconds></IntegrationTests__SpotifyConnectTimeoutSeconds>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

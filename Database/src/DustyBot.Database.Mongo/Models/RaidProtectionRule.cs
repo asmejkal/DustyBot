@@ -19,6 +19,21 @@ namespace DustyBot.Database.Mongo.Models
             return $"Enabled={Enabled}; MaxOffenseCount={MaxOffenseCount}; OffenseWindow={OffenseWindow.TotalSeconds}; Delete={Delete}";
         }
 
+        public virtual RaidProtectionRule Clone() => Clone<RaidProtectionRule>();
+
+        protected T Clone<T>()
+            where T : RaidProtectionRule, new()
+        {
+            return new T()
+            {
+                Delete = Delete,
+                Enabled = Enabled,
+                MaxOffenseCount = MaxOffenseCount,
+                OffenseWindow = OffenseWindow,
+                Type = Type
+            };
+        }
+
         public void Fill(string s) => Fill(ParseValuePairs(s));
 
         public static RaidProtectionRule Create(RaidProtectionRuleType type, string s)

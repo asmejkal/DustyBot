@@ -18,7 +18,9 @@ using DustyBot.Framework.Commands;
 using DustyBot.Framework.Entities;
 using DustyBot.Framework.Logging;
 using DustyBot.Framework.Services;
+using DustyBot.Service.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NReco.Text;
 
 namespace DustyBot.Service.Services.Notifications
@@ -41,20 +43,23 @@ namespace DustyBot.Service.Services.Notifications
         private readonly INotificationSettingsService _userSettings;
         private readonly INotificationsSender _sender;
         private readonly IChannelActivityWatcher _channelActivityWatcher;
+        private readonly IOptions<BotIntegrationOptions> _botIntegrationOptions;
 
         private readonly Dictionary<ulong, AhoCorasickDoubleArrayTrie<Notification>?> _keywordTries = new();
 
         public NotificationsService(
-            ISettingsService settings, 
-            INotificationSettingsService userSettings, 
+            ISettingsService settings,
+            INotificationSettingsService userSettings,
             INotificationsSender sender,
-            IChannelActivityWatcher channelActivityWatcher)
+            IChannelActivityWatcher channelActivityWatcher,
+            IOptions<BotIntegrationOptions> botIntegrationOptions)
             : base()
         {
             _settings = settings;
             _userSettings = userSettings;
             _sender = sender;
             _channelActivityWatcher = channelActivityWatcher;
+            _botIntegrationOptions = botIntegrationOptions;
         }
 
         public Task<AddKeywordsResult> AddKeywordsAsync(Snowflake guildId, Snowflake userId, IEnumerable<string> keywords, CancellationToken ct)
@@ -77,7 +82,7 @@ namespace DustyBot.Service.Services.Notifications
                     newNotifications.Add(new Notification(keyword, userId));
                 }
 
-                if (userNotifications.Count + newNotifications.Count >= MaxNotificationsPerUser)
+                if (userNotifications.Count + newNotifications.Count > MaxNotificationsPerUser)
                     return AddKeywordsResult.TooManyKeywords;
 
                 s.Notifications.AddRange(newNotifications);
@@ -170,7 +175,12 @@ namespace DustyBot.Service.Services.Notifications
                 if (e.GuildId == null)
                     return;
 
-                if (e.Message is not IGatewayUserMessage message || message.Author.IsBot)
+                if (e.Message is not IGatewayUserMessage message)
+                    return;
+
+                // Bot messages are ignored by default (to avoid bot-to-bot feedback loops), except for
+                // explicitly whitelisted bot accounts (e.g. the integration test suite's tester bots).
+                if (message.Author.IsBot && _botIntegrationOptions.Value.AllowedInteractionBotIds?.Contains(message.Author.Id) != true)
                     return;
 
                 var trie = await GetOrCreateTrieAsync(e.GuildId.Value);
